@@ -13,6 +13,11 @@ interface TapeRow {
   cashTicker: string;
   name: string;
   cashLastUsd: number | null;
+  /** Epoch ms of the cash price Yahoo returned. During closed sessions this
+   *  is frozen at the exact regular-session close instant (verified:
+   *  regularMarketTime == currentTradingPeriod.regular.end when the market
+   *  isn't live), which is what makes the "closed since" gap math exact. */
+  cashAsOfMs: number | null;
   cashStale: boolean;
   onchainMidUsd: number | null;
   basisBp: number | null;
@@ -27,7 +32,12 @@ interface CacheEntry {
 // and doubles as the "last known good" source when upstreams fail.
 let cache: CacheEntry | null = null;
 
-async function fetchCashPrice(ticker: string): Promise<number | null> {
+interface CashPrice {
+  price: number;
+  asOfMs: number;
+}
+
+async function fetchCashPrice(ticker: string): Promise<CashPrice | null> {
   for (const host of YAHOO_HOSTS) {
     try {
       const res = await fetch(`${host}/v8/finance/chart/${ticker}?interval=1d&range=1d`, {
@@ -36,8 +46,12 @@ async function fetchCashPrice(ticker: string): Promise<number | null> {
       });
       if (!res.ok) continue;
       const json = await res.json();
-      const price = json?.chart?.result?.[0]?.meta?.regularMarketPrice;
-      if (typeof price === 'number') return price;
+      const meta = json?.chart?.result?.[0]?.meta;
+      const price = meta?.regularMarketPrice;
+      const asOf = meta?.regularMarketTime;
+      if (typeof price === 'number' && typeof asOf === 'number') {
+        return { price, asOfMs: asOf * 1000 };
+      }
     } catch {
       // try next host
     }
@@ -48,20 +62,21 @@ async function fetchCashPrice(ticker: string): Promise<number | null> {
 async function buildTape(): Promise<TapeRow[]> {
   const rows = await Promise.all(
     STOCKS.map(async (stock): Promise<TapeRow> => {
-      const [cashLast, poolState] = await Promise.all([
+      const [cash, poolState] = await Promise.all([
         fetchCashPrice(stock.cashTicker),
         readPoolState(stock).catch(() => null),
       ]);
 
       const onchainMid = poolState ? midPriceUsd(poolState, stock) : null;
       const basisBp =
-        cashLast !== null && onchainMid !== null ? ((onchainMid - cashLast) / cashLast) * 10_000 : null;
+        cash !== null && onchainMid !== null ? ((onchainMid - cash.price) / cash.price) * 10_000 : null;
 
       return {
         symbol: stock.symbol,
         cashTicker: stock.cashTicker,
         name: stock.name,
-        cashLastUsd: cashLast,
+        cashLastUsd: cash?.price ?? null,
+        cashAsOfMs: cash?.asOfMs ?? null,
         cashStale: false,
         onchainMidUsd: onchainMid,
         basisBp,
@@ -90,7 +105,7 @@ export async function GET() {
       if (row.cashLastUsd !== null) return row;
       const prior = cache?.data.find((r) => r.symbol === row.symbol);
       if (prior?.cashLastUsd != null) {
-        return { ...row, cashLastUsd: prior.cashLastUsd, cashStale: true };
+        return { ...row, cashLastUsd: prior.cashLastUsd, cashAsOfMs: prior.cashAsOfMs, cashStale: true };
       }
       return row;
     });

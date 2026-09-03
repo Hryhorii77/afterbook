@@ -65,9 +65,10 @@ function nyNow(now: Date): NyClock {
 export interface SessionInfo {
   state: SessionState;
   label: string;
-  /** minutes until the next state transition, if known */
   nyTime: string; // "HH:MM" in NY wall clock, for display
   dateKey: string;
+  /** ISO instant of the next 9:30am NY open, for the "reopens" display. */
+  nextOpenIso: string;
 }
 
 const PRE_MARKET_START = 4 * 60; // 4:00am
@@ -86,18 +87,19 @@ export function getSessionInfo(now: Date = new Date()): SessionInfo {
   const isHoliday = HOLIDAYS_2026.has(clock.dateKey);
   const isEarlyClose = EARLY_CLOSE_2026.has(clock.dateKey);
   const openEnd = isEarlyClose ? EARLY_CLOSE_END : OPEN_END;
+  const nextOpenIso = getNextOpen(now).toISOString();
 
   if (isWeekend) {
-    return { state: 'closed-weekend', label: 'Weekend — cash market closed', nyTime, dateKey: clock.dateKey };
+    return { state: 'closed-weekend', label: 'Weekend — cash market closed', nyTime, dateKey: clock.dateKey, nextOpenIso };
   }
   if (isHoliday) {
-    return { state: 'closed-holiday', label: 'Market holiday — cash market closed', nyTime, dateKey: clock.dateKey };
+    return { state: 'closed-holiday', label: 'Market holiday — cash market closed', nyTime, dateKey: clock.dateKey, nextOpenIso };
   }
   if (clock.minutesSinceMidnight < PRE_MARKET_START) {
-    return { state: 'closed-overnight', label: 'Overnight — cash market closed', nyTime, dateKey: clock.dateKey };
+    return { state: 'closed-overnight', label: 'Overnight — cash market closed', nyTime, dateKey: clock.dateKey, nextOpenIso };
   }
   if (clock.minutesSinceMidnight < OPEN_START) {
-    return { state: 'pre-market', label: 'Pre-market', nyTime, dateKey: clock.dateKey };
+    return { state: 'pre-market', label: 'Pre-market', nyTime, dateKey: clock.dateKey, nextOpenIso };
   }
   if (clock.minutesSinceMidnight < openEnd) {
     return {
@@ -105,14 +107,59 @@ export function getSessionInfo(now: Date = new Date()): SessionInfo {
       label: isEarlyClose ? 'Open (early close 1:00pm ET)' : 'Cash market open',
       nyTime,
       dateKey: clock.dateKey,
+      nextOpenIso,
     };
   }
   if (clock.minutesSinceMidnight < AFTER_HOURS_END) {
-    return { state: 'after-hours', label: 'After-hours', nyTime, dateKey: clock.dateKey };
+    return { state: 'after-hours', label: 'After-hours', nyTime, dateKey: clock.dateKey, nextOpenIso };
   }
-  return { state: 'closed-overnight', label: 'Overnight — cash market closed', nyTime, dateKey: clock.dateKey };
+  return { state: 'closed-overnight', label: 'Overnight — cash market closed', nyTime, dateKey: clock.dateKey, nextOpenIso };
 }
 
 export function isCashMarketLive(state: SessionState): boolean {
   return state === 'open' || state === 'pre-market' || state === 'after-hours';
+}
+
+function isTradingDay(dateKey: string, weekday: number): boolean {
+  return weekday !== 0 && weekday !== 6 && !HOLIDAYS_2026.has(dateKey);
+}
+
+// Finds the UTC instant for 9:30am America/New_York on a given NY calendar
+// day, without a manual DST table: NY is always either UTC-4 (EDT) or UTC-5
+// (EST), so try both candidate UTC instants and keep whichever one actually
+// formats back to 09:30 in America/New_York for that date.
+function nyOpenInstant(dateKey: string): Date {
+  for (const utcHour of [13, 14]) {
+    const candidate = new Date(`${dateKey}T${String(utcHour).padStart(2, '0')}:30:00.000Z`);
+    const formatted = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(candidate);
+    if (formatted === '09:30') return candidate;
+  }
+  // Should be unreachable — fall back to the EDT guess.
+  return new Date(`${dateKey}T13:30:00.000Z`);
+}
+
+function addDaysToDateKey(dateKey: string, days: number): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + days));
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+}
+
+/** Next America/New_York 9:30am instant that's a trading day, scanning forward from `now`. */
+export function getNextOpen(now: Date = new Date()): Date {
+  const clock = nyNow(now);
+  const todayIsTradingDay = isTradingDay(clock.dateKey, clock.weekday);
+  const beforeOpenToday = clock.minutesSinceMidnight < OPEN_START;
+
+  let candidateKey = todayIsTradingDay && beforeOpenToday ? clock.dateKey : addDaysToDateKey(clock.dateKey, 1);
+  for (let i = 0; i < 10; i++) {
+    const weekday = new Date(`${candidateKey}T12:00:00.000Z`).getUTCDay();
+    if (isTradingDay(candidateKey, weekday)) return nyOpenInstant(candidateKey);
+    candidateKey = addDaysToDateKey(candidateKey, 1);
+  }
+  return nyOpenInstant(candidateKey); // fallback, should not be reached
 }

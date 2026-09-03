@@ -8,6 +8,7 @@ interface TapeRow {
   cashTicker: string;
   name: string;
   cashLastUsd: number | null;
+  cashAsOfMs: number | null;
   cashStale: boolean;
   onchainMidUsd: number | null;
   basisBp: number | null;
@@ -17,6 +18,7 @@ interface SessionInfo {
   state: string;
   label: string;
   nyTime: string;
+  nextOpenIso: string;
 }
 
 interface TapeResponse {
@@ -44,6 +46,32 @@ const bp = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.t
 
 const shares = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
+const pctChange = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`);
+
+function formatDuration(ms: number): string {
+  if (ms <= 0) return '0m';
+  const totalMinutes = Math.floor(ms / 60_000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (days > 0 || hours > 0) parts.push(`${hours}h`);
+  parts.push(`${minutes}m`);
+  return parts.join(' ');
+}
+
+function formatNextOpen(iso: string): string {
+  return (
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      weekday: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(iso)) + ' ET'
+  );
+}
+
 export default function Home() {
   const [tape, setTape] = useState<TapeResponse | null>(null);
   const [geo, setGeo] = useState<{ country: string | null; nonUs: boolean } | null>(null);
@@ -52,6 +80,12 @@ export default function Home() {
   const [usdcInput, setUsdcInput] = useState('2500');
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,6 +141,12 @@ export default function Home() {
   const unlocked = geo?.nonUs === true && eligibleChecked;
   const activeStock = STOCKS.find((s) => s.symbol === symbol)!;
 
+  const cashClosedAsOfMs =
+    tape && tape.session.state !== 'open'
+      ? Math.max(0, ...tape.rows.map((r) => r.cashAsOfMs ?? 0))
+      : 0;
+  const showGapHero = tape != null && tape.session.state !== 'open' && cashClosedAsOfMs > 0;
+
   return (
     <main>
       <header className="top">
@@ -121,6 +161,32 @@ export default function Home() {
           </span>
         )}
       </header>
+
+      {showGapHero && (
+        <section className="panel gap-hero">
+          <div className="gap-hero-title">Cash market closed {formatDuration(now - cashClosedAsOfMs)} ago</div>
+          <div className="gap-hero-sub">
+            Aerodrome has kept trading the whole time · Reopens {formatNextOpen(tape!.session.nextOpenIso)}
+          </div>
+          <div className="gap-grid">
+            {tape!.rows.map((row) => {
+              const pct =
+                row.cashLastUsd != null && row.onchainMidUsd != null
+                  ? ((row.onchainMidUsd - row.cashLastUsd) / row.cashLastUsd) * 100
+                  : null;
+              return (
+                <div className="gap-cell" key={row.symbol}>
+                  <div className="gap-symbol">{row.symbol}</div>
+                  <div className={pct != null ? (pct >= 0 ? 'basis-pos' : 'basis-neg') : ''}>{pctChange(pct)}</div>
+                  <div className="gap-detail">
+                    {usd(row.cashLastUsd)} → {usd(row.onchainMidUsd)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <section className="panel">
         <h2>Tape</h2>
