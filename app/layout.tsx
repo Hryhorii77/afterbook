@@ -3,10 +3,12 @@ import { headers } from 'next/headers';
 import './globals.css';
 
 // Without an explicit metadataBase, Next resolves the og:image/twitter:image
-// meta tags against "http://localhost:3000" even in production — VERCEL_URL
-// is set on every Vercel deployment (preview and production alike) and
-// points at a real, resolvable HTTPS URL for that deployment.
-const siteUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
+// meta tags against "http://localhost:3000" even in production.
+// VERCEL_PROJECT_PRODUCTION_URL is the stable production alias (what people
+// actually share); VERCEL_URL is only this specific immutable deployment's
+// URL and is the fallback for preview deploys, which have no stable alias.
+const siteHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+const siteUrl = siteHost ? `https://${siteHost}` : 'http://localhost:3000';
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
