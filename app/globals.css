@@ -236,6 +236,52 @@ select, input[type="number"] {
   margin-top: 12px;
 }
 
+.impact-curve {
+  width: 100%;
+  height: auto;
+  margin-top: 16px;
+}
+
+.curve-axis {
+  stroke: var(--panel-border);
+  stroke-width: 1;
+}
+
+.curve-caveat-zone {
+  fill: var(--amber);
+  opacity: 0.06;
+}
+
+.curve-line {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.curve-dot {
+  fill: var(--accent);
+}
+
+.curve-dot-caveat {
+  fill: var(--amber);
+}
+
+.curve-current-line {
+  stroke: var(--text-dim);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.curve-current-dot {
+  fill: var(--bg);
+  stroke: var(--text);
+  stroke-width: 2;
+}
+
+.curve-tick {
+  fill: var(--text-dim);
+  font-size: 10px;
+}
+
 .eligibility {
   display: flex;
   align-items: flex-start;

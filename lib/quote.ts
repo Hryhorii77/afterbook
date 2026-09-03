@@ -165,3 +165,26 @@ export function estimateLot(state: PoolState, stock: CbStock, usdcIn: number): L
     largeTradeCaveat: usdcInRawAfterFee > virtualReserve0Raw * 0.15,
   };
 }
+
+// Fixed log-spaced sizes for the impact curve — same points for every stock
+// so pools can be compared at a glance.
+export const CURVE_SIZES_USDC = [500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000];
+
+export interface CurvePoint {
+  usdcIn: number;
+  impactBp: number;
+  sharesOut: number;
+  largeTradeCaveat: boolean;
+}
+
+/**
+ * Impact at a spread of trade sizes, reusing a single already-fetched
+ * PoolState — this is pure CPU work, no extra RPC calls, since estimateLot's
+ * virtual-reserve math is cheap to re-run per size.
+ */
+export function buildImpactCurve(state: PoolState, stock: CbStock, sizes: number[] = CURVE_SIZES_USDC): CurvePoint[] {
+  return sizes.map((usdcIn) => {
+    const { impactBp, sharesOut, largeTradeCaveat } = estimateLot(state, stock, usdcIn);
+    return { usdcIn, impactBp, sharesOut, largeTradeCaveat };
+  });
+}

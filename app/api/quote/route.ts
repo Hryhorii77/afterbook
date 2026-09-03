@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStock } from '@/lib/tokens';
-import { estimateLot, readPoolState } from '@/lib/quote';
+import { buildImpactCurve, estimateLot, readPoolState } from '@/lib/quote';
 
 interface StateCacheEntry {
   state: Awaited<ReturnType<typeof readPoolState>>;
@@ -37,7 +37,8 @@ export async function GET(request: Request) {
     }
 
     const estimate = estimateLot(state, stock, usdcIn);
-    return NextResponse.json({ symbol: stock.symbol, ...estimate });
+    const curve = buildImpactCurve(state, stock);
+    return NextResponse.json({ symbol: stock.symbol, ...estimate, curve });
   } catch (err) {
     return NextResponse.json({ error: 'quote unavailable', detail: String(err) }, { status: 502 });
   }

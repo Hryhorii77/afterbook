@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { STOCKS, aerodromeSwapUrl } from '@/lib/tokens';
+import { ImpactCurve } from './components/ImpactCurve';
 
 interface TapeRow {
   symbol: string;
@@ -28,6 +29,13 @@ interface TapeResponse {
   error?: string;
 }
 
+interface CurvePoint {
+  usdcIn: number;
+  impactBp: number;
+  sharesOut: number;
+  largeTradeCaveat: boolean;
+}
+
 interface QuoteResponse {
   symbol: string;
   usdcIn: number;
@@ -37,6 +45,7 @@ interface QuoteResponse {
   impactBp: number;
   feeBp: number;
   largeTradeCaveat: boolean;
+  curve: CurvePoint[];
 }
 
 const usd = (n: number | null, digits = 2) =>
@@ -269,9 +278,13 @@ export default function Home() {
                 <div className="value">{quote.feeBp.toFixed(0)} bp</div>
               </div>
             </div>
+
+            <ImpactCurve points={quote.curve} currentUsdcIn={quote.usdcIn} currentImpactBp={quote.impactBp} />
+
             <p className="geo-note">
               Estimated from the pool&apos;s current on-chain price and in-range liquidity — not a firm quote.
               {quote.largeTradeCaveat && ' This size is large relative to in-range liquidity and may cross into a wider price range; the real fill on Aerodrome could differ from this estimate.'}
+              {' '}Shaded region: sizes where the estimate is less reliable for the same reason.
             </p>
           </>
         )}
