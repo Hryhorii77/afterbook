@@ -100,6 +100,16 @@ section.gap-hero {
   padding: 12px;
 }
 
+.gap-cell-clickable {
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+.gap-cell-clickable:hover {
+  border-color: var(--accent);
+}
+
 .gap-symbol {
   font-size: 12px;
   color: var(--text-dim);
@@ -169,6 +179,13 @@ th {
 
 .basis-pos { color: var(--green); }
 .basis-neg { color: var(--red); }
+
+.tape-row-clickable {
+  cursor: pointer;
+}
+.tape-row-clickable:hover {
+  background: #171b21;
+}
 
 .stale-tag {
   font-size: 10px;
