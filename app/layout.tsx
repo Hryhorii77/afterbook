@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
 import './globals.css';
 
@@ -14,6 +14,18 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: 'Afterbook',
   description: 'Cash close vs the Aero book, in shares. Execution stays on Aerodrome.',
+};
+
+// This is a dark-only design by intent — not "supports dark mode," just dark.
+// Without this, a device set to light mode renders native form controls
+// (checkbox, select, number input spinner) and the mobile browser chrome
+// (status bar / address bar) in light colors on top of our near-black page.
+// colorScheme forces the browser's native UI to the dark variant regardless
+// of the OS preference; themeColor matches the mobile browser chrome to the
+// page background instead of leaving it white.
+export const viewport: Viewport = {
+  colorScheme: 'dark',
+  themeColor: '#0b0d10',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

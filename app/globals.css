@@ -1,4 +1,9 @@
 :root {
+  /* Dark-only by design — this forces native form controls (checkbox,
+     select, number-input spinner) and scrollbars to their dark-mode
+     rendering regardless of the OS/browser light-mode preference, instead
+     of a light checkbox appearing on a near-black page. */
+  color-scheme: dark;
   --bg: #0b0d10;
   --panel: #12151a;
   --panel-border: #1c1c1c;
