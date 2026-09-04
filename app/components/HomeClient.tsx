@@ -348,7 +348,10 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
           happen on Aerodrome&apos;s own app.
         </p>
         <ul>
-          <li>Allowlisted contracts only — four token addresses and four pool addresses, verified on-chain</li>
+          <li>
+            Allowlisted contracts only — {STOCKS.length} token addresses and {STOCKS.length} pool addresses, verified
+            on-chain
+          </li>
           <li>Server-side fetches; the browser only talks to this site&apos;s own /api routes</li>
           <li>No wallet connect, no seed phrase, no approvals, no custom router</li>
           <li>Official Aerodrome URLs only for every execution link</li>

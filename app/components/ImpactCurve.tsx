@@ -13,12 +13,23 @@ interface ImpactCurveProps {
 
 const WIDTH = 600;
 const HEIGHT = 180;
-const PAD_LEFT = 42;
+// Wider than the original four stocks ever needed — the newer, much
+// thinner-liquidity pools can push impact into 5-6 digit bp territory,
+// which was overflowing the old 42px gutter and getting clipped by the
+// SVG's own edge.
+const PAD_LEFT = 56;
 const PAD_RIGHT = 12;
 const PAD_TOP = 12;
 const PAD_BOTTOM = 24;
 
 const usdShort = (n: number) => (n >= 1_000_000 ? `$${n / 1_000_000}M` : n >= 1_000 ? `$${n / 1_000}k` : `$${n}`);
+
+// Thin-liquidity pools can push impact past 100,000bp — a raw digit count
+// like "1965985bp" is both unreadable and wide enough to overflow the axis
+// gutter no matter how much padding you give it, so compact it the same way
+// usdShort compacts dollar amounts.
+const bpShort = (n: number) =>
+  n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}Mbp` : n >= 1_000 ? `${(n / 1_000).toFixed(1)}kbp` : `${n.toFixed(0)}bp`;
 
 export function ImpactCurve({ points, currentUsdcIn, currentImpactBp }: ImpactCurveProps) {
   if (points.length < 2) return null;
@@ -70,7 +81,7 @@ export function ImpactCurve({ points, currentUsdcIn, currentImpactBp }: ImpactCu
         </text>
       ))}
       <text x={PAD_LEFT - 6} y={PAD_TOP + 4} className="curve-tick" textAnchor="end">
-        {maxY.toFixed(0)}bp
+        {bpShort(maxY)}
       </text>
       <text x={PAD_LEFT - 6} y={yPos(0)} className="curve-tick" textAnchor="end">
         0bp

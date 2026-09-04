@@ -18,7 +18,10 @@ export async function buildOgImage() {
   let sessionLabel = '';
   try {
     const tape = await getTape();
-    rows = tape.rows;
+    // Cards render in a single row — fine for 4 stocks, illegible for 10.
+    // Show the biggest movers, not every symbol; that's also just a better
+    // social card than an exhaustive list.
+    rows = [...tape.rows].sort((a, b) => Math.abs(b.basisBp ?? 0) - Math.abs(a.basisBp ?? 0)).slice(0, 6);
     sessionLabel = tape.session.label;
   } catch {
     // fall through to a branding-only card below
@@ -51,7 +54,7 @@ export async function buildOgImage() {
         </div>
 
         {rows.length > 0 && (
-          <div style={{ display: 'flex', gap: 20, marginTop: 56 }}>
+          <div style={{ display: 'flex', gap: 14, marginTop: 56 }}>
             {rows.map((row) => (
               <div
                 key={row.symbol}
@@ -62,22 +65,22 @@ export async function buildOgImage() {
                   backgroundColor: '#12151a',
                   border: '1px solid #232830',
                   borderRadius: 16,
-                  padding: '24px 20px',
+                  padding: '20px 16px',
                 }}
               >
-                <span style={{ fontSize: 26, fontWeight: 700, color: '#e6e9ef' }}>{row.symbol}</span>
+                <span style={{ fontSize: 22, fontWeight: 700, color: '#e6e9ef' }}>{row.symbol}</span>
                 <span
                   style={{
-                    fontSize: 34,
+                    fontSize: 27,
                     fontWeight: 700,
-                    marginTop: 14,
+                    marginTop: 12,
                     color: row.basisBp == null ? '#8b93a1' : row.basisBp >= 0 ? '#3ddc97' : '#ff6b6b',
                   }}
                 >
                   {bp(row.basisBp)}
                 </span>
-                <span style={{ fontSize: 17, color: '#8b93a1', marginTop: 10 }}>cash {usd(row.cashLastUsd)}</span>
-                <span style={{ fontSize: 17, color: '#8b93a1' }}>aero {usd(row.onchainMidUsd)}</span>
+                <span style={{ fontSize: 14, color: '#8b93a1', marginTop: 8 }}>cash {usd(row.cashLastUsd)}</span>
+                <span style={{ fontSize: 14, color: '#8b93a1' }}>aero {usd(row.onchainMidUsd)}</span>
               </div>
             ))}
           </div>

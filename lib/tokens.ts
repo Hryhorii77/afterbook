@@ -95,6 +95,95 @@ export const STOCKS: CbStock[] = [
       feePpm: 500,
     },
   },
+  // Added 2026-09-05 when Base expanded from 4 to 10 tokenized stocks.
+  // Verified the same way as the original four: decimals()/token0()/
+  // tickSpacing()/fee()/factory() on-chain, cross-checked against
+  // Dexscreener's Aerodrome pair listing. All six share the exact same CL
+  // factory, fee tier (500 = 0.05%), and tick spacing (10) as the original
+  // four — same deployment pattern. Liquidity on these is much thinner
+  // ($10k-$110k vs $1-2M on the original four) since they're freshly listed;
+  // expect largeTradeCaveat to trip at far smaller sizes.
+  {
+    symbol: 'AMZNc',
+    cashTicker: 'AMZN',
+    name: 'Amazon.com, Inc.',
+    tokenAddress: '0xb200000000000000000000d9192b6B456483C2E8',
+    decimals: 8,
+    pool: {
+      address: '0xd03Bc8C7F2FAedCe2aac81bF0444AEA08Ea06E9b',
+      token0: 'USDC',
+      tickSpacing: 10,
+      feePpm: 500,
+    },
+  },
+  {
+    symbol: 'MSFTc',
+    cashTicker: 'MSFT',
+    name: 'Microsoft Corporation',
+    tokenAddress: '0xB200000000000000000000Ab99cFa739E253872B',
+    decimals: 8,
+    pool: {
+      address: '0x7103eB3c9590d1281f7dc03b2A9EE27C39dF5D54',
+      token0: 'USDC',
+      tickSpacing: 10,
+      feePpm: 500,
+    },
+  },
+  {
+    symbol: 'MSTRc',
+    cashTicker: 'MSTR',
+    name: 'Strategy Inc',
+    tokenAddress: '0xb2000000000000000000004884b426556b92883d',
+    decimals: 8,
+    pool: {
+      address: '0x8b27f626ab668197000BC722A1012022CAeD10E2',
+      token0: 'USDC',
+      tickSpacing: 10,
+      feePpm: 500,
+    },
+  },
+  {
+    symbol: 'SNDKc',
+    cashTicker: 'SNDK',
+    name: 'Sandisk Corporation',
+    tokenAddress: '0xb200000000000000000000397293Cb8cda9a10c5',
+    decimals: 8,
+    pool: {
+      address: '0x5A8236f575471e7BfCA2C8462a200c28f737246E',
+      token0: 'USDC',
+      tickSpacing: 10,
+      feePpm: 500,
+    },
+  },
+  // SpaceX (Space Exploration Technologies Corp.) — verified it actually
+  // trades as SPCX on Nasdaq (multiple independent sources agree; this is
+  // recent enough news to be worth double-checking, not assumed).
+  {
+    symbol: 'SPCXc',
+    cashTicker: 'SPCX',
+    name: 'Space Exploration Technologies Corp.',
+    tokenAddress: '0xb2000000000000000000007b9fcbd005511aCBd5',
+    decimals: 8,
+    pool: {
+      address: '0x0bf58fe0FAc935Ac69595c19B12Ba0d75E3F8c0E',
+      token0: 'USDC',
+      tickSpacing: 10,
+      feePpm: 500,
+    },
+  },
+  {
+    symbol: 'TSLAc',
+    cashTicker: 'TSLA',
+    name: 'Tesla, Inc.',
+    tokenAddress: '0xb2000000000000000000001e800a7f5189430cD0',
+    decimals: 8,
+    pool: {
+      address: '0x469337fDcc5E8f38e2E4B670B04F57865D13a7BB',
+      token0: 'USDC',
+      tickSpacing: 10,
+      feePpm: 500,
+    },
+  },
 ];
 
 export function getStock(symbol: string): CbStock | undefined {
