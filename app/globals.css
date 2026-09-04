@@ -120,8 +120,12 @@ section.gap-hero {
   cursor: pointer;
   width: 100%;
 }
+/* Hover and "this is the selected lot" must never look the same — a cursor
+   resting on a different card than the actually-selected one used to render
+   as two blue outlines at once, reading as a selection bug in a screenshot.
+   Only the true selection gets accent blue; hover gets a neutral lighten. */
 .gap-cell-clickable:hover {
-  border-color: var(--accent);
+  border-color: #3a4048;
 }
 .gap-cell-active {
   border-color: var(--accent);
