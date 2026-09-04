@@ -1,6 +1,6 @@
 import { STOCKS } from './tokens';
 import { getSessionInfo, type SessionInfo } from './marketClock';
-import { midPriceUsd, readPoolState } from './quote';
+import { midPriceUsd, poolDepth, readPoolState } from './quote';
 
 const YAHOO_HOSTS = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com'];
 const CACHE_TTL_MS = 20_000;
@@ -18,6 +18,10 @@ export interface TapeRow {
   cashStale: boolean;
   onchainMidUsd: number | null;
   basisBp: number | null;
+  /** Real pool depth (token.balanceOf(pool)), not the virtual reserves used
+   *  for impact math — this is what's actually deployed. */
+  depthUsd: number | null;
+  depthShares: number | null;
 }
 
 export interface TapeResult {
@@ -76,6 +80,7 @@ async function buildTape(): Promise<TapeRow[]> {
       const onchainMid = poolState ? midPriceUsd(poolState, stock) : null;
       const basisBp =
         cash !== null && onchainMid !== null ? ((onchainMid - cash.price) / cash.price) * 10_000 : null;
+      const depth = poolState ? poolDepth(poolState, stock) : null;
 
       return {
         symbol: stock.symbol,
@@ -86,6 +91,8 @@ async function buildTape(): Promise<TapeRow[]> {
         cashStale: false,
         onchainMidUsd: onchainMid,
         basisBp,
+        depthUsd: depth?.totalUsd ?? null,
+        depthShares: depth?.stockShares ?? null,
       };
     }),
   );

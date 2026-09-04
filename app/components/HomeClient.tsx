@@ -34,6 +34,15 @@ const shares = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits:
 
 const pctChange = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`);
 
+const usdCompact = (n: number | null) => {
+  if (n == null) return '—';
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}k`;
+  return `$${n.toFixed(0)}`;
+};
+
+const sharesCompact = (n: number | null) => (n == null ? '—' : `${n.toLocaleString('en-US', { maximumFractionDigits: 0 })} sh`);
+
 function formatDuration(ms: number): string {
   if (ms <= 0) return '0m';
   const totalMinutes = Math.floor(ms / 60_000);
@@ -184,6 +193,7 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
               <th>{cashColumnLabel}</th>
               <th>Aero mid</th>
               <th>Basis</th>
+              <th>Depth</th>
             </tr>
           </thead>
           <tbody>
@@ -200,6 +210,9 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
                 <td>{usd(row.onchainMidUsd)}</td>
                 <td className={row.basisBp != null ? (row.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}>
                   {bp(row.basisBp)}
+                </td>
+                <td>
+                  {usdCompact(row.depthUsd)} · {sharesCompact(row.depthShares)}
                 </td>
               </tr>
             ))}

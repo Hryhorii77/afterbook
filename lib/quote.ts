@@ -43,6 +43,16 @@ const TOKEN_ABI = [
   },
 ] as const;
 
+const ERC20_ABI = [
+  {
+    type: 'function',
+    name: 'balanceOf',
+    stateMutability: 'view',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;
+
 const MULTIPLIER_ONE = 10 ** 18;
 
 let client: PublicClient | null = null;
@@ -69,14 +79,23 @@ export interface PoolState {
   /** B20 multiplier, fixed-point 1e18 = 1.0x. Falls back to 1e18 (no-op) if
    *  the token doesn't implement multiplier() at all. */
   multiplier: bigint;
+  /** Real reserves — token.balanceOf(pool), raw units. These are the actual
+   *  deployed tokens, distinct from (and much smaller than) the virtual
+   *  reserves used for impact math above, which describe in-range liquidity
+   *  depth, not literal holdings. Use these for a "how deep is this pool,
+   *  really" display, not the virtual ones. */
+  usdcReserveRaw: bigint;
+  stockReserveRaw: bigint;
 }
 
 export async function readPoolState(stock: CbStock, publicClient: PublicClient = getClient()): Promise<PoolState> {
-  const [slot0, liquidity, multiplierResult] = await publicClient.multicall({
+  const [slot0, liquidity, multiplierResult, usdcReserve, stockReserve] = await publicClient.multicall({
     contracts: [
       { address: stock.pool.address, abi: POOL_ABI, functionName: 'slot0' },
       { address: stock.pool.address, abi: POOL_ABI, functionName: 'liquidity' },
       { address: stock.tokenAddress, abi: TOKEN_ABI, functionName: 'multiplier' },
+      { address: USDC.address, abi: ERC20_ABI, functionName: 'balanceOf', args: [stock.pool.address] },
+      { address: stock.tokenAddress, abi: ERC20_ABI, functionName: 'balanceOf', args: [stock.pool.address] },
     ],
     allowFailure: true,
   });
@@ -87,7 +106,13 @@ export async function readPoolState(stock: CbStock, publicClient: PublicClient =
 
   const [sqrtPriceX96] = slot0.result as readonly [bigint, number, number, number, number, boolean];
   const multiplier = multiplierResult.status === 'success' ? (multiplierResult.result as bigint) : BigInt(MULTIPLIER_ONE);
-  return { sqrtPriceX96, liquidity: liquidity.result as bigint, multiplier };
+  return {
+    sqrtPriceX96,
+    liquidity: liquidity.result as bigint,
+    multiplier,
+    usdcReserveRaw: usdcReserve.status === 'success' ? (usdcReserve.result as bigint) : 0n,
+    stockReserveRaw: stockReserve.status === 'success' ? (stockReserve.result as bigint) : 0n,
+  };
 }
 
 const Q96 = 2 ** 96;
@@ -105,6 +130,22 @@ export function midPriceUsd(state: PoolState, stock: CbStock): number {
   const rawMidPriceUsd = 1 / decAdjusted; // USD per raw token unit
   const multiplierRatio = Number(state.multiplier) / MULTIPLIER_ONE;
   return rawMidPriceUsd / multiplierRatio; // USD per displayed share
+}
+
+export interface PoolDepth {
+  usdcUsd: number;
+  stockShares: number;
+  totalUsd: number;
+}
+
+/** Real pool depth from actual token balances, not the virtual reserves
+ *  estimateLot uses for impact math. */
+export function poolDepth(state: PoolState, stock: CbStock): PoolDepth {
+  const usdcUsd = Number(state.usdcReserveRaw) / 10 ** USDC.decimals;
+  const multiplierRatio = Number(state.multiplier) / MULTIPLIER_ONE;
+  const stockShares = (Number(state.stockReserveRaw) / 10 ** stock.decimals) * multiplierRatio;
+  const totalUsd = usdcUsd + stockShares * midPriceUsd(state, stock);
+  return { usdcUsd, stockShares, totalUsd };
 }
 
 export interface LotEstimate {
