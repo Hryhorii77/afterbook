@@ -32,8 +32,6 @@ const bp = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.t
 
 const shares = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
-const pctChange = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(2)}%`);
-
 const usdCompact = (n: number | null) => {
   if (n == null) return '—';
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
@@ -165,21 +163,21 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
             Aerodrome has kept trading the whole time · Reopens {formatNextOpen(tape.session.nextOpenIso)}
           </div>
           <div className="gap-grid">
-            {tape.rows.map((row) => {
-              const pct =
-                row.cashLastUsd != null && row.onchainMidUsd != null
-                  ? ((row.onchainMidUsd - row.cashLastUsd) / row.cashLastUsd) * 100
-                  : null;
-              return (
-                <button className="gap-cell gap-cell-clickable" key={row.symbol} onClick={() => selectSymbol(row.symbol)}>
-                  <div className="gap-symbol">{row.symbol}</div>
-                  <div className={pct != null ? (pct >= 0 ? 'basis-pos' : 'basis-neg') : ''}>{pctChange(pct)}</div>
-                  <div className="gap-detail">
-                    {usd(row.cashLastUsd)} → {usd(row.onchainMidUsd)}
-                  </div>
-                </button>
-              );
-            })}
+            {tape.rows.map((row) => (
+              <button
+                className={`gap-cell gap-cell-clickable${row.symbol === symbol ? ' gap-cell-active' : ''}`}
+                key={row.symbol}
+                onClick={() => selectSymbol(row.symbol)}
+              >
+                <div className="gap-symbol">{row.symbol}</div>
+                <div className={row.basisBp != null ? (row.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}>
+                  {bp(row.basisBp)}
+                </div>
+                <div className="gap-detail">
+                  {usd(row.cashLastUsd)} → {usd(row.onchainMidUsd)}
+                </div>
+              </button>
+            ))}
           </div>
         </section>
       )}
@@ -198,7 +196,11 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
           </thead>
           <tbody>
             {tape.rows.map((row) => (
-              <tr key={row.symbol} className="tape-row-clickable" onClick={() => selectSymbol(row.symbol)}>
+              <tr
+                key={row.symbol}
+                className={`tape-row-clickable${row.symbol === symbol ? ' tape-row-active' : ''}`}
+                onClick={() => selectSymbol(row.symbol)}
+              >
                 <td>
                   <span className="symbol">{row.symbol}</span>
                   <span className="symbol-name">{row.name}</span>
@@ -208,10 +210,10 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
                   {row.cashStale && <span className="stale-tag">STALE</span>}
                 </td>
                 <td>{usd(row.onchainMidUsd)}</td>
-                <td className={row.basisBp != null ? (row.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}>
+                <td className={`basis-cell ${row.basisBp != null ? (row.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
                   {bp(row.basisBp)}
                 </td>
-                <td>
+                <td className="depth-cell">
                   {usdCompact(row.depthUsd)} · {sharesCompact(row.depthShares)}
                 </td>
               </tr>
@@ -251,11 +253,11 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
 
         {quote && (
           <>
+            <div className="result-hero">
+              <div className="label">Shares out</div>
+              <div className="value">{shares(quote.sharesOut)}</div>
+            </div>
             <div className="result-grid">
-              <div className="result-cell">
-                <div className="label">Shares out</div>
-                <div className="value">{shares(quote.sharesOut)}</div>
-              </div>
               <div className="result-cell">
                 <div className="label">Exec price</div>
                 <div className="value">{usd(quote.execPriceUsd)}</div>
@@ -327,8 +329,12 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
             </>
           )}
         </div>
-        <p className="geo-note">
-          {geo.country ? `Detected region: ${geo.country}. ` : 'Region could not be detected (e.g. local dev). '}
+        <p className={`geo-note${geo.country === 'US' ? ' geo-note-blocked' : ''}`}>
+          {geo.country === 'US'
+            ? 'Not available in the US — execution stays locked regardless of the checkbox above. '
+            : geo.country
+              ? `Detected region: ${geo.country}. `
+              : 'Region could not be detected (e.g. local dev). '}
           This is a best-effort geofence based on IP country, not a compliance control — it does not stop a VPN.
           No wallet ever connects here; the button only opens Aerodrome&apos;s own app in a new tab.
         </p>
