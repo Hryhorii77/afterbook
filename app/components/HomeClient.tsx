@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
-import type { TapeResult } from '@/lib/tape';
+import type { TapeResult, TapeRow } from '@/lib/tape';
+import { splitByLiquidity, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import type { GeoInfo } from '@/lib/geo';
 import { ImpactCurve } from './ImpactCurve';
 
@@ -65,6 +66,44 @@ function formatNextOpen(iso: string): string {
   );
 }
 
+function TapeRows({
+  rows,
+  activeSymbol,
+  onSelect,
+}: {
+  rows: TapeRow[];
+  activeSymbol: string;
+  onSelect: (symbol: string) => void;
+}) {
+  return (
+    <>
+      {rows.map((row) => (
+        <tr
+          key={row.symbol}
+          className={`tape-row-clickable${row.symbol === activeSymbol ? ' tape-row-active' : ''}`}
+          onClick={() => onSelect(row.symbol)}
+        >
+          <td>
+            <span className="symbol">{row.symbol}</span>
+            <span className="symbol-name">{row.name}</span>
+          </td>
+          <td>
+            {usd(row.cashLastUsd)}
+            {row.cashStale && <span className="stale-tag">STALE</span>}
+          </td>
+          <td>{usd(row.onchainMidUsd)}</td>
+          <td className={`basis-cell ${row.basisBp != null ? (row.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
+            {bp(row.basisBp)}
+          </td>
+          <td className="depth-cell">
+            {usdCompact(row.depthUsd)} · {sharesCompact(row.depthShares)}
+          </td>
+        </tr>
+      ))}
+    </>
+  );
+}
+
 interface HomeClientProps {
   initialTape: TapeResult;
   initialGeo: GeoInfo;
@@ -79,6 +118,7 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const [showThin, setShowThin] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000);
@@ -143,6 +183,11 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
     tape.session.state !== 'open' ? Math.max(0, ...tape.rows.map((r) => r.cashAsOfMs ?? 0)) : 0;
   const showGapHero = tape.session.state !== 'open' && cashClosedAsOfMs > 0;
 
+  // Real, deep pools vs freshly-listed thin ones don't belong at the same
+  // visual rank — a $10k pool's basis swings hundreds of bp on noise alone
+  // and reads as "the tape is broken" next to NVDAc's single-digit bp.
+  const { liquid: liquidRows, thin: thinRows } = useMemo(() => splitByLiquidity(tape.rows), [tape.rows]);
+
   return (
     <main>
       <header className="top">
@@ -163,7 +208,7 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
             Aerodrome has kept trading the whole time · Reopens {formatNextOpen(tape.session.nextOpenIso)}
           </div>
           <div className="gap-grid">
-            {tape.rows.map((row) => (
+            {liquidRows.map((row) => (
               <button
                 className={`gap-cell gap-cell-clickable${row.symbol === symbol ? ' gap-cell-active' : ''}`}
                 key={row.symbol}
@@ -195,32 +240,40 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
             </tr>
           </thead>
           <tbody>
-            {tape.rows.map((row) => (
-              <tr
-                key={row.symbol}
-                className={`tape-row-clickable${row.symbol === symbol ? ' tape-row-active' : ''}`}
-                onClick={() => selectSymbol(row.symbol)}
-              >
-                <td>
-                  <span className="symbol">{row.symbol}</span>
-                  <span className="symbol-name">{row.name}</span>
-                </td>
-                <td>
-                  {usd(row.cashLastUsd)}
-                  {row.cashStale && <span className="stale-tag">STALE</span>}
-                </td>
-                <td>{usd(row.onchainMidUsd)}</td>
-                <td className={`basis-cell ${row.basisBp != null ? (row.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
-                  {bp(row.basisBp)}
-                </td>
-                <td className="depth-cell">
-                  {usdCompact(row.depthUsd)} · {sharesCompact(row.depthShares)}
-                </td>
-              </tr>
-            ))}
+            <TapeRows rows={liquidRows} activeSymbol={symbol} onSelect={selectSymbol} />
           </tbody>
         </table>
         {tape.error && <p className="geo-note">{tape.error}</p>}
+
+        {thinRows.length > 0 && (
+          <div className="thin-books">
+            <button className="thin-toggle" onClick={() => setShowThin((v) => !v)}>
+              {showThin ? '▾' : '▸'} {showThin ? 'Hide' : 'Show'} {thinRows.length} thin book{thinRows.length === 1 ? '' : 's'}
+            </button>
+            {showThin && (
+              <>
+                <p className="geo-note">
+                  Under ${(LIQUID_DEPTH_THRESHOLD_USD / 1000).toFixed(0)}k depth — basis here can swing hundreds of bp
+                  on thin trading, not signal.
+                </p>
+                <table className="thin-table">
+                  <thead>
+                    <tr>
+                      <th>Symbol</th>
+                      <th>{cashColumnLabel}</th>
+                      <th>Aero mid</th>
+                      <th>Basis</th>
+                      <th>Depth</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <TapeRows rows={thinRows} activeSymbol={symbol} onSelect={selectSymbol} />
+                  </tbody>
+                </table>
+              </>
+            )}
+          </div>
+        )}
       </section>
 
       <section className="panel" id="lot-lab">
@@ -229,11 +282,22 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
           <div className="field">
             <label htmlFor="symbol-select">Stock</label>
             <select id="symbol-select" value={symbol} onChange={(e) => setSymbol(e.target.value)}>
-              {STOCKS.map((s) => (
-                <option key={s.symbol} value={s.symbol}>
-                  {s.symbol}
-                </option>
-              ))}
+              <optgroup label="Liquid">
+                {liquidRows.map((r) => (
+                  <option key={r.symbol} value={r.symbol}>
+                    {r.symbol}
+                  </option>
+                ))}
+              </optgroup>
+              {thinRows.length > 0 && (
+                <optgroup label="Thin">
+                  {thinRows.map((r) => (
+                    <option key={r.symbol} value={r.symbol}>
+                      {r.symbol}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
           <div className="field">

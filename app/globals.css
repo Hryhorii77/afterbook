@@ -244,6 +244,40 @@ td.depth-cell {
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
+.thin-books {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.thin-toggle {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+.thin-toggle:hover {
+  color: var(--text);
+}
+
+/* Thin books get the same layout as the main tape but deliberately less
+   visual weight — basis here is noise-dominated, not signal, and shouldn't
+   compete with the liquid names above it. */
+.thin-table {
+  margin-top: 10px;
+  opacity: 0.85;
+}
+.thin-table th, .thin-table td {
+  font-size: 12px;
+  padding: 7px 6px;
+}
+.thin-table td.basis-cell {
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .stale-tag {
   font-size: 10px;
   color: var(--amber);

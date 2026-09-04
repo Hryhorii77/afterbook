@@ -1,5 +1,6 @@
 import { ImageResponse } from 'next/og';
 import { getTape } from './tape';
+import { splitByLiquidity } from './liquidity';
 
 export const OG_ALT = 'Afterbook — cash close vs the Aero book, in shares';
 export const OG_SIZE = { width: 1200, height: 630 };
@@ -19,9 +20,15 @@ export async function buildOgImage() {
   try {
     const tape = await getTape();
     // Cards render in a single row — fine for 4 stocks, illegible for 10.
-    // Show the biggest movers, not every symbol; that's also just a better
-    // social card than an exhaustive list.
-    rows = [...tape.rows].sort((a, b) => Math.abs(b.basisBp ?? 0) - Math.abs(a.basisBp ?? 0)).slice(0, 6);
+    // A thin pool's basis swings hundreds of bp on noise alone, so sorting
+    // by |basis| across everything would flood the card with the least
+    // meaningful numbers — show the real, liquid names first (still sorted
+    // by |basis| among themselves), and only pad with thin ones if there's
+    // room left.
+    const byAbsBasis = (a: (typeof tape.rows)[number], b: (typeof tape.rows)[number]) =>
+      Math.abs(b.basisBp ?? 0) - Math.abs(a.basisBp ?? 0);
+    const { liquid, thin } = splitByLiquidity(tape.rows);
+    rows = [...liquid.sort(byAbsBasis), ...thin.sort(byAbsBasis)].slice(0, 6);
     sessionLabel = tape.session.label;
   } catch {
     // fall through to a branding-only card below
