@@ -31,14 +31,17 @@ export interface CbStock {
   };
 }
 
-// NOTE: This custom CL factory (0xf8f2eb4940cfe7d13603dddd87f123820fc061ef) is
-// NOT the same factory Aerodrome's documented public Quoter/SwapRouter point to
-// (that one is 0x5e7bb104d84c7cb9b682aac2f3d509f5f406809a). The standard
-// Aerodrome Quoter reverts on these pools. Because of that we never attempt to
-// route or quote a guaranteed swap ourselves — we read slot0()/liquidity()
-// directly for an honest *local* price/impact estimate, and hand off every
-// actual trade to Aerodrome's own app, which knows how to route through
-// whatever infra these pools actually use.
+// NOTE: This custom CL factory is NOT the same factory Aerodrome's documented
+// public Quoter/SwapRouter point to (that one is
+// 0x5e7bb104d84c7cb9b682aac2f3d509f5f406809a). The standard Aerodrome Quoter
+// reverts on these pools. Because of that we never attempt to route or quote
+// a guaranteed swap ourselves — we read slot0()/liquidity() directly for an
+// honest *local* price/impact estimate, and hand off every actual trade to
+// Aerodrome's own app, which knows how to route through whatever infra these
+// pools actually use. Confirmed by loading Aerodrome's own "New deposit" page
+// for USDC/NVDAc in a browser and reading the factory param off the URL it
+// generated — it matches exactly.
+export const CL_FACTORY = '0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef' as const;
 export const STOCKS: CbStock[] = [
   {
     symbol: 'NVDAc',
@@ -99,13 +102,29 @@ export function getStock(symbol: string): CbStock | undefined {
 }
 
 // Official Aerodrome app — every execution deep link points here. We never
-// construct our own router calldata.
-export const AERODROME_SWAP_BASE = 'https://aerodrome.finance/swap';
+// construct our own router calldata. Both URL shapes below were verified by
+// clicking through Aerodrome's own UI in a real browser and reading off the
+// exact params it generates for these pools, not guessed.
+const BASE_CHAIN_ID = '8453';
 
 export function aerodromeSwapUrl(stock: CbStock): string {
   const params = new URLSearchParams({
     from: USDC.address,
     to: stock.tokenAddress,
+    chain0: BASE_CHAIN_ID,
+    chain1: BASE_CHAIN_ID,
   });
-  return `${AERODROME_SWAP_BASE}?${params.toString()}`;
+  return `https://aerodrome.finance/swap?${params.toString()}`;
+}
+
+export function aerodromeDepositUrl(stock: CbStock): string {
+  const params = new URLSearchParams({
+    token0: USDC.address,
+    token1: stock.tokenAddress,
+    type: String(stock.pool.tickSpacing),
+    chain0: BASE_CHAIN_ID,
+    chain1: BASE_CHAIN_ID,
+    factory: CL_FACTORY,
+  });
+  return `https://aerodrome.finance/deposit?${params.toString()}`;
 }

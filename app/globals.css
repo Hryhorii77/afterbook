@@ -338,6 +338,38 @@ button.btn:disabled {
   cursor: not-allowed;
 }
 
+a.btn-secondary, button.btn-secondary {
+  background: transparent;
+  color: var(--accent);
+}
+button.btn-secondary:disabled {
+  color: var(--text-dim);
+}
+
+.lp-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: #0e1114;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+
+.lp-line-label {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.lp-line-value {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .geo-note {
   font-size: 12px;
   color: var(--text-dim);

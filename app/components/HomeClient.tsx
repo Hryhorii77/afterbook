@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { STOCKS, aerodromeSwapUrl } from '@/lib/tokens';
+import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
 import type { TapeResult } from '@/lib/tape';
 import type { GeoInfo } from '@/lib/geo';
 import { ImpactCurve } from './ImpactCurve';
@@ -264,6 +264,18 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
               {quote.largeTradeCaveat && ' This size is large relative to in-range liquidity and may cross into a wider price range; the real fill on Aerodrome could differ from this estimate.'}
               {' '}Shaded region: sizes where the estimate is less reliable for the same reason.
             </p>
+
+            <div className="lp-line">
+              <span className="lp-line-label">Same {usd(quote.usdcIn, 0)} as LP</span>
+              <span className="lp-line-value">
+                ≈ {usd(quote.usdcIn / 2, 0)} + {shares(quote.usdcIn / 2 / quote.midPriceUsd)} {activeStock.symbol}
+              </span>
+            </div>
+            <p className="geo-note">
+              Full-range, ~50/50 by value at the current price — a full-range concentrated-liquidity position is
+              mathematically equivalent to a classic 50/50 pool. Aerodrome defaults new deposits to a narrower
+              range, which would change this split; check the actual range before depositing.
+            </p>
           </>
         )}
       </section>
@@ -283,13 +295,23 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
         </div>
         <div className="actions">
           {unlocked ? (
-            <a className="btn" href={aerodromeSwapUrl(activeStock)} target="_blank" rel="noopener noreferrer">
-              Open {activeStock.symbol} on Aerodrome
-            </a>
+            <>
+              <a className="btn" href={aerodromeSwapUrl(activeStock)} target="_blank" rel="noopener noreferrer">
+                Open {activeStock.symbol} on Aerodrome
+              </a>
+              <a className="btn btn-secondary" href={aerodromeDepositUrl(activeStock)} target="_blank" rel="noopener noreferrer">
+                Add {activeStock.symbol} liquidity
+              </a>
+            </>
           ) : (
-            <button className="btn" disabled>
-              Open {activeStock.symbol} on Aerodrome
-            </button>
+            <>
+              <button className="btn" disabled>
+                Open {activeStock.symbol} on Aerodrome
+              </button>
+              <button className="btn btn-secondary" disabled>
+                Add {activeStock.symbol} liquidity
+              </button>
+            </>
           )}
         </div>
         <p className="geo-note">
