@@ -11,9 +11,14 @@
   --blue-gray: #6b7f99;
   --accent: #5b8cff;
   /* Primary CTA is light-on-dark rather than blue on purpose — this isn't a
-     Base-branded page, and a dark-on-dark button disappears on camera. */
-  --primary-bg: #ededed;
-  --primary-text: #0b0d10;
+     Base-branded page, blue is reserved for selection state, and a
+     dark-on-dark button disappears on camera. */
+  --primary-bg: #f4f4f5;
+  --primary-bg-hover: #ffffff;
+  --primary-bg-active: #e4e4e7;
+  --primary-text: #111111;
+  --secondary-border: #2a2a2e;
+  --secondary-border-hover: #a1a1aa;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Menlo', 'Consolas', monospace;
 }
@@ -418,22 +423,53 @@ a.btn, button.btn {
   color: var(--primary-text);
   background: var(--primary-bg);
   cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
 }
 
+a.btn:hover, button.btn:hover:not(:disabled) {
+  background: var(--primary-bg-hover);
+  border-color: var(--primary-bg-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+a.btn:active, button.btn:active:not(:disabled) {
+  background: var(--primary-bg-active);
+  border-color: var(--primary-bg-active);
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* Both button variants share disabled treatment — dimmed and inert rather
+   than each having its own half-disabled look. */
 button.btn:disabled {
-  background: transparent;
-  border-color: var(--panel-border);
-  color: var(--text-dim);
+  opacity: 0.35;
+  pointer-events: none;
   cursor: not-allowed;
 }
 
 a.btn-secondary, button.btn-secondary {
   background: transparent;
-  border-color: var(--panel-border);
-  color: var(--text);
+  border-color: var(--secondary-border);
+  color: var(--primary-bg);
 }
-button.btn-secondary:disabled {
-  color: var(--text-dim);
+
+a.btn-secondary:hover, button.btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--secondary-border-hover);
+  transform: none;
+  box-shadow: none;
+}
+
+a.btn-secondary:active, button.btn-secondary:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* Selection is blue; action buttons are never blue — light-on-dark focus
+   ring keeps that distinction even for keyboard navigation. */
+a.btn:focus-visible, button.btn:focus-visible {
+  outline: 2px solid var(--primary-bg);
+  outline-offset: 3px;
 }
 
 .lp-line {

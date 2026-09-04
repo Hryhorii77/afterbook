@@ -312,7 +312,7 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
           {unlocked ? (
             <>
               <a className="btn" href={aerodromeSwapUrl(activeStock)} target="_blank" rel="noopener noreferrer">
-                Open {activeStock.symbol} on Aerodrome
+                Open {activeStock.symbol} on Aerodrome ↗
               </a>
               <a className="btn btn-secondary" href={aerodromeDepositUrl(activeStock)} target="_blank" rel="noopener noreferrer">
                 Add {activeStock.symbol} liquidity
@@ -329,6 +329,7 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
             </>
           )}
         </div>
+        {!eligibleChecked && geo.nonUs && <p className="geo-note">Confirm eligibility to open Aerodrome.</p>}
         <p className={`geo-note${geo.country === 'US' ? ' geo-note-blocked' : ''}`}>
           {geo.country === 'US'
             ? 'Not available in the US — execution stays locked regardless of the checkbox above. '
