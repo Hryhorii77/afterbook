@@ -1,5 +1,7 @@
 # Afterbook
 
+**Live at [afterbook.app](https://afterbook.app).**
+
 Cash close vs the Aero book, in shares. No wallet connect — execution stays on [Aerodrome](https://aerodrome.finance).
 
 ## What it shows
@@ -73,7 +75,7 @@ No environment variables required to run it — the app works fully without them
 npx vercel
 ```
 
-or import the repo in the Vercel dashboard. No env vars needed.
+or import the repo in the Vercel dashboard. No env vars required — add the Redis ones from "Running it" above (e.g. via a Vercel-connected Upstash integration) if you want the sparkline to accumulate history in production.
 
 ## License
 
