@@ -1,6 +1,8 @@
 import { STOCKS } from './tokens';
 import { getSessionInfo, type SessionInfo } from './marketClock';
 import { midPriceUsd, poolDepth, readPoolState } from './quote';
+import { isLiquid } from './liquidity';
+import { recordSample } from './history';
 
 const YAHOO_HOSTS = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com'];
 const CACHE_TTL_MS = 20_000;
@@ -81,6 +83,11 @@ async function buildTape(): Promise<TapeRow[]> {
       const basisBp =
         cash !== null && onchainMid !== null ? ((onchainMid - cash.price) / cash.price) * 10_000 : null;
       const depth = poolState ? poolDepth(poolState, stock) : null;
+      const depthUsd = depth?.totalUsd ?? null;
+
+      if (isLiquid({ depthUsd })) {
+        void recordSample(stock.symbol, basisBp, Date.now());
+      }
 
       return {
         symbol: stock.symbol,
@@ -91,7 +98,7 @@ async function buildTape(): Promise<TapeRow[]> {
         cashStale: false,
         onchainMidUsd: onchainMid,
         basisBp,
-        depthUsd: depth?.totalUsd ?? null,
+        depthUsd,
         depthShares: depth?.stockShares ?? null,
       };
     }),

@@ -322,6 +322,11 @@ select {
    context underneath it, not four equal-weight tiles competing for
    attention. */
 .result-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
   background: #0e1114;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
@@ -560,4 +565,68 @@ footer ul {
 
 footer a {
   color: var(--accent);
+}
+
+.sparkline {
+  width: 100%;
+  height: auto;
+  margin-top: 8px;
+}
+
+.size-presets {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.preset-btn {
+  background: #0e1114;
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-family: var(--mono);
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+
+.preset-btn:hover {
+  border-color: var(--secondary-border-hover);
+  color: var(--text);
+}
+
+.copy-trade-btn {
+  background: transparent;
+  border: 1px solid var(--secondary-border);
+  color: var(--text-dim);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease;
+  white-space: nowrap;
+}
+
+.copy-trade-btn:hover {
+  border-color: var(--secondary-border-hover);
+  color: var(--text);
+}
+
+.event-log {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.event-log-time {
+  font-family: var(--mono);
+  color: var(--text-dimmer);
+  margin-right: 6px;
 }

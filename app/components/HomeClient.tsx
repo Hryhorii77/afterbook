@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
 import type { TapeResult, TapeRow } from '@/lib/tape';
 import { splitByLiquidity, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import type { GeoInfo } from '@/lib/geo';
 import { ImpactCurve } from './ImpactCurve';
+import { Sparkline } from './Sparkline';
 
 interface CurvePoint {
   usdcIn: number;
@@ -25,6 +26,18 @@ interface QuoteResponse {
   largeTradeCaveat: boolean;
   curve: CurvePoint[];
 }
+
+interface HistorySample {
+  ts: number;
+  basisBp: number;
+}
+
+interface EventLogEntry {
+  ts: number;
+  text: string;
+}
+
+const SIZE_PRESETS_USDC = [250, 1_000, 5_000];
 
 const usd = (n: number | null, digits = 2) =>
   n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -53,6 +66,13 @@ function formatDuration(ms: number): string {
   if (days > 0 || hours > 0) parts.push(`${hours}h`);
   parts.push(`${minutes}m`);
   return parts.join(' ');
+}
+
+function formatLogTime(ts: number): string {
+  return (
+    new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' }).format(new Date(ts)) +
+    ' ET'
+  );
 }
 
 function formatNextOpen(iso: string): string {
@@ -119,6 +139,13 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [showThin, setShowThin] = useState(false);
+  const [history, setHistory] = useState<HistorySample[]>([]);
+  const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
+  const [copied, setCopied] = useState(false);
+  const prevSessionStateRef = useRef(initialTape.session.state);
+
+  const cashClosedAsOfMs =
+    tape.session.state !== 'open' ? Math.max(0, ...tape.rows.map((r) => r.cashAsOfMs ?? 0)) : 0;
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000);
@@ -132,8 +159,21 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
     const fetchTape = async () => {
       try {
         const res = await fetch('/api/tape');
-        const json = await res.json();
-        if (!cancelled) setTape(json);
+        const json: TapeResult = await res.json();
+        if (cancelled) return;
+        setTape(json);
+
+        // Precursor to real alerts (Phase 2) — a client-only, session-local
+        // log of the one event we can detect for free: the cash market just
+        // closed. Resets on reload by design; nothing here is persisted.
+        const wasOpen = prevSessionStateRef.current === 'open';
+        const nowClosed = json.session.state !== 'open';
+        if (wasOpen && nowClosed) {
+          const { liquid } = splitByLiquidity(json.rows);
+          const parts = liquid.map((r) => `${r.cashTicker} Aero ${bp(r.basisBp)}`).join(' ');
+          setEventLog((log) => [{ ts: Date.now(), text: `Cash closed. ${parts}` }, ...log].slice(0, 20));
+        }
+        prevSessionStateRef.current = json.session.state;
       } catch {
         // keep showing last good tape
       }
@@ -170,8 +210,32 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
     return () => clearTimeout(handle);
   }, [symbol, usdcInput]);
 
+  // Chart doesn't need 20s freshness like the tape does — 60s keeps it
+  // reasonably live without adding much KV read volume.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchHistory = async () => {
+      try {
+        const params = new URLSearchParams({ symbol });
+        if (cashClosedAsOfMs > 0) params.set('since', String(cashClosedAsOfMs));
+        const res = await fetch(`/api/history?${params.toString()}`);
+        const json = await res.json();
+        if (!cancelled) setHistory(json.samples ?? []);
+      } catch {
+        // keep showing last known history
+      }
+    };
+    fetchHistory();
+    const id = setInterval(fetchHistory, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [symbol, cashClosedAsOfMs]);
+
   const unlocked = geo.nonUs === true && eligibleChecked;
   const activeStock = STOCKS.find((s) => s.symbol === symbol)!;
+  const activeRow = tape.rows.find((r) => r.symbol === symbol);
   const cashColumnLabel = tape.session.state === 'open' ? 'Cash last' : 'Cash close';
 
   const selectSymbol = (sym: string) => {
@@ -179,8 +243,18 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
     document.getElementById('lot-lab')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const cashClosedAsOfMs =
-    tape.session.state !== 'open' ? Math.max(0, ...tape.rows.map((r) => r.cashAsOfMs ?? 0)) : 0;
+  const copyTrade = async () => {
+    if (!quote) return;
+    const text = `Buy ${shares(quote.sharesOut)} ${activeStock.symbol} for ${usd(quote.usdcIn, 0)} USDC`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard access denied — nothing to fall back to, button just won't confirm
+    }
+  };
+
   const showGapHero = tape.session.state !== 'open' && cashClosedAsOfMs > 0;
 
   // Real, deep pools vs freshly-listed thin ones don't belong at the same
@@ -226,6 +300,15 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
           </div>
         </section>
       )}
+
+      <section className="panel">
+        <h2>Basis since close · {activeStock.symbol}</h2>
+        {history.length >= 2 ? (
+          <Sparkline samples={history} />
+        ) : (
+          <p className="geo-note">Not enough history yet — this fills in as the app keeps running.</p>
+        )}
+      </section>
 
       <section className="panel">
         <h2>Tape</h2>
@@ -276,6 +359,19 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
         )}
       </section>
 
+      {eventLog.length > 0 && (
+        <section className="panel">
+          <h2>Log</h2>
+          <ul className="event-log">
+            {eventLog.map((entry) => (
+              <li key={entry.ts}>
+                <span className="event-log-time">{formatLogTime(entry.ts)}</span> {entry.text}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section className="panel" id="lot-lab">
         <h2>Lot Lab</h2>
         <div className="lot-lab-form">
@@ -313,13 +409,35 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
           </div>
         </div>
 
+        <div className="size-presets">
+          {SIZE_PRESETS_USDC.map((amt) => (
+            <button key={amt} type="button" className="preset-btn" onClick={() => setUsdcInput(String(amt))}>
+              {usdCompact(amt)}
+            </button>
+          ))}
+          {activeRow?.depthUsd != null && (
+            <button
+              type="button"
+              className="preset-btn"
+              onClick={() => setUsdcInput(String(Math.max(1, Math.round(activeRow.depthUsd! * 0.01))))}
+            >
+              1% of pool
+            </button>
+          )}
+        </div>
+
         {quoteError && <p className="geo-note">{quoteError}</p>}
 
         {quote && (
           <>
             <div className="result-hero">
-              <div className="label">Shares out</div>
-              <div className="value">{shares(quote.sharesOut)}</div>
+              <div>
+                <div className="label">Shares out</div>
+                <div className="value">{shares(quote.sharesOut)}</div>
+              </div>
+              <button type="button" className="copy-trade-btn" onClick={copyTrade}>
+                {copied ? 'Copied' : 'Copy trade'}
+              </button>
             </div>
             <div className="result-grid">
               <div className="result-cell">
