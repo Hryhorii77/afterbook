@@ -14,24 +14,89 @@ const bp = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.t
 // re-exports (confirmed: it warned and silently fell back to defaults when
 // twitter-image.tsx re-exported `runtime` from this module) — only the
 // image-building logic itself is safe to share.
-export async function buildOgImage() {
+/**
+ * Without `symbol`: the movers grid (up to 6 names), used for the root
+ * share card. With `symbol`: a focused single-stock card for that name's
+ * own page (app/[symbol]/opengraph-image.tsx) — same visual language, one
+ * subject instead of six, so a tweet linking a specific name shows that
+ * name's actual numbers instead of a generic grid it isn't part of.
+ */
+export async function buildOgImage(symbol?: string) {
   let rows: Awaited<ReturnType<typeof getTape>>['rows'] = [];
   let sessionLabel = '';
+  let focusRow: Awaited<ReturnType<typeof getTape>>['rows'][number] | null = null;
   try {
     const tape = await getTape();
-    // Cards render in a single row — fine for 4 stocks, illegible for 10.
-    // A thin pool's basis swings hundreds of bp on noise alone, so sorting
-    // by |basis| across everything would flood the card with the least
-    // meaningful numbers — show the real, liquid names first (still sorted
-    // by |basis| among themselves), and only pad with thin ones if there's
-    // room left.
-    const byAbsBasis = (a: (typeof tape.rows)[number], b: (typeof tape.rows)[number]) =>
-      Math.abs(b.basisBp ?? 0) - Math.abs(a.basisBp ?? 0);
-    const { liquid, thin } = splitByLiquidity(tape.rows);
-    rows = [...liquid.sort(byAbsBasis), ...thin.sort(byAbsBasis)].slice(0, 6);
     sessionLabel = tape.session.label;
+
+    if (symbol) {
+      focusRow = tape.rows.find((r) => r.symbol.toLowerCase() === symbol.toLowerCase()) ?? null;
+    } else {
+      // Cards render in a single row — fine for 4 stocks, illegible for 10.
+      // A thin pool's basis swings hundreds of bp on noise alone, so sorting
+      // by |basis| across everything would flood the card with the least
+      // meaningful numbers — show the real, liquid names first (still sorted
+      // by |basis| among themselves), and only pad with thin ones if there's
+      // room left.
+      const byAbsBasis = (a: (typeof tape.rows)[number], b: (typeof tape.rows)[number]) =>
+        Math.abs(b.basisBp ?? 0) - Math.abs(a.basisBp ?? 0);
+      const { liquid, thin } = splitByLiquidity(tape.rows);
+      rows = [...liquid.sort(byAbsBasis), ...thin.sort(byAbsBasis)].slice(0, 6);
+    }
   } catch {
     // fall through to a branding-only card below
+  }
+
+  if (symbol && focusRow) {
+    return new ImageResponse(
+      (
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            backgroundColor: '#0b0d10',
+            backgroundImage: 'linear-gradient(180deg, #12151a 0%, #0b0d10 60%)',
+            padding: '64px 72px',
+            fontFamily: 'sans-serif',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+            <span style={{ fontSize: 40, fontWeight: 700, color: '#8b93a1', letterSpacing: '-0.02em' }}>Afterbook</span>
+            {sessionLabel && <span style={{ fontSize: 22, color: '#6b7280' }}>{sessionLabel}</span>}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', marginTop: 48 }}>
+            <span style={{ fontSize: 88, fontWeight: 700, color: '#e6e9ef', letterSpacing: '-0.02em' }}>
+              {focusRow.symbol}
+            </span>
+            <span style={{ fontSize: 24, color: '#8b93a1', marginTop: 4 }}>{focusRow.name}</span>
+          </div>
+
+          <span
+            style={{
+              fontSize: 100,
+              fontWeight: 700,
+              marginTop: 32,
+              color: focusRow.basisBp == null ? '#8b93a1' : focusRow.basisBp >= 0 ? '#3ddc97' : '#ff6b6b',
+            }}
+          >
+            {bp(focusRow.basisBp)}
+          </span>
+
+          <div style={{ display: 'flex', gap: 32, marginTop: 24, fontSize: 28, color: '#8b93a1' }}>
+            <span>cash {usd(focusRow.cashLastUsd)}</span>
+            <span>aero {usd(focusRow.onchainMidUsd)}</span>
+          </div>
+
+          <div style={{ display: 'flex', marginTop: 'auto', fontSize: 20, color: '#5b8cff' }}>
+            No wallet connect. Execution stays on Aerodrome.
+          </div>
+        </div>
+      ),
+      { ...OG_SIZE },
+    );
   }
 
   return new ImageResponse(

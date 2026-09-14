@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
 import type { TapeResult, TapeRow } from '@/lib/tape';
 import { splitByLiquidity, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
@@ -38,6 +39,26 @@ interface EventLogEntry {
 }
 
 const SIZE_PRESETS_USDC = [250, 1_000, 5_000];
+
+type SortKey = 'symbol' | 'cashLastUsd' | 'onchainMidUsd' | 'basisBp' | 'depthUsd';
+type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null;
+
+function sortRows(rows: TapeRow[], sort: SortState): TapeRow[] {
+  if (!sort) return rows;
+  const { key, dir } = sort;
+  const factor = dir === 'asc' ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    if (key === 'symbol') return factor * a.symbol.localeCompare(b.symbol);
+    const av = a[key];
+    const bv = b[key];
+    // Missing values sink to the bottom regardless of sort direction —
+    // there's no meaningful "highest" or "lowest" for a value that isn't there.
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    return factor * (av - bv);
+  });
+}
 
 const usd = (n: number | null, digits = 2) =>
   n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -86,6 +107,37 @@ function formatNextOpen(iso: string): string {
   );
 }
 
+const SORT_COLUMNS: { key: SortKey; label: (cashColumnLabel: string) => string }[] = [
+  { key: 'symbol', label: () => 'Symbol' },
+  { key: 'cashLastUsd', label: (cashColumnLabel) => cashColumnLabel },
+  { key: 'onchainMidUsd', label: () => 'Aero mid' },
+  { key: 'basisBp', label: () => 'Basis' },
+  { key: 'depthUsd', label: () => 'Depth' },
+];
+
+function TapeHead({
+  cashColumnLabel,
+  sort,
+  onSort,
+}: {
+  cashColumnLabel: string;
+  sort: SortState;
+  onSort: (key: SortKey) => void;
+}) {
+  return (
+    <thead>
+      <tr>
+        {SORT_COLUMNS.map((col) => (
+          <th key={col.key} className="sortable-th" onClick={() => onSort(col.key)}>
+            {col.label(cashColumnLabel)}
+            {sort?.key === col.key && <span className="sort-indicator">{sort.dir === 'asc' ? ' ▲' : ' ▼'}</span>}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
 function TapeRows({
   rows,
   activeSymbol,
@@ -127,14 +179,17 @@ function TapeRows({
 interface HomeClientProps {
   initialTape: TapeResult;
   initialGeo: GeoInfo;
+  initialSymbol?: string;
 }
 
-export default function HomeClient({ initialTape, initialGeo }: HomeClientProps) {
+export default function HomeClient({ initialTape, initialGeo, initialSymbol }: HomeClientProps) {
+  const router = useRouter();
   const [tape, setTape] = useState<TapeResult>(initialTape);
   const [geo] = useState<GeoInfo>(initialGeo);
   const [eligibleChecked, setEligibleChecked] = useState(false);
-  const [symbol, setSymbol] = useState(STOCKS[0].symbol);
+  const [symbol, setSymbol] = useState(initialSymbol ?? STOCKS[0].symbol);
   const [usdcInput, setUsdcInput] = useState('2500');
+  const [sort, setSort] = useState<SortState>(null);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -238,9 +293,21 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
   const activeRow = tape.rows.find((r) => r.symbol === symbol);
   const cashColumnLabel = tape.session.state === 'open' ? 'Cash last' : 'Cash close';
 
-  const selectSymbol = (sym: string) => {
+  // replace (not push) so casually clicking through several names while
+  // comparing doesn't spam the back-button history; scroll:false because
+  // selectSymbol handles its own scroll-to-Lot-Lab.
+  const setSymbolAndUrl = (sym: string) => {
     setSymbol(sym);
+    router.replace(`/${sym}`, { scroll: false });
+  };
+
+  const selectSymbol = (sym: string) => {
+    setSymbolAndUrl(sym);
     document.getElementById('lot-lab')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const toggleSort = (key: SortKey) => {
+    setSort((prev) => (!prev || prev.key !== key ? { key, dir: 'desc' } : { key, dir: prev.dir === 'desc' ? 'asc' : 'desc' }));
   };
 
   const copyTrade = async () => {
@@ -261,6 +328,8 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
   // visual rank — a $10k pool's basis swings hundreds of bp on noise alone
   // and reads as "the tape is broken" next to NVDAc's single-digit bp.
   const { liquid: liquidRows, thin: thinRows } = useMemo(() => splitByLiquidity(tape.rows), [tape.rows]);
+  const sortedLiquidRows = useMemo(() => sortRows(liquidRows, sort), [liquidRows, sort]);
+  const sortedThinRows = useMemo(() => sortRows(thinRows, sort), [thinRows, sort]);
 
   return (
     <main>
@@ -313,17 +382,9 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
       <section className="panel">
         <h2>Tape</h2>
         <table>
-          <thead>
-            <tr>
-              <th>Symbol</th>
-              <th>{cashColumnLabel}</th>
-              <th>Aero mid</th>
-              <th>Basis</th>
-              <th>Depth</th>
-            </tr>
-          </thead>
+          <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} />
           <tbody>
-            <TapeRows rows={liquidRows} activeSymbol={symbol} onSelect={selectSymbol} />
+            <TapeRows rows={sortedLiquidRows} activeSymbol={symbol} onSelect={selectSymbol} />
           </tbody>
         </table>
         {tape.error && <p className="geo-note">{tape.error}</p>}
@@ -340,17 +401,9 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
                   on thin trading, not signal.
                 </p>
                 <table className="thin-table">
-                  <thead>
-                    <tr>
-                      <th>Symbol</th>
-                      <th>{cashColumnLabel}</th>
-                      <th>Aero mid</th>
-                      <th>Basis</th>
-                      <th>Depth</th>
-                    </tr>
-                  </thead>
+                  <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} />
                   <tbody>
-                    <TapeRows rows={thinRows} activeSymbol={symbol} onSelect={selectSymbol} />
+                    <TapeRows rows={sortedThinRows} activeSymbol={symbol} onSelect={selectSymbol} />
                   </tbody>
                 </table>
               </>
@@ -377,7 +430,7 @@ export default function HomeClient({ initialTape, initialGeo }: HomeClientProps)
         <div className="lot-lab-form">
           <div className="field">
             <label htmlFor="symbol-select">Stock</label>
-            <select id="symbol-select" value={symbol} onChange={(e) => setSymbol(e.target.value)}>
+            <select id="symbol-select" value={symbol} onChange={(e) => setSymbolAndUrl(e.target.value)}>
               <optgroup label="Liquid">
                 {liquidRows.map((r) => (
                   <option key={r.symbol} value={r.symbol}>

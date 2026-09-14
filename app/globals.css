@@ -207,6 +207,20 @@ th {
   font-family: inherit;
 }
 
+.sortable-th {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.sortable-th:hover {
+  color: var(--text);
+}
+
+.sort-indicator {
+  color: var(--accent);
+}
+
 .symbol {
   font-weight: 600;
   font-family: inherit;
