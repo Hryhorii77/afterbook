@@ -130,7 +130,9 @@ function TapeHead({
         {SORT_COLUMNS.map((col) => (
           <th key={col.key} className="sortable-th" onClick={() => onSort(col.key)}>
             {col.label(cashColumnLabel)}
-            {sort?.key === col.key && <span className="sort-indicator">{sort.dir === 'asc' ? ' ▲' : ' ▼'}</span>}
+            <span className={sort?.key === col.key ? 'sort-indicator sort-indicator-active' : 'sort-indicator'}>
+              {sort?.key === col.key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
+            </span>
           </th>
         ))}
       </tr>

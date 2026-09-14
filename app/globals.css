@@ -218,6 +218,20 @@ th {
 }
 
 .sort-indicator {
+  color: var(--text-dimmer);
+  font-size: 10px;
+}
+
+.sortable-th:hover .sort-indicator {
+  color: var(--text-dim);
+}
+
+.sort-indicator-active {
+  color: var(--accent);
+  font-size: inherit;
+}
+
+.sortable-th:hover .sort-indicator-active {
   color: var(--accent);
 }
 
