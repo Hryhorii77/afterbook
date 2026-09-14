@@ -14,8 +14,14 @@ const PAD_RIGHT = 12;
 const PAD_TOP = 12;
 const PAD_BOTTOM = 20;
 
+// Weekday is required, not decorative: a weekend-spanning window (the whole
+// point of this chart) crosses midnight, so hour:minute alone can label two
+// points on different days with the same or a lower-looking minute value —
+// reading as if time ran backward even though the data is correctly ordered.
 const timeLabel = (ts: number) =>
-  new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' }).format(new Date(ts)) + ' ET';
+  new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(
+    new Date(ts),
+  ) + ' ET';
 
 export function Sparkline({ samples }: SparklineProps) {
   if (samples.length < 2) return null;
