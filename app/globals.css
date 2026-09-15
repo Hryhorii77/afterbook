@@ -666,12 +666,6 @@ footer a {
   margin-bottom: 12px;
 }
 
-.my-lots-connect-row {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
 .my-lots-address {
   font-family: var(--mono);
   font-size: 13px;
