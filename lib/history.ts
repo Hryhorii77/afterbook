@@ -1,4 +1,4 @@
-import { Redis } from '@upstash/redis';
+import { redis } from './redis';
 
 // Basis-since-close history, sampled opportunistically off real traffic
 // instead of a cron job — there's no dedicated worker in this app, just
@@ -6,15 +6,6 @@ import { Redis } from '@upstash/redis';
 // buildTape()'s already-fetched pool state means this costs zero extra RPC
 // calls; the tradeoff is gaps during stretches with no visitors at all,
 // which is also exactly when nobody's looking at the chart.
-//
-// Works with either the legacy Vercel KV env var names (still what Vercel's
-// own Upstash Marketplace integration provisions, for compatibility with the
-// old @vercel/kv package) or Upstash's native names, so this doesn't care
-// which one the store ends up configured as.
-const KV_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-const KV_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-
-const redis = KV_URL && KV_TOKEN ? new Redis({ url: KV_URL, token: KV_TOKEN }) : null;
 
 const SAMPLE_INTERVAL_MS = 5 * 60_000;
 const RETENTION_MS = 4 * 24 * 60 * 60_000; // covers Friday close -> Monday reopen, plus buffer

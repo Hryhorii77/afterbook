@@ -6,6 +6,7 @@ import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
 import type { TapeResult, TapeRow } from '@/lib/tape';
 import { splitByLiquidity, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import type { GeoInfo } from '@/lib/geo';
+import { bp } from '@/lib/format';
 import { ImpactCurve } from './ImpactCurve';
 import { Sparkline } from './Sparkline';
 import { MyLots } from './MyLots';
@@ -64,7 +65,6 @@ function sortRows(rows: TapeRow[], sort: SortState): TapeRow[] {
 const usd = (n: number | null, digits = 2) =>
   n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: digits, maximumFractionDigits: digits });
 
-const bp = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(1)} bp`);
 
 const shares = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
