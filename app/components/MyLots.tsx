@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createCoinbaseWalletSDK, type ProviderInterface } from '@coinbase/wallet-sdk';
 
 interface EthereumProvider {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -35,14 +36,44 @@ interface MyLotsResponse {
 const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 const shares = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 4 });
 
+type WalletKind = 'injected' | 'coinbase';
+
 export function MyLots() {
   const [address, setAddress] = useState<string | null>(null);
-  const [connecting, setConnecting] = useState(false);
+  const [activeWallet, setActiveWallet] = useState<WalletKind | null>(null);
+  const [connecting, setConnecting] = useState<WalletKind | null>(null);
   const [lots, setLots] = useState<MyLotsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Starts false on both server and first client render (window doesn't
   // exist during SSR) — set for real once mounted, just below.
   const [hasProvider, setHasProvider] = useState(false);
+
+  // Coinbase Wallet SDK works with no extension installed at all — it falls
+  // back to a QR-code / deep-link handoff to the Coinbase Wallet mobile app —
+  // so it's created lazily on first use, independent of window.ethereum.
+  const coinbaseProviderRef = useRef<ProviderInterface | null>(null);
+  const getCoinbaseProvider = () => {
+    if (!coinbaseProviderRef.current) {
+      const sdk = createCoinbaseWalletSDK({
+        appName: 'Afterbook',
+        appLogoUrl: null, // falls back to this page's own favicon
+        appChainIds: [8453],
+        preference: { options: 'eoaOnly' },
+      });
+      const provider = sdk.getProvider();
+      provider.on('accountsChanged', (accounts) => {
+        if (accounts.length > 0) {
+          setAddress(accounts[0]);
+          setActiveWallet('coinbase');
+        } else {
+          setAddress(null);
+          setActiveWallet(null);
+        }
+      });
+      coinbaseProviderRef.current = provider;
+    }
+    return coinbaseProviderRef.current;
+  };
 
   // Restore an already-authorized connection without prompting — standard
   // dapp UX, and harmless since eth_accounts never triggers a wallet popup.
@@ -51,12 +82,20 @@ export function MyLots() {
     setHasProvider(true);
     window.ethereum.request({ method: 'eth_accounts' }).then((accounts) => {
       const list = accounts as string[];
-      if (list.length > 0) setAddress(list[0]);
+      if (list.length > 0) {
+        setAddress(list[0]);
+        setActiveWallet('injected');
+      }
     });
 
     const handleAccountsChanged = (...args: unknown[]) => {
       const accounts = args[0] as string[];
-      setAddress(accounts.length > 0 ? accounts[0] : null);
+      if (accounts.length > 0) {
+        setAddress(accounts[0]);
+      } else {
+        setAddress(null);
+        setActiveWallet(null);
+      }
     };
     window.ethereum.on('accountsChanged', handleAccountsChanged);
     return () => window.ethereum?.removeListener('accountsChanged', handleAccountsChanged);
@@ -87,21 +126,43 @@ export function MyLots() {
     };
   }, [address]);
 
-  const connect = async () => {
+  const connectInjected = async () => {
     if (!window.ethereum) return;
-    setConnecting(true);
+    setConnecting('injected');
     try {
       const accounts = (await window.ethereum.request({ method: 'eth_requestAccounts' })) as string[];
-      if (accounts.length > 0) setAddress(accounts[0]);
+      if (accounts.length > 0) {
+        setAddress(accounts[0]);
+        setActiveWallet('injected');
+      }
     } catch {
       // user rejected the connection — nothing to do
     } finally {
-      setConnecting(false);
+      setConnecting(null);
+    }
+  };
+
+  const connectCoinbase = async () => {
+    setConnecting('coinbase');
+    try {
+      const accounts = (await getCoinbaseProvider().request({ method: 'eth_requestAccounts' })) as string[];
+      if (accounts.length > 0) {
+        setAddress(accounts[0]);
+        setActiveWallet('coinbase');
+      }
+    } catch {
+      // user rejected, or closed the QR/deep-link popup — nothing to do
+    } finally {
+      setConnecting(null);
     }
   };
 
   const disconnect = () => {
+    if (activeWallet === 'coinbase') {
+      coinbaseProviderRef.current?.disconnect().catch(() => {});
+    }
     setAddress(null);
+    setActiveWallet(null);
     setLots(null);
   };
 
@@ -109,16 +170,21 @@ export function MyLots() {
     <section className="panel">
       <h2>My Lots</h2>
 
-      {!hasProvider ? (
-        <p className="geo-note">No wallet extension detected — connect isn&apos;t available in this browser.</p>
-      ) : !address ? (
+      {!address ? (
         <>
           <p className="geo-note" style={{ marginTop: 0, marginBottom: 12 }}>
             Read-only — connecting only reveals your address so balances can be read. Never signs a transaction.
           </p>
-          <button type="button" className="btn btn-secondary" onClick={connect} disabled={connecting}>
-            {connecting ? 'Connecting…' : 'Connect wallet'}
-          </button>
+          <div className="my-lots-connect-row">
+            <button type="button" className="btn btn-secondary" onClick={connectCoinbase} disabled={connecting !== null}>
+              {connecting === 'coinbase' ? 'Connecting…' : 'Connect Coinbase Wallet'}
+            </button>
+            {hasProvider && (
+              <button type="button" className="btn btn-secondary" onClick={connectInjected} disabled={connecting !== null}>
+                {connecting === 'injected' ? 'Connecting…' : 'Connect browser wallet'}
+              </button>
+            )}
+          </div>
         </>
       ) : (
         <>
