@@ -36,6 +36,29 @@ interface MyLotsResponse {
 const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 const shares = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 4 });
 
+// Observed in practice: Coinbase's relay can hang indefinitely after a real
+// QR scan + approval on the phone — no resolve, no reject, nothing — which
+// would otherwise leave the connect button stuck disabled forever with no
+// way out except a page reload. This is what actually recovers the UI in
+// that case; it's a safety net, not a real cancellation of anything.
+const COINBASE_CONNECT_TIMEOUT_MS = 60_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('afterbook-timeout')), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 type WalletKind = 'injected' | 'coinbase';
 
 export function MyLots() {
@@ -144,14 +167,21 @@ export function MyLots() {
 
   const connectCoinbase = async () => {
     setConnecting('coinbase');
+    setError(null);
     try {
-      const accounts = (await getCoinbaseProvider().request({ method: 'eth_requestAccounts' })) as string[];
+      const accounts = (await withTimeout(
+        getCoinbaseProvider().request({ method: 'eth_requestAccounts' }),
+        COINBASE_CONNECT_TIMEOUT_MS,
+      )) as string[];
       if (accounts.length > 0) {
         setAddress(accounts[0]);
         setActiveWallet('coinbase');
       }
-    } catch {
-      // user rejected, or closed the QR/deep-link popup — nothing to do
+    } catch (err) {
+      if (err instanceof Error && err.message === 'afterbook-timeout') {
+        setError('Coinbase Wallet didn’t respond in time — try again, or use "Connect browser wallet" instead.');
+      }
+      // otherwise: user rejected, or closed the QR/deep-link popup — nothing to show
     } finally {
       setConnecting(null);
     }
@@ -185,6 +215,7 @@ export function MyLots() {
               </button>
             )}
           </div>
+          {error && <p className="geo-note">{error}</p>}
         </>
       ) : (
         <>
