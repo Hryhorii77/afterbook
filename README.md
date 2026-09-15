@@ -2,7 +2,7 @@
 
 **Live at [afterbook.app](https://afterbook.app).**
 
-Cash close vs the Aero book, in shares. No wallet connect — execution stays on [Aerodrome](https://aerodrome.finance).
+Cash close vs the Aero book, in shares. No wallet ever signs anything — execution stays on [Aerodrome](https://aerodrome.finance).
 
 ## What it shows
 
@@ -12,7 +12,8 @@ Cash close vs the Aero book, in shares. No wallet connect — execution stays on
 - **Basis since close**: a sparkline of the selected symbol's basis from the last cash close to now, sampled opportunistically off real traffic into Redis (no cron job) — gaps fill in as the app keeps running, and it works with zero setup (just renders empty) if no Redis store is configured.
 - **NY session clock**: cash-open / pre-market / after-hours / weekend / holiday state, so the 24/7-onchain-vs-24/5-cash gap is explicit, not implied.
 - **Lot Lab**: type a USDC amount (or pick a size preset — $250 / $1k / $5k / 1% of the pool), see shares out, execution price, and a price-impact curve across a log-spaced range of trade sizes ($500–$1M) — computed from the pool's live `slot0()`/`liquidity()`, not a cached reserve snapshot. Also shows the same amount priced as a full-range LP position (≈50/50 by value — exact for full-range concentrated liquidity, with a caveat that Aerodrome defaults new deposits to a narrower range). A "Copy trade" button copies the sized trade as plain text.
-- **Execute**: deep links to Aerodrome's own swap and add-liquidity UIs, gated behind a non-US geo check and an eligibility checkbox. No wallet ever connects to this app.
+- **My Lots**: connect a wallet (read-only — the connection only reveals your public address, nothing is ever signed) to see spot share balances and Aerodrome LP positions across the ten stocks, priced live. LP position data comes from Aerodrome/Velodrome's own "Sugar" read-helper contract (`positionsByFactory`), not the publicly-documented NFT position manager — that one is bound to a different CL factory than these specific pools use and would silently show nothing.
+- **Execute**: deep links to Aerodrome's own swap and add-liquidity UIs, gated behind a non-US geo check and an eligibility checkbox. No wallet ever signs a transaction through this app.
 - **Log**: a session-local, timestamped feed of notable events (starting with "cash just closed" plus each liquid symbol's basis at that instant) — the seed for real alerts later.
 - **Share card**: the OG/Twitter preview image is generated live from the same tape data, showing the biggest movers among the liquid names.
 - Dark-only by design — `color-scheme: dark` forces native form controls and mobile browser chrome to render correctly even when the viewer's device is in light mode.
@@ -35,7 +36,7 @@ On-chain reads go through `https://mainnet.base.org`, Base's documented official
 
 - Allowlisted contracts only — ten token addresses, ten pool addresses, all verified on-chain.
 - All price/quote fetches happen server-side (Next.js route handlers); the browser only talks to this app's own `/api/*` routes.
-- No wallet connect, no seed phrase, no token approval, no custom swap router — this app never constructs calldata.
+- My Lots connects a wallet to *read* balances — no seed phrase ever touches this app, no signature or approval is ever requested, no custom swap router, and this app never constructs calldata. Connecting only exposes the public address, which is already public on-chain regardless.
 - The non-US geofence (`x-vercel-ip-country`) is a best-effort UX gate, not a compliance control — it's defeated by any VPN, and the UI says so. Detected-US viewers see explicit "not available" copy rather than a silently-disabled button.
 - Every execution link points at `aerodrome.finance` — Aerodrome's own app decides how to route the trade.
 - Strict CSP (script-src limited to same-origin + a fresh per-request nonce), HSTS, X-Frame-Options: DENY, no third-party scripts or fonts anywhere in the app.

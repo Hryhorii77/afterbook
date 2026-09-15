@@ -8,6 +8,7 @@ import { splitByLiquidity, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import type { GeoInfo } from '@/lib/geo';
 import { ImpactCurve } from './ImpactCurve';
 import { Sparkline } from './Sparkline';
+import { MyLots } from './MyLots';
 
 interface CurvePoint {
   usdcIn: number;
@@ -427,6 +428,8 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         </section>
       )}
 
+      <MyLots />
+
       <section className="panel" id="lot-lab">
         <h2>Lot Lab</h2>
         <div className="lot-lab-form">
@@ -574,7 +577,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               ? `Detected region: ${geo.country}. `
               : 'Region could not be detected (e.g. local dev). '}
           This is a best-effort geofence based on IP country, not a compliance control — it does not stop a VPN.
-          No wallet ever connects here; the button only opens Aerodrome&apos;s own app in a new tab.
+          No wallet ever signs anything here; the button only opens Aerodrome&apos;s own app in a new tab.
         </p>
       </section>
 
@@ -590,7 +593,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             on-chain
           </li>
           <li>Server-side fetches; the browser only talks to this site&apos;s own /api routes</li>
-          <li>No wallet connect, no seed phrase, no approvals, no custom router</li>
+          <li>My Lots connects a wallet to read balances only — no seed phrase, no approvals, no custom router, no signature ever requested</li>
           <li>Official Aerodrome URLs only for every execution link</li>
         </ul>
         <p>MIT licensed.</p>

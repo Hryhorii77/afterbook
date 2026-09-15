@@ -33,7 +33,7 @@ const POOL_ABI = [
 // this is exactly the lever a split would pull, we read it live on every
 // quote instead of assuming 1.0 forever — otherwise "shares out" would
 // silently become wrong the day it changes.
-const TOKEN_ABI = [
+export const TOKEN_ABI = [
   {
     type: 'function',
     name: 'multiplier',
@@ -43,7 +43,7 @@ const TOKEN_ABI = [
   },
 ] as const;
 
-const ERC20_ABI = [
+export const ERC20_ABI = [
   {
     type: 'function',
     name: 'balanceOf',
@@ -53,7 +53,7 @@ const ERC20_ABI = [
   },
 ] as const;
 
-const MULTIPLIER_ONE = 10 ** 18;
+export const MULTIPLIER_ONE = 10 ** 18;
 
 let client: PublicClient | null = null;
 

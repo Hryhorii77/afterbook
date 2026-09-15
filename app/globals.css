@@ -658,3 +658,22 @@ footer a {
   color: var(--text-dimmer);
   margin-right: 6px;
 }
+
+.my-lots-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.my-lots-address {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.my-lots-usd {
+  font-size: 12px;
+  color: var(--text-dimmer);
+  margin-top: 2px;
+}

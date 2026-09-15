@@ -14,9 +14,19 @@ import { NextRequest, NextResponse } from 'next/server';
 export function middleware(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
 
+  // Next's dev-mode React Fast Refresh runtime evaluates code via eval() for
+  // hot-module-reloading — a production-equivalent CSP with no 'unsafe-eval'
+  // blocks that outright, silently breaking all client interactivity in
+  // `next dev` (hydration errors with no useful message). Production builds
+  // don't use eval-based HMR at all, so this only loosens the dev server.
+  const scriptSrc =
+    process.env.NODE_ENV === 'development'
+      ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`
+      : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`;
+
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    scriptSrc,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "connect-src 'self'",
