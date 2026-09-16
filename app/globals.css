@@ -267,6 +267,17 @@ td.basis-cell {
 td.depth-cell {
   color: var(--text-dimmer);
   font-size: 13px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.depth-usd {
+  min-width: 58px;
+  text-align: right;
+}
+.depth-shares {
+  min-width: 76px;
+  text-align: right;
 }
 
 .tape-row-clickable {
