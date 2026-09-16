@@ -180,9 +180,17 @@ section.panel h2 {
   margin: 0 0 16px;
 }
 
+.table-scroll {
+  overflow-x: auto;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
+}
+
+.table-scroll table {
+  min-width: 480px;
 }
 
 th, td {

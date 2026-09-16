@@ -384,12 +384,14 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
       <section className="panel">
         <h2>Tape</h2>
-        <table>
-          <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} />
-          <tbody>
-            <TapeRows rows={sortedLiquidRows} activeSymbol={symbol} onSelect={selectSymbol} />
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table>
+            <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} />
+            <tbody>
+              <TapeRows rows={sortedLiquidRows} activeSymbol={symbol} onSelect={selectSymbol} />
+            </tbody>
+          </table>
+        </div>
         {tape.error && <p className="geo-note">{tape.error}</p>}
 
         {thinRows.length > 0 && (
@@ -403,12 +405,14 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                   Under ${(LIQUID_DEPTH_THRESHOLD_USD / 1000).toFixed(0)}k depth — basis here can swing hundreds of bp
                   on thin trading, not signal.
                 </p>
-                <table className="thin-table">
-                  <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} />
-                  <tbody>
-                    <TapeRows rows={sortedThinRows} activeSymbol={symbol} onSelect={selectSymbol} />
-                  </tbody>
-                </table>
+                <div className="table-scroll">
+                  <table className="thin-table">
+                    <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} />
+                    <tbody>
+                      <TapeRows rows={sortedThinRows} activeSymbol={symbol} onSelect={selectSymbol} />
+                    </tbody>
+                  </table>
+                </div>
               </>
             )}
           </div>

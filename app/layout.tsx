@@ -14,6 +14,9 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: 'Afterbook',
   description: 'Cash close vs the Aero book, in shares. Execution stays on Aerodrome.',
+  // Proves domain ownership for the base.dev app registration's
+  // "Add Domain" verification step — Base checks the live page for this tag.
+  other: { 'base:app_id': '6a78ca7585896ee843331757' },
 };
 
 // This is a dark-only design by intent — not "supports dark mode," just dark.
