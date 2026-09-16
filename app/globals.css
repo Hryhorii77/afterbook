@@ -267,6 +267,8 @@ td.basis-cell {
 td.depth-cell {
   color: var(--text-dimmer);
   font-size: 13px;
+}
+.depth-cell-inner {
   display: flex;
   justify-content: flex-end;
   gap: 6px;

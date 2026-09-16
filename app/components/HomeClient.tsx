@@ -171,9 +171,11 @@ function TapeRows({
             {bp(row.basisBp)}
           </td>
           <td className="depth-cell">
-            <span className="depth-usd">{usdCompact(row.depthUsd)}</span>
-            <span className="depth-sep">·</span>
-            <span className="depth-shares">{sharesCompact(row.depthShares)}</span>
+            <div className="depth-cell-inner">
+              <span className="depth-usd">{usdCompact(row.depthUsd)}</span>
+              <span className="depth-sep">·</span>
+              <span className="depth-shares">{sharesCompact(row.depthShares)}</span>
+            </div>
           </td>
         </tr>
       ))}
