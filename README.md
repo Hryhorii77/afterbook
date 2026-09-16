@@ -14,7 +14,9 @@ Cash close vs the Aero book, in shares. No wallet ever signs anything — execut
 - **Lot Lab**: type a USDC amount (or pick a size preset — $250 / $1k / $5k / 1% of the pool), see shares out, execution price, and a price-impact curve across a log-spaced range of trade sizes ($500–$1M) — computed from the pool's live `slot0()`/`liquidity()`, not a cached reserve snapshot. Also shows the same amount priced as a full-range LP position (≈50/50 by value — exact for full-range concentrated liquidity, with a caveat that Aerodrome defaults new deposits to a narrower range). A "Copy trade" button copies the sized trade as plain text.
 - **My Lots**: connect a wallet (read-only — the connection only reveals your public address, nothing is ever signed) to see spot share balances and Aerodrome LP positions across the ten stocks, priced live. LP position data comes from Aerodrome/Velodrome's own "Sugar" read-helper contract (`positionsByFactory`), not the publicly-documented NFT position manager — that one is bound to a different CL factory than these specific pools use and would silently show nothing.
 - **Execute**: deep links to Aerodrome's own swap and add-liquidity UIs, gated behind a non-US geo check and an eligibility checkbox. No wallet ever signs a transaction through this app.
-- **Log**: a session-local, timestamped feed of notable events (starting with "cash just closed" plus each liquid symbol's basis at that instant) — the seed for real alerts later.
+- **Log**: a session-local, timestamped feed of notable events (starting with "cash just closed" plus each liquid symbol's basis at that instant).
+- **Telegram alerts**: `/alert SYMBOL BP` pings when a symbol's |basis| crosses a threshold; `/close` pings once with every liquid name's basis the moment the cash market closes. A Vercel Cron job re-evaluates every 5 minutes against live tape data and fires only on the transition, not every tick a condition holds.
+- **Public API**: a versioned, documented `/api/v1/tape` for external consumers, separate from the unauthenticated `/api/tape` the site itself polls — see "Public API" below.
 - **Share card**: the OG/Twitter preview image is generated live from the same tape data, showing the biggest movers among the liquid names.
 - Dark-only by design — `color-scheme: dark` forces native form controls and mobile browser chrome to render correctly even when the viewer's device is in light mode.
 
@@ -68,7 +70,38 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-No environment variables required to run it — the app works fully without them. Optionally, set `KV_REST_API_URL` / `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`) to a Redis (Upstash) REST endpoint to enable the "basis since close" sparkline's history; without them the app runs the same, the sparkline just stays empty.
+No environment variables required to run it — the app works fully without them. Optionally:
+
+- `KV_REST_API_URL` / `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`) — a Redis (Upstash) REST endpoint. Enables the "basis since close" sparkline's history, Telegram alerts, and the public API's key storage. Without it, the sparkline stays empty and both features return `503`.
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` — enables Telegram alerts. The token comes from [@BotFather](https://t.me/BotFather); the webhook secret is any random string you generate yourself, passed to Telegram's `setWebhook` as `secret_token` and checked against the `X-Telegram-Bot-Api-Secret-Token` header on every incoming update.
+- `CRON_SECRET` — a random string Vercel automatically attaches as `Authorization: Bearer <secret>` on cron-triggered requests ([documented pattern](https://vercel.com/docs/cron-jobs/manage-cron-jobs#securing-cron-jobs)); secures `/api/cron/alerts` against being triggered by anyone else.
+
+## Public API
+
+`/api/v1/tape` is a separate, versioned, documented contract for external consumers (bots, agents) — distinct from the unauthenticated `/api/tape` the site's own frontend polls, so internal refactors never silently break external callers.
+
+Get a key (free, instant, no signup):
+```bash
+curl -X POST https://afterbook.app/api/v1/keys
+```
+
+Call the tape with it:
+```bash
+curl https://afterbook.app/api/v1/tape -H "Authorization: Bearer ab_..."
+```
+
+Response shape (frozen — internal-only fields like `cashTicker`/`name`/`cashStale` are deliberately not part of this contract):
+```json
+{
+  "session": { "state": "after-hours", "label": "After-hours", "nyTime": "16:30" },
+  "asOf": 1735000000000,
+  "rows": [
+    { "symbol": "NVDAc", "cashUsd": 218.36, "midUsd": 218.65, "basisBp": 13.5, "depthUsd": 2500000 }
+  ]
+}
+```
+
+Rate limit: 1 request/second per key.
 
 ## Deploying
 
