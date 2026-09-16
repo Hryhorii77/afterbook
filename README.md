@@ -103,6 +103,15 @@ Response shape (frozen — internal-only fields like `cashTicker`/`name`/`cashSt
 
 Rate limit: 1 request/second per key.
 
+## Agent / MCP
+
+`https://afterbook.app/api/mcp` is a remote [MCP](https://modelcontextprotocol.io) server for agents (Claude, etc.) — no key, no signup, read-only. Add it as a remote MCP server in Claude Code, Claude Desktop, or any MCP-compatible client pointed at that URL.
+
+Two tools:
+
+- **`get_tape`** — no input. Same data as `/api/v1/tape` above.
+- **`get_quote`** — `{ symbol, usdcIn }`. Shares out, execution price, and price impact for sizing a USDC → stock trade — the same estimate Lot Lab shows, not a firm quote; the actual fill always happens on Aerodrome's own app.
+
 ## Deploying
 
 ```bash

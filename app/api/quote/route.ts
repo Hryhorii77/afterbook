@@ -1,13 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStock } from '@/lib/tokens';
-import { buildImpactCurve, estimateLot, readPoolState } from '@/lib/quote';
-
-interface StateCacheEntry {
-  state: Awaited<ReturnType<typeof readPoolState>>;
-  fetchedAt: number;
-}
-const stateCache = new Map<string, StateCacheEntry>();
-const CACHE_TTL_MS = 20_000;
+import { buildImpactCurve, estimateLot, getCachedPoolState } from '@/lib/quote';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -28,14 +21,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const now = Date.now();
-    const cached = stateCache.get(stock.symbol);
-    const state =
-      cached && now - cached.fetchedAt < CACHE_TTL_MS ? cached.state : await readPoolState(stock);
-    if (!cached || now - cached.fetchedAt >= CACHE_TTL_MS) {
-      stateCache.set(stock.symbol, { state, fetchedAt: now });
-    }
-
+    const state = await getCachedPoolState(stock);
     const estimate = estimateLot(state, stock, usdcIn);
     const curve = buildImpactCurve(state, stock);
     return NextResponse.json({ symbol: stock.symbol, ...estimate, curve });

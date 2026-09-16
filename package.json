@@ -10,12 +10,15 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
     "@upstash/ratelimit": "^2.1.0",
     "@upstash/redis": "^1.38.4",
+    "mcp-handler": "^2.1.1",
     "next": "^15.0.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "viem": "^2.21.0"
+    "viem": "^2.21.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

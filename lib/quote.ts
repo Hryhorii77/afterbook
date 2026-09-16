@@ -115,6 +115,26 @@ export async function readPoolState(stock: CbStock, publicClient: PublicClient =
   };
 }
 
+interface StateCacheEntry {
+  state: PoolState;
+  fetchedAt: number;
+}
+const STATE_CACHE_TTL_MS = 20_000;
+const stateCache = new Map<string, StateCacheEntry>();
+
+// Shared by /api/quote and the MCP get_quote tool so both draw from one
+// cache instead of each independently hammering slot0()/liquidity().
+export async function getCachedPoolState(stock: CbStock): Promise<PoolState> {
+  const now = Date.now();
+  const cached = stateCache.get(stock.symbol);
+  if (cached && now - cached.fetchedAt < STATE_CACHE_TTL_MS) {
+    return cached.state;
+  }
+  const state = await readPoolState(stock);
+  stateCache.set(stock.symbol, { state, fetchedAt: now });
+  return state;
+}
+
 const Q96 = 2 ** 96;
 
 /**

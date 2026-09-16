@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { tapeLimiter } from '@/lib/ratelimit';
 import { getTape } from '@/lib/tape';
+import { toPublicTape } from '@/lib/publicTape';
 
 export const revalidate = 0;
 
@@ -35,15 +36,5 @@ export async function GET(request: NextRequest) {
   }
 
   const tape = await getTape();
-  return NextResponse.json({
-    session: { state: tape.session.state, label: tape.session.label, nyTime: tape.session.nyTime },
-    asOf: tape.fetchedAt,
-    rows: tape.rows.map((r) => ({
-      symbol: r.symbol,
-      cashUsd: r.cashLastUsd,
-      midUsd: r.onchainMidUsd,
-      basisBp: r.basisBp,
-      depthUsd: r.depthUsd,
-    })),
-  });
+  return NextResponse.json(toPublicTape(tape));
 }
