@@ -75,6 +75,7 @@ export function getClient(): PublicClient {
 
 export interface PoolState {
   sqrtPriceX96: bigint;
+  tick: number;
   liquidity: bigint;
   /** B20 multiplier, fixed-point 1e18 = 1.0x. Falls back to 1e18 (no-op) if
    *  the token doesn't implement multiplier() at all. */
@@ -104,10 +105,11 @@ export async function readPoolState(stock: CbStock, publicClient: PublicClient =
     throw new Error(`pool state read failed for ${stock.symbol}`);
   }
 
-  const [sqrtPriceX96] = slot0.result as readonly [bigint, number, number, number, number, boolean];
+  const [sqrtPriceX96, tick] = slot0.result as readonly [bigint, number, number, number, number, boolean];
   const multiplier = multiplierResult.status === 'success' ? (multiplierResult.result as bigint) : BigInt(MULTIPLIER_ONE);
   return {
     sqrtPriceX96,
+    tick,
     liquidity: liquidity.result as bigint,
     multiplier,
     usdcReserveRaw: usdcReserve.status === 'success' ? (usdcReserve.result as bigint) : 0n,
@@ -143,13 +145,17 @@ const Q96 = 2 ** 96;
  * for every pool in lib/tokens.ts (verified on-chain), so this direction is
  * fixed across all four stocks.
  */
-export function midPriceUsd(state: PoolState, stock: CbStock): number {
-  const sqrtP = Number(state.sqrtPriceX96) / Q96;
+export function priceFromSqrtX96(sqrtPriceX96: bigint, multiplier: bigint, stock: CbStock): number {
+  const sqrtP = Number(sqrtPriceX96) / Q96;
   const rawToken1PerToken0 = sqrtP * sqrtP; // stock-raw-units per USDC-raw-unit
   const decAdjusted = rawToken1PerToken0 * 10 ** (USDC.decimals - stock.decimals); // stock per USDC
   const rawMidPriceUsd = 1 / decAdjusted; // USD per raw token unit
-  const multiplierRatio = Number(state.multiplier) / MULTIPLIER_ONE;
+  const multiplierRatio = Number(multiplier) / MULTIPLIER_ONE;
   return rawMidPriceUsd / multiplierRatio; // USD per displayed share
+}
+
+export function midPriceUsd(state: PoolState, stock: CbStock): number {
+  return priceFromSqrtX96(state.sqrtPriceX96, state.multiplier, stock);
 }
 
 export interface PoolDepth {

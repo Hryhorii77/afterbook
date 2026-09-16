@@ -25,6 +25,14 @@ interface LpHolding {
   usdcAmount: number;
   shares: number;
   usdValue: number;
+  tickLower: number;
+  tickUpper: number;
+  inRange: boolean | null;
+  rangeLowUsd: number;
+  rangeHighUsd: number;
+  feesEarnedUsd: number;
+  emissionsEarnedAero: number;
+  lockedUntil: number | null;
 }
 
 interface MyLotsResponse {
@@ -34,6 +42,7 @@ interface MyLotsResponse {
 
 const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 const shares = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 4 });
+const lockDate = (ms: number) => new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(ms));
 
 export function MyLots() {
   const [address, setAddress] = useState<string | null>(null);
@@ -168,6 +177,20 @@ export function MyLots() {
                       {usd(h.usdcAmount)} + {shares(h.shares)} sh
                     </div>
                     <div className="my-lots-usd">{usd(h.usdValue)}</div>
+                    {h.inRange != null && (
+                      <div className="geo-note">
+                        <span className={h.inRange ? 'basis-pos' : 'basis-neg'}>{h.inRange ? 'In range' : 'Out of range'}</span>{' '}
+                        {usd(h.rangeLowUsd)} – {usd(h.rangeHighUsd)}
+                      </div>
+                    )}
+                    {(h.feesEarnedUsd > 0 || h.emissionsEarnedAero > 0) && (
+                      <div className="geo-note">
+                        {h.feesEarnedUsd > 0 && <>+{usd(h.feesEarnedUsd)} fees</>}
+                        {h.feesEarnedUsd > 0 && h.emissionsEarnedAero > 0 && ' · '}
+                        {h.emissionsEarnedAero > 0 && <>+{shares(h.emissionsEarnedAero)} AERO</>}
+                      </div>
+                    )}
+                    {h.lockedUntil != null && <div className="geo-note">Locked until {lockDate(h.lockedUntil)}</div>}
                   </div>
                 ))}
               </div>

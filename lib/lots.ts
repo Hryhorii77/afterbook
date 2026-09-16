@@ -1,6 +1,12 @@
-import { getClient, TOKEN_ABI, ERC20_ABI, MULTIPLIER_ONE } from './quote';
+import { getClient, TOKEN_ABI, ERC20_ABI, MULTIPLIER_ONE, priceFromSqrtX96 } from './quote';
 import { STOCKS, CL_FACTORY, type CbStock } from './tokens';
 import type { TapeRow } from './tape';
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+// AERO is a standard 18-decimal ERC20 — Sugar's emissions_earned is denominated
+// in it. This app has no AERO/USDC pool tracked, so there's no price feed to
+// convert it to USD; shown as a raw token amount instead of inventing one.
+const AERO_DECIMALS = 18;
 
 // Aerodrome/Velodrome's official on-chain read-helper ("Sugar") contract on
 // Base — confirmed against Aerodrome's own deployments/base.env manifest.
@@ -64,6 +70,17 @@ export interface LpHolding {
   usdcAmount: number;
   shares: number;
   usdValue: number;
+  tickLower: number;
+  tickUpper: number;
+  /** null when the pool's current tick isn't available (e.g. that symbol's
+   *  tape fetch failed this cycle) — distinct from a known false. */
+  inRange: boolean | null;
+  rangeLowUsd: number;
+  rangeHighUsd: number;
+  feesEarnedUsd: number;
+  emissionsEarnedAero: number;
+  /** Epoch ms the position unlocks, or null if it isn't locked. */
+  lockedUntil: number | null;
 }
 
 export interface MyLots {
@@ -135,11 +152,46 @@ export async function getMyLots(address: `0x${string}`, tapeRows: TapeRow[]): Pr
       if (usdcRaw === 0n && stockRaw === 0n) return null;
 
       const usdcAmount = Number(usdcRaw) / 1e6; // USDC is always 6dp
-      const shares = sharesFromRaw(stockRaw, stock, multiplierBySymbol.get(stock.symbol)!);
+      const multiplier = multiplierBySymbol.get(stock.symbol)!;
+      const shares = sharesFromRaw(stockRaw, stock, multiplier);
       const row = tapeRows.find((r) => r.symbol === stock.symbol);
       const shareUsd = row?.onchainMidUsd != null ? shares * row.onchainMidUsd : 0;
 
-      return { symbol: stock.symbol, usdcAmount, shares, usdValue: usdcAmount + shareUsd };
+      const inRange = row?.tick != null ? pos.tick_lower <= row.tick && row.tick <= pos.tick_upper : null;
+
+      // sqrt_ratio_lower maps to the *higher* USD price and sqrt_ratio_upper
+      // to the lower one (inverse relationship — token0 is always USDC), so
+      // compute both and sort rather than assume the naming implies order.
+      const priceAtLower = priceFromSqrtX96(pos.sqrt_ratio_lower, multiplier, stock);
+      const priceAtUpper = priceFromSqrtX96(pos.sqrt_ratio_upper, multiplier, stock);
+      const rangeLowUsd = Math.min(priceAtLower, priceAtUpper);
+      const rangeHighUsd = Math.max(priceAtLower, priceAtUpper);
+
+      const totalEarned0 = pos.unstaked_earned0;
+      const totalEarned1 = pos.unstaked_earned1;
+      const earnedUsdcRaw = stock.pool.token0 === 'USDC' ? totalEarned0 : totalEarned1;
+      const earnedStockRaw = stock.pool.token0 === 'USDC' ? totalEarned1 : totalEarned0;
+      const earnedUsdc = Number(earnedUsdcRaw) / 1e6;
+      const earnedStockUsd = row?.onchainMidUsd != null ? sharesFromRaw(earnedStockRaw, stock, multiplier) * row.onchainMidUsd : 0;
+      const feesEarnedUsd = earnedUsdc + earnedStockUsd;
+      const emissionsEarnedAero = Number(pos.emissions_earned) / 10 ** AERO_DECIMALS;
+
+      const lockedUntil = pos.locker.toLowerCase() !== ZERO_ADDRESS && pos.unlocks_at > 0 ? pos.unlocks_at * 1000 : null;
+
+      return {
+        symbol: stock.symbol,
+        usdcAmount,
+        shares,
+        usdValue: usdcAmount + shareUsd,
+        tickLower: pos.tick_lower,
+        tickUpper: pos.tick_upper,
+        inRange,
+        rangeLowUsd,
+        rangeHighUsd,
+        feesEarnedUsd,
+        emissionsEarnedAero,
+        lockedUntil,
+      };
     })
     .filter((p): p is LpHolding => p !== null);
 

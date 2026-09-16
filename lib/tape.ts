@@ -19,6 +19,10 @@ export interface TapeRow {
   cashAsOfMs: number | null;
   cashStale: boolean;
   onchainMidUsd: number | null;
+  /** Current pool tick, straight off slot0() — carried through so LP-position
+   *  helpers (lib/lots.ts) can tell whether a position is in range without a
+   *  second RPC call. */
+  tick: number | null;
   basisBp: number | null;
   /** Real pool depth (token.balanceOf(pool)), not the virtual reserves used
    *  for impact math — this is what's actually deployed. */
@@ -97,6 +101,7 @@ async function buildTape(): Promise<TapeRow[]> {
         cashAsOfMs: cash?.asOfMs ?? null,
         cashStale: false,
         onchainMidUsd: onchainMid,
+        tick: poolState?.tick ?? null,
         basisBp,
         depthUsd,
         depthShares: depth?.stockShares ?? null,
