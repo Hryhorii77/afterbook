@@ -210,6 +210,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const [basisStats, setBasisStats] = useState<ClosedPeriodStats | null>(null);
   const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
   const [copied, setCopied] = useState(false);
+  const [amountCopied, setAmountCopied] = useState(false);
   const prevSessionStateRef = useRef(initialTape.session.state);
 
   const cashClosedAsOfMs =
@@ -360,6 +361,20 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard access denied — nothing to fall back to, button just won't confirm
+    }
+  };
+
+  // Aerodrome's swap URL has no amount param (verified live — from/to/chain
+  // are the only ones it reads), so the closest we can get to a deep-linked
+  // trade size is a paste instead of a retype.
+  const copyAmount = async () => {
+    if (!quote) return;
+    try {
+      await navigator.clipboard.writeText(String(quote.usdcIn));
+      setAmountCopied(true);
+      setTimeout(() => setAmountCopied(false), 1500);
     } catch {
       // clipboard access denied — nothing to fall back to, button just won't confirm
     }
@@ -623,6 +638,11 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               <a className="btn" href={aerodromeSwapUrl(activeStock)} target="_blank" rel="noopener noreferrer">
                 Open {activeStock.symbol} on Aerodrome ↗
               </a>
+              {quote && (
+                <button type="button" className="copy-trade-btn" onClick={copyAmount}>
+                  {amountCopied ? 'Copied ✓' : `Copy ${usd(quote.usdcIn, 0)}`}
+                </button>
+              )}
               <a className="btn btn-secondary" href={aerodromeDepositUrl(activeStock)} target="_blank" rel="noopener noreferrer">
                 Add {activeStock.symbol} liquidity
               </a>
