@@ -80,7 +80,8 @@ contract Deploy is Script {
         console.log("JensenBuybackBurn deployed at:", address(jbb));
         console.log("");
         console.log("NEXT STEPS (do not skip):");
-        console.log("1. Send a couple dollars of USDC to the contract address above.");
+        console.log("1. Send at least MIN_SWAP_THRESHOLD_USDC of USDC to the contract address above");
+        console.log("   (the deployed threshold is immutable -- swapAndBurn() reverts below it).");
         console.log("2. Call swapAndBurn() once, manually, via BaseScan's 'Write Contract' tab");
         console.log("   (or `cast send <address> \"swapAndBurn()\" --rpc-url base --private-key ...`).");
         console.log("3. On BaseScan, confirm: the caller (you) received the USDC tip, NVDAc was");
