@@ -74,6 +74,8 @@ const usd = (n: number | null, digits = 2) =>
 
 const shares = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
+const truncateAddr = (addr: string) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+
 const usdCompact = (n: number | null) => {
   if (n == null) return '—';
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
@@ -667,6 +669,17 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               : 'Region could not be detected (e.g. local dev). '}
           This is a best-effort geofence based on IP country, not a compliance control — it does not stop a VPN.
           No wallet ever signs anything here; the button only opens Aerodrome&apos;s own app in a new tab.
+        </p>
+        <p className="geo-note contract-info">
+          Token{' '}
+          <a href={`https://basescan.org/address/${activeStock.tokenAddress}`} target="_blank" rel="noopener noreferrer">
+            {truncateAddr(activeStock.tokenAddress)} ↗
+          </a>
+          {' · '}Pool{' '}
+          <a href={`https://basescan.org/address/${activeStock.pool.address}`} target="_blank" rel="noopener noreferrer">
+            {truncateAddr(activeStock.pool.address)} ↗
+          </a>
+          {' — verified on-chain, see README for the full check.'}
         </p>
       </section>
 

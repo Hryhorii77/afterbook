@@ -37,7 +37,7 @@ On-chain reads go through `https://mainnet.base.org`, Base's documented official
 
 ## Security model
 
-- Allowlisted contracts only — ten token addresses, ten pool addresses, all verified on-chain.
+- Allowlisted contracts only — ten token addresses, ten pool addresses, all verified on-chain. The active stock's token and pool addresses are also shown directly in the Execute panel with BaseScan links, so you don't have to trust this README or leave the app to check what you're actually trading.
 - All price/quote fetches happen server-side (Next.js route handlers); the browser only talks to this app's own `/api/*` routes.
 - My Lots connects a wallet to *read* balances — no seed phrase ever touches this app, no signature or approval is ever requested, no custom swap router, and this app never constructs calldata. Connecting only exposes the public address, which is already public on-chain regardless.
 - The non-US geofence (`x-vercel-ip-country`) is a best-effort UX gate, not a compliance control — it's defeated by any VPN, and the UI says so. Detected-US viewers see explicit "not available" copy rather than a silently-disabled button.

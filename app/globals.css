@@ -601,6 +601,19 @@ a.btn:focus-visible, button.btn:focus-visible {
   color: var(--red);
 }
 
+.contract-info {
+  font-family: var(--mono);
+}
+
+.contract-info a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.contract-info a:hover {
+  text-decoration: underline;
+}
+
 footer {
   color: var(--text-dimmer);
   font-size: 11px;
