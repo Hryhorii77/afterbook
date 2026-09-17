@@ -213,7 +213,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const prevSessionStateRef = useRef(initialTape.session.state);
 
   const cashClosedAsOfMs =
-    tape.session.state !== 'open' ? Math.max(0, ...tape.rows.map((r) => r.cashAsOfMs ?? 0)) : 0;
+    tape.session.state !== 'open' ? Math.max(0, ...tape.rows.map((r) => r.closeAsOfMs ?? 0)) : 0;
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000);
@@ -321,7 +321,14 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const unlocked = geo.nonUs === true && eligibleChecked;
   const activeStock = STOCKS.find((s) => s.symbol === symbol)!;
   const activeRow = tape.rows.find((r) => r.symbol === symbol);
-  const cashColumnLabel = tape.session.state === 'open' ? 'Cash last' : 'Cash close';
+  const cashColumnLabel =
+    tape.session.state === 'open'
+      ? 'Cash last'
+      : tape.session.state === 'pre-market'
+        ? 'Cash pre-market'
+        : tape.session.state === 'after-hours'
+          ? 'Cash after-hours'
+          : 'Cash close';
 
   // Plain history API, not next/navigation's router.replace() — /[symbol]
   // is backed by an async Server Component (app/[symbol]/page.tsx) that
@@ -387,21 +394,33 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             Aerodrome has kept trading the whole time · Reopens {formatNextOpen(tape.session.nextOpenIso)}
           </div>
           <div className="gap-grid">
-            {liquidRows.map((row) => (
-              <button
-                className={`gap-cell gap-cell-clickable${row.symbol === symbol ? ' gap-cell-active' : ''}`}
-                key={row.symbol}
-                onClick={() => selectSymbol(row.symbol)}
-              >
-                <div className="gap-symbol">{row.symbol}</div>
-                <div className={row.basisBp != null ? (row.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}>
-                  {bp(row.basisBp)}
-                </div>
-                <div className="gap-detail">
-                  {usd(row.cashLastUsd)} → {usd(row.onchainMidUsd)}
-                </div>
-              </button>
-            ))}
+            {liquidRows.map((row) => {
+              // Deliberately close-anchored, not row.basisBp — that field
+              // now reflects the live pre-market/after-hours print when
+              // one exists (see lib/tape.ts), which would silently
+              // disagree with this card's own "since that exact close"
+              // headline on exactly the days a real extended-hours move
+              // happened. Badge and arrow here always tell the same story.
+              const closeBasisBp =
+                row.closeUsd != null && row.onchainMidUsd != null
+                  ? ((row.onchainMidUsd - row.closeUsd) / row.closeUsd) * 10_000
+                  : null;
+              return (
+                <button
+                  className={`gap-cell gap-cell-clickable${row.symbol === symbol ? ' gap-cell-active' : ''}`}
+                  key={row.symbol}
+                  onClick={() => selectSymbol(row.symbol)}
+                >
+                  <div className="gap-symbol">{row.symbol}</div>
+                  <div className={closeBasisBp != null ? (closeBasisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}>
+                    {bp(closeBasisBp)}
+                  </div>
+                  <div className="gap-detail">
+                    {usd(row.closeUsd)} → {usd(row.onchainMidUsd)}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </section>
       )}
@@ -423,6 +442,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
       <section className="panel">
         <h2>Tape</h2>
+        {(tape.session.state === 'pre-market' || tape.session.state === 'after-hours') && (
+          <p className="geo-note" style={{ marginTop: 0 }}>
+            Basis is against a live {tape.session.state === 'pre-market' ? 'pre-market' : 'after-hours'} print, not the
+            regular-session close — extended-hours trading is thinner, so this can move more than the regular-session
+            number would.
+          </p>
+        )}
         <div className="table-scroll">
           <table>
             <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} />

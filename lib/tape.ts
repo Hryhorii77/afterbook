@@ -11,13 +11,28 @@ export interface TapeRow {
   symbol: string;
   cashTicker: string;
   name: string;
+  /** Best available live cash reference: the regular-session price,
+   *  unless the market is in pre-market/after-hours and Yahoo returned a
+   *  live extended-hours print, in which case that's used instead. This
+   *  is what basisBp is computed against. */
   cashLastUsd: number | null;
-  /** Epoch ms of the cash price Yahoo returned. During closed sessions this
-   *  is frozen at the exact regular-session close instant (verified:
-   *  regularMarketTime == currentTradingPeriod.regular.end when the market
-   *  isn't live), which is what makes the "closed since" gap math exact. */
+  /** Epoch ms of whichever price cashLastUsd holds. */
   cashAsOfMs: number | null;
+  /** Which price cashLastUsd actually is — drives the "Cash close" vs
+   *  "Cash pre-market"/"Cash after-hours" column label. */
+  cashPriceType: 'regular' | 'pre-market' | 'after-hours';
   cashStale: boolean;
+  /** Always the regular-session close, regardless of cashPriceType —
+   *  unlike cashLastUsd, this never becomes a pre/post-market price.
+   *  Gap-hero's "closed Xh Ym ago" duration and its "$X -> $Y" per-card
+   *  move are both anchored to this, not to whatever cashLastUsd is
+   *  currently showing. */
+  closeUsd: number | null;
+  /** Epoch ms of the regular-session close instant (verified:
+   *  regularMarketTime == currentTradingPeriod.regular.end when the
+   *  market isn't live), which is what makes the "closed since" gap math
+   *  exact. */
+  closeAsOfMs: number | null;
   onchainMidUsd: number | null;
   /** Current pool tick, straight off slot0() — carried through so LP-position
    *  helpers (lib/lots.ts) can tell whether a position is in range without a
@@ -51,6 +66,20 @@ let cache: CacheEntry | null = null;
 interface CashPrice {
   price: number;
   asOfMs: number;
+  /** Live extended-hours prints, when Yahoo has them — same response as
+   *  the regular fields above, just two more fields off the same fetch.
+   *  Only trusted when the app's own session clock says we're actually
+   *  in that window (see buildTape) — not gated on Yahoo's own
+   *  marketState, so all ten rows stay consistent with each other and
+   *  with the rest of the page rather than each ticker's feed lag. */
+  preMarketPrice: number | null;
+  preMarketAsOfMs: number | null;
+  postMarketPrice: number | null;
+  postMarketAsOfMs: number | null;
+}
+
+function numOrNull(x: unknown): number | null {
+  return typeof x === 'number' ? x : null;
 }
 
 async function fetchCashPrice(ticker: string): Promise<CashPrice | null> {
@@ -66,7 +95,18 @@ async function fetchCashPrice(ticker: string): Promise<CashPrice | null> {
       const price = meta?.regularMarketPrice;
       const asOf = meta?.regularMarketTime;
       if (typeof price === 'number' && typeof asOf === 'number') {
-        return { price, asOfMs: asOf * 1000 };
+        const preMarketPrice = numOrNull(meta?.preMarketPrice);
+        const preMarketTime = numOrNull(meta?.preMarketTime);
+        const postMarketPrice = numOrNull(meta?.postMarketPrice);
+        const postMarketTime = numOrNull(meta?.postMarketTime);
+        return {
+          price,
+          asOfMs: asOf * 1000,
+          preMarketPrice,
+          preMarketAsOfMs: preMarketPrice != null && preMarketTime != null ? preMarketTime * 1000 : null,
+          postMarketPrice,
+          postMarketAsOfMs: postMarketPrice != null && postMarketTime != null ? postMarketTime * 1000 : null,
+        };
       }
     } catch {
       // try next host
@@ -76,6 +116,12 @@ async function fetchCashPrice(ticker: string): Promise<CashPrice | null> {
 }
 
 async function buildTape(): Promise<TapeRow[]> {
+  // One session read for the whole build — every row uses the same
+  // pre-market/after-hours determination, so the tape can't show some
+  // rows on the live extended-hours print and others still on yesterday's
+  // close depending on per-ticker Yahoo feed lag.
+  const sessionState = getSessionInfo().state;
+
   const rows = await Promise.all(
     STOCKS.map(async (stock): Promise<TapeRow> => {
       const [cash, poolState] = await Promise.all([
@@ -83,9 +129,22 @@ async function buildTape(): Promise<TapeRow[]> {
         readPoolState(stock).catch(() => null),
       ]);
 
+      let cashRefUsd = cash?.price ?? null;
+      let cashRefAsOfMs = cash?.asOfMs ?? null;
+      let cashPriceType: TapeRow['cashPriceType'] = 'regular';
+      if (sessionState === 'pre-market' && cash?.preMarketPrice != null) {
+        cashRefUsd = cash.preMarketPrice;
+        cashRefAsOfMs = cash.preMarketAsOfMs;
+        cashPriceType = 'pre-market';
+      } else if (sessionState === 'after-hours' && cash?.postMarketPrice != null) {
+        cashRefUsd = cash.postMarketPrice;
+        cashRefAsOfMs = cash.postMarketAsOfMs;
+        cashPriceType = 'after-hours';
+      }
+
       const onchainMid = poolState ? midPriceUsd(poolState, stock) : null;
       const basisBp =
-        cash !== null && onchainMid !== null ? ((onchainMid - cash.price) / cash.price) * 10_000 : null;
+        cashRefUsd !== null && onchainMid !== null ? ((onchainMid - cashRefUsd) / cashRefUsd) * 10_000 : null;
       const depth = poolState ? poolDepth(poolState, stock) : null;
       const depthUsd = depth?.totalUsd ?? null;
 
@@ -97,9 +156,12 @@ async function buildTape(): Promise<TapeRow[]> {
         symbol: stock.symbol,
         cashTicker: stock.cashTicker,
         name: stock.name,
-        cashLastUsd: cash?.price ?? null,
-        cashAsOfMs: cash?.asOfMs ?? null,
+        cashLastUsd: cashRefUsd,
+        cashAsOfMs: cashRefAsOfMs,
+        cashPriceType,
         cashStale: false,
+        closeUsd: cash?.price ?? null,
+        closeAsOfMs: cash?.asOfMs ?? null,
         onchainMidUsd: onchainMid,
         tick: poolState?.tick ?? null,
         basisBp,
@@ -126,7 +188,15 @@ export async function getTape(): Promise<TapeResult> {
       if (row.cashLastUsd !== null) return row;
       const prior = cache?.data.find((r) => r.symbol === row.symbol);
       if (prior?.cashLastUsd != null) {
-        return { ...row, cashLastUsd: prior.cashLastUsd, cashAsOfMs: prior.cashAsOfMs, cashStale: true };
+        return {
+          ...row,
+          cashLastUsd: prior.cashLastUsd,
+          cashAsOfMs: prior.cashAsOfMs,
+          cashPriceType: prior.cashPriceType,
+          closeUsd: prior.closeUsd,
+          closeAsOfMs: prior.closeAsOfMs,
+          cashStale: true,
+        };
       }
       return row;
     });
