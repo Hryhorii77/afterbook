@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
 import type { TapeResult, TapeRow } from '@/lib/tape';
 import { splitByLiquidity, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
@@ -197,7 +196,6 @@ interface HomeClientProps {
 }
 
 export default function HomeClient({ initialTape, initialGeo, initialSymbol }: HomeClientProps) {
-  const router = useRouter();
   const [tape, setTape] = useState<TapeResult>(initialTape);
   const [geo] = useState<GeoInfo>(initialGeo);
   const [eligibleChecked, setEligibleChecked] = useState(false);
@@ -325,12 +323,18 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const activeRow = tape.rows.find((r) => r.symbol === symbol);
   const cashColumnLabel = tape.session.state === 'open' ? 'Cash last' : 'Cash close';
 
-  // replace (not push) so casually clicking through several names while
-  // comparing doesn't spam the back-button history; scroll:false because
-  // selectSymbol handles its own scroll-to-Lot-Lab.
+  // Plain history API, not next/navigation's router.replace() — /[symbol]
+  // is backed by an async Server Component (app/[symbol]/page.tsx) that
+  // re-fetches getTape()/getGeoInfo() on every navigation. router.replace()
+  // was triggering that full server round-trip on every single symbol
+  // click even though this component already has everything it needs
+  // client-side, and its arrival raced the scrollIntoView call below —
+  // depending on network timing that produced anything from no scroll at
+  // all, to a layout shift mid-scroll from the freshly-streamed data. A
+  // plain URL update has no data fetch to race.
   const setSymbolAndUrl = (sym: string) => {
     setSymbol(sym);
-    router.replace(`/${sym}`, { scroll: false });
+    window.history.replaceState(null, '', `/${sym}`);
   };
 
   const selectSymbol = (sym: string) => {
