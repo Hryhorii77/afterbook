@@ -1,0 +1,14 @@
+# Foundry build artifacts
+out/
+cache/
+
+# Dependencies — reinstall via the commands in README.md's Setup section
+# rather than committing ~200MB of vendored git dependencies.
+lib/
+
+# Dry-run simulation output (real broadcast records from an actual deploy
+# are useful to keep; dry-run noise from `forge script` without --broadcast
+# is not).
+broadcast/**/dry-run/
+
+.env
