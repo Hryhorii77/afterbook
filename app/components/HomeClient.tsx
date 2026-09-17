@@ -35,6 +35,13 @@ interface HistorySample {
   basisBp: number;
 }
 
+interface ClosedPeriodStats {
+  count: number;
+  meanBp: number;
+  meanAbsBp: number;
+  maxAbsBp: number;
+}
+
 interface EventLogEntry {
   ts: number;
   text: string;
@@ -202,6 +209,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const [now, setNow] = useState(() => Date.now());
   const [showThin, setShowThin] = useState(false);
   const [history, setHistory] = useState<HistorySample[]>([]);
+  const [basisStats, setBasisStats] = useState<ClosedPeriodStats | null>(null);
   const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
   const [copied, setCopied] = useState(false);
   const prevSessionStateRef = useRef(initialTape.session.state);
@@ -295,6 +303,23 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     };
   }, [symbol, cashClosedAsOfMs]);
 
+  // A 30-day aggregate barely moves minute to minute — fetch on symbol
+  // change only, no polling interval needed.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/history/stats?symbol=${encodeURIComponent(symbol)}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (!cancelled) setBasisStats(json.stats ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setBasisStats(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [symbol]);
+
   const unlocked = geo.nonUs === true && eligibleChecked;
   const activeStock = STOCKS.find((s) => s.symbol === symbol)!;
   const activeRow = tape.rows.find((r) => r.symbol === symbol);
@@ -383,6 +408,12 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           <Sparkline samples={history} />
         ) : (
           <p className="geo-note">Not enough history yet — this fills in as the app keeps running.</p>
+        )}
+        {basisStats && (
+          <p className="geo-note">
+            Last 30 days (market closed): avg {bp(basisStats.meanBp)}, max {bp(basisStats.maxAbsBp)}, {basisStats.count}{' '}
+            samples.
+          </p>
         )}
       </section>
 

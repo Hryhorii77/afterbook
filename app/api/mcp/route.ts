@@ -4,6 +4,9 @@ import { getTape } from '@/lib/tape';
 import { toPublicTape } from '@/lib/publicTape';
 import { getStock, STOCKS } from '@/lib/tokens';
 import { buildImpactCurve, estimateLot, getCachedPoolState } from '@/lib/quote';
+import { getClosedPeriodStats } from '@/lib/history';
+
+const HISTORY_LOOKBACK_MS = 30 * 24 * 60 * 60_000;
 
 export const revalidate = 0;
 
@@ -44,6 +47,22 @@ const handler = createMcpHandler((server) => {
       const estimate = estimateLot(state, stock, usdcIn);
       const curve = buildImpactCurve(state, stock);
       return { content: [{ type: 'text', text: JSON.stringify({ symbol: stock.symbol, ...estimate, curve }) }] };
+    },
+  );
+
+  server.registerTool(
+    'get_basis_stats',
+    {
+      title: 'Get Basis Stats',
+      description:
+        'How big the basis typically gets while the cash market is NOT open, over the last 30 days — mean, mean absolute, and max absolute basis in bp, sampled every 5 minutes off real traffic. Returns null if there is not enough sampled history yet.',
+      inputSchema: z.object({
+        symbol: z.enum(SYMBOLS),
+      }),
+    },
+    async ({ symbol }) => {
+      const stats = await getClosedPeriodStats(symbol, Date.now() - HISTORY_LOOKBACK_MS);
+      return { content: [{ type: 'text', text: JSON.stringify({ symbol, stats }) }] };
     },
   );
 });

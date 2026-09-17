@@ -49,6 +49,7 @@ export function MyLots() {
   const [connecting, setConnecting] = useState(false);
   const [lots, setLots] = useState<MyLotsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [basename, setBasename] = useState<string | null>(null);
   // Starts false on both server and first client render (window doesn't
   // exist during SSR) — set for real once mounted, just below.
   const [hasProvider, setHasProvider] = useState(false);
@@ -96,6 +97,25 @@ export function MyLots() {
     };
   }, [address]);
 
+  useEffect(() => {
+    if (!address) {
+      setBasename(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/basename?address=${address}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (!cancelled) setBasename(json.name ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setBasename(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [address]);
+
   const connect = async () => {
     if (!window.ethereum) return;
     setConnecting(true);
@@ -135,9 +155,7 @@ export function MyLots() {
       ) : (
         <>
           <div className="my-lots-header">
-            <span className="my-lots-address">
-              {address.slice(0, 6)}…{address.slice(-4)}
-            </span>
+            <span className="my-lots-address">{basename ?? `${address.slice(0, 6)}…${address.slice(-4)}`}</span>
             <button type="button" className="copy-trade-btn" onClick={disconnect}>
               Disconnect
             </button>
