@@ -85,6 +85,16 @@ const usdCompact = (n: number | null) => {
 
 const sharesCompact = (n: number | null) => (n == null ? '—' : `${n.toLocaleString('en-US', { maximumFractionDigits: 0 })} sh`);
 
+const EARNINGS_CAVEAT_WINDOW_DAYS = 5;
+
+// isoDate is a plain YYYY-MM-DD (UTC midnight), so diffing against UTC
+// midnight of "now" avoids a client-timezone off-by-one.
+function daysUntil(isoDate: string): number {
+  const target = new Date(`${isoDate}T00:00:00Z`).getTime();
+  const todayUtc = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z').getTime();
+  return Math.round((target - todayUtc) / 86_400_000);
+}
+
 function formatDuration(ms: number): string {
   if (ms <= 0) return '0m';
   const totalMinutes = Math.floor(ms / 60_000);
@@ -169,6 +179,9 @@ function TapeRows({
           <td>
             <span className="symbol">{row.symbol}</span>
             <span className="symbol-name">{row.name}</span>
+            {row.nextEarningsDate != null && daysUntil(row.nextEarningsDate) <= EARNINGS_CAVEAT_WINDOW_DAYS && daysUntil(row.nextEarningsDate) >= 0 && (
+              <span className="earnings-tag">Earnings in {daysUntil(row.nextEarningsDate)}d</span>
+            )}
           </td>
           <td>
             {usd(row.cashLastUsd)}
@@ -605,6 +618,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               {quote.largeTradeCaveat && ' This size is large relative to in-range liquidity and may cross into a wider price range; the real fill on Aerodrome could differ from this estimate.'}
               {' '}Shaded region: sizes where the estimate is less reliable for the same reason.
             </p>
+            {activeRow?.nextEarningsDate != null && daysUntil(activeRow.nextEarningsDate) <= EARNINGS_CAVEAT_WINDOW_DAYS && daysUntil(activeRow.nextEarningsDate) >= 0 && (
+              <p className="geo-note">
+                {activeStock.cashTicker} reports earnings in {daysUntil(activeRow.nextEarningsDate)} day
+                {daysUntil(activeRow.nextEarningsDate) === 1 ? '' : 's'} — expect wider spreads and more volatility
+                than this estimate reflects.
+              </p>
+            )}
 
             <div className="lp-line">
               <span className="lp-line-label">Same {usd(quote.usdcIn, 0)} as LP</span>
@@ -681,6 +701,12 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           </a>
           {' — verified on-chain, see README for the full check.'}
         </p>
+        {activeRow?.multiplier != null && activeRow.multiplier !== 1 && (
+          <p className="geo-note">
+            1 {activeStock.symbol} currently redeems for {activeRow.multiplier.toFixed(4)} shares — reflects a past
+            split or reinvested dividend (B20&apos;s <code>multiplier()</code>, read live on every quote).
+          </p>
+        )}
       </section>
 
       <footer>

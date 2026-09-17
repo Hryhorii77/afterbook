@@ -1,9 +1,12 @@
 import { STOCKS } from './tokens';
 import { getSessionInfo, type SessionInfo } from './marketClock';
-import { midPriceUsd, poolDepth, readPoolState } from './quote';
+import { midPriceUsd, poolDepth, readPoolState, MULTIPLIER_ONE } from './quote';
 import { isLiquid } from './liquidity';
 import { recordSample } from './history';
 import { recordPriceSample } from './volatility';
+import { checkMultiplierChange } from './corporateActions';
+import { getNextEarnings } from './earningsCalendar';
+import { sendTelegramMessage } from './telegram';
 
 const YAHOO_HOSTS = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com'];
 const CACHE_TTL_MS = 20_000;
@@ -44,6 +47,14 @@ export interface TapeRow {
    *  for impact math — this is what's actually deployed. */
   depthUsd: number | null;
   depthShares: number | null;
+  /** B20 multiplier as a plain ratio (1.0 = no-op). Not split-only — Base's
+   *  own B20 spec has cash dividends reinvested by raising this too, net of
+   *  withholding tax and a Coinbase fee. All ten read exactly 1.0 today. */
+  multiplier: number | null;
+  /** ISO date (YYYY-MM-DD) of the next known earnings report for this
+   *  symbol's cash ticker, or null if none is on file (expected for a
+   *  thin-history name like SPCX). From lib/earningsCalendar.ts. */
+  nextEarningsDate: string | null;
 }
 
 export interface TapeResult {
@@ -154,6 +165,21 @@ async function buildTape(): Promise<TapeRow[]> {
         void recordPriceSample(stock.symbol, onchainMid, Date.now());
       }
 
+      // Not gated on liquidity — a real split or dividend, and an upcoming
+      // earnings date, matter for a thin pool exactly as much as a deep one.
+      if (poolState) {
+        void checkMultiplierChange(stock.symbol, poolState.multiplier, Date.now()).then((change) => {
+          if (!change) return;
+          const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+          if (!adminChatId) return;
+          void sendTelegramMessage(
+            adminChatId,
+            `${stock.symbol} multiplier changed ${change.from.toFixed(4)}x → ${change.to.toFixed(4)}x — likely a dividend reinvestment or split. Verify on-chain.`,
+          );
+        });
+      }
+      const nextEarningsDate = await getNextEarnings(stock.symbol);
+
       return {
         symbol: stock.symbol,
         cashTicker: stock.cashTicker,
@@ -169,6 +195,8 @@ async function buildTape(): Promise<TapeRow[]> {
         basisBp,
         depthUsd,
         depthShares: depth?.stockShares ?? null,
+        multiplier: poolState ? Number(poolState.multiplier) / MULTIPLIER_ONE : null,
+        nextEarningsDate,
       };
     }),
   );

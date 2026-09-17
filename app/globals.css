@@ -336,6 +336,13 @@ td.depth-cell {
   margin-left: 6px;
 }
 
+.earnings-tag {
+  display: block;
+  font-size: 10px;
+  color: var(--amber);
+  margin-top: 2px;
+}
+
 .lot-lab-form {
   display: flex;
   gap: 12px;
