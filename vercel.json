@@ -1,3 +1,6 @@
 {
-  "crons": [{ "path": "/api/cron/alerts", "schedule": "*/5 * * * *" }]
+  "crons": [
+    { "path": "/api/cron/alerts", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/discover-tokens", "schedule": "0 13 * * *" }
+  ]
 }

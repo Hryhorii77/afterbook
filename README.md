@@ -75,7 +75,8 @@ No environment variables required to run it — the app works fully without them
 
 - `KV_REST_API_URL` / `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`) — a Redis (Upstash) REST endpoint. Enables the "basis since close" sparkline's history, Telegram alerts, and the public API's key storage. Without it, the sparkline stays empty and both features return `503`.
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` — enables Telegram alerts. The token comes from [@BotFather](https://t.me/BotFather); the webhook secret is any random string you generate yourself, passed to Telegram's `setWebhook` as `secret_token` and checked against the `X-Telegram-Bot-Api-Secret-Token` header on every incoming update.
-- `CRON_SECRET` — a random string Vercel automatically attaches as `Authorization: Bearer <secret>` on cron-triggered requests ([documented pattern](https://vercel.com/docs/cron-jobs/manage-cron-jobs#securing-cron-jobs)); secures `/api/cron/alerts` against being triggered by anyone else.
+- `CRON_SECRET` — a random string Vercel automatically attaches as `Authorization: Bearer <secret>` on cron-triggered requests ([documented pattern](https://vercel.com/docs/cron-jobs/manage-cron-jobs#securing-cron-jobs)); secures the cron routes against being triggered by anyone else.
+- `TELEGRAM_ADMIN_CHAT_ID` — maintainer-only. A daily cron diffs [base.org/stocks](https://www.base.org/stocks) (Coinbase's own published list) against the tickers tracked in `lib/tokens.ts` and Telegram-pings this chat ID with a ready-to-paste entry when Coinbase adds a new tokenized stock. It never edits `lib/tokens.ts` itself — a human still reviews and adds each one, same as all ten current entries.
 
 ## Public API
 
