@@ -24,6 +24,20 @@ const POOL_ABI = [
     inputs: [],
     outputs: [{ name: '', type: 'uint128' }],
   },
+  {
+    type: 'function',
+    name: 'feeGrowthGlobal0X128',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    type: 'function',
+    name: 'feeGrowthGlobal1X128',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
 ] as const;
 
 // The B20 asset standard (Coinbase's tokenized-equity token format) carries a
@@ -87,21 +101,30 @@ export interface PoolState {
    *  really" display, not the virtual ones. */
   usdcReserveRaw: bigint;
   stockReserveRaw: bigint;
+  /** Cumulative, per-unit-of-liquidity fee accumulators — documented as
+   *  overflow-prone (same as upstream Uniswap V3), so a delta between two
+   *  readings must use wraparound-safe subtraction. Used by lib/feeApr.ts
+   *  to derive pool-wide fee revenue over a snapshot window; not used
+   *  anywhere in the live quote/tape path itself. */
+  feeGrowthGlobal0X128: bigint;
+  feeGrowthGlobal1X128: bigint;
 }
 
 export async function readPoolState(stock: CbStock, publicClient: PublicClient = getClient()): Promise<PoolState> {
-  const [slot0, liquidity, multiplierResult, usdcReserve, stockReserve] = await publicClient.multicall({
+  const [slot0, liquidity, multiplierResult, usdcReserve, stockReserve, feeGrowth0, feeGrowth1] = await publicClient.multicall({
     contracts: [
       { address: stock.pool.address, abi: POOL_ABI, functionName: 'slot0' },
       { address: stock.pool.address, abi: POOL_ABI, functionName: 'liquidity' },
       { address: stock.tokenAddress, abi: TOKEN_ABI, functionName: 'multiplier' },
       { address: USDC.address, abi: ERC20_ABI, functionName: 'balanceOf', args: [stock.pool.address] },
       { address: stock.tokenAddress, abi: ERC20_ABI, functionName: 'balanceOf', args: [stock.pool.address] },
+      { address: stock.pool.address, abi: POOL_ABI, functionName: 'feeGrowthGlobal0X128' },
+      { address: stock.pool.address, abi: POOL_ABI, functionName: 'feeGrowthGlobal1X128' },
     ],
     allowFailure: true,
   });
 
-  if (slot0.status !== 'success' || liquidity.status !== 'success') {
+  if (slot0.status !== 'success' || liquidity.status !== 'success' || feeGrowth0.status !== 'success' || feeGrowth1.status !== 'success') {
     throw new Error(`pool state read failed for ${stock.symbol}`);
   }
 
@@ -114,6 +137,8 @@ export async function readPoolState(stock: CbStock, publicClient: PublicClient =
     multiplier,
     usdcReserveRaw: usdcReserve.status === 'success' ? (usdcReserve.result as bigint) : 0n,
     stockReserveRaw: stockReserve.status === 'success' ? (stockReserve.result as bigint) : 0n,
+    feeGrowthGlobal0X128: feeGrowth0.result as bigint,
+    feeGrowthGlobal1X128: feeGrowth1.result as bigint,
   };
 }
 

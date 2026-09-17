@@ -33,6 +33,11 @@ interface LpHolding {
   feesEarnedUsd: number;
   emissionsEarnedAero: number;
   lockedUntil: number | null;
+  currentPriceUsd: number | null;
+  feeAprPct: number | null;
+  feeAprWindowDays: number | null;
+  inRangeProbabilityPct: number | null;
+  inRangeHorizonDays: number | null;
 }
 
 interface MyLotsResponse {
@@ -43,6 +48,19 @@ interface MyLotsResponse {
 const usd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 const shares = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 4 });
 const lockDate = (ms: number) => new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(ms));
+
+// Price-range bar, not a tick-number axis — this app never surfaces raw
+// tick numbers anywhere, the range is already shown in USD above this.
+function RangeBar({ low, high, current }: { low: number; high: number; current: number | null }) {
+  if (current == null || high <= low) return null;
+  const pct = Math.max(0, Math.min(100, ((current - low) / (high - low)) * 100));
+  const outOfRange = current < low || current > high;
+  return (
+    <div className="range-bar-track">
+      <div className={`range-bar-marker${outOfRange ? ' range-bar-marker-out' : ''}`} style={{ left: `${pct}%` }} />
+    </div>
+  );
+}
 
 export function MyLots() {
   const [address, setAddress] = useState<string | null>(null);
@@ -187,6 +205,11 @@ export function MyLots() {
           {lots && lots.lp.length > 0 && (
             <>
               <p className="geo-note">Aerodrome LP</p>
+              <p className="geo-note" style={{ marginTop: 0 }}>
+                Fee APR and in-range odds below are estimates from on-chain fee-growth snapshots and recent price
+                volatility — not guarantees. Both need a day or two of collected data after a pool starts being
+                tracked.
+              </p>
               <div className="result-grid">
                 {lots.lp.map((h) => (
                   <div className="result-cell" key={h.symbol}>
@@ -200,6 +223,21 @@ export function MyLots() {
                         <span className={h.inRange ? 'basis-pos' : 'basis-neg'}>{h.inRange ? 'In range' : 'Out of range'}</span>{' '}
                         {usd(h.rangeLowUsd)} – {usd(h.rangeHighUsd)}
                       </div>
+                    )}
+                    <RangeBar low={h.rangeLowUsd} high={h.rangeHighUsd} current={h.currentPriceUsd} />
+                    {h.feeAprPct != null ? (
+                      <div className="geo-note">
+                        Fee APR ≈ {h.feeAprPct.toFixed(1)}% (last {h.feeAprWindowDays!.toFixed(1)}d, pool-wide)
+                      </div>
+                    ) : (
+                      <div className="geo-note">Fee APR: collecting data — check back in a day or two.</div>
+                    )}
+                    {h.inRangeProbabilityPct != null ? (
+                      <div className="geo-note">
+                        ≈{h.inRangeProbabilityPct.toFixed(0)}% chance still in range in {h.inRangeHorizonDays}d
+                      </div>
+                    ) : (
+                      <div className="geo-note">In-range odds: collecting price history — check back soon.</div>
                     )}
                     {(h.feesEarnedUsd > 0 || h.emissionsEarnedAero > 0) && (
                       <div className="geo-note">

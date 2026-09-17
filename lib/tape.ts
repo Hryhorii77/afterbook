@@ -3,6 +3,7 @@ import { getSessionInfo, type SessionInfo } from './marketClock';
 import { midPriceUsd, poolDepth, readPoolState } from './quote';
 import { isLiquid } from './liquidity';
 import { recordSample } from './history';
+import { recordPriceSample } from './volatility';
 
 const YAHOO_HOSTS = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com'];
 const CACHE_TTL_MS = 20_000;
@@ -150,6 +151,7 @@ async function buildTape(): Promise<TapeRow[]> {
 
       if (isLiquid({ depthUsd })) {
         void recordSample(stock.symbol, basisBp, Date.now());
+        void recordPriceSample(stock.symbol, onchainMid, Date.now());
       }
 
       return {

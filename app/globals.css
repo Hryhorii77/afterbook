@@ -435,6 +435,29 @@ select {
   margin-top: 12px;
 }
 
+.range-bar-track {
+  position: relative;
+  height: 6px;
+  margin: 8px 0 6px;
+  border-radius: 3px;
+  background: var(--panel-border);
+}
+
+.range-bar-marker {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--green);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 2px var(--panel);
+}
+
+.range-bar-marker-out {
+  background: var(--red);
+}
+
 .impact-curve {
   width: 100%;
   height: auto;

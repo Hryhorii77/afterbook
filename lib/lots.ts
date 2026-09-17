@@ -1,6 +1,8 @@
 import { getClient, TOKEN_ABI, ERC20_ABI, MULTIPLIER_ONE, priceFromSqrtX96 } from './quote';
 import { STOCKS, CL_FACTORY, type CbStock } from './tokens';
 import type { TapeRow } from './tape';
+import { computeFeeApr } from './feeApr';
+import { getPriceHistory, computeInRangeProbabilityPct, IN_RANGE_HORIZON_DAYS } from './volatility';
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 // AERO is a standard 18-decimal ERC20 — Sugar's emissions_earned is denominated
@@ -81,6 +83,18 @@ export interface LpHolding {
   emissionsEarnedAero: number;
   /** Epoch ms the position unlocks, or null if it isn't locked. */
   lockedUntil: number | null;
+  /** Same as tapeRows' onchainMidUsd for this symbol — surfaced here so the
+   *  client can place a range-position marker without also fetching tape. */
+  currentPriceUsd: number | null;
+  /** Pool-wide fee APR from a feeGrowthGlobal snapshot delta (see
+   *  lib/feeApr.ts) — null until at least two daily cron snapshots exist. */
+  feeAprPct: number | null;
+  feeAprWindowDays: number | null;
+  /** P(price is back inside this range at the IN_RANGE_HORIZON_DAYS horizon)
+   *  — null until enough price history has accumulated (see
+   *  lib/volatility.ts). */
+  inRangeProbabilityPct: number | null;
+  inRangeHorizonDays: number | null;
 }
 
 export interface MyLots {
@@ -137,8 +151,8 @@ export async function getMyLots(address: `0x${string}`, tapeRows: TapeRow[]): Pr
     return { symbol: stock.symbol, shares, usdValue };
   }).filter((s): s is SpotHolding => s !== null);
 
-  const lp: LpHolding[] = positions
-    .map((pos) => {
+  const lpResults = await Promise.all(
+    positions.map(async (pos) => {
       const stock = STOCKS.find((s) => s.pool.address.toLowerCase() === pos.lp.toLowerCase());
       if (!stock) return null; // not one of our ten allowlisted pools — skip
 
@@ -178,6 +192,28 @@ export async function getMyLots(address: `0x${string}`, tapeRows: TapeRow[]): Pr
 
       const lockedUntil = pos.locker.toLowerCase() !== ZERO_ADDRESS && pos.unlocks_at > 0 ? pos.unlocks_at * 1000 : null;
 
+      const currentPriceUsd = row?.onchainMidUsd ?? null;
+
+      let feeAprPct: number | null = null;
+      let feeAprWindowDays: number | null = null;
+      let inRangeProbabilityPct: number | null = null;
+      let inRangeHorizonDays: number | null = null;
+      if (currentPriceUsd != null) {
+        const [feeApr, priceHistory] = await Promise.all([
+          computeFeeApr(stock.symbol, stock, currentPriceUsd, multiplier).catch(() => null),
+          getPriceHistory(stock.symbol, Date.now() - 30 * 24 * 60 * 60_000).catch(() => []),
+        ]);
+        if (feeApr) {
+          feeAprPct = feeApr.aprPct;
+          feeAprWindowDays = feeApr.windowDays;
+        }
+        const probability = computeInRangeProbabilityPct(priceHistory, currentPriceUsd, rangeLowUsd, rangeHighUsd);
+        if (probability != null) {
+          inRangeProbabilityPct = probability;
+          inRangeHorizonDays = IN_RANGE_HORIZON_DAYS;
+        }
+      }
+
       return {
         symbol: stock.symbol,
         usdcAmount,
@@ -191,9 +227,15 @@ export async function getMyLots(address: `0x${string}`, tapeRows: TapeRow[]): Pr
         feesEarnedUsd,
         emissionsEarnedAero,
         lockedUntil,
+        currentPriceUsd,
+        feeAprPct,
+        feeAprWindowDays,
+        inRangeProbabilityPct,
+        inRangeHorizonDays,
       };
-    })
-    .filter((p): p is LpHolding => p !== null);
+    }),
+  );
+  const lp: LpHolding[] = lpResults.filter((p): p is LpHolding => p !== null);
 
   return { spot, lp };
 }
