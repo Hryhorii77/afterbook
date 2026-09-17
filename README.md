@@ -78,7 +78,8 @@ No environment variables required to run it — the app works fully without them
 - `KV_REST_API_URL` / `KV_REST_API_TOKEN` (or `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`) — a Redis (Upstash) REST endpoint. Enables the "basis since close" sparkline's history, Telegram alerts, and the public API's key storage. Without it, the sparkline stays empty and both features return `503`.
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` — enables Telegram alerts. The token comes from [@BotFather](https://t.me/BotFather); the webhook secret is any random string you generate yourself, passed to Telegram's `setWebhook` as `secret_token` and checked against the `X-Telegram-Bot-Api-Secret-Token` header on every incoming update.
 - `CRON_SECRET` — a random string Vercel automatically attaches as `Authorization: Bearer <secret>` on cron-triggered requests ([documented pattern](https://vercel.com/docs/cron-jobs/manage-cron-jobs#securing-cron-jobs)); secures the cron routes against being triggered by anyone else.
-- `TELEGRAM_ADMIN_CHAT_ID` — maintainer-only. A daily cron diffs [base.org/stocks](https://www.base.org/stocks) (Coinbase's own published list) against the tickers tracked in `lib/tokens.ts` and Telegram-pings this chat ID with a ready-to-paste entry when Coinbase adds a new tokenized stock. It never edits `lib/tokens.ts` itself — a human still reviews and adds each one, same as all ten current entries.
+- `TELEGRAM_ADMIN_CHAT_ID` — maintainer-only. A daily cron diffs [base.org/stocks](https://www.base.org/stocks) (Coinbase's own published list) against the tickers tracked in `lib/tokens.ts` and Telegram-pings this chat ID with a ready-to-paste entry when Coinbase adds a new tokenized stock. It never edits `lib/tokens.ts` itself — a human still reviews and adds each one, same as all ten current entries. Also used to flag a real B20 `multiplier()` change (split or dividend) on any of the ten stocks.
+- `CDP_API_KEY_ID`, `CDP_API_KEY_SECRET`, `X402_PAYOUT_ADDRESS` — enables the pay-per-call agent API (see "Pay-per-call agent API (x402)" below). The CDP keys are Coinbase Developer Platform *platform* credentials (from [portal.cdp.coinbase.com](https://portal.cdp.coinbase.com)), not a blockchain signing key — they authenticate this server to Coinbase's facilitator service, which is what actually settles payment on-chain. `X402_PAYOUT_ADDRESS` is any wallet address you control; USDC lands there directly. Without all three set, both `/api/v1/x402/*` routes return `503`.
 
 ## Public API
 
@@ -116,6 +117,16 @@ Three tools:
 - **`get_tape`** — no input. Same data as `/api/v1/tape` above.
 - **`get_quote`** — `{ symbol, usdcIn }`. Shares out, execution price, and price impact for sizing a USDC → stock trade — the same estimate Lot Lab shows, not a firm quote; the actual fill always happens on Aerodrome's own app.
 - **`get_basis_stats`** — `{ symbol }`. Mean/mean-absolute/max-absolute basis in bp while the cash market was closed, over the last 30 days of sampled history. `null` if there isn't enough history yet.
+
+## Pay-per-call agent API (x402)
+
+`/api/v1/x402/tape` and `/api/v1/x402/quote` are the same data as `/api/v1/tape` and `/api/quote` above, gated by the [x402](https://x402.org) HTTP micropayment protocol instead of an API key — $0.02 in USDC per call on Base, paid directly from an agent's own wallet via [EIP-3009](https://eips.ethereum.org/EIPS/eip-3009) `transferWithAuthorization`. No signup, no key, no rate-limit ceiling — payment itself is the throttle.
+
+**This isn't exclusive data** — `/api/quote` and every MCP tool above stay fully free and unauthenticated, on purpose. This tier's actual value is zero setup friction for an agent that would rather pay $0.02 than provision a key and live under a rate limit.
+
+**Afterbook never holds a signing key for this.** Settlement is executed by Coinbase's hosted CDP facilitator, not by this app — Afterbook only supplies a plain receiving wallet address (`X402_PAYOUT_ADDRESS`) and a CDP *platform* API key/secret pair that authenticates this server to Coinbase's facilitator service (not a blockchain key). Payment lands directly in that address; nothing is ever custodied here, same as everywhere else in this app. Proceeds are not automatically swapped or spent — that's a deliberately separate, not-yet-built piece.
+
+Both routes 503 with `{ "error": "x402 tier not configured" }` until `CDP_API_KEY_ID`, `CDP_API_KEY_SECRET`, and `X402_PAYOUT_ADDRESS` are all set.
 
 ## Deploying
 
