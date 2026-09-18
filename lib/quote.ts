@@ -183,6 +183,23 @@ export function midPriceUsd(state: PoolState, stock: CbStock): number {
   return priceFromSqrtX96(state.sqrtPriceX96, state.multiplier, stock);
 }
 
+/**
+ * Inverse of priceFromSqrtX96: the pool tick whose price is closest to
+ * priceUsd, rounded to a multiple of the pool's tickSpacing (an
+ * unaligned tick can't bound a real position anyway). Algebraic inverse,
+ * not a search — same decimals/multiplier adjustment as priceFromSqrtX96,
+ * solved backwards.
+ */
+export function tickForPriceUsd(priceUsd: number, multiplier: bigint, stock: CbStock): number {
+  const multiplierRatio = Number(multiplier) / MULTIPLIER_ONE;
+  const rawMidPriceUsd = priceUsd * multiplierRatio;
+  const decAdjusted = 1 / rawMidPriceUsd;
+  const rawToken1PerToken0 = decAdjusted * 10 ** (stock.decimals - USDC.decimals);
+  const tick = Math.log(rawToken1PerToken0) / Math.log(1.0001);
+  const spacing = stock.pool.tickSpacing;
+  return Math.round(tick / spacing) * spacing;
+}
+
 export interface PoolDepth {
   usdcUsd: number;
   stockShares: number;

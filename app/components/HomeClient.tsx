@@ -7,6 +7,7 @@ import { splitByLiquidity, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import type { GeoInfo } from '@/lib/geo';
 import { bp } from '@/lib/format';
 import { ImpactCurve } from './ImpactCurve';
+import { DepthChart } from './DepthChart';
 import { Sparkline } from './Sparkline';
 import { MyLots } from './MyLots';
 
@@ -44,6 +45,21 @@ interface ClosedPeriodStats {
 interface EventLogEntry {
   ts: number;
   text: string;
+}
+
+interface LiquidityBucket {
+  tickLower: number;
+  tickUpper: number;
+  priceLowerUsd: number;
+  priceUpperUsd: number;
+  liquidity: string;
+}
+
+interface DepthResponse {
+  symbol: string;
+  currentTick: number;
+  currentPriceUsd: number;
+  buckets: LiquidityBucket[];
 }
 
 const SIZE_PRESETS_USDC = [250, 1_000, 5_000];
@@ -219,6 +235,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const [sort, setSort] = useState<SortState>(null);
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [depth, setDepth] = useState<DepthResponse | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [showThin, setShowThin] = useState(false);
   const [history, setHistory] = useState<HistorySample[]>([]);
@@ -316,6 +333,28 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
       clearInterval(id);
     };
   }, [symbol, cashClosedAsOfMs]);
+
+  // Depth is keyed only on symbol (not usdcInput) — it's the pool's whole
+  // tick-range profile, not sized to a particular trade. Same 60s cadence
+  // as history: this doesn't need tape's 20s freshness.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchDepth = async () => {
+      try {
+        const res = await fetch(`/api/depth?symbol=${encodeURIComponent(symbol)}`);
+        const json = await res.json();
+        if (!cancelled) setDepth(res.ok ? json : null);
+      } catch {
+        // keep showing last known distribution
+      }
+    };
+    fetchDepth();
+    const id = setInterval(fetchDepth, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [symbol]);
 
   // A 30-day aggregate barely moves minute to minute — fetch on symbol
   // change only, no polling interval needed.
@@ -637,6 +676,17 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               mathematically equivalent to a classic 50/50 pool. Aerodrome defaults new deposits to a narrower
               range, which would change this split; check the actual range before depositing.
             </p>
+
+            {depth && depth.symbol === symbol && (
+              <>
+                <h3 className="depth-heading">Liquidity depth</h3>
+                <DepthChart buckets={depth.buckets} currentPriceUsd={depth.currentPriceUsd} />
+                <p className="geo-note">
+                  Active on-chain liquidity by price, read directly from the pool&apos;s tick data — taller bars are
+                  where support/resistance walls actually sit. Dashed line marks the current price.
+                </p>
+              </>
+            )}
           </>
         )}
       </section>

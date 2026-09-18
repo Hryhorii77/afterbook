@@ -76,7 +76,7 @@ function normalCdf(x: number): number {
  *  spacing) — this sums squared log-returns and normalizes by elapsed time
  *  directly, the same quadratic-variation-style estimator used for
  *  irregularly-sampled series generally. */
-function computeAnnualizedVol(samples: PriceSample[]): number | null {
+export function computeAnnualizedVol(samples: PriceSample[]): number | null {
   if (samples.length < MIN_SAMPLES) return null;
 
   const sorted = [...samples].sort((a, b) => a.ts - b.ts);
@@ -121,4 +121,62 @@ export function computeInRangeProbabilityPct(
 
   const probability = normalCdf(dHigh) - normalCdf(dLow);
   return Math.max(0, Math.min(100, probability * 100));
+}
+
+/** Inverse of normalCdf via bisection rather than a second rational
+ *  approximation — guarantees this is exactly consistent with normalCdf
+ *  (normalCdf(normalQuantile(p)) === p to bisection precision) instead of
+ *  two independently-fitted approximations silently disagreeing. Cheap:
+ *  ~60 iterations of pure arithmetic, called at most once per LP-range
+ *  request. */
+export function normalQuantile(p: number): number {
+  if (p <= 0) return -Infinity;
+  if (p >= 1) return Infinity;
+  let lo = -10;
+  let hi = 10;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (normalCdf(mid) < p) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+export interface InRangeBounds {
+  lowUsd: number;
+  highUsd: number;
+  sigma: number;
+}
+
+/**
+ * Inverse of computeInRangeProbabilityPct: given a target coverage
+ * probability and holding period, returns the symmetric (in log-price)
+ * price band a zero-drift lognormal model expects the price to stay
+ * within. Same simplifying assumptions as computeInRangeProbabilityPct
+ * (zero drift, point-in-time not first-passage) — this is a sizing tool
+ * for picking a range, not a guarantee the price never exits it
+ * intraperiod.
+ */
+export function computeInRangeBounds(
+  samples: PriceSample[],
+  currentPriceUsd: number,
+  horizonDays: number,
+  targetProbabilityPct: number,
+): InRangeBounds | null {
+  if (currentPriceUsd <= 0 || horizonDays <= 0 || targetProbabilityPct <= 0 || targetProbabilityPct >= 100) return null;
+
+  const sigma = computeAnnualizedVol(samples);
+  if (sigma == null || sigma <= 0) return null;
+
+  const T = horizonDays / 365;
+  // Two-sided coverage: target 70% in the middle means 15% cut off each
+  // tail, i.e. the quantile at (1 + 0.70) / 2 = 0.85.
+  const z = normalQuantile(0.5 + targetProbabilityPct / 200);
+  const halfWidth = z * sigma * Math.sqrt(T);
+
+  return {
+    lowUsd: currentPriceUsd * Math.exp(-halfWidth),
+    highUsd: currentPriceUsd * Math.exp(halfWidth),
+    sigma,
+  };
 }

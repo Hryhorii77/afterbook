@@ -513,6 +513,29 @@ select {
   letter-spacing: -0.02em;
 }
 
+.depth-heading {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin: 24px 0 0;
+}
+
+.depth-chart {
+  width: 100%;
+  height: auto;
+  margin-top: 16px;
+}
+
+.depth-bar {
+  fill: var(--accent);
+  opacity: 0.35;
+}
+
+.depth-bar-active {
+  opacity: 0.9;
+}
+
 .eligibility {
   display: flex;
   align-items: flex-start;

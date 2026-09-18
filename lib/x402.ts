@@ -34,3 +34,8 @@ export function getX402Server(): x402ResourceServer {
 
 export const X402_NETWORK = BASE_MAINNET_CAIP2;
 export const X402_PRICE = '$0.02';
+
+// Historical/derived endpoints (30-day basis history + tick distribution,
+// LP-range recommendation) cost more to compute per call than a live
+// tape/quote read — priced higher accordingly.
+export const X402_PRICE_PREMIUM = '$0.05';
