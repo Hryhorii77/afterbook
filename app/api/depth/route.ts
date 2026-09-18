@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getStock } from '@/lib/tokens';
 import { getCachedPoolState } from '@/lib/quote';
-import { getLiquidityDistribution } from '@/lib/depth';
+import { getCachedLiquidityDistribution } from '@/lib/depth';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
 
   try {
     const state = await getCachedPoolState(stock);
-    const distribution = await getLiquidityDistribution(stock, state);
+    const distribution = await getCachedLiquidityDistribution(stock, state);
     return NextResponse.json({ symbol: stock.symbol, ...distribution });
   } catch (err) {
     return NextResponse.json({ error: 'depth unavailable', detail: String(err) }, { status: 502 });

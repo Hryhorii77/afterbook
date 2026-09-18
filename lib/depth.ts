@@ -66,6 +66,36 @@ export interface LiquidityDistribution {
   buckets: LiquidityBucket[];
 }
 
+interface DistributionCacheEntry {
+  distribution: LiquidityDistribution;
+  fetchedAt: number;
+}
+// lib/quote.ts's own pool-state cache is 20s, but LP positions (what this
+// scan actually reads) shift far less often than price does — a wider TTL
+// here cuts real RPC load without adding staleness a viewer would notice,
+// since the UI's own poll cadence (HomeClient) is already 60s.
+const DISTRIBUTION_CACHE_TTL_MS = 60_000;
+const distributionCache = new Map<string, DistributionCacheEntry>();
+
+/**
+ * Cached wrapper around getLiquidityDistribution — every call below this
+ * does two RPC round-trips (tickBitmap scan, then ticks() for whatever it
+ * finds initialized), unlike lib/quote.ts's slot0()/liquidity() reads,
+ * which were already behind getCachedPoolState. Without this, every poll
+ * from every open tab, plus every paid /api/v1/x402/history call, re-runs
+ * the full scan — real duplicated load on a public RPC under traffic.
+ */
+export async function getCachedLiquidityDistribution(stock: CbStock, state: PoolState): Promise<LiquidityDistribution> {
+  const now = Date.now();
+  const cached = distributionCache.get(stock.symbol);
+  if (cached && now - cached.fetchedAt < DISTRIBUTION_CACHE_TTL_MS) {
+    return cached.distribution;
+  }
+  const distribution = await getLiquidityDistribution(stock, state);
+  distributionCache.set(stock.symbol, { distribution, fetchedAt: now });
+  return distribution;
+}
+
 /**
  * Reconstructs active liquidity across a price window around the pool's
  * current tick, from the same on-chain tick-bitmap/ticks data Uniswap V3

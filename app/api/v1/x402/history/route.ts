@@ -3,7 +3,7 @@ import { withX402 } from '@x402/next';
 import { getStock } from '@/lib/tokens';
 import { getHistory } from '@/lib/history';
 import { getCachedPoolState } from '@/lib/quote';
-import { getLiquidityDistribution } from '@/lib/depth';
+import { getCachedLiquidityDistribution } from '@/lib/depth';
 import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE_PREMIUM } from '@/lib/x402';
 
 export const revalidate = 0;
@@ -28,7 +28,7 @@ async function handler(request: NextRequest) {
 
   try {
     const [samples, state] = await Promise.all([getHistory(stock.symbol, sinceMs), getCachedPoolState(stock)]);
-    const distribution = await getLiquidityDistribution(stock, state);
+    const distribution = await getCachedLiquidityDistribution(stock, state);
     return NextResponse.json({
       symbol: stock.symbol,
       since: sinceMs,
