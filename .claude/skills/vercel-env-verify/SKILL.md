@@ -39,10 +39,13 @@ permission.
      | sed 's/payment-required: //' | base64 -d
    ```
    (For `X402_PAYOUT_ADDRESS` specifically, check the decoded `payTo`
-   field on both `/api/v1/x402/quote` and `/api/v1/x402/tape` — they're
-   independent routes and both need to reflect the change.) For a
-   different env var, find an equivalent externally-observable signal
-   before declaring the change live.
+   field on all four `/api/v1/x402/*` routes — `quote`, `tape`,
+   `history`, `lp-range` — they're independent route handlers, each
+   with its own `withX402(...)` call, so each needs to reflect the
+   change separately; missing one means it's silently still paying
+   out to the old address. Re-count this list if another x402 route
+   gets added later.) For a different env var, find an equivalent
+   externally-observable signal before declaring the change live.
 
 ## Also watch for
 
