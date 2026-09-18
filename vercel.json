@@ -3,6 +3,7 @@
     { "path": "/api/cron/alerts", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/discover-tokens", "schedule": "0 13 * * *" },
     { "path": "/api/cron/fee-snapshot", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/earnings-sync", "schedule": "0 11 * * *" }
+    { "path": "/api/cron/earnings-sync", "schedule": "0 11 * * *" },
+    { "path": "/api/cron/jensen-burn-check", "schedule": "0 * * * *" }
   ]
 }
