@@ -8,6 +8,7 @@ import type { GeoInfo } from '@/lib/geo';
 import { bp } from '@/lib/format';
 import { ImpactCurve } from './ImpactCurve';
 import { DepthChart } from './DepthChart';
+import { computeCashAndCarryEdge, GAS_ESTIMATE_USD } from '@/lib/arb';
 import { Sparkline } from './Sparkline';
 import { MyLots } from './MyLots';
 
@@ -376,6 +377,15 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const unlocked = geo.nonUs === true && eligibleChecked;
   const activeStock = STOCKS.find((s) => s.symbol === symbol)!;
   const activeRow = tape.rows.find((r) => r.symbol === symbol);
+
+  // Only meaningful while cash is closed — once it's open there's no
+  // "carry until reopen" window left to annualize over, same gate
+  // showGapHero already uses below.
+  const arbEdge = useMemo(() => {
+    if (tape.session.state === 'open' || !quote || activeRow?.basisBp == null) return null;
+    const msUntilOpen = new Date(tape.session.nextOpenIso).getTime() - now;
+    return computeCashAndCarryEdge(activeRow.basisBp, quote.feeBp, quote.impactBp, quote.usdcIn, msUntilOpen);
+  }, [tape.session.state, tape.session.nextOpenIso, quote, activeRow?.basisBp, now]);
   const cashColumnLabel =
     tape.session.state === 'open'
       ? 'Cash last'
@@ -663,6 +673,48 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                 {daysUntil(activeRow.nextEarningsDate) === 1 ? '' : 's'} — expect wider spreads and more volatility
                 than this estimate reflects.
               </p>
+            )}
+
+            {arbEdge && (
+              <>
+                <h3 className="depth-heading">Cash-and-carry edge</h3>
+                <div className="result-hero">
+                  <div>
+                    <div className="label">Annualized, held to reopen</div>
+                    <div className={`value ${arbEdge.annualizedPct != null && arbEdge.annualizedPct >= 0 ? 'basis-pos' : 'basis-neg'}`}>
+                      {arbEdge.annualizedPct == null ? '—' : `${arbEdge.annualizedPct >= 0 ? '+' : ''}${arbEdge.annualizedPct.toFixed(0)}%`}
+                    </div>
+                  </div>
+                </div>
+                <div className="result-grid">
+                  <div className="result-cell">
+                    <div className="label">Gross basis edge</div>
+                    <div className={`value ${arbEdge.grossEdgeBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(arbEdge.grossEdgeBp)}</div>
+                  </div>
+                  <div className="result-cell">
+                    <div className="label">Pool fee</div>
+                    <div className="value">-{arbEdge.feeBp.toFixed(1)} bp</div>
+                  </div>
+                  <div className="result-cell">
+                    <div className="label">Price impact</div>
+                    <div className="value">-{arbEdge.impactBp.toFixed(1)} bp</div>
+                  </div>
+                  <div className="result-cell">
+                    <div className="label">Est. gas ({usd(GAS_ESTIMATE_USD)})</div>
+                    <div className="value">-{arbEdge.gasBp.toFixed(1)} bp</div>
+                  </div>
+                  <div className="result-cell">
+                    <div className="label">Net edge</div>
+                    <div className={`value ${arbEdge.netEdgeBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(arbEdge.netEdgeBp)}</div>
+                  </div>
+                </div>
+                <p className="geo-note">
+                  Assumes buying {activeStock.symbol} now at this size and full convergence to the current cash
+                  reference by reopen — not guaranteed, and this app can only go long (no short leg), so a negative
+                  gross basis edge (on-chain priced above cash) has no offsetting trade here. Gas is a flat estimate
+                  for a typical Base swap, not simulated for this specific trade.
+                </p>
+              </>
             )}
 
             <div className="lp-line">
