@@ -57,6 +57,34 @@ contract. Specific things worth knowing:
   value or a transfer's nominal amount — defensive against any unexpected
   token transfer behavior.
 
+## A real bug, found and fixed after two failed mainnet calls
+
+The first two real `swapAndBurn()` attempts (on a throwaway $1-threshold test
+deployment) reverted with no usable error message. Root cause, found by
+replaying the failure locally with NVDAc's address `vm.etch`'d to a plain
+ERC20 mock (the only way to get a full trace — see the limitation below):
+this contract's `V4ExactInputSingleParams` struct had an extra
+`minHopPriceX36` field that doesn't exist in the version of Universal
+Router actually deployed on Base. `forge install`'s default branch pulled
+a newer `v4-periphery` (which added that field); the real deployed router
+is pinned to `universal-router@2.0.0`, whose `ExactInputSingleParams` has
+one field fewer. The extra field shifted every subsequent word, so the
+router's compiler-generated bounds check on the (now differently
+positioned) `hookData` field read garbage as a length and hit calldata
+out-of-bounds — a bare, zero-length revert, before any nested call. Fixed
+by matching the struct to the real deployed router's layout (verified via
+BaseScan's `RouterParameters` ABI cross-referenced against tagged releases
+of `Uniswap/universal-router` on GitHub, not just whatever `forge install`
+happens to fetch).
+
+Consequence: the $1-threshold test contract deployed with the buggy code
+is permanently stuck holding ~$11 USDC (no owner, no rescue function, and
+`swapAndBurn()` can never succeed on that specific immutable deployment —
+by design there's no way around this). The real $50-threshold contract was
+never funded, so this cost was contained to the test deployment it was
+built for. Both should be treated as abandoned; redeploy fresh from the
+fixed source.
+
 ## A real tooling limitation, discovered while testing
 
 Coinbase's B20 tokenized-stock standard (which NVDAc belongs to) has no

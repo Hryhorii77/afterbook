@@ -327,7 +327,6 @@ contract JensenBuybackBurn is ReentrancyGuard {
                 // (~1e29), far under uint128's ~3.4e38 max.
                 // forge-lint: disable-next-line(unsafe-typecast)
                 amountOutMinimum: uint128(minOut),
-                minHopPriceX36: 0,
                 hookData: bytes("")
             })
         );
@@ -357,14 +356,23 @@ contract JensenBuybackBurn is ReentrancyGuard {
     }
 
     /// @dev Mirrors IV4Router.ExactInputSingleParams's field layout exactly
-    /// (verified against v4-periphery's real interface) — declared locally
-    /// to avoid pulling in the full IV4Router import chain for one struct.
+    /// as compiled into the REAL deployed Universal Router on Base
+    /// (verified against v4-periphery commit 444c526b, the exact submodule
+    /// ref pinned by universal-router@2.0.0 — the tag whose RouterParameters
+    /// struct matches the deployed contract's constructor args on BaseScan).
+    /// This intentionally does NOT match the newer v4-periphery installed
+    /// under lib/ in this repo, which added a minHopPriceX36 field here —
+    /// encoding that extra field is what caused every real swapAndBurn()
+    /// call to revert: the deployed router's compiler-generated bounds
+    /// check on the (differently-positioned) hookData field read garbage
+    /// and hit calldata out-of-bounds, producing an empty revert with zero
+    /// nested calls. Declared locally (not imported) to avoid pulling in
+    /// the newer, mismatched IV4Router interface.
     struct V4ExactInputSingleParams {
         PoolKey poolKey;
         bool zeroForOne;
         uint128 amountIn;
         uint128 amountOutMinimum;
-        uint256 minHopPriceX36;
         bytes hookData;
     }
 }
