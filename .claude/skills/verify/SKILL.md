@@ -72,3 +72,15 @@ x402-gated logic without configuring payment locally.
 - `tickForPriceUsd` (lib/quote.ts) round-trips `midPriceUsd` to within
   one `tickSpacing` of the pool's actual current tick.
 - All ten `lib/tokens.ts` pools share `tickSpacing: 10`.
+
+## Cache-aware timing
+
+`/api/depth` and `/api/v1/x402/history` both call
+`getCachedLiquidityDistribution` (lib/depth.ts), which holds a 60s
+in-memory cache per symbol — a repeat call to the same symbol inside
+that window returns near-instantly and is NOT exercising a fresh
+tick-bitmap/`ticks()` scan. To time or test the real cold-path RPC
+work, either use a symbol not hit in the last 60s or wait out the TTL.
+On local dev (single persistent process) this cache is reliable; on
+Vercel it's per-warm-instance, so production timings are noisier and
+don't cleanly separate into "cold" vs "cached" the way local ones do.
