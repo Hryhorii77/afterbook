@@ -57,9 +57,7 @@ No lint script, no test suite. To verify a change actually works:
 
 Linked project: `gregs-projects-c49a01b8/afterbook`. `vercel env ls`
 (optionally `production`) to check current values before changing
-anything. An env var change alone does **not** redeploy — Vercel bakes
-env vars into the deployment, so a stale production deployment keeps
-serving the old value until `vercel deploy --prod` runs again. Always
-verify a change actually reached production by hitting the live
-endpoint (see "Verifying changes" above), not by trusting `vercel env
-ls`'s "Xs ago" timestamp alone.
+anything. Use the `vercel-env-verify` skill for the full
+change-then-confirm sequence — an env var change alone does **not**
+redeploy, so skipping the redeploy+verify steps leaves the live site
+silently serving the old value.

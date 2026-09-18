@@ -18,20 +18,10 @@ zero-length revert — no useful error, twice, on real transactions.
 
 Before hardcoding any interface/struct from a `lib/` dependency that will
 be used against a **specific deployed contract address**, verify the
-installed source actually matches that deployment:
-
-1. Get the deployed contract's constructor args / ABI shape from
-   BaseScan (`WebFetch` on `https://basescan.org/address/<addr>#code`,
-   or the Etherscan v2 API with a key if available).
-2. Find the matching tagged release on the dependency's GitHub repo by
-   comparing that shape against tags (`gh api repos/<org>/<repo>/tags`,
-   then diff the relevant struct/interface across a few tags via
-   `gh api repos/<org>/<repo>/contents/<path>?ref=<tag>`).
-3. If the currently-installed `lib/` doesn't match, either reinstall at
-   the correct tag/commit or — simpler, and what this contract does —
-   declare the struct/interface locally, matching the deployed version
-   exactly, with a comment explaining why it deliberately doesn't match
-   the newer installed dependency.
+installed source actually matches that deployment — use the
+`verify-deployed-contract-version` skill for the exact procedure
+(BaseScan for the real shape, `gh api` against the dependency's tagged
+releases to find the matching version).
 
 This applies to any hardcoded protocol address in `src/JensenBuybackBurn.sol`
 (Aerodrome router/quoter, Universal Router, V4 PoolManager, Permit2) —
