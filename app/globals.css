@@ -125,6 +125,19 @@ h1 {
   font-variant-numeric: tabular-nums;
 }
 
+.thin-chip {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dimmer);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  margin: -8px 0 16px;
+}
+
 section.gap-hero {
   background: linear-gradient(180deg, rgba(245, 185, 66, 0.08), var(--panel));
   border-color: rgba(245, 185, 66, 0.35);

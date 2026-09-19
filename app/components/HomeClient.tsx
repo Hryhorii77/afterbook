@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
 import type { TapeResult, TapeRow } from '@/lib/tape';
-import { splitByLiquidity, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
+import { splitByLiquidity, isLiquid, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import type { GeoInfo } from '@/lib/geo';
 import { bp } from '@/lib/format';
 import { ImpactCurve } from './ImpactCurve';
@@ -610,6 +610,10 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           </span>
         )}
       </div>
+
+      {activeRow && !isLiquid(activeRow) && (
+        <div className="thin-chip">thin book · {usdCompact(activeRow.depthUsd)} depth</div>
+      )}
 
       {showGapHero && (
         <section className="panel gap-hero">
