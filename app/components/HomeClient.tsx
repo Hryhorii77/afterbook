@@ -257,6 +257,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const selectedRangeSymbolRef = useRef<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [showThin, setShowThin] = useState(false);
+  const [lotLabTab, setLotLabTab] = useState<'trade' | 'lp' | 'carry'>('trade');
   const [history, setHistory] = useState<HistorySample[]>([]);
   const [basisStats, setBasisStats] = useState<ClosedPeriodStats | null>(null);
   const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
@@ -512,6 +513,10 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     document.getElementById('lot-lab')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  const scrollToTape = () => {
+    document.getElementById('tape')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const toggleSort = (key: SortKey) => {
     setSort((prev) => (!prev || prev.key !== key ? { key, dir: 'desc' } : { key, dir: prev.dir === 'desc' ? 'asc' : 'desc' }));
   };
@@ -564,6 +569,37 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         </span>
       </header>
 
+      <div className="sticky-symbol-bar">
+        <select className="sticky-symbol-select" value={symbol} onChange={(e) => setSymbolAndUrl(e.target.value)} aria-label="Active symbol">
+          <optgroup label="Liquid">
+            {liquidRows.map((r) => (
+              <option key={r.symbol} value={r.symbol}>
+                {r.symbol}
+              </option>
+            ))}
+          </optgroup>
+          {thinRows.length > 0 && (
+            <optgroup label="Thin">
+              {thinRows.map((r) => (
+                <option key={r.symbol} value={r.symbol}>
+                  {r.symbol}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+        {activeRow?.basisBp != null && (
+          <span className={activeRow.basisBp >= 0 ? 'basis-pos' : 'basis-neg'}>{bp(activeRow.basisBp)}</span>
+        )}
+        {activeRow?.cashLastUsd != null && activeRow?.onchainMidUsd != null && (
+          <span className="sticky-symbol-detail">
+            <span className="gap-detail-label">cash</span> {usd(activeRow.cashLastUsd)}
+            {' → '}
+            <span className="gap-detail-label">aero</span> {usd(activeRow.onchainMidUsd)}
+          </span>
+        )}
+      </div>
+
       {showGapHero && (
         <section className="panel gap-hero">
           <div className="gap-hero-title">Cash market closed {formatDuration(now - cashClosedAsOfMs)} ago</div>
@@ -593,12 +629,17 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                     {bp(closeBasisBp)}
                   </div>
                   <div className="gap-detail">
-                    {usd(row.closeUsd)} → {usd(row.onchainMidUsd)}
+                    <span className="gap-detail-label">cash</span> {usd(row.closeUsd)}
+                    {' → '}
+                    <span className="gap-detail-label">aero</span> {usd(row.onchainMidUsd)}
                   </div>
                 </button>
               );
             })}
           </div>
+          <button type="button" className="mobile-tape-link" onClick={scrollToTape}>
+            View all {liquidRows.length + thinRows.length} in tape ↓
+          </button>
         </section>
       )}
 
@@ -617,7 +658,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         )}
       </section>
 
-      <section className="panel">
+      <section className="panel" id="tape">
         <h2>Tape</h2>
         {(tape.session.state === 'pre-market' || tape.session.state === 'after-hours') && (
           <p className="geo-note" style={{ marginTop: 0 }}>
@@ -734,210 +775,238 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
         {quote && (
           <>
-            <div className="result-hero">
-              <div>
-                <div className="label">Shares out</div>
-                <div className="value">{shares(quote.sharesOut)}</div>
-              </div>
-              <button type="button" className="copy-trade-btn" onClick={copyTrade}>
-                {copied ? 'Copied' : 'Copy trade'}
-              </button>
-            </div>
-            <div className="result-grid">
-              <div className="result-cell">
-                <div className="label">Exec price</div>
-                <div className="value">{usd(quote.execPriceUsd)}</div>
-              </div>
-              <div className="result-cell">
-                <div className="label">Impact</div>
-                <div className="value">{bp(quote.impactBp)}</div>
-              </div>
-              <div className="result-cell">
-                <div className="label">Pool fee</div>
-                <div className="value">{quote.feeBp.toFixed(0)} bp</div>
-              </div>
+            <div className="lot-lab-tabs" role="tablist">
+              {(['trade', 'lp', 'carry'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={lotLabTab === tab}
+                  className={lotLabTab === tab ? 'lot-lab-tab lot-lab-tab-active' : 'lot-lab-tab'}
+                  onClick={() => setLotLabTab(tab)}
+                >
+                  {tab === 'trade' ? 'Trade' : tab === 'lp' ? 'LP' : 'Carry'}
+                </button>
+              ))}
             </div>
 
-            <ImpactCurve points={quote.curve} currentUsdcIn={quote.usdcIn} currentImpactBp={quote.impactBp} />
-
-            <p className="geo-note">
-              Estimated from the pool&apos;s current on-chain price and in-range liquidity — not a firm quote.
-              {quote.largeTradeCaveat && ' This size is large relative to in-range liquidity and may cross into a wider price range; the real fill on Aerodrome could differ from this estimate.'}
-              {' '}Shaded region: sizes where the estimate is less reliable for the same reason.
-            </p>
-            {activeRow?.nextEarningsDate != null && daysUntil(activeRow.nextEarningsDate) <= EARNINGS_CAVEAT_WINDOW_DAYS && daysUntil(activeRow.nextEarningsDate) >= 0 && (
-              <p className="geo-note">
-                {activeStock.cashTicker} reports earnings in {daysUntil(activeRow.nextEarningsDate)} day
-                {daysUntil(activeRow.nextEarningsDate) === 1 ? '' : 's'} — expect wider spreads and more volatility
-                than this estimate reflects.
-              </p>
-            )}
-
-            {arbEdge && (
+            {lotLabTab === 'trade' && (
               <>
-                <h3 className="depth-heading">Cash-and-carry edge</h3>
                 <div className="result-hero">
                   <div>
-                    <div className="label">Annualized, held to reopen</div>
-                    <div className={`value ${arbEdge.annualizedPct != null && arbEdge.annualizedPct >= 0 ? 'basis-pos' : 'basis-neg'}`}>
-                      {arbEdge.annualizedPct == null
-                        ? '—'
-                        : `${arbEdge.annualizedPct >= 0 ? '+' : ''}${arbEdge.annualizedPct.toFixed(
-                            Math.abs(arbEdge.annualizedPct) < 1 ? 2 : Math.abs(arbEdge.annualizedPct) < 10 ? 1 : 0,
-                          )}%`}
-                    </div>
+                    <div className="label">Shares out</div>
+                    <div className="value">{shares(quote.sharesOut)}</div>
                   </div>
+                  <button type="button" className="copy-trade-btn" onClick={copyTrade}>
+                    {copied ? 'Copied' : 'Copy trade'}
+                  </button>
                 </div>
                 <div className="result-grid">
                   <div className="result-cell">
-                    <div className="label">Gross basis edge</div>
-                    <div className={`value ${arbEdge.grossEdgeBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(arbEdge.grossEdgeBp)}</div>
+                    <div className="label">Exec price</div>
+                    <div className="value">{usd(quote.execPriceUsd)}</div>
+                  </div>
+                  <div className="result-cell">
+                    <div className="label">Impact</div>
+                    <div className="value">{bp(quote.impactBp)}</div>
                   </div>
                   <div className="result-cell">
                     <div className="label">Pool fee</div>
-                    <div className="value">-{arbEdge.feeBp.toFixed(1)} bp</div>
-                  </div>
-                  <div className="result-cell">
-                    <div className="label">Price impact</div>
-                    <div className="value">-{arbEdge.impactBp.toFixed(1)} bp</div>
-                  </div>
-                  <div className="result-cell">
-                    <div className="label">Est. gas ({usd(GAS_ESTIMATE_USD)})</div>
-                    <div className="value">-{arbEdge.gasBp.toFixed(1)} bp</div>
-                  </div>
-                  <div className="result-cell">
-                    <div className="label">Net edge</div>
-                    <div className={`value ${arbEdge.netEdgeBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(arbEdge.netEdgeBp)}</div>
+                    <div className="value">{quote.feeBp.toFixed(0)} bp</div>
                   </div>
                 </div>
+
+                <ImpactCurve points={quote.curve} currentUsdcIn={quote.usdcIn} currentImpactBp={quote.impactBp} />
+
                 <p className="geo-note">
-                  Assumes buying {activeStock.symbol} now at this size and full convergence to the current cash
-                  reference by reopen — not guaranteed, and this app can only go long (no short leg), so a negative
-                  gross basis edge (on-chain priced above cash) has no offsetting trade here. Gas is a flat estimate
-                  for a typical Base swap, not simulated for this specific trade.
+                  Estimated from the pool&apos;s current on-chain price and in-range liquidity — not a firm quote.
+                  {quote.largeTradeCaveat && ' This size is large relative to in-range liquidity and may cross into a wider price range; the real fill on Aerodrome could differ from this estimate.'}
+                  {' '}Shaded region: sizes where the estimate is less reliable for the same reason.
                 </p>
-                <p className="geo-note">
-                  The annualized figure extrapolates the real {arbEdge.holdingDays.toFixed(1)}-day expected return (
-                  {arbEdge.netEdgeBp >= 0 ? '+' : ''}
-                  {(arbEdge.netEdgeBp / 100).toFixed(2)}%, from the net edge above) out to a full year for
-                  comparison — over a short window like this one, that extrapolation can look far larger than the
-                  real amount at stake. It isn&apos;t a claim you&apos;d gain or lose that much; the {arbEdge.holdingDays.toFixed(1)}-day
-                  figure is the one that actually applies here.
-                </p>
+                {activeRow?.nextEarningsDate != null && daysUntil(activeRow.nextEarningsDate) <= EARNINGS_CAVEAT_WINDOW_DAYS && daysUntil(activeRow.nextEarningsDate) >= 0 && (
+                  <p className="geo-note">
+                    {activeStock.cashTicker} reports earnings in {daysUntil(activeRow.nextEarningsDate)} day
+                    {daysUntil(activeRow.nextEarningsDate) === 1 ? '' : 's'} — expect wider spreads and more volatility
+                    than this estimate reflects.
+                  </p>
+                )}
               </>
             )}
 
-            <div className="lp-line">
-              <span className="lp-line-label">Same {usd(quote.usdcIn, 0)} as LP</span>
-              <span className="lp-line-value">
-                ≈ {usd(quote.usdcIn / 2, 0)} + {shares(quote.usdcIn / 2 / quote.midPriceUsd)} {activeStock.symbol}
-              </span>
-            </div>
-            <p className="geo-note">
-              Full-range, ~50/50 by value at the current price — a full-range concentrated-liquidity position is
-              mathematically equivalent to a classic 50/50 pool. Aerodrome defaults new deposits to a narrower
-              range, which would change this split; check the actual range before depositing.
-            </p>
-
-            {depth && depth.symbol === symbol && (
+            {lotLabTab === 'lp' && (
               <>
-                <h3 className="depth-heading">Liquidity depth · LP range selector</h3>
-                <DepthChart
-                  buckets={depth.buckets}
-                  currentPriceUsd={depth.currentPriceUsd}
-                  selectedRange={selectedRange ?? undefined}
-                  onRangeChange={setSelectedRange}
-                />
+                <div className="lp-line">
+                  <span className="lp-line-label">Same {usd(quote.usdcIn, 0)} as LP</span>
+                  <span className="lp-line-value">
+                    ≈ {usd(quote.usdcIn / 2, 0)} + {shares(quote.usdcIn / 2 / quote.midPriceUsd)} {activeStock.symbol}
+                  </span>
+                </div>
                 <p className="geo-note">
-                  Active on-chain liquidity by price, read directly from the pool&apos;s tick data — taller bars are
-                  where support/resistance walls actually sit. Dashed line marks the current price; drag the two
-                  green handles to size a candidate LP range.
+                  Full-range, ~50/50 by value at the current price — a full-range concentrated-liquidity position is
+                  mathematically equivalent to a classic 50/50 pool. Aerodrome defaults new deposits to a narrower
+                  range, which would change this split; check the actual range before depositing.
                 </p>
 
-                {rangeMetrics && selectedRange && (
+                {depth && depth.symbol === symbol && (
                   <>
-                    <div className="result-grid">
-                      <div className="result-cell">
-                        <div className="label">Selected range</div>
-                        <div className="value">
-                          {usd(selectedRange.lowUsd, 0)} – {usd(selectedRange.highUsd, 0)}
-                        </div>
-                      </div>
-                      <div className="result-cell">
-                        <div className="label">Capital efficiency</div>
-                        <div className="value">{rangeMetrics.multiplier != null ? `${rangeMetrics.multiplier.toFixed(1)}×` : '—'}</div>
-                      </div>
-                      <div className="result-cell">
-                        <div className="label">
-                          Est. fee APR{depth.feeAprWindowDays != null ? ` (last ${depth.feeAprWindowDays.toFixed(1)}d)` : ''}
-                        </div>
-                        <div className="value">{rangeMetrics.estimatedFeeAprPct != null ? `${rangeMetrics.estimatedFeeAprPct.toFixed(1)}%` : '—'}</div>
-                      </div>
-                      <div className="result-cell">
-                        <div className="label">In-range prob. ({IN_RANGE_HORIZON_DAYS}d)</div>
-                        <div className="value">
-                          {rangeMetrics.inRangeProbabilityPct != null ? `${rangeMetrics.inRangeProbabilityPct.toFixed(0)}%` : '—'}
-                        </div>
-                      </div>
-                    </div>
+                    <h3 className="depth-heading">Liquidity depth · LP range selector</h3>
+                    <DepthChart
+                      buckets={depth.buckets}
+                      currentPriceUsd={depth.currentPriceUsd}
+                      selectedRange={selectedRange ?? undefined}
+                      onRangeChange={setSelectedRange}
+                    />
                     <p className="geo-note">
-                      Capital efficiency: how much more liquidity this range buys vs. a full-range position for the
-                      same deposit, from the range width alone. Est. fee APR: the pool&apos;s own trailing fee APR
-                      (feeGrowth-based, same figure My Lots shows for real positions) times that multiplier — an
-                      extrapolation assuming price stays in range, not a guarantee. In-range probability: chance the
-                      price is still inside this range in {IN_RANGE_HORIZON_DAYS} days, from recent realized
-                      volatility — both null until enough history has accumulated for this symbol.
+                      Active on-chain liquidity by price, read directly from the pool&apos;s tick data — taller bars are
+                      where support/resistance walls actually sit. Dashed line marks the current price; drag the two
+                      green handles to size a candidate LP range.
                     </p>
-                  </>
-                )}
 
-                {earningsVolAnalysis && (
-                  <>
-                    <h3 className="depth-heading">Earnings volatility spread</h3>
-                    <div className="result-grid">
-                      <div className="result-cell">
-                        <div className="label">Liquidity-implied horizon</div>
-                        <div className="value">
-                          {earningsVolAnalysis.impliedHorizonDays != null ? `${earningsVolAnalysis.impliedHorizonDays.toFixed(1)}d` : '—'}
+                    {rangeMetrics && selectedRange && (
+                      <>
+                        <div className="result-grid">
+                          <div className="result-cell">
+                            <div className="label">Selected range</div>
+                            <div className="value">
+                              {usd(selectedRange.lowUsd, 0)} – {usd(selectedRange.highUsd, 0)}
+                            </div>
+                          </div>
+                          <div className="result-cell">
+                            <div className="label">Capital efficiency</div>
+                            <div className="value">{rangeMetrics.multiplier != null ? `${rangeMetrics.multiplier.toFixed(1)}×` : '—'}</div>
+                          </div>
+                          <div className="result-cell">
+                            <div className="label">
+                              Est. fee APR{depth.feeAprWindowDays != null ? ` (last ${depth.feeAprWindowDays.toFixed(1)}d)` : ''}
+                            </div>
+                            <div className="value">{rangeMetrics.estimatedFeeAprPct != null ? `${rangeMetrics.estimatedFeeAprPct.toFixed(1)}%` : '—'}</div>
+                          </div>
+                          <div className="result-cell">
+                            <div className="label">In-range prob. ({IN_RANGE_HORIZON_DAYS}d)</div>
+                            <div className="value">
+                              {rangeMetrics.inRangeProbabilityPct != null ? `${rangeMetrics.inRangeProbabilityPct.toFixed(0)}%` : '—'}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="result-cell">
-                        <div className="label">Days to earnings</div>
-                        <div className="value">
-                          {earningsVolAnalysis.daysToEarnings != null && earningsVolAnalysis.daysToEarnings >= 0
-                            ? `${earningsVolAnalysis.daysToEarnings}d`
-                            : '—'}
-                        </div>
-                      </div>
-                      <div className="result-cell">
-                        <div className="label">Historical avg move (day after)</div>
-                        <div className="value">{earningsStats ? `±${earningsStats.meanAbsMovePct.toFixed(1)}% (n=${earningsStats.count})` : '—'}</div>
-                      </div>
-                    </div>
-                    {earningsVolAnalysis.impliedHorizonDays != null &&
-                      earningsVolAnalysis.daysToEarnings != null &&
-                      earningsVolAnalysis.daysToEarnings >= 0 && (
                         <p className="geo-note">
-                          {earningsVolAnalysis.impliedHorizonDays < earningsVolAnalysis.daysToEarnings * 0.7
-                            ? `Pool liquidity is concentrated as tightly as ~${earningsVolAnalysis.impliedHorizonDays.toFixed(0)}d of typical moves would justify — shorter than the ${earningsVolAnalysis.daysToEarnings}d until earnings, so the pool may be thinner than what the upcoming report could`
-                            : earningsVolAnalysis.impliedHorizonDays > earningsVolAnalysis.daysToEarnings * 1.4
-                              ? `Pool liquidity is spread as wide as ~${earningsVolAnalysis.impliedHorizonDays.toFixed(0)}d of typical moves would justify — wider than the ${earningsVolAnalysis.daysToEarnings}d until earnings, so it may already be pricing in more than a typical report would`
-                              : `Pool liquidity is concentrated about as tightly as ~${earningsVolAnalysis.impliedHorizonDays.toFixed(0)}d of typical moves would justify — roughly in line with the ${earningsVolAnalysis.daysToEarnings}d until earnings`}
-                          {' '}warrant, relative to what post-earnings moves have actually looked like historically.
+                          Capital efficiency: how much more liquidity this range buys vs. a full-range position for the
+                          same deposit, from the range width alone. Est. fee APR: the pool&apos;s own trailing fee APR
+                          (feeGrowth-based, same figure My Lots shows for real positions) times that multiplier — an
+                          extrapolation assuming price stays in range, not a guarantee. In-range probability: chance the
+                          price is still inside this range in {IN_RANGE_HORIZON_DAYS} days, from recent realized
+                          volatility — both null until enough history has accumulated for this symbol.
                         </p>
-                      )}
-                    <p className="geo-note">
-                      Not implied volatility in the options-market sense — there&apos;s no options market here.
-                      This reads how tightly LPs have clustered their own liquidity as the number of days of{' '}
-                      {activeStock.cashTicker}&apos;s realized volatility that concentration would justify, then
-                      compares that to the real days until the next report and, when available, the average size
-                      of this stock&apos;s past post-earnings moves. All three numbers are shown raw on purpose —
-                      not investment advice, and a real earnings move can differ arbitrarily from history.
-                    </p>
+                      </>
+                    )}
+
+                    {earningsVolAnalysis && (
+                      <>
+                        <h3 className="depth-heading">Earnings volatility spread</h3>
+                        <div className="result-grid">
+                          <div className="result-cell">
+                            <div className="label">Liquidity-implied horizon</div>
+                            <div className="value">
+                              {earningsVolAnalysis.impliedHorizonDays != null ? `${earningsVolAnalysis.impliedHorizonDays.toFixed(1)}d` : '—'}
+                            </div>
+                          </div>
+                          <div className="result-cell">
+                            <div className="label">Days to earnings</div>
+                            <div className="value">
+                              {earningsVolAnalysis.daysToEarnings != null && earningsVolAnalysis.daysToEarnings >= 0
+                                ? `${earningsVolAnalysis.daysToEarnings}d`
+                                : '—'}
+                            </div>
+                          </div>
+                          <div className="result-cell">
+                            <div className="label">Historical avg move (day after)</div>
+                            <div className="value">{earningsStats ? `±${earningsStats.meanAbsMovePct.toFixed(1)}% (n=${earningsStats.count})` : '—'}</div>
+                          </div>
+                        </div>
+                        {earningsVolAnalysis.impliedHorizonDays != null &&
+                          earningsVolAnalysis.daysToEarnings != null &&
+                          earningsVolAnalysis.daysToEarnings >= 0 && (
+                            <p className="geo-note">
+                              {earningsVolAnalysis.impliedHorizonDays < earningsVolAnalysis.daysToEarnings * 0.7
+                                ? `Pool liquidity is concentrated as tightly as ~${earningsVolAnalysis.impliedHorizonDays.toFixed(0)}d of typical moves would justify — shorter than the ${earningsVolAnalysis.daysToEarnings}d until earnings, so the pool may be thinner than what the upcoming report could`
+                                : earningsVolAnalysis.impliedHorizonDays > earningsVolAnalysis.daysToEarnings * 1.4
+                                  ? `Pool liquidity is spread as wide as ~${earningsVolAnalysis.impliedHorizonDays.toFixed(0)}d of typical moves would justify — wider than the ${earningsVolAnalysis.daysToEarnings}d until earnings, so it may already be pricing in more than a typical report would`
+                                  : `Pool liquidity is concentrated about as tightly as ~${earningsVolAnalysis.impliedHorizonDays.toFixed(0)}d of typical moves would justify — roughly in line with the ${earningsVolAnalysis.daysToEarnings}d until earnings`}
+                              {' '}warrant, relative to what post-earnings moves have actually looked like historically.
+                            </p>
+                          )}
+                        <p className="geo-note">
+                          Not implied volatility in the options-market sense — there&apos;s no options market here.
+                          This reads how tightly LPs have clustered their own liquidity as the number of days of{' '}
+                          {activeStock.cashTicker}&apos;s realized volatility that concentration would justify, then
+                          compares that to the real days until the next report and, when available, the average size
+                          of this stock&apos;s past post-earnings moves. All three numbers are shown raw on purpose —
+                          not investment advice, and a real earnings move can differ arbitrarily from history.
+                        </p>
+                      </>
+                    )}
                   </>
                 )}
               </>
             )}
+
+            {lotLabTab === 'carry' &&
+              (arbEdge ? (
+                <>
+                  <div className="result-hero">
+                    <div>
+                      <div className="label">Annualized, held to reopen</div>
+                      <div className={`value ${arbEdge.annualizedPct != null && arbEdge.annualizedPct >= 0 ? 'basis-pos' : 'basis-neg'}`}>
+                        {arbEdge.annualizedPct == null
+                          ? '—'
+                          : `${arbEdge.annualizedPct >= 0 ? '+' : ''}${arbEdge.annualizedPct.toFixed(
+                              Math.abs(arbEdge.annualizedPct) < 1 ? 2 : Math.abs(arbEdge.annualizedPct) < 10 ? 1 : 0,
+                            )}%`}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="result-grid">
+                    <div className="result-cell">
+                      <div className="label">Gross basis edge</div>
+                      <div className={`value ${arbEdge.grossEdgeBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(arbEdge.grossEdgeBp)}</div>
+                    </div>
+                    <div className="result-cell">
+                      <div className="label">Pool fee</div>
+                      <div className="value">-{arbEdge.feeBp.toFixed(1)} bp</div>
+                    </div>
+                    <div className="result-cell">
+                      <div className="label">Price impact</div>
+                      <div className="value">-{arbEdge.impactBp.toFixed(1)} bp</div>
+                    </div>
+                    <div className="result-cell">
+                      <div className="label">Est. gas ({usd(GAS_ESTIMATE_USD)})</div>
+                      <div className="value">-{arbEdge.gasBp.toFixed(1)} bp</div>
+                    </div>
+                    <div className="result-cell">
+                      <div className="label">Net edge</div>
+                      <div className={`value ${arbEdge.netEdgeBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(arbEdge.netEdgeBp)}</div>
+                    </div>
+                  </div>
+                  <p className="geo-note">
+                    Assumes buying {activeStock.symbol} now at this size and full convergence to the current cash
+                    reference by reopen — not guaranteed, and this app can only go long (no short leg), so a negative
+                    gross basis edge (on-chain priced above cash) has no offsetting trade here. Gas is a flat estimate
+                    for a typical Base swap, not simulated for this specific trade.
+                  </p>
+                  <p className="geo-note">
+                    The annualized figure extrapolates the real {arbEdge.holdingDays.toFixed(1)}-day expected return (
+                    {arbEdge.netEdgeBp >= 0 ? '+' : ''}
+                    {(arbEdge.netEdgeBp / 100).toFixed(2)}%, from the net edge above) out to a full year for
+                    comparison — over a short window like this one, that extrapolation can look far larger than the
+                    real amount at stake. It isn&apos;t a claim you&apos;d gain or lose that much; the {arbEdge.holdingDays.toFixed(1)}-day
+                    figure is the one that actually applies here.
+                  </p>
+                </>
+              ) : (
+                <p className="geo-note">
+                  Only meaningful while cash is closed — {activeStock.symbol} has no carry edge to show while the
+                  regular session is open. Check back after hours or on a weekend.
+                </p>
+              ))}
           </>
         )}
       </section>

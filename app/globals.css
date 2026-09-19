@@ -92,6 +92,39 @@ h1 {
   50% { opacity: 0.4; }
 }
 
+.sticky-symbol-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--bg);
+  border-bottom: 1px solid var(--panel-border);
+  padding: 10px 0;
+  margin: 0 0 16px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.sticky-symbol-select {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sticky-symbol-detail {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
 section.gap-hero {
   background: linear-gradient(180deg, rgba(245, 185, 66, 0.08), var(--panel));
   border-color: rgba(245, 185, 66, 0.35);
@@ -115,6 +148,10 @@ section.gap-hero {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
+}
+
+.mobile-tape-link {
+  display: none;
 }
 
 .gap-cell {
@@ -153,6 +190,14 @@ section.gap-hero {
   letter-spacing: -0.02em;
   font-size: 20px;
   font-weight: 600;
+}
+
+.gap-detail-label {
+  font-size: 9px;
+  color: var(--text-dimmer);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  vertical-align: 1px;
 }
 
 .gap-detail {
@@ -719,6 +764,35 @@ footer a {
   margin-bottom: 16px;
 }
 
+.lot-lab-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 16px 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.lot-lab-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 4px 10px;
+  margin-right: 20px;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.lot-lab-tab:hover {
+  color: var(--text);
+}
+
+.lot-lab-tab-active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
 .preset-btn {
   background: #0e1114;
   border: 1px solid var(--panel-border);
@@ -787,4 +861,28 @@ footer a {
   font-size: 12px;
   color: var(--text-dimmer);
   margin-top: 2px;
+}
+
+@media (max-width: 640px) {
+  .gap-grid > .gap-cell:nth-child(n + 4) {
+    display: none;
+  }
+
+  .mobile-tape-link {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    background: none;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 10px;
+    cursor: pointer;
+  }
+
+  .mobile-tape-link:hover {
+    color: var(--text);
+  }
 }
