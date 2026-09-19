@@ -73,6 +73,27 @@ x402-gated logic without configuring payment locally.
   one `tickSpacing` of the pool's actual current tick.
 - All ten `lib/tokens.ts` pools share `tickSpacing: 10`.
 
+## Testing the depth chart's drag interaction
+
+The Lot Lab depth chart (`DepthChart.tsx`) is a draggable LP range
+selector, not just a static SVG — two green handles, dragged with
+`left_click_drag` via claude-in-chrome. Gotcha: the *first*
+`left_click_drag` right after a page navigation reliably does nothing
+(no visible change, no metric update) — this reproduces 100% of the
+time and is a browser-automation timing artifact (page/hydration not
+fully settled at the exact synthetic-event moment), not an app bug —
+a real user's mouse won't hit this pattern. Every drag after the first
+one works reliably. So: navigate, `find` + `scroll_to` the section,
+do one throwaway drag (ignore whether it visibly worked), then do the
+real test drag and screenshot that one.
+
+Handles clamp to each other (min ~0.1% gap) and to `currentPriceUsd` —
+dragging past the current-price line should make the handle stick
+there, not cross over. If a metrics cell goes blank (`—`) after a
+drag, check whether the range still brackets current price before
+assuming a bug — `capitalEfficiencyMultiplier`/
+`computeInRangeProbabilityPct` intentionally return `null` otherwise.
+
 ## Cache-aware timing
 
 `/api/depth` and `/api/v1/x402/history` both call
