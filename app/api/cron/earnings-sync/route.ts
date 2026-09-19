@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { STOCKS } from '@/lib/tokens';
 import { fetchNasdaqEarningsForDate, recordNextEarnings } from '@/lib/earningsCalendar';
+import { syncEarningsMovesForDate } from '@/lib/earningsHistory';
 
 export const revalidate = 0;
 export const maxDuration = 30;
 
 const SCAN_DAYS = 14;
+// How many days back to check for a just-completed report to record into
+// history — lagged (not "yesterday") so Yahoo's closing price for the
+// reaction day has definitely settled, and past any adjacent weekend.
+const HISTORY_SYNC_LAG_DAYS = 4;
 
 // Scans a day-indexed calendar rather than a symbol-indexed one, so this
 // walks forward day by day (Nasdaq's endpoint has no date-range param) and
@@ -41,5 +46,11 @@ export async function GET(request: NextRequest) {
     STOCKS.map((stock) => recordNextEarnings(stock.symbol, nextDateByTicker.get(stock.cashTicker) ?? null, now)),
   );
 
-  return NextResponse.json({ ok: true, found: nextDateByTicker.size });
+  // Piggybacks the same daily run to grow lib/earningsHistory.ts's real
+  // record of past reports — one extra day-scan, cheap, and naturally
+  // no-ops (hasEarningsMove) once a date's already recorded.
+  const historyDateStr = new Date(now - HISTORY_SYNC_LAG_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const historyRecorded = await syncEarningsMovesForDate(historyDateStr).catch(() => 0);
+
+  return NextResponse.json({ ok: true, found: nextDateByTicker.size, historyRecorded });
 }

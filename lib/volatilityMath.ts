@@ -66,12 +66,25 @@ export function computeInRangeProbabilityPct(
   rangeLowUsd: number,
   rangeHighUsd: number,
 ): number | null {
-  if (currentPriceUsd <= 0 || rangeLowUsd <= 0 || rangeHighUsd <= rangeLowUsd) return null;
+  return computeInRangeProbabilityPctForHorizon(samples, currentPriceUsd, rangeLowUsd, rangeHighUsd, IN_RANGE_HORIZON_DAYS);
+}
+
+/** General form of computeInRangeProbabilityPct with an explicit horizon —
+ *  needed by solveImpliedHorizonDays below, which bisects over the horizon
+ *  itself rather than using the fixed IN_RANGE_HORIZON_DAYS constant. */
+export function computeInRangeProbabilityPctForHorizon(
+  samples: PriceSample[],
+  currentPriceUsd: number,
+  rangeLowUsd: number,
+  rangeHighUsd: number,
+  horizonDays: number,
+): number | null {
+  if (currentPriceUsd <= 0 || rangeLowUsd <= 0 || rangeHighUsd <= rangeLowUsd || horizonDays <= 0) return null;
 
   const sigma = computeAnnualizedVol(samples);
   if (sigma == null || sigma <= 0) return null;
 
-  const T = IN_RANGE_HORIZON_DAYS / 365;
+  const T = horizonDays / 365;
   const denom = sigma * Math.sqrt(T);
   const dHigh = Math.log(rangeHighUsd / currentPriceUsd) / denom;
   const dLow = Math.log(rangeLowUsd / currentPriceUsd) / denom;
@@ -94,6 +107,48 @@ export function normalQuantile(p: number): number {
   for (let i = 0; i < 60; i++) {
     const mid = (lo + hi) / 2;
     if (normalCdf(mid) < p) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/**
+ * Inverse of computeInRangeProbabilityPctForHorizon over the horizon
+ * itself: given a fixed range [rangeLowUsd, rangeHighUsd] that brackets
+ * currentPriceUsd, finds the horizon T (in days) at which the realized-
+ * vol model would assign it exactly targetProbabilityPct of staying in
+ * range. Used to turn an *observed* range (e.g. where LP liquidity is
+ * actually concentrated) into a horizon comparable to a real number like
+ * days-until-earnings, instead of assuming a horizon on the liquidity
+ * side (there isn't a principled one to assume — LPs don't declare a
+ * holding period).
+ *
+ * Well-posed bisection: probability is monotonically decreasing in T for
+ * a *fixed* range (a longer horizon spreads the distribution more, so a
+ * fixed absolute band captures less of it) — verified numerically via a
+ * round-trip check (solve for T from a known P(T), recover the original
+ * T) before this was wired into anything, not just asserted.
+ */
+export function solveImpliedHorizonDays(
+  samples: PriceSample[],
+  currentPriceUsd: number,
+  rangeLowUsd: number,
+  rangeHighUsd: number,
+  targetProbabilityPct: number,
+): number | null {
+  if (targetProbabilityPct <= 0 || targetProbabilityPct >= 100) return null;
+  if (rangeLowUsd > currentPriceUsd || rangeHighUsd < currentPriceUsd) return null;
+
+  const sigma = computeAnnualizedVol(samples);
+  if (sigma == null || sigma <= 0) return null;
+
+  let lo = 1 / 24; // 1 hour, in days — near-zero horizon, model P should be ~100%
+  let hi = 3650; // 10 years — far enough that model P should be ~0%
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    const p = computeInRangeProbabilityPctForHorizon(samples, currentPriceUsd, rangeLowUsd, rangeHighUsd, mid);
+    if (p == null) return null;
+    if (p > targetProbabilityPct) lo = mid; // still too likely to be in range -> horizon must be longer
     else hi = mid;
   }
   return (lo + hi) / 2;

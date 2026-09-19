@@ -9,8 +9,8 @@ import { bp } from '@/lib/format';
 import { ImpactCurve } from './ImpactCurve';
 import { DepthChart } from './DepthChart';
 import { computeCashAndCarryEdge, GAS_ESTIMATE_USD } from '@/lib/arb';
-import { computeInRangeProbabilityPct, IN_RANGE_HORIZON_DAYS } from '@/lib/volatilityMath';
-import { capitalEfficiencyMultiplier } from '@/lib/lpRange';
+import { computeInRangeProbabilityPct, IN_RANGE_HORIZON_DAYS, solveImpliedHorizonDays } from '@/lib/volatilityMath';
+import { capitalEfficiencyMultiplier, computeLiquidityConcentrationRange } from '@/lib/lpRange';
 import { Sparkline } from './Sparkline';
 import { MyLots } from './MyLots';
 
@@ -70,6 +70,11 @@ interface DepthResponse {
 interface PriceSample {
   ts: number;
   priceUsd: number;
+}
+
+interface EarningsMoveStats {
+  count: number;
+  meanAbsMovePct: number;
 }
 
 const SIZE_PRESETS_USDC = [250, 1_000, 5_000];
@@ -247,6 +252,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [depth, setDepth] = useState<DepthResponse | null>(null);
   const [priceHistory, setPriceHistory] = useState<PriceSample[]>([]);
+  const [earningsStats, setEarningsStats] = useState<EarningsMoveStats | null>(null);
   const [selectedRange, setSelectedRange] = useState<{ lowUsd: number; highUsd: number } | null>(null);
   const selectedRangeSymbolRef = useRef<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -391,6 +397,23 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     };
   }, [symbol]);
 
+  // Historical earnings-move stats grow at most once a day (the cron), so
+  // this doesn't need frequent polling — fetch on symbol change only.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/earnings-history?symbol=${encodeURIComponent(symbol)}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (!cancelled) setEarningsStats(json.stats ?? null);
+      })
+      .catch(() => {
+        // keep showing last known stats
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [symbol]);
+
   // Defaults the range selector to ±10% around current price exactly once
   // per symbol (on the first depth response for it) — not on every 60s
   // depth poll, which would stomp an in-progress drag.
@@ -440,6 +463,27 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     const estimatedFeeAprPct = multiplier != null && depth.feeAprPct != null ? depth.feeAprPct * multiplier : null;
     return { multiplier, inRangeProbabilityPct, estimatedFeeAprPct };
   }, [selectedRange, depth, symbol, priceHistory]);
+
+  // How many days of this token's realized volatility the pool's own
+  // liquidity concentration would justify, vs. the real days-until-
+  // earnings — see lib/lpRange.ts and lib/volatilityMath.ts for why this
+  // is framed as a horizon comparison rather than a fabricated "implied
+  // volatility" number (there's no options market here to price one).
+  const earningsVolAnalysis = useMemo(() => {
+    if (!depth || depth.symbol !== symbol) return null;
+    const concentration = computeLiquidityConcentrationRange(depth.buckets, depth.currentTick, 0.68);
+    if (!concentration) return null;
+    const impliedHorizonDays = solveImpliedHorizonDays(
+      priceHistory,
+      depth.currentPriceUsd,
+      concentration.lowUsd,
+      concentration.highUsd,
+      concentration.actualFraction * 100,
+    );
+    const daysToEarnings = activeRow?.nextEarningsDate != null ? daysUntil(activeRow.nextEarningsDate) : null;
+    return { concentration, impliedHorizonDays, daysToEarnings };
+  }, [depth, symbol, priceHistory, activeRow?.nextEarningsDate]);
+
   const cashColumnLabel =
     tape.session.state === 'open'
       ? 'Cash last'
@@ -831,6 +875,52 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                       extrapolation assuming price stays in range, not a guarantee. In-range probability: chance the
                       price is still inside this range in {IN_RANGE_HORIZON_DAYS} days, from recent realized
                       volatility — both null until enough history has accumulated for this symbol.
+                    </p>
+                  </>
+                )}
+
+                {earningsVolAnalysis && (
+                  <>
+                    <h3 className="depth-heading">Earnings volatility spread</h3>
+                    <div className="result-grid">
+                      <div className="result-cell">
+                        <div className="label">Liquidity-implied horizon</div>
+                        <div className="value">
+                          {earningsVolAnalysis.impliedHorizonDays != null ? `${earningsVolAnalysis.impliedHorizonDays.toFixed(1)}d` : '—'}
+                        </div>
+                      </div>
+                      <div className="result-cell">
+                        <div className="label">Days to earnings</div>
+                        <div className="value">
+                          {earningsVolAnalysis.daysToEarnings != null && earningsVolAnalysis.daysToEarnings >= 0
+                            ? `${earningsVolAnalysis.daysToEarnings}d`
+                            : '—'}
+                        </div>
+                      </div>
+                      <div className="result-cell">
+                        <div className="label">Historical avg move (day after)</div>
+                        <div className="value">{earningsStats ? `±${earningsStats.meanAbsMovePct.toFixed(1)}% (n=${earningsStats.count})` : '—'}</div>
+                      </div>
+                    </div>
+                    {earningsVolAnalysis.impliedHorizonDays != null &&
+                      earningsVolAnalysis.daysToEarnings != null &&
+                      earningsVolAnalysis.daysToEarnings >= 0 && (
+                        <p className="geo-note">
+                          {earningsVolAnalysis.impliedHorizonDays < earningsVolAnalysis.daysToEarnings * 0.7
+                            ? `Pool liquidity is concentrated as tightly as ~${earningsVolAnalysis.impliedHorizonDays.toFixed(0)}d of typical moves would justify — shorter than the ${earningsVolAnalysis.daysToEarnings}d until earnings, so the pool may be thinner than what the upcoming report could`
+                            : earningsVolAnalysis.impliedHorizonDays > earningsVolAnalysis.daysToEarnings * 1.4
+                              ? `Pool liquidity is spread as wide as ~${earningsVolAnalysis.impliedHorizonDays.toFixed(0)}d of typical moves would justify — wider than the ${earningsVolAnalysis.daysToEarnings}d until earnings, so it may already be pricing in more than a typical report would`
+                              : `Pool liquidity is concentrated about as tightly as ~${earningsVolAnalysis.impliedHorizonDays.toFixed(0)}d of typical moves would justify — roughly in line with the ${earningsVolAnalysis.daysToEarnings}d until earnings`}
+                          {' '}warrant, relative to what post-earnings moves have actually looked like historically.
+                        </p>
+                      )}
+                    <p className="geo-note">
+                      Not implied volatility in the options-market sense — there&apos;s no options market here.
+                      This reads how tightly LPs have clustered their own liquidity as the number of days of{' '}
+                      {activeStock.cashTicker}&apos;s realized volatility that concentration would justify, then
+                      compares that to the real days until the next report and, when available, the average size
+                      of this stock&apos;s past post-earnings moves. All three numbers are shown raw on purpose —
+                      not investment advice, and a real earnings move can differ arbitrarily from history.
                     </p>
                   </>
                 )}
