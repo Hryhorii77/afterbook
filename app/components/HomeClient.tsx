@@ -696,8 +696,8 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             {showThin && (
               <>
                 <p className="geo-note">
-                  Under ${(LIQUID_DEPTH_THRESHOLD_USD / 1000).toFixed(0)}k depth — basis here can swing hundreds of bp
-                  on thin trading, not signal.
+                  Under {usdCompact(LIQUID_DEPTH_THRESHOLD_USD)} depth — basis here can swing hundreds of bp on thin
+                  trading, not signal.
                 </p>
                 <div className="table-scroll">
                   <table className="thin-table">

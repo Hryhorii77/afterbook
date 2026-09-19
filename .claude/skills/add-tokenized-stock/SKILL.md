@@ -62,5 +62,6 @@ documents that.
 - `npm run build` (typecheck).
 - Load the app and confirm the new symbol appears in the tape with a
   real price and depth, not a NaN/error state.
-- If it's thin (<$100k depth), confirm it correctly collapses behind the
-  "Show N thin books" toggle rather than cluttering the main tape.
+- If it's thin (< `LIQUID_DEPTH_THRESHOLD_USD` in `lib/liquidity.ts`,
+  currently $1M), confirm it correctly collapses behind the "Show N thin
+  books" toggle rather than cluttering the main tape/hero.

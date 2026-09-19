@@ -8,7 +8,14 @@
 // visual weight, wildly different meaning. Split on real depth rather than a
 // hardcoded symbol list so a thin pool automatically graduates once it
 // actually has liquidity, instead of needing a code change forever.
-export const LIQUID_DEPTH_THRESHOLD_USD = 100_000;
+//
+// $100k wasn't tight enough in practice: `depthUsd` is the pool's total real
+// token balance, not liquidity active near the current tick, so a pool can
+// clear $100k on stale/off-range positions while still swinging hundreds of
+// bp — MSTRc cleared this at ~$965k depth while sitting at +257bp, still
+// screaming "broken" in the hero next to single-digit-bp names. $1M is where
+// today's ten pools actually split into a calm tier and a still-noisy one.
+export const LIQUID_DEPTH_THRESHOLD_USD = 1_000_000;
 
 interface HasDepth {
   depthUsd: number | null;
