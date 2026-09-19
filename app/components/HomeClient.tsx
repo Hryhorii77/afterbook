@@ -9,6 +9,8 @@ import { bp } from '@/lib/format';
 import { ImpactCurve } from './ImpactCurve';
 import { DepthChart } from './DepthChart';
 import { computeCashAndCarryEdge, GAS_ESTIMATE_USD } from '@/lib/arb';
+import { computeInRangeProbabilityPct, IN_RANGE_HORIZON_DAYS } from '@/lib/volatilityMath';
+import { capitalEfficiencyMultiplier } from '@/lib/lpRange';
 import { Sparkline } from './Sparkline';
 import { MyLots } from './MyLots';
 
@@ -61,6 +63,13 @@ interface DepthResponse {
   currentTick: number;
   currentPriceUsd: number;
   buckets: LiquidityBucket[];
+  feeAprPct: number | null;
+  feeAprWindowDays: number | null;
+}
+
+interface PriceSample {
+  ts: number;
+  priceUsd: number;
 }
 
 const SIZE_PRESETS_USDC = [250, 1_000, 5_000];
@@ -237,6 +246,9 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [depth, setDepth] = useState<DepthResponse | null>(null);
+  const [priceHistory, setPriceHistory] = useState<PriceSample[]>([]);
+  const [selectedRange, setSelectedRange] = useState<{ lowUsd: number; highUsd: number } | null>(null);
+  const selectedRangeSymbolRef = useRef<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [showThin, setShowThin] = useState(false);
   const [history, setHistory] = useState<HistorySample[]>([]);
@@ -357,6 +369,38 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     };
   }, [symbol]);
 
+  // Raw price samples for the range selector's live in-range-probability
+  // recompute — fetched once per symbol (not per drag frame) so dragging
+  // stays purely client-side math, no request-per-pixel.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchPriceHistory = async () => {
+      try {
+        const res = await fetch(`/api/price-history?symbol=${encodeURIComponent(symbol)}`);
+        const json = await res.json();
+        if (!cancelled) setPriceHistory(res.ok ? (json.samples ?? []) : []);
+      } catch {
+        // keep showing last known samples
+      }
+    };
+    fetchPriceHistory();
+    const id = setInterval(fetchPriceHistory, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [symbol]);
+
+  // Defaults the range selector to ±10% around current price exactly once
+  // per symbol (on the first depth response for it) — not on every 60s
+  // depth poll, which would stomp an in-progress drag.
+  useEffect(() => {
+    if (depth && depth.symbol === symbol && selectedRangeSymbolRef.current !== symbol) {
+      setSelectedRange({ lowUsd: depth.currentPriceUsd * 0.9, highUsd: depth.currentPriceUsd * 1.1 });
+      selectedRangeSymbolRef.current = symbol;
+    }
+  }, [depth, symbol]);
+
   // A 30-day aggregate barely moves minute to minute — fetch on symbol
   // change only, no polling interval needed.
   useEffect(() => {
@@ -386,6 +430,16 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     const msUntilOpen = new Date(tape.session.nextOpenIso).getTime() - now;
     return computeCashAndCarryEdge(activeRow.basisBp, quote.feeBp, quote.impactBp, quote.usdcIn, msUntilOpen);
   }, [tape.session.state, tape.session.nextOpenIso, quote, activeRow?.basisBp, now]);
+
+  // Live math behind the depth chart's drag handles — recomputed on every
+  // frame of a drag, purely client-side (no request per pixel of movement).
+  const rangeMetrics = useMemo(() => {
+    if (!selectedRange || !depth || depth.symbol !== symbol) return null;
+    const multiplier = capitalEfficiencyMultiplier(selectedRange.lowUsd, selectedRange.highUsd, depth.currentPriceUsd);
+    const inRangeProbabilityPct = computeInRangeProbabilityPct(priceHistory, depth.currentPriceUsd, selectedRange.lowUsd, selectedRange.highUsd);
+    const estimatedFeeAprPct = multiplier != null && depth.feeAprPct != null ? depth.feeAprPct * multiplier : null;
+    return { multiplier, inRangeProbabilityPct, estimatedFeeAprPct };
+  }, [selectedRange, depth, symbol, priceHistory]);
   const cashColumnLabel =
     tape.session.state === 'open'
       ? 'Cash last'
@@ -731,12 +785,55 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
             {depth && depth.symbol === symbol && (
               <>
-                <h3 className="depth-heading">Liquidity depth</h3>
-                <DepthChart buckets={depth.buckets} currentPriceUsd={depth.currentPriceUsd} />
+                <h3 className="depth-heading">Liquidity depth · LP range selector</h3>
+                <DepthChart
+                  buckets={depth.buckets}
+                  currentPriceUsd={depth.currentPriceUsd}
+                  selectedRange={selectedRange ?? undefined}
+                  onRangeChange={setSelectedRange}
+                />
                 <p className="geo-note">
                   Active on-chain liquidity by price, read directly from the pool&apos;s tick data — taller bars are
-                  where support/resistance walls actually sit. Dashed line marks the current price.
+                  where support/resistance walls actually sit. Dashed line marks the current price; drag the two
+                  green handles to size a candidate LP range.
                 </p>
+
+                {rangeMetrics && selectedRange && (
+                  <>
+                    <div className="result-grid">
+                      <div className="result-cell">
+                        <div className="label">Selected range</div>
+                        <div className="value">
+                          {usd(selectedRange.lowUsd, 0)} – {usd(selectedRange.highUsd, 0)}
+                        </div>
+                      </div>
+                      <div className="result-cell">
+                        <div className="label">Capital efficiency</div>
+                        <div className="value">{rangeMetrics.multiplier != null ? `${rangeMetrics.multiplier.toFixed(1)}×` : '—'}</div>
+                      </div>
+                      <div className="result-cell">
+                        <div className="label">
+                          Est. fee APR{depth.feeAprWindowDays != null ? ` (last ${depth.feeAprWindowDays.toFixed(1)}d)` : ''}
+                        </div>
+                        <div className="value">{rangeMetrics.estimatedFeeAprPct != null ? `${rangeMetrics.estimatedFeeAprPct.toFixed(1)}%` : '—'}</div>
+                      </div>
+                      <div className="result-cell">
+                        <div className="label">In-range prob. ({IN_RANGE_HORIZON_DAYS}d)</div>
+                        <div className="value">
+                          {rangeMetrics.inRangeProbabilityPct != null ? `${rangeMetrics.inRangeProbabilityPct.toFixed(0)}%` : '—'}
+                        </div>
+                      </div>
+                    </div>
+                    <p className="geo-note">
+                      Capital efficiency: how much more liquidity this range buys vs. a full-range position for the
+                      same deposit, from the range width alone. Est. fee APR: the pool&apos;s own trailing fee APR
+                      (feeGrowth-based, same figure My Lots shows for real positions) times that multiplier — an
+                      extrapolation assuming price stays in range, not a guarantee. In-range probability: chance the
+                      price is still inside this range in {IN_RANGE_HORIZON_DAYS} days, from recent realized
+                      volatility — both null until enough history has accumulated for this symbol.
+                    </p>
+                  </>
+                )}
               </>
             )}
           </>

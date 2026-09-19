@@ -536,6 +536,30 @@ select {
   opacity: 0.9;
 }
 
+.range-select-fill {
+  fill: var(--green);
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+.range-handle {
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.range-handle-line {
+  stroke: var(--green);
+  stroke-width: 2;
+}
+
+.range-handle-grip {
+  fill: var(--green);
+}
+
+.range-handle-active .range-handle-line {
+  stroke-width: 3;
+}
+
 .eligibility {
   display: flex;
   align-items: flex-start;
