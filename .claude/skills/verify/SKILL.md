@@ -17,7 +17,15 @@ npm run dev            # next dev, port 3000
 
 `.env.local` already has `KV_REST_API_URL`/`KV_REST_API_TOKEN` (real
 Upstash Redis) so history/volatility/earnings data is live, not empty,
-in local dev. Check with:
+in local dev. **This is the same Redis instance production uses** —
+confirmed directly (wrote real data locally, it was immediately
+readable from `afterbook.app` with no separate deploy or sync step).
+Cuts both ways: a one-time backfill/seed script run locally reaches
+production instantly, which is genuinely useful — but so does any
+throwaway write made "just to check something," so don't `recordX`/
+`zadd`-style write against real keys from a scratch script unless you
+mean for production to see it too. Reads are always safe. Check the
+server's up with:
 
 ```bash
 lsof -i :3000 -sTCP:LISTEN   # a next-server process may already be running
