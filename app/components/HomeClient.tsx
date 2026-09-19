@@ -455,6 +455,17 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     return computeCashAndCarryEdge(activeRow.basisBp, quote.feeBp, quote.impactBp, quote.usdcIn, msUntilOpen);
   }, [tape.session.state, tape.session.nextOpenIso, quote, activeRow?.basisBp, now]);
 
+  // Carry only earns its place as a tab when there's an edge worth
+  // sizing — cash closed plus a basis spread wide enough to plausibly
+  // clear fees/impact/gas. 20bp is a display threshold, not the exact
+  // breakeven (that varies by trade size); the Carry tab's own numbers
+  // remain the source of truth once opened.
+  const carryEligible = tape.session.state !== 'open' && activeRow?.basisBp != null && Math.abs(activeRow.basisBp) > 20;
+
+  useEffect(() => {
+    if (lotLabTab === 'carry' && !carryEligible) setLotLabTab('trade');
+  }, [carryEligible, lotLabTab]);
+
   // Live math behind the depth chart's drag handles — recomputed on every
   // frame of a drag, purely client-side (no request per pixel of movement).
   const rangeMetrics = useMemo(() => {
@@ -776,7 +787,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         {quote && (
           <>
             <div className="lot-lab-tabs" role="tablist">
-              {(['trade', 'lp', 'carry'] as const).map((tab) => (
+              {(carryEligible ? (['trade', 'lp', 'carry'] as const) : (['trade', 'lp'] as const)).map((tab) => (
                 <button
                   key={tab}
                   type="button"
