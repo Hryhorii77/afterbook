@@ -780,7 +780,11 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                   <div>
                     <div className="label">Annualized, held to reopen</div>
                     <div className={`value ${arbEdge.annualizedPct != null && arbEdge.annualizedPct >= 0 ? 'basis-pos' : 'basis-neg'}`}>
-                      {arbEdge.annualizedPct == null ? '—' : `${arbEdge.annualizedPct >= 0 ? '+' : ''}${arbEdge.annualizedPct.toFixed(0)}%`}
+                      {arbEdge.annualizedPct == null
+                        ? '—'
+                        : `${arbEdge.annualizedPct >= 0 ? '+' : ''}${arbEdge.annualizedPct.toFixed(
+                            Math.abs(arbEdge.annualizedPct) < 1 ? 2 : Math.abs(arbEdge.annualizedPct) < 10 ? 1 : 0,
+                          )}%`}
                     </div>
                   </div>
                 </div>
