@@ -38,6 +38,15 @@ interface LpHolding {
   feeAprWindowDays: number | null;
   inRangeProbabilityPct: number | null;
   inRangeHorizonDays: number | null;
+  gaugeAprPct: number | null;
+  stakedRatioPct: number | null;
+  isStaked: boolean;
+  votingIncentiveFlag: {
+    bribesUsd: number;
+    hasUnpricedBribes: boolean;
+    feesUsd: number;
+    outpacing: boolean;
+  } | null;
 }
 
 interface MyLotsResponse {
@@ -227,10 +236,35 @@ export function MyLots() {
                     <RangeBar low={h.rangeLowUsd} high={h.rangeHighUsd} current={h.currentPriceUsd} />
                     {h.feeAprPct != null ? (
                       <div className="geo-note">
-                        Fee APR ≈ {h.feeAprPct.toFixed(1)}% (last {h.feeAprWindowDays!.toFixed(1)}d, pool-wide)
+                        Fee APR ≈ {h.feeAprPct.toFixed(1)}% (last {h.feeAprWindowDays!.toFixed(1)}d, pool-wide),
+                        currently <span className={h.isStaked ? 'basis-pos' : ''}>{h.isStaked ? 'staked' : 'unstaked'}</span>
                       </div>
                     ) : (
                       <div className="geo-note">Fee APR: collecting data — check back in a day or two.</div>
+                    )}
+                    {h.gaugeAprPct != null ? (
+                      <div className="geo-note">
+                        Gauge APR ≈ {h.gaugeAprPct.toFixed(1)}% if staked ({h.stakedRatioPct != null ? h.stakedRatioPct.toFixed(0) : '?'}%
+                        of this pool is)
+                        {h.feeAprPct != null && (
+                          <>
+                            {' — '}
+                            <span className={h.gaugeAprPct > h.feeAprPct ? 'basis-pos' : 'basis-neg'}>
+                              {h.gaugeAprPct > h.feeAprPct ? 'staking currently earns more' : 'pure fees currently earn more'}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="geo-note">Gauge APR: unavailable right now — try again shortly.</div>
+                    )}
+                    {h.votingIncentiveFlag?.outpacing && (
+                      <div className="geo-note">
+                        <span className="basis-neg">Voting incentives ({usd(h.votingIncentiveFlag.bribesUsd)}) outpaced trading fees (
+                        {usd(h.votingIncentiveFlag.feesUsd)}) last epoch</span>
+                        {h.votingIncentiveFlag.hasUnpricedBribes && ' (some bribe tokens unpriced, floor only)'} — this
+                        gauge&apos;s APR may be governance-subsidized right now, not earned from organic trading volume.
+                      </div>
                     )}
                     {h.inRangeProbabilityPct != null ? (
                       <div className="geo-note">

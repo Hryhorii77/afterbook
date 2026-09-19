@@ -1,8 +1,9 @@
-import { getClient, TOKEN_ABI, ERC20_ABI, MULTIPLIER_ONE, priceFromSqrtX96 } from './quote';
+import { getClient, TOKEN_ABI, ERC20_ABI, MULTIPLIER_ONE, priceFromSqrtX96, getCachedPoolState } from './quote';
 import { STOCKS, CL_FACTORY, type CbStock } from './tokens';
 import type { TapeRow } from './tape';
 import { computeFeeApr } from './feeApr';
 import { getPriceHistory, computeInRangeProbabilityPct, IN_RANGE_HORIZON_DAYS } from './volatility';
+import { getGaugeYield, getVotingIncentiveFlag } from './gaugeYield';
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 // AERO is a standard 18-decimal ERC20 — Sugar's emissions_earned is denominated
@@ -95,6 +96,28 @@ export interface LpHolding {
    *  lib/volatility.ts). */
   inRangeProbabilityPct: number | null;
   inRangeHorizonDays: number | null;
+  /** Annualized AERO emissions yield if this pool's liquidity were staked
+   *  in its gauge — see lib/gaugeYield.ts for the real on-chain reads
+   *  behind this (reward rate, staked liquidity, AERO's own price) and
+   *  the approximation it makes valuing staked liquidity in USD. null
+   *  until AERO's price and the pool's gauge state are both readable. */
+  gaugeAprPct: number | null;
+  /** % of this pool's total active liquidity currently staked (not this
+   *  position specifically — a pool-wide figure). */
+  stakedRatioPct: number | null;
+  /** Whether this position's own liquidity is staked (from Sugar's
+   *  position.staked field) — which side of the fee-vs-gauge comparison
+   *  actually applies to what this wallet is currently earning. */
+  isStaked: boolean;
+  /** Most recent epoch's veAERO voting incentives (bribes) vs. real
+   *  trading fee revenue for this pool — see lib/gaugeYield.ts. null
+   *  until an epoch with data is readable. */
+  votingIncentiveFlag: {
+    bribesUsd: number;
+    hasUnpricedBribes: boolean;
+    feesUsd: number;
+    outpacing: boolean;
+  } | null;
 }
 
 export interface MyLots {
@@ -198,10 +221,15 @@ export async function getMyLots(address: `0x${string}`, tapeRows: TapeRow[]): Pr
       let feeAprWindowDays: number | null = null;
       let inRangeProbabilityPct: number | null = null;
       let inRangeHorizonDays: number | null = null;
+      let gaugeAprPct: number | null = null;
+      let stakedRatioPct: number | null = null;
+      let votingIncentiveFlag: LpHolding['votingIncentiveFlag'] = null;
       if (currentPriceUsd != null) {
-        const [feeApr, priceHistory] = await Promise.all([
+        const [feeApr, priceHistory, poolState, incentiveFlag] = await Promise.all([
           computeFeeApr(stock.symbol, stock, currentPriceUsd, multiplier).catch(() => null),
           getPriceHistory(stock.symbol, Date.now() - 30 * 24 * 60 * 60_000).catch(() => []),
+          getCachedPoolState(stock).catch(() => null),
+          getVotingIncentiveFlag(stock, currentPriceUsd).catch(() => null),
         ]);
         if (feeApr) {
           feeAprPct = feeApr.aprPct;
@@ -212,6 +240,14 @@ export async function getMyLots(address: `0x${string}`, tapeRows: TapeRow[]): Pr
           inRangeProbabilityPct = probability;
           inRangeHorizonDays = IN_RANGE_HORIZON_DAYS;
         }
+        if (poolState) {
+          const gaugeYield = await getGaugeYield(stock, poolState).catch(() => null);
+          if (gaugeYield) {
+            gaugeAprPct = gaugeYield.gaugeAprPct;
+            stakedRatioPct = gaugeYield.stakedRatioPct;
+          }
+        }
+        votingIncentiveFlag = incentiveFlag;
       }
 
       return {
@@ -232,6 +268,10 @@ export async function getMyLots(address: `0x${string}`, tapeRows: TapeRow[]): Pr
         feeAprWindowDays,
         inRangeProbabilityPct,
         inRangeHorizonDays,
+        gaugeAprPct,
+        stakedRatioPct,
+        isStaked: pos.staked > 0n,
+        votingIncentiveFlag,
       };
     }),
   );
