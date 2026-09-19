@@ -816,6 +816,14 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                   gross basis edge (on-chain priced above cash) has no offsetting trade here. Gas is a flat estimate
                   for a typical Base swap, not simulated for this specific trade.
                 </p>
+                <p className="geo-note">
+                  The annualized figure extrapolates the real {arbEdge.holdingDays.toFixed(1)}-day expected return (
+                  {arbEdge.netEdgeBp >= 0 ? '+' : ''}
+                  {(arbEdge.netEdgeBp / 100).toFixed(2)}%, from the net edge above) out to a full year for
+                  comparison — over a short window like this one, that extrapolation can look far larger than the
+                  real amount at stake. It isn&apos;t a claim you&apos;d gain or lose that much; the {arbEdge.holdingDays.toFixed(1)}-day
+                  figure is the one that actually applies here.
+                </p>
               </>
             )}
 

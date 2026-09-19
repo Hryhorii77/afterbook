@@ -32,8 +32,14 @@ export interface CashAndCarryEdge {
   netEdgeBp: number;
   /** Simple (non-compounded) annualization of netEdgeBp over the time
    *  remaining until cash reopens. null when there's no meaningful
-   *  forward window (e.g. already past reopen). */
+   *  forward window (e.g. already past reopen). Over a short window this
+   *  can look dramatic (a small real return scaled up to "if this held
+   *  for a year") — holdingDays below is what the UI shows alongside it
+   *  so that's legible as an extrapolation, not the actual expected loss/gain. */
   annualizedPct: number | null;
+  /** Real time until reopen, in days — the actual holding period
+   *  annualizedPct extrapolates from. */
+  holdingDays: number;
 }
 
 export function computeCashAndCarryEdge(
@@ -49,6 +55,7 @@ export function computeCashAndCarryEdge(
 
   const yearsUntilOpen = msUntilOpen / MS_PER_YEAR;
   const annualizedPct = yearsUntilOpen > 0 ? netEdgeBp / 100 / yearsUntilOpen : null;
+  const holdingDays = msUntilOpen / 86_400_000;
 
-  return { grossEdgeBp, feeBp, impactBp, gasBp, netEdgeBp, annualizedPct };
+  return { grossEdgeBp, feeBp, impactBp, gasBp, netEdgeBp, annualizedPct, holdingDays };
 }
