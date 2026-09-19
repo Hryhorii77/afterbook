@@ -47,6 +47,16 @@ lsof -i :3000 -sTCP:LISTEN   # a next-server process may already be running
   fetched (`useEffect`), so `curl` on `/` won't show them — screenshot
   the actual browser after `find`-ing the section heading and
   `scroll_to`.
+- **Lot Lab is tabbed** (Trade / LP / Carry — `HomeClient.tsx`'s
+  `lotLabTab` state, defaults to Trade). Each tab's content is
+  conditionally rendered (`{lotLabTab === 'lp' && (...)}`), not just
+  CSS-hidden — a tool not currently on that tab is absent from the DOM,
+  so `find`/`scroll_to` won't locate it. Click the tab button first:
+  impact curve lives under Trade (default, no click needed), the
+  depth-chart drag selector and fee-APR/in-range-odds metrics under LP,
+  the cash-and-carry calculator under Carry (only renders real numbers
+  when `arbEdge` is non-null — i.e. cash market closed with a basis
+  edge; otherwise it's just the "no edge right now" note).
 
 ## Bypassing the x402 paywall to test handler logic
 
@@ -85,7 +95,9 @@ x402-gated logic without configuring payment locally.
 
 The Lot Lab depth chart (`DepthChart.tsx`) is a draggable LP range
 selector, not just a static SVG — two green handles, dragged with
-`left_click_drag` via claude-in-chrome. Gotcha: the *first*
+`left_click_drag` via claude-in-chrome. It only renders once the LP tab
+is active (see above) — click "LP" in the Lot Lab tab bar before
+`find`-ing it. Gotcha: the *first*
 `left_click_drag` right after a page navigation reliably does nothing
 (no visible change, no metric update) — this reproduces 100% of the
 time and is a browser-automation timing artifact (page/hydration not
