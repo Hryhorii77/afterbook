@@ -473,15 +473,6 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const activeStock = STOCKS.find((s) => s.symbol === symbol)!;
   const activeRow = tape.rows.find((r) => r.symbol === symbol);
 
-  // Only meaningful while cash is closed — once it's open there's no
-  // "carry until reopen" window left to annualize over, same gate
-  // showGapHero already uses below.
-  const arbEdge = useMemo(() => {
-    if (tape.session.state === 'open' || !quote || activeRow?.basisBp == null) return null;
-    const msUntilOpen = new Date(tape.session.nextOpenIso).getTime() - now;
-    return computeCashAndCarryEdge(activeRow.basisBp, quote.feeBp, quote.impactBp, quote.usdcIn, msUntilOpen);
-  }, [tape.session.state, tape.session.nextOpenIso, quote, activeRow?.basisBp, now]);
-
   // Carry only earns its place as a tab when there's an edge worth
   // sizing — cash closed plus a basis spread wide enough to plausibly
   // clear fees/impact/gas. 20bp is a display threshold, not the exact
@@ -489,9 +480,30 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   // remain the source of truth once opened.
   const carryEligible = tape.session.state !== 'open' && activeRow?.basisBp != null && Math.abs(activeRow.basisBp) > 20;
 
+  // BNKR feedback: a premium (basisBp > 0) has no edge for a buy — that
+  // direction only pays off for someone who already holds shares and
+  // wants to unwind that inventory into the rich on-chain price instead.
+  // Defaults to whichever side actually has an edge for the active
+  // symbol's current basis; only resets on a symbol switch, not on every
+  // basis tick, so it doesn't yank the toggle out from under someone
+  // mid-read if the sign flips transiently.
+  const [carryDirection, setCarryDirection] = useState<'buy' | 'sell'>('buy');
+  useEffect(() => {
+    setCarryDirection((tape.rows.find((r) => r.symbol === symbol)?.basisBp ?? 0) > 0 ? 'sell' : 'buy');
+  }, [symbol]);
+
   useEffect(() => {
     if (lotLabTab === 'carry' && !carryEligible) setLotLabTab('trade');
   }, [carryEligible, lotLabTab]);
+
+  // Only meaningful while cash is closed — once it's open there's no
+  // "carry until reopen" window left to annualize over, same gate
+  // showGapHero already uses below.
+  const arbEdge = useMemo(() => {
+    if (tape.session.state === 'open' || !quote || activeRow?.basisBp == null) return null;
+    const msUntilOpen = new Date(tape.session.nextOpenIso).getTime() - now;
+    return computeCashAndCarryEdge(activeRow.basisBp, quote.feeBp, quote.impactBp, quote.usdcIn, msUntilOpen, carryDirection);
+  }, [tape.session.state, tape.session.nextOpenIso, quote, activeRow?.basisBp, now, carryDirection]);
 
   // Live math behind the depth chart's drag handles — recomputed on every
   // frame of a drag, purely client-side (no request per pixel of movement).
@@ -1034,6 +1046,26 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             {lotLabTab === 'carry' &&
               (arbEdge ? (
                 <>
+                  <div className="carry-direction-toggle" role="tablist">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={carryDirection === 'buy'}
+                      className={carryDirection === 'buy' ? 'carry-direction-tab carry-direction-tab-active' : 'carry-direction-tab'}
+                      onClick={() => setCarryDirection('buy')}
+                    >
+                      Buy basis
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={carryDirection === 'sell'}
+                      className={carryDirection === 'sell' ? 'carry-direction-tab carry-direction-tab-active' : 'carry-direction-tab'}
+                      onClick={() => setCarryDirection('sell')}
+                    >
+                      Short basis / unwind
+                    </button>
+                  </div>
                   <div className="result-hero">
                     <div>
                       <div className="label">Annualized, held to reopen</div>
@@ -1068,12 +1100,22 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                       <div className={`value ${arbEdge.netEdgeBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(arbEdge.netEdgeBp)}</div>
                     </div>
                   </div>
-                  <p className="geo-note">
-                    Assumes buying {activeStock.symbol} now at this size and full convergence to the current cash
-                    reference by reopen — not guaranteed, and this app can only go long (no short leg), so a negative
-                    gross basis edge (on-chain priced above cash) has no offsetting trade here. Gas is a flat estimate
-                    for a typical Base swap, not simulated for this specific trade.
-                  </p>
+                  {carryDirection === 'buy' ? (
+                    <p className="geo-note">
+                      Assumes buying {activeStock.symbol} now at this size and full convergence to the current cash
+                      reference by reopen — not guaranteed, and this app can only go long (no short leg), so a
+                      negative gross basis edge (on-chain priced above cash) has no offsetting trade here. Gas is a
+                      flat estimate for a typical Base swap, not simulated for this specific trade.
+                    </p>
+                  ) : (
+                    <p className="geo-note">
+                      For unwinding inventory you already hold, not opening a new short — this app has no borrow/short
+                      mechanism. Assumes selling {activeStock.symbol} now at this size and rebuying the same USDC
+                      notional in cash pre-market once it reopens, capturing the current premium — not guaranteed,
+                      and a negative gross basis edge (on-chain priced below cash) has no offsetting trade here. Gas
+                      is a flat estimate for a typical Base swap, not simulated for this specific trade.
+                    </p>
+                  )}
                   <p className="geo-note">
                     The annualized figure extrapolates the real {arbEdge.holdingDays.toFixed(1)}-day expected return (
                     {arbEdge.netEdgeBp >= 0 ? '+' : ''}
@@ -1082,6 +1124,16 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                     real amount at stake. It isn&apos;t a claim you&apos;d gain or lose that much; the {arbEdge.holdingDays.toFixed(1)}-day
                     figure is the one that actually applies here.
                   </p>
+                  {carryDirection === 'sell' && unlocked && (
+                    <a
+                      className="btn btn-secondary"
+                      href={aerodromeSwapUrl(activeStock, 'sell')}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Sell {activeStock.symbol} on Aerodrome ↗
+                    </a>
+                  )}
                 </>
               ) : (
                 <p className="geo-note">

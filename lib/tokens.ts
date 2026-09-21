@@ -196,10 +196,13 @@ export function getStock(symbol: string): CbStock | undefined {
 // exact params it generates for these pools, not guessed.
 const BASE_CHAIN_ID = '8453';
 
-export function aerodromeSwapUrl(stock: CbStock): string {
+// direction 'sell' reverses from/to — for the Carry tab's inventory-unwind
+// side, where the deep link needs to sell the stock token for USDC rather
+// than the default buy.
+export function aerodromeSwapUrl(stock: CbStock, direction: 'buy' | 'sell' = 'buy'): string {
   const params = new URLSearchParams({
-    from: USDC.address,
-    to: stock.tokenAddress,
+    from: direction === 'buy' ? USDC.address : stock.tokenAddress,
+    to: direction === 'buy' ? stock.tokenAddress : USDC.address,
     chain0: BASE_CHAIN_ID,
     chain1: BASE_CHAIN_ID,
   });

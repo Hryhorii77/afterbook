@@ -898,6 +898,36 @@ footer a {
   border-bottom-color: var(--accent);
 }
 
+/* Secondary, within-tab toggle (Carry's buy vs. short-basis/unwind
+   direction) — a segmented pill rather than the same underline style as
+   the Trade/LP/Carry tabs above it, so it doesn't read as a third level
+   of the same tab hierarchy. */
+.carry-direction-toggle {
+  display: inline-flex;
+  border: 1px solid var(--secondary-border);
+  border-radius: 999px;
+  padding: 2px;
+  margin-bottom: 16px;
+}
+.carry-direction-tab {
+  background: none;
+  border: none;
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.carry-direction-tab:hover {
+  color: var(--text);
+}
+.carry-direction-tab-active {
+  background: var(--panel-border);
+  color: var(--text);
+}
+
 .preset-btn {
   background: #0e1114;
   border: 1px solid var(--panel-border);

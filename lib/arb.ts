@@ -1,16 +1,21 @@
-// Cash-and-carry basis calculator: how much bp of edge a buy-now,
-// hold-until-cash-reopens trade nets after the pool's fee, this size's
-// price impact, and a rough gas allowance — and what that edge implies
-// annualized over the actual time remaining until reopen.
+// Cash-and-carry basis calculator: how much bp of edge a trade nets after
+// the pool's fee, this size's price impact, and a rough gas allowance —
+// and what that edge implies annualized over the actual time remaining
+// until reopen. Two directions, both long-only (this app has no borrow/
+// short mechanism — see lib/quote.ts's own docs on why no real calldata
+// gets constructed here either):
 //
-// Direction: this app is buy-only (no shorting via Lot Lab), so the only
-// actionable setup is basisBp < 0 — on-chain priced *below* the cash
-// reference (lib/tape.ts: basisBp = (onchainMid - cashRef) / cashRef).
-// Buying now and full convergence up to that reference by reopen is the
-// profitable case, so grossEdgeBp is -basisBp: positive when on-chain is
-// cheap (the buy signal), negative when on-chain is already at a premium
-// (no edge from a buy-only position — the trade this app can execute
-// would be buying into a level that's already rich, not a real arb).
+//  - 'buy' (default): basisBp < 0 — on-chain priced *below* the cash
+//    reference (lib/tape.ts: basisBp = (onchainMid - cashRef) / cashRef).
+//    Buying now and full convergence up to that reference by reopen is
+//    the profitable case, so grossEdgeBp is -basisBp: positive when
+//    on-chain is cheap.
+//  - 'sell': the inventory-unwind side, for a user who already holds
+//    shares (not a new short — nothing here borrows). basisBp > 0 —
+//    on-chain priced *above* cash — is the profitable setup: sell the
+//    held shares on-chain now at the premium, notionally rebuy the same
+//    USDC amount in cash pre-market once it reopens. grossEdgeBp is
+//    +basisBp here, the mirror image of the buy case.
 //
 // GAS_ESTIMATE_USD is a documented flat assumption, not a live
 // simulation — this app deliberately never constructs real swap calldata
@@ -24,7 +29,8 @@ export const GAS_ESTIMATE_USD = 0.02;
 const MS_PER_YEAR = 365 * 24 * 60 * 60 * 1000;
 
 export interface CashAndCarryEdge {
-  /** -basisBp: positive when on-chain is priced below the cash reference. */
+  /** -basisBp (direction 'buy') or +basisBp (direction 'sell') — positive
+   *  in either case means this direction currently has an edge. */
   grossEdgeBp: number;
   feeBp: number;
   impactBp: number;
@@ -48,8 +54,9 @@ export function computeCashAndCarryEdge(
   impactBp: number,
   usdcIn: number,
   msUntilOpen: number,
+  direction: 'buy' | 'sell' = 'buy',
 ): CashAndCarryEdge {
-  const grossEdgeBp = -basisBp;
+  const grossEdgeBp = direction === 'buy' ? -basisBp : basisBp;
   const gasBp = usdcIn > 0 ? (GAS_ESTIMATE_USD / usdcIn) * 10_000 : 0;
   const netEdgeBp = grossEdgeBp - feeBp - impactBp - gasBp;
 
