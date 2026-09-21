@@ -4,6 +4,7 @@ import { getStock } from '@/lib/tokens';
 import { getCachedPoolState, midPriceUsd, tickForPriceUsd } from '@/lib/quote';
 import { getPriceHistory, computeInRangeBounds } from '@/lib/volatility';
 import { getNextEarnings } from '@/lib/earningsCalendar';
+import { computeDivergenceLossAtBoundary } from '@/lib/lpRange';
 import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE_PREMIUM } from '@/lib/x402';
 
 export const revalidate = 0;
@@ -65,6 +66,7 @@ async function handler(request: NextRequest) {
 
     const tickLower = tickForPriceUsd(highUsd, state.multiplier, stock);
     const tickUpper = tickForPriceUsd(lowUsd, state.multiplier, stock);
+    const divergenceLoss = computeDivergenceLossAtBoundary(lowUsd, highUsd, currentPriceUsd);
 
     return NextResponse.json({
       symbol: stock.symbol,
@@ -80,6 +82,10 @@ async function handler(request: NextRequest) {
         tickLower,
         tickUpper,
       },
+      // Impermanent-loss benchmark if price reaches exactly the low/high
+      // edge of the recommended range — see lib/lpRange.ts for the
+      // derivation. Not fees (which offset it separately).
+      divergenceLossAtBoundary: divergenceLoss,
     });
   } catch (err) {
     return NextResponse.json({ error: 'lp-range unavailable', detail: String(err) }, { status: 502 });
@@ -100,7 +106,7 @@ export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configur
           network: X402_NETWORK,
           payTo: X402_PAYOUT_ADDRESS!,
         },
-        description: 'Recommended concentrated-liquidity tick range for one of Afterbook\'s ten stock pools, sized from realized volatility and a target holding period.',
+        description: 'Recommended concentrated-liquidity tick range for one of Afterbook\'s ten stock pools, sized from realized volatility and a target holding period, plus the divergence-loss benchmark at each edge of that range.',
       },
       getX402Server(),
     )

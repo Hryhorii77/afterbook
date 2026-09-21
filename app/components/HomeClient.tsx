@@ -10,7 +10,7 @@ import { ImpactCurve } from './ImpactCurve';
 import { DepthChart } from './DepthChart';
 import { computeCashAndCarryEdge, GAS_ESTIMATE_USD } from '@/lib/arb';
 import { computeInRangeProbabilityPct, IN_RANGE_HORIZON_DAYS, solveImpliedHorizonDays } from '@/lib/volatilityMath';
-import { capitalEfficiencyMultiplier, computeLiquidityConcentrationRange } from '@/lib/lpRange';
+import { capitalEfficiencyMultiplier, computeDivergenceLossAtBoundary, computeLiquidityConcentrationRange } from '@/lib/lpRange';
 import { Sparkline } from './Sparkline';
 import { MyLots } from './MyLots';
 import { WalletConnectButton } from './WalletConnectButton';
@@ -500,7 +500,8 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     const multiplier = capitalEfficiencyMultiplier(selectedRange.lowUsd, selectedRange.highUsd, depth.currentPriceUsd);
     const inRangeProbabilityPct = computeInRangeProbabilityPct(priceHistory, depth.currentPriceUsd, selectedRange.lowUsd, selectedRange.highUsd);
     const estimatedFeeAprPct = multiplier != null && depth.feeAprPct != null ? depth.feeAprPct * multiplier : null;
-    return { multiplier, inRangeProbabilityPct, estimatedFeeAprPct };
+    const divergenceLoss = computeDivergenceLossAtBoundary(selectedRange.lowUsd, selectedRange.highUsd, depth.currentPriceUsd);
+    return { multiplier, inRangeProbabilityPct, estimatedFeeAprPct, divergenceLoss };
   }, [selectedRange, depth, symbol, priceHistory]);
 
   // How many days of this token's realized volatility the pool's own
@@ -954,6 +955,14 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                               {rangeMetrics.inRangeProbabilityPct != null ? `${rangeMetrics.inRangeProbabilityPct.toFixed(0)}%` : '—'}
                             </div>
                           </div>
+                          <div className="result-cell">
+                            <div className="label">Divergence loss at boundary</div>
+                            <div className="value">
+                              {rangeMetrics.divergenceLoss != null
+                                ? `${rangeMetrics.divergenceLoss.atLowPct.toFixed(1)}% / ${rangeMetrics.divergenceLoss.atHighPct.toFixed(1)}%`
+                                : '—'}
+                            </div>
+                          </div>
                         </div>
                         <p className="geo-note">
                           Capital efficiency: how much more liquidity this range buys vs. a full-range position for the
@@ -961,7 +970,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                           (feeGrowth-based, same figure My Lots shows for real positions) times that multiplier — an
                           extrapolation assuming price stays in range, not a guarantee. In-range probability: chance the
                           price is still inside this range in {IN_RANGE_HORIZON_DAYS} days, from recent realized
-                          volatility — both null until enough history has accumulated for this symbol.
+                          volatility — both null until enough history has accumulated for this symbol. Divergence loss
+                          at boundary: value lost vs. simply holding the position&apos;s initial split (low% / high%),
+                          if price reaches exactly the low or high edge of this range — the standard concentrated-
+                          liquidity impermanent-loss benchmark, not fees (which offset it separately, tracked above).
+                          A move that continues past either edge doesn&apos;t add further divergence loss from the pool
+                          itself — the position has already fully converted to one asset by then and just tracks its
+                          price directly, same as holding it outside the pool.
                         </p>
                       </>
                     )}
