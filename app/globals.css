@@ -25,9 +25,12 @@
   --accent: #5b8cff;
   /* Primary CTA is light-on-dark rather than blue on purpose — this isn't a
      Base-branded page, blue is reserved for selection state, and a
-     dark-on-dark button disappears on camera. */
-  --primary-bg: #f2f4f7;
-  --primary-bg-hover: #ffffff;
+     dark-on-dark button disappears on camera. Pure white at rest, not a
+     dulled-down #f2f4f7 — that shade read as a second disabled state next
+     to Connect Wallet's actual #ffffff, so hover/active now dim down from
+     white instead of brightening up to it. */
+  --primary-bg: #ffffff;
+  --primary-bg-hover: #f2f4f7;
   --primary-bg-active: #e4e4e7;
   --primary-text: #0b0d10;
   --secondary-border: #2a2a2e;
@@ -820,12 +823,21 @@ select {
   stroke-width: 3;
 }
 
+.trade-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 4px;
+}
+
 .trade-summary {
   font-family: var(--mono);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   color: var(--text-dim);
-  margin: 4px 0 0;
+  margin: 0;
 }
 
 /* A <label> wrapping the checkbox, not a <div> with a separately-linked

@@ -339,6 +339,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
   const [copied, setCopied] = useState(false);
   const [amountCopied, setAmountCopied] = useState(false);
+  const [lotCopied, setLotCopied] = useState(false);
   const prevSessionStateRef = useRef(initialTape.session.state);
 
   const cashClosedAsOfMs =
@@ -642,6 +643,22 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
       await navigator.clipboard.writeText(String(quote.usdcIn));
       setAmountCopied(true);
       setTimeout(() => setAmountCopied(false), 1500);
+    } catch {
+      // clipboard access denied — nothing to fall back to, button just won't confirm
+    }
+  };
+
+  // One-shot dump of the whole lot — symbol, size, shares, full pool
+  // address — for pasting into a chat/ticket/agent prompt, distinct from
+  // copyAmount above which copies just the bare number for Aerodrome's own
+  // amount field.
+  const copyLot = async () => {
+    if (!quote) return;
+    const text = `${activeStock.symbol} $${quote.usdcIn} ~${quote.sharesOut.toFixed(2)} ${activeStock.pool.address}`;
+    try {
+      await navigator.clipboard.writeText(text);
+      setLotCopied(true);
+      setTimeout(() => setLotCopied(false), 1500);
     } catch {
       // clipboard access denied — nothing to fall back to, button just won't confirm
     }
@@ -1298,10 +1315,15 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           // shouldn't have to affirm a legal checkbox just to see what
           // they'd actually be trading. The buttons and paste checklist
           // stay gated; this preview line doesn't need to be.
-          <p className="trade-summary">
-            {activeStock.symbol} · {usd(quote.usdcIn, 0)} · ~{quote.sharesOut.toFixed(2)} sh · pool{' '}
-            {truncateAddr(activeStock.pool.address)}
-          </p>
+          <div className="trade-summary-row">
+            <p className="trade-summary">
+              {activeStock.symbol} · {usd(quote.usdcIn, 0)} · ~{quote.sharesOut.toFixed(2)} sh · pool{' '}
+              {truncateAddr(activeStock.pool.address)}
+            </p>
+            <button type="button" className="copy-trade-btn" onClick={copyLot}>
+              {lotCopied ? 'Copied ✓' : 'Copy lot'}
+            </button>
+          </div>
         )}
         <label className="eligibility">
           <input
