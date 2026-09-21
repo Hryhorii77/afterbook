@@ -1,18 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-
-interface EthereumProvider {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-  on: (event: string, handler: (...args: unknown[]) => void) => void;
-  removeListener: (event: string, handler: (...args: unknown[]) => void) => void;
-}
-
-declare global {
-  interface Window {
-    ethereum?: EthereumProvider;
-  }
-}
+import { useAccount, useDisconnect } from 'wagmi';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 
 interface SpotHolding {
   symbol: string;
@@ -72,32 +62,30 @@ function RangeBar({ low, high, current }: { low: number; high: number; current: 
 }
 
 export function MyLots() {
-  const [address, setAddress] = useState<string | null>(null);
-  const [connecting, setConnecting] = useState(false);
+  // wagmi/RainbowKit own the actual connection (which wallet, which
+  // account, the picker modal, reconnect-on-reload) — this component just
+  // reacts to the resulting address, same as it reacted to its own local
+  // address state before.
+  const { address: connectedAddress } = useAccount();
+  const { disconnect } = useDisconnect();
+  const { openConnectModal } = useConnectModal();
+  const address = connectedAddress ?? null;
+
+  // wagmi's disconnect() only clears its own connection state — for an
+  // injected connector (MetaMask, Rabby, etc.) the extension itself still
+  // considers this site authorized, so the next Connect would silently
+  // reuse the same account with no way to pick a different one within that
+  // wallet (this was a real, previously-shipped bug — see git history).
+  // wallet_revokePermissions is the actual revoke call; wrapped in a no-op
+  // catch since non-MetaMask providers may not implement it, and wagmi's
+  // own disconnect() below still runs either way.
+  const handleDisconnect = () => {
+    window.ethereum?.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] }).catch(() => {});
+    disconnect();
+  };
   const [lots, setLots] = useState<MyLotsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [basename, setBasename] = useState<string | null>(null);
-  // Starts false on both server and first client render (window doesn't
-  // exist during SSR) — set for real once mounted, just below.
-  const [hasProvider, setHasProvider] = useState(false);
-
-  // Restore an already-authorized connection without prompting — standard
-  // dapp UX, and harmless since eth_accounts never triggers a wallet popup.
-  useEffect(() => {
-    if (!window.ethereum) return;
-    setHasProvider(true);
-    window.ethereum.request({ method: 'eth_accounts' }).then((accounts) => {
-      const list = accounts as string[];
-      if (list.length > 0) setAddress(list[0]);
-    });
-
-    const handleAccountsChanged = (...args: unknown[]) => {
-      const accounts = args[0] as string[];
-      setAddress(accounts.length > 0 ? accounts[0] : null);
-    };
-    window.ethereum.on('accountsChanged', handleAccountsChanged);
-    return () => window.ethereum?.removeListener('accountsChanged', handleAccountsChanged);
-  }, []);
 
   useEffect(() => {
     if (!address) {
@@ -143,63 +131,24 @@ export function MyLots() {
     };
   }, [address]);
 
-  const connect = async () => {
-    if (!window.ethereum) return;
-    setConnecting(true);
-    try {
-      // With permission genuinely revoked by disconnect() below, this
-      // gets a real fresh prompt (including account choice) rather than
-      // silently returning the same already-authorized account.
-      const accounts = (await window.ethereum.request({ method: 'eth_requestAccounts' })) as string[];
-      if (accounts.length > 0) setAddress(accounts[0]);
-    } catch {
-      // user rejected the connection — nothing to do
-    } finally {
-      setConnecting(false);
-    }
-  };
-
-  const disconnect = () => {
-    // Clearing local state alone doesn't tell the wallet to forget this
-    // site — MetaMask (and eth_requestAccounts generally) then just
-    // silently re-returns the same already-authorized account on the next
-    // Connect, with no way to pick a different one. wallet_revokePermissions
-    // is MetaMask's actual disconnect call (eth_requestAccounts internally
-    // *is* a wallet_requestPermissions call, so re-requesting permissions
-    // without revoking first doesn't force a fresh prompt either — this is
-    // the one that does). Not every provider supports it; local state below
-    // still gets cleared either way, so a silent failure here just means
-    // the next Connect reconnects the same wallet, same as before this fix.
-    window.ethereum
-      ?.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] })
-      .catch(() => {});
-    setAddress(null);
-    setLots(null);
-  };
-
   return (
     <section className="panel">
       <h2>My Lots</h2>
 
-      {!hasProvider ? (
-        <p className="geo-note">
-          No wallet extension detected — connect isn&apos;t available in this browser. This works with any
-          extension (MetaMask, Coinbase Wallet, Rabby, etc.) once installed.
-        </p>
-      ) : !address ? (
+      {!address ? (
         <>
           <p className="geo-note" style={{ marginTop: 0, marginBottom: 12 }}>
             Read-only — connecting only reveals your address so balances can be read. Never signs a transaction.
           </p>
-          <button type="button" className="btn btn-secondary" onClick={connect} disabled={connecting}>
-            {connecting ? 'Connecting…' : 'Connect wallet'}
+          <button type="button" className="btn btn-secondary" onClick={openConnectModal} disabled={!openConnectModal}>
+            Connect wallet
           </button>
         </>
       ) : (
         <>
           <div className="my-lots-header">
             <span className="my-lots-address">{basename ?? `${address.slice(0, 6)}…${address.slice(-4)}`}</span>
-            <button type="button" className="copy-trade-btn" onClick={disconnect}>
+            <button type="button" className="copy-trade-btn" onClick={handleDisconnect}>
               Disconnect
             </button>
           </div>
