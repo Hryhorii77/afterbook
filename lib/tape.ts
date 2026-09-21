@@ -1,7 +1,6 @@
 import { STOCKS } from './tokens';
 import { getSessionInfo, type SessionInfo } from './marketClock';
 import { midPriceUsd, poolDepth, readPoolState, MULTIPLIER_ONE } from './quote';
-import { isLiquid } from './liquidity';
 import { recordSample } from './history';
 import { recordPriceSample } from './volatility';
 import { checkMultiplierChange } from './corporateActions';
@@ -160,10 +159,14 @@ async function buildTape(): Promise<TapeRow[]> {
       const depth = poolState ? poolDepth(poolState, stock) : null;
       const depthUsd = depth?.totalUsd ?? null;
 
-      if (isLiquid({ depthUsd })) {
-        void recordSample(stock.symbol, basisBp, Date.now());
-        void recordPriceSample(stock.symbol, onchainMid, Date.now());
-      }
+      // Not gated on liquidity — a thin pool's basis swings more, not less,
+      // and a user deciding whether to trade it needs that history exactly
+      // as much as a liquid symbol's. Was gated on isLiquid until the $1M
+      // hero threshold moved 6 of 10 stocks into the thin tier and silently
+      // stopped recording their history entirely — same mistake the split/
+      // earnings check below already avoided.
+      void recordSample(stock.symbol, basisBp, Date.now());
+      void recordPriceSample(stock.symbol, onchainMid, Date.now());
 
       // Not gated on liquidity — a real split or dividend, and an upcoming
       // earnings date, matter for a thin pool exactly as much as a deep one.

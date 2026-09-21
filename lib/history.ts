@@ -11,9 +11,9 @@ import { getSessionInfo } from './marketClock';
 const SAMPLE_INTERVAL_MS = 5 * 60_000;
 // 30 days — long enough for a meaningful closed-period stat (see
 // getClosedPeriodStats below), not just "Friday close -> Monday reopen"
-// like the original sparkline needed. Storage impact is trivial: a
-// handful of liquid symbols at this 5-min throttle is a few tens of
-// thousands of small sorted-set entries at most.
+// like the original sparkline needed. Storage impact is trivial: all ten
+// symbols at this 5-min throttle is a few tens of thousands of small
+// sorted-set entries at most.
 const RETENTION_MS = 30 * 24 * 60 * 60_000;
 
 // Module-level: survives across requests on a warm lambda, same pattern as
@@ -26,8 +26,6 @@ export interface HistorySample {
   basisBp: number;
 }
 
-/** Caller is responsible for only sampling liquid symbols (see isLiquid in
- *  lib/liquidity.ts) — this module doesn't have the depth data to check. */
 export async function recordSample(symbol: string, basisBp: number | null, now: number): Promise<void> {
   if (!redis || basisBp == null) return;
 
