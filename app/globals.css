@@ -928,6 +928,28 @@ footer a {
   color: var(--text);
 }
 
+/* Subordinate info card — deliberately quieter than the calculator above
+   it (this is a link-out to third-party venues Afterbook has no
+   relationship with, not a feature of the app itself). */
+.carry-hedge-note {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: #0e1114;
+}
+.carry-hedge-note h4 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.carry-hedge-note p.geo-note:last-child {
+  margin-bottom: 0;
+}
+
 .preset-btn {
   background: #0e1114;
   border: 1px solid var(--panel-border);

@@ -1142,6 +1142,42 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                       Sell {activeStock.symbol} on Aerodrome ↗
                     </a>
                   )}
+                  <div className="carry-hedge-note">
+                    <h4>Delta-neutral hedge (optional, off-app)</h4>
+                    <p className="geo-note" style={{ marginTop: 0 }}>
+                      Holding the on-chain leg until reopen carries {activeStock.symbol}&apos;s own price risk on top
+                      of the basis edge above — it can move against you regardless of whether the basis converges as
+                      expected. Pairing this with a same-notional {activeStock.cashTicker} perp{' '}
+                      {carryDirection === 'buy' ? 'short' : 'long'} on a venue that actually lists one removes that
+                      directional exposure, leaving roughly just the basis edge minus perp funding — funding isn&apos;t
+                      in the numbers above (this app has no live funding-rate source, see below), so check it before
+                      sizing anything.
+                    </p>
+                    <p className="geo-note">
+                      Where to check:{' '}
+                      <a href="https://hyperliquid.xyz/" target="_blank" rel="noopener noreferrer">
+                        Hyperliquid ↗
+                      </a>{' '}
+                      (powers Base App&apos;s own tokenized-stock perps, same non-US eligibility gate this app
+                      uses) ·{' '}
+                      <a href="https://avantis.finance" target="_blank" rel="noopener noreferrer">
+                        Avantis ↗
+                      </a>{' '}
+                      (lists stocks among its markets — on Arbitrum, a different chain than these B20 pools) ·{' '}
+                      <a href="https://synthetix.io/" target="_blank" rel="noopener noreferrer">
+                        Synthetix ↗
+                      </a>{' '}
+                      (a real perp venue live on Base; no confirmed stock-specific market as of writing — check
+                      what&apos;s actually listed).
+                    </p>
+                    <p className="geo-note">
+                      Not investment advice, and Afterbook has no relationship with any of these venues — verify each
+                      independently, including whether a market for this specific stock actually exists there,
+                      before using any of them. This app deliberately avoids third-party price/data APIs (see
+                      README), so it can&apos;t show live funding rates itself; the net edge above reflects the
+                      on-chain leg&apos;s fees, impact, and gas only.
+                    </p>
+                  </div>
                 </>
               ) : (
                 <p className="geo-note">
