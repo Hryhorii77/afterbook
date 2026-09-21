@@ -13,6 +13,7 @@ import { computeInRangeProbabilityPct, IN_RANGE_HORIZON_DAYS, solveImpliedHorizo
 import { capitalEfficiencyMultiplier, computeLiquidityConcentrationRange } from '@/lib/lpRange';
 import { Sparkline } from './Sparkline';
 import { MyLots } from './MyLots';
+import { WalletConnectButton } from './WalletConnectButton';
 
 interface CurvePoint {
   usdcIn: number;
@@ -593,10 +594,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           <h1>Afterbook</h1>
           <p className="tagline">Cash close vs the Aero book, in shares. Execution stays on Aerodrome.</p>
         </div>
-        <span className="clock-badge">
-          <span className={`dot ${tape.session.state}`} />
-          {tape.session.label} · {tape.session.nyTime} ET
-        </span>
+        <div className="header-actions">
+          <span className="clock-badge">
+            <span className={`dot ${tape.session.state}`} />
+            {tape.session.label} · {tape.session.nyTime} ET
+          </span>
+          <WalletConnectButton />
+        </div>
       </header>
 
       <div className="sticky-symbol-bar">

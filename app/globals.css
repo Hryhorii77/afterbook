@@ -66,6 +66,45 @@ h1 {
   margin: 0 0 24px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wallet-connect-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  color: #fff;
+  background: linear-gradient(135deg, #5b8cff, #7a5bff);
+  cursor: pointer;
+  transition: filter 0.12s ease, opacity 0.12s ease;
+}
+.wallet-connect-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+.wallet-connect-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.wallet-connect-btn-connected {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-weight: 500;
+}
+.wallet-connect-btn-connected:hover {
+  border-color: var(--secondary-border-hover);
+  filter: none;
+}
+
 .clock-badge {
   display: inline-flex;
   align-items: center;
