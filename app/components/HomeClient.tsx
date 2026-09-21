@@ -257,6 +257,53 @@ function TapeRows({
   );
 }
 
+// Mobile-only alternative to TapeRows' <table>, rendered alongside it and
+// toggled by CSS at the same 768px breakpoint used elsewhere in this file
+// (not a media-query-in-JS check) — no hydration mismatch risk, and no
+// duplicated data-fetching. A fixed 5-column table doesn't fit a 390px
+// screen without horizontal scroll; a stacked card does.
+function TapeCards({
+  rows,
+  activeSymbol,
+  onSelect,
+}: {
+  rows: TapeRow[];
+  activeSymbol: string;
+  onSelect: (symbol: string) => void;
+}) {
+  return (
+    <div className="tape-cards">
+      {rows.map((row) => (
+        <button
+          key={row.symbol}
+          type="button"
+          className={`tape-card${row.symbol === activeSymbol ? ' tape-card-active' : ''}`}
+          onClick={() => onSelect(row.symbol)}
+        >
+          <div className="tape-card-top">
+            <span className="symbol">{row.symbol}</span>
+            <span className={`tape-card-basis ${row.basisBp != null ? (row.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
+              {bp(row.basisBp)}
+            </span>
+          </div>
+          <div className="tape-card-name">
+            {row.name}
+            {row.nextEarningsDate != null && daysUntil(row.nextEarningsDate) <= EARNINGS_CAVEAT_WINDOW_DAYS && daysUntil(row.nextEarningsDate) >= 0 && (
+              <span className="earnings-tag">Earnings in {daysUntil(row.nextEarningsDate)}d</span>
+            )}
+          </div>
+          <div className="tape-card-prices">
+            {usd(row.cashLastUsd)} cash{row.cashStale && <span className="stale-tag">STALE</span>} → {usd(row.onchainMidUsd)} aero
+          </div>
+          <div className="tape-card-depth">
+            {usdCompact(row.depthUsd)} · {sharesCompact(row.depthShares)}
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 interface HomeClientProps {
   initialTape: TapeResult;
   initialGeo: GeoInfo;
@@ -626,29 +673,31 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
       </header>
 
       <div className="sticky-symbol-bar">
-        <select className="sticky-symbol-select" value={symbol} onChange={(e) => setSymbolAndUrl(e.target.value)} aria-label="Active symbol">
-          <optgroup label="Liquid">
-            {liquidRows.map((r) => (
-              <option key={r.symbol} value={r.symbol}>
-                {r.symbol}
-              </option>
-            ))}
-          </optgroup>
-          {thinRows.length > 0 && (
-            <optgroup label="Thin">
-              {thinRows.map((r) => (
+        <div className="sticky-symbol-row">
+          <select className="sticky-symbol-select" value={symbol} onChange={(e) => setSymbolAndUrl(e.target.value)} aria-label="Active symbol">
+            <optgroup label="Liquid">
+              {liquidRows.map((r) => (
                 <option key={r.symbol} value={r.symbol}>
                   {r.symbol}
                 </option>
               ))}
             </optgroup>
+            {thinRows.length > 0 && (
+              <optgroup label="Thin">
+                {thinRows.map((r) => (
+                  <option key={r.symbol} value={r.symbol}>
+                    {r.symbol}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+          {activeRow?.basisBp != null && (
+            <span className={`sticky-symbol-basis ${activeRow.basisBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(activeRow.basisBp)}</span>
           )}
-        </select>
-        {activeRow?.basisBp != null && (
-          <span className={activeRow.basisBp >= 0 ? 'basis-pos' : 'basis-neg'}>{bp(activeRow.basisBp)}</span>
-        )}
+        </div>
         {activeRow?.cashLastUsd != null && activeRow?.onchainMidUsd != null && (
-          <span className="sticky-symbol-detail">
+          <div className="sticky-symbol-detail">
             <span className="gap-price-pair">
               <span className="gap-detail-label">cash</span> {usd(activeRow.cashLastUsd)}
             </span>
@@ -656,7 +705,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             <span className="gap-price-pair">
               <span className="gap-detail-label">aero</span> {usd(activeRow.onchainMidUsd)}
             </span>
-          </span>
+          </div>
         )}
       </div>
 
@@ -735,7 +784,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             number would.
           </p>
         )}
-        <div className="table-scroll">
+        <div className="table-scroll tape-table-desktop">
           <table>
             <TapeColGroup />
             <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} />
@@ -744,6 +793,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             </tbody>
           </table>
         </div>
+        <TapeCards rows={sortedLiquidRows} activeSymbol={symbol} onSelect={selectSymbol} />
         {tape.error && <p className="geo-note">{tape.error}</p>}
 
         {thinRows.length > 0 && (
@@ -757,7 +807,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                   Under {usdCompact(LIQUID_DEPTH_THRESHOLD_USD)} depth — basis here can swing hundreds of bp on thin
                   trading, not signal.
                 </p>
-                <div className="table-scroll">
+                <div className="table-scroll tape-table-desktop">
                   <table className="thin-table">
                     <TapeColGroup />
                     <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} />
@@ -766,6 +816,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                     </tbody>
                   </table>
                 </div>
+                <TapeCards rows={sortedThinRows} activeSymbol={symbol} onSelect={selectSymbol} />
               </>
             )}
           </div>
@@ -826,19 +877,28 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
         <div className="size-presets">
           {SIZE_PRESETS_USDC.map((amt) => (
-            <button key={amt} type="button" className="preset-btn" onClick={() => setUsdcInput(String(amt))}>
+            <button
+              key={amt}
+              type="button"
+              className={String(amt) === usdcInput ? 'preset-btn preset-btn-active' : 'preset-btn'}
+              onClick={() => setUsdcInput(String(amt))}
+            >
               {usdCompact(amt)}
             </button>
           ))}
-          {activeRow?.depthUsd != null && (
-            <button
-              type="button"
-              className="preset-btn"
-              onClick={() => setUsdcInput(String(Math.max(1, Math.round(activeRow.depthUsd! * 0.01))))}
-            >
-              1% of pool
-            </button>
-          )}
+          {activeRow?.depthUsd != null &&
+            (() => {
+              const onePctOfPool = String(Math.max(1, Math.round(activeRow.depthUsd! * 0.01)));
+              return (
+                <button
+                  type="button"
+                  className={onePctOfPool === usdcInput ? 'preset-btn preset-btn-active' : 'preset-btn'}
+                  onClick={() => setUsdcInput(onePctOfPool)}
+                >
+                  1% of pool
+                </button>
+              );
+            })()}
         </div>
 
         {quoteError && <p className="geo-note">{quoteError}</p>}
@@ -1224,17 +1284,14 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
       <section className="panel">
         <h2>Execute</h2>
-        <div className="eligibility">
+        <label className="eligibility">
           <input
             type="checkbox"
-            id="eligible"
             checked={eligibleChecked}
             onChange={(e) => setEligibleChecked(e.target.checked)}
           />
-          <label htmlFor="eligible">
-            I confirm I am not a US person and am eligible under my local law to trade tokenized equities.
-          </label>
-        </div>
+          I confirm I am not a US person and am eligible under my local law to trade tokenized equities.
+        </label>
         <div className="actions">
           {unlocked ? (
             <>
@@ -1262,15 +1319,18 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           )}
         </div>
         {!eligibleChecked && geo.nonUs && <p className="geo-note">Confirm eligibility to open Aerodrome.</p>}
-        <p className={`geo-note${geo.country === 'US' ? ' geo-note-blocked' : ''}`}>
-          {geo.country === 'US'
-            ? 'Not available in the US — execution stays locked regardless of the checkbox above. '
-            : geo.country
-              ? `Detected region: ${geo.country}. `
-              : 'Region could not be detected (e.g. local dev). '}
-          This is a best-effort geofence based on IP country, not a compliance control — it does not stop a VPN.
-          No wallet ever signs anything here; the button only opens Aerodrome&apos;s own app in a new tab.
+        <p className={`geo-note${geo.country === 'US' ? ' geo-note-blocked' : ''}`} style={{ marginBottom: 2 }}>
+          {geo.country === 'US' ? 'Not available in the US.' : geo.country ? `Detected region: ${geo.country}.` : 'Region could not be detected.'}{' '}
+          Button opens Aerodrome in a new tab.
         </p>
+        <details className="geo-more">
+          <summary>More</summary>
+          <p className="geo-note">
+            This is a best-effort geofence based on IP country, not a compliance control — it does not stop a
+            VPN.{geo.country === 'US' && ' Execution stays locked regardless of the checkbox above.'} No wallet
+            ever signs anything here; the button only opens Aerodrome&apos;s own app in a new tab.
+          </p>
+        </details>
         <p className="geo-note contract-info">
           Token{' '}
           <a href={`https://basescan.org/address/${activeStock.tokenAddress}`} target="_blank" rel="noopener noreferrer">

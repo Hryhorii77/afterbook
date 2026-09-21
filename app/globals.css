@@ -5,25 +5,34 @@
      of a light checkbox appearing on a near-black page. */
   color-scheme: dark;
   --bg: #0b0d10;
-  --panel: #12151a;
-  --panel-border: #1c1c1c;
-  --text: #e6e9ef;
-  --text-dim: #8b93a1;
-  --text-dimmer: #6b7280;
+  /* --panel/--text-dim/--text-dimmer are the pre-existing names; values
+     updated to the reviewed palette (design pass, 2026-09-21) — kept the
+     original names rather than introducing --card/--muted/--dim aliases
+     so every existing rule that already references them (dozens, across
+     this whole file) picks up the fix without a rename pass. The one
+     token that actually mattered here: --text-dimmer was #6b7280 — mid-
+     gray on near-black, below a comfortable contrast floor for anything
+     meant to be read (not just a true footnote) — brightened to #8b939e. */
+  --panel: #14161c;
+  --panel-border: #2a2e36;
+  --text: #e6e8ec;
+  --text-dim: #9aa3b0;
+  --text-dimmer: #8b939e;
   --green: #3ddc97;
-  --red: #ff6b6b;
+  --red: #ff5c6a;
   --amber: #f5b942;
   --blue-gray: #6b7f99;
   --accent: #5b8cff;
   /* Primary CTA is light-on-dark rather than blue on purpose — this isn't a
      Base-branded page, blue is reserved for selection state, and a
      dark-on-dark button disappears on camera. */
-  --primary-bg: #f4f4f5;
+  --primary-bg: #f2f4f7;
   --primary-bg-hover: #ffffff;
   --primary-bg-active: #e4e4e7;
-  --primary-text: #111111;
+  --primary-text: #0b0d10;
   --secondary-border: #2a2a2e;
   --secondary-border-hover: #a1a1aa;
+  --pad: 16px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Menlo', 'Consolas', monospace;
 }
@@ -56,6 +65,7 @@ header.top {
 
 h1 {
   font-size: 22px;
+  font-weight: 600;
   letter-spacing: -0.01em;
   margin: 0;
 }
@@ -76,6 +86,8 @@ h1 {
 .wallet-connect-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-height: 44px;
   padding: 8px 16px;
   border-radius: 999px;
   font-size: 13px;
@@ -136,15 +148,21 @@ h1 {
   top: 0;
   z-index: 20;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 4px;
   background: var(--bg);
   border-bottom: 1px solid var(--panel-border);
   padding: 10px 0;
   margin: 0 0 16px;
   font-family: var(--mono);
-  font-size: 13px;
+}
+
+.sticky-symbol-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .sticky-symbol-select {
@@ -159,9 +177,31 @@ h1 {
   cursor: pointer;
 }
 
+/* The number the whole hero exists to show — biggest, boldest thing under
+   the header, readable on a phone in daylight without leaning in. */
+.sticky-symbol-basis {
+  font-size: 28px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+@media (min-width: 768px) {
+  .sticky-symbol-basis {
+    font-size: 32px;
+  }
+}
+
 .sticky-symbol-detail {
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
+  font-size: 16px;
+}
+.sticky-symbol-detail .gap-detail-label {
+  font-size: 12px;
+}
+@media (min-width: 768px) {
+  .sticky-symbol-detail {
+    font-size: 18px;
+  }
 }
 
 .thin-chip {
@@ -287,6 +327,71 @@ section.panel h2 {
 
 .table-scroll {
   overflow-x: auto;
+}
+
+/* Below 768px the fixed 5-column table doesn't fit without horizontal
+   scroll or collision — TapeCards (a stacked-card layout, same data) takes
+   over instead. Both render always; only one is ever visible, toggled
+   purely by CSS so there's no media-query-in-JS/hydration-mismatch risk. */
+.tape-cards {
+  display: none;
+}
+@media (max-width: 767px) {
+  .tape-table-desktop {
+    display: none;
+  }
+  .tape-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+.tape-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+}
+.tape-card-active {
+  background: #14181f;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.tape-card-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tape-card-basis {
+  font-family: var(--mono);
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tape-card-name {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.tape-card-prices {
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  margin-top: 8px;
+}
+.tape-card-depth {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text-dimmer);
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
 }
 
 table {
@@ -501,10 +606,10 @@ select {
 }
 
 .result-hero .label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
 }
 
 .result-hero .value {
@@ -522,6 +627,11 @@ select {
   gap: 10px;
   margin-top: 10px;
 }
+@media (max-width: 767px) {
+  .result-grid {
+    grid-template-columns: 1fr;
+  }
+}
 
 .result-cell {
   background: #0e1114;
@@ -531,19 +641,19 @@ select {
 }
 
 .result-cell .label {
-  font-size: 10px;
-  color: var(--text-dimmer);
+  font-size: 12px;
+  color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
 }
 
 .result-cell .value {
   font-family: var(--mono);
   letter-spacing: -0.02em;
-  font-size: 15px;
+  font-size: 18px;
   margin-top: 4px;
   font-variant-numeric: tabular-nums;
-  color: var(--text-dim);
+  color: var(--text);
 }
 
 .caveat {
@@ -618,7 +728,7 @@ select {
 
 .curve-tick {
   fill: var(--text-dim);
-  font-size: 10px;
+  font-size: 11px;
   font-family: var(--mono);
   letter-spacing: -0.02em;
 }
@@ -710,17 +820,31 @@ select {
   stroke-width: 3;
 }
 
+/* A <label> wrapping the checkbox, not a <div> with a separately-linked
+   label — the whole row (including its own padding) toggles the checkbox
+   this way, not just the checkbox itself and the text glyphs. */
 .eligibility {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--text-dim);
   margin: 16px 0;
+  padding: 8px;
+  margin-left: -8px;
+  border-radius: 8px;
+  cursor: pointer;
+  min-height: 44px;
+}
+.eligibility:hover {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .eligibility input {
   margin-top: 3px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .actions {
@@ -729,14 +853,30 @@ select {
   flex-wrap: wrap;
 }
 
+/* Primary/secondary go full-width and stack on mobile so the actual CTA is
+   the biggest, most obviously-tappable thing on the card instead of
+   competing for space in a row; desktop keeps them auto-width and inline. */
+@media (max-width: 767px) {
+  .actions {
+    flex-direction: column;
+  }
+  .actions a.btn, .actions button.btn {
+    width: 100%;
+    text-align: center;
+  }
+}
+
 /* Primary action is solid light-on-dark, not blue — this isn't a
    Base-branded page, and a dark filled button on a dark background reads as
    invisible on camera (a real problem for a Loom demo). */
 a.btn, button.btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
   padding: 10px 18px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   text-decoration: none;
   border: 1px solid var(--primary-bg);
@@ -763,7 +903,7 @@ a.btn:active, button.btn:active:not(:disabled) {
 /* Both button variants share disabled treatment — dimmed and inert rather
    than each having its own half-disabled look. */
 button.btn:disabled {
-  opacity: 0.35;
+  opacity: 0.4;
   pointer-events: none;
   cursor: not-allowed;
 }
@@ -819,13 +959,41 @@ a.btn:focus-visible, button.btn:focus-visible {
 }
 
 .geo-note {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-dimmer);
+  line-height: 1.5;
+  max-width: 70ch;
   margin-top: 8px;
 }
 
 .geo-note-blocked {
   color: var(--red);
+}
+
+.geo-more {
+  margin-top: 2px;
+}
+.geo-more summary {
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+  list-style: none;
+  display: inline-block;
+}
+.geo-more summary::-webkit-details-marker {
+  display: none;
+}
+.geo-more summary:hover {
+  color: var(--text);
+}
+.geo-more summary::after {
+  content: ' \25B8'; /* ▸ */
+}
+.geo-more[open] summary::after {
+  content: ' \25BE'; /* ▾ */
+}
+.geo-more .geo-note {
+  margin-top: 6px;
 }
 
 .contract-info {
@@ -843,13 +1011,20 @@ a.btn:focus-visible, button.btn:focus-visible {
 
 footer {
   color: var(--text-dimmer);
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.6;
   margin-top: 32px;
 }
 
 footer ul {
   padding-left: 18px;
+}
+
+footer li {
+  margin-bottom: 8px;
+}
+footer li:last-child {
+  margin-bottom: 0;
 }
 
 footer a {
@@ -956,15 +1131,31 @@ footer a {
   color: var(--text-dim);
   border-radius: 8px;
   padding: 6px 12px;
+  min-height: 40px;
   font-size: 12px;
   font-family: var(--mono);
   cursor: pointer;
-  transition: border-color 0.12s ease, color 0.12s ease;
+  transition: border-color 0.12s ease, color 0.12s ease, background-color 0.12s ease;
 }
 
 .preset-btn:hover {
   border-color: var(--secondary-border-hover);
   color: var(--text);
+}
+
+/* Selected state fills solid (same --btn treatment as the primary CTA) —
+   a low-contrast outline alone didn't read as "this one's active" at a
+   glance, especially for the dynamic "1% of pool" chip whose target value
+   changes with the symbol. */
+.preset-btn-active {
+  background: var(--primary-bg);
+  border-color: var(--primary-bg);
+  color: var(--primary-text);
+}
+.preset-btn-active:hover {
+  background: var(--primary-bg-hover);
+  border-color: var(--primary-bg-hover);
+  color: var(--primary-text);
 }
 
 .copy-trade-btn {
