@@ -67,6 +67,7 @@ interface DepthResponse {
   feeAprPct: number | null;
   feeAprWindowDays: number | null;
   feeAprEstimated: boolean;
+  totalSupplyShares: number | null;
 }
 
 interface PriceSample {
@@ -1218,6 +1219,21 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             split or reinvested dividend (B20&apos;s <code>multiplier()</code>, read live on every quote).
           </p>
         )}
+        <p className="geo-note">
+          {depth && depth.symbol === symbol && depth.totalSupplyShares != null && (
+            <>
+              {depth.totalSupplyShares.toLocaleString('en-US', { maximumFractionDigits: 2 })} {activeStock.symbol} total
+              supply on Base — read live from the token&apos;s own <code>totalSupply()</code>, not a static claim.{' '}
+            </>
+          )}
+          Per Coinbase&apos;s own documentation, each token is backed 1:1 by a share held with Alpaca Securities (a
+          regulated broker-custodian, ADGM-supervised, bankruptcy-remote structure) — that&apos;s the issuer&apos;s
+          stated claim, not something this app can verify on-chain itself (no reserve-attestation contract exists
+          for B20 tokens the way it does for some wrapped assets).{' '}
+          <a href="https://blog.base.org/tokenized-stocks" target="_blank" rel="noopener noreferrer">
+            Source ↗
+          </a>
+        </p>
       </section>
 
       <footer>
