@@ -97,7 +97,12 @@ The Lot Lab depth chart (`DepthChart.tsx`) is a draggable LP range
 selector, not just a static SVG — two green handles, dragged with
 `left_click_drag` via claude-in-chrome. It only renders once the LP tab
 is active (see above) — click "LP" in the Lot Lab tab bar before
-`find`-ing it. Gotcha: the *first*
+`find`-ing it. **Dragging is off by default** — click the "Adjust range"
+toggle next to the "Liquidity depth" heading first (`dragEnabled` starts
+`false` so a finger landing on the chart on mobile scrolls the page
+instead of hijacking it as a drag); the range stays visible either way,
+but `left_click_drag` on the handles is a no-op until that toggle is on.
+Gotcha: the *first*
 `left_click_drag` right after a page navigation reliably does nothing
 (no visible change, no metric update) — this reproduces 100% of the
 time and is a browser-automation timing artifact (page/hydration not
