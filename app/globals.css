@@ -631,6 +631,37 @@ select {
   margin: 24px 0 0;
 }
 
+.depth-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.depth-heading-row .depth-heading {
+  margin: 24px 0 0;
+}
+
+.adjust-range-toggle {
+  margin-top: 24px;
+  background: none;
+  border: 1px solid var(--secondary-border);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+.adjust-range-toggle:hover {
+  border-color: var(--secondary-border-hover);
+  color: var(--text);
+}
+.adjust-range-toggle-active {
+  border-color: var(--green);
+  color: var(--green);
+}
+
 .depth-chart {
   width: 100%;
   height: auto;
@@ -655,6 +686,15 @@ select {
 .range-handle {
   cursor: ew-resize;
   touch-action: none;
+}
+
+/* Non-interactive state (dragEnabled off): the handle's own touch-action:
+   none above would otherwise block page-scroll over its hit area even with
+   no pointerdown handler attached — override it back to the default so a
+   finger landing there scrolls the page like anywhere else on the chart. */
+.range-handle-static {
+  cursor: default;
+  touch-action: auto;
 }
 
 .range-handle-line {

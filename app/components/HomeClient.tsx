@@ -275,6 +275,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const [earningsStats, setEarningsStats] = useState<EarningsMoveStats | null>(null);
   const [selectedRange, setSelectedRange] = useState<{ lowUsd: number; highUsd: number } | null>(null);
   const selectedRangeSymbolRef = useRef<string | null>(null);
+  // Off by default so a finger landing on the chart while scrolling the
+  // page on mobile scrolls the page, not the range — the depth chart's
+  // touch-action: none while dragging is active would otherwise fight
+  // native scroll gestures. Desktop mouse dragging never had this
+  // conflict, but the same explicit toggle covers both for one UX rather
+  // than branching on input type.
+  const [adjustRangeMode, setAdjustRangeMode] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [showThin, setShowThin] = useState(false);
   const [lotLabTab, setLotLabTab] = useState<'trade' | 'lp' | 'carry'>('trade');
@@ -897,17 +904,29 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
                 {depth && depth.symbol === symbol && (
                   <>
-                    <h3 className="depth-heading">Liquidity depth · LP range selector</h3>
+                    <div className="depth-heading-row">
+                      <h3 className="depth-heading">Liquidity depth · LP range selector</h3>
+                      <button
+                        type="button"
+                        className={adjustRangeMode ? 'adjust-range-toggle adjust-range-toggle-active' : 'adjust-range-toggle'}
+                        onClick={() => setAdjustRangeMode((v) => !v)}
+                      >
+                        {adjustRangeMode ? 'Done adjusting' : 'Adjust range'}
+                      </button>
+                    </div>
                     <DepthChart
                       buckets={depth.buckets}
                       currentPriceUsd={depth.currentPriceUsd}
                       selectedRange={selectedRange ?? undefined}
                       onRangeChange={setSelectedRange}
+                      dragEnabled={adjustRangeMode}
                     />
                     <p className="geo-note">
                       Active on-chain liquidity by price, read directly from the pool&apos;s tick data — taller bars are
-                      where support/resistance walls actually sit. Dashed line marks the current price; drag the two
-                      green handles to size a candidate LP range.
+                      where support/resistance walls actually sit. Dashed line marks the current price.{' '}
+                      {adjustRangeMode
+                        ? 'Drag the two green handles to size a candidate LP range.'
+                        : 'Tap "Adjust range" above to drag the green handles — off by default so the chart doesn’t fight scrolling on mobile.'}
                     </p>
 
                     {rangeMetrics && selectedRange && (

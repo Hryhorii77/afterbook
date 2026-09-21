@@ -22,6 +22,13 @@ interface DepthChartProps {
    *  LP range. Omit either to render the plain (non-interactive) chart. */
   selectedRange?: SelectedRange;
   onRangeChange?: (range: SelectedRange) => void;
+  /** Gates whether the handles actually attach drag listeners, independent
+   *  of selectedRange/onRangeChange being present — lets a caller keep the
+   *  range visible while requiring an explicit opt-in before touch input on
+   *  the chart gets captured as a drag instead of a page scroll. Defaults
+   *  to true so existing callers (desktop, where this conflict doesn't
+   *  exist) are unaffected. */
+  dragEnabled?: boolean;
 }
 
 const WIDTH = 600;
@@ -46,7 +53,7 @@ const usdShort = (n: number) => (n >= 1_000 ? `$${(n / 1_000).toFixed(1)}k` : `$
  * Optionally interactive: pass selectedRange + onRangeChange to overlay two
  * draggable bound handles, for picking an LP range directly on the curve.
  */
-export function DepthChart({ buckets, currentPriceUsd, selectedRange, onRangeChange }: DepthChartProps) {
+export function DepthChart({ buckets, currentPriceUsd, selectedRange, onRangeChange, dragEnabled = true }: DepthChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragging, setDragging] = useState<'low' | 'high' | null>(null);
 
@@ -71,7 +78,13 @@ export function DepthChart({ buckets, currentPriceUsd, selectedRange, onRangeCha
   const curX = xPos(currentPriceUsd);
   const priceTicks = [leftPriceUsd, (leftPriceUsd + rightPriceUsd) / 2, rightPriceUsd];
 
-  const interactive = selectedRange != null && onRangeChange != null;
+  // hasRange: whether there's a selection to render at all. interactive:
+  // whether that selection's handles currently accept drag input. Kept
+  // separate so a selected range stays visible (fill + handle lines) while
+  // dragEnabled is off — only the actual drag capture is gated, not the
+  // display of what's already selected.
+  const hasRange = selectedRange != null && onRangeChange != null;
+  const interactive = hasRange && dragEnabled;
 
   const clientXToSvgX = (clientX: number): number | null => {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -118,6 +131,10 @@ export function DepthChart({ buckets, currentPriceUsd, selectedRange, onRangeCha
       onPointerMove={interactive ? handlePointerMove : undefined}
       onPointerUp={interactive ? endDrag : undefined}
       onPointerCancel={interactive ? endDrag : undefined}
+      // Only suppress the browser's own touch gestures (scroll, pinch-zoom)
+      // while a drag is actually possible — otherwise a finger landing on
+      // the chart to scroll the page gets captured as a range edit instead.
+      style={{ touchAction: interactive ? 'none' : 'auto' }}
     >
       {buckets.map((b) => {
         const x0 = xPos(b.priceLowerUsd);
@@ -136,7 +153,7 @@ export function DepthChart({ buckets, currentPriceUsd, selectedRange, onRangeCha
         );
       })}
 
-      {interactive && selectedRange && (
+      {hasRange && selectedRange && (
         <rect
           x={Math.min(xPos(selectedRange.lowUsd), xPos(selectedRange.highUsd))}
           y={PAD_TOP}
@@ -160,15 +177,21 @@ export function DepthChart({ buckets, currentPriceUsd, selectedRange, onRangeCha
         </text>
       ))}
 
-      {interactive && selectedRange && (
+      {hasRange && selectedRange && (
         <>
           {(['low', 'high'] as const).map((handle) => {
             const x = xPos(handle === 'low' ? selectedRange.lowUsd : selectedRange.highUsd);
             return (
               <g
                 key={handle}
-                onPointerDown={startDrag(handle)}
-                className={dragging === handle ? 'range-handle range-handle-active' : 'range-handle'}
+                // Not attached at all when non-interactive — leaving this
+                // handler in place but a no-op would still call
+                // setPointerCapture() on touchstart below and hijack the
+                // page-scroll gesture even though nothing would then move.
+                onPointerDown={interactive ? startDrag(handle) : undefined}
+                className={
+                  !interactive ? 'range-handle range-handle-static' : dragging === handle ? 'range-handle range-handle-active' : 'range-handle'
+                }
               >
                 {/* Wide invisible hit area — the visible line alone is too thin to grab reliably, especially on touch. */}
                 <rect x={x - 10} y={PAD_TOP} width={20} height={plotH} fill="transparent" />
