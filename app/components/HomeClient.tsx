@@ -998,6 +998,39 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                           itself — the position has already fully converted to one asset by then and just tracks its
                           price directly, same as holding it outside the pool.
                         </p>
+                        <div className="carry-hedge-note">
+                          <h4>Auto-recenter (optional, off-app)</h4>
+                          <p className="geo-note" style={{ marginTop: 0 }}>
+                            Once price exits this range, the position stops earning fees and starts accumulating the
+                            divergence loss above if it stays out. Re-centering means withdrawing the position,
+                            swapping back toward ~50/50 at the new price, and redepositing a fresh range around
+                            it — the same three steps a manual LP would do by hand. Afterbook doesn&apos;t build or
+                            run this: any automation that does it for you needs to construct and submit that
+                            withdraw/swap/redeploy calldata autonomously — the same problem the{' '}
+                            <code>execute-link</code> agent endpoint hit (this app has no confirmed-working router
+                            for these specific pools outside Aerodrome&apos;s own frontend), which any real
+                            automation would have to solve for itself before it could safely trigger anything.
+                          </p>
+                          <p className="geo-note">
+                            Where to build one:{' '}
+                            <a href="https://docs.gelato.cloud/web3-functions/introduction/overview" target="_blank" rel="noopener noreferrer">
+                              Gelato Web3 Functions ↗
+                            </a>{' '}
+                            (general-purpose on-chain automation — watch the pool&apos;s tick, trigger a re-center
+                            transaction when it exits your range) ·{' '}
+                            <a href="https://bankr.bot/" target="_blank" rel="noopener noreferrer">
+                              Bankr ↗
+                            </a>{' '}
+                            (Base-native AI trading agent via Farcaster/X chat — its documented capabilities are
+                            swaps, limit orders, and DCA, not LP range management, as of writing; check its current
+                            feature set before assuming it covers this).
+                          </p>
+                          <p className="geo-note">
+                            Not a recommendation to use either, and Afterbook has no relationship with them — any
+                            automation you set up needs its own funded wallet and its own security review; this app
+                            doesn&apos;t hold keys for you and never will.
+                          </p>
+                        </div>
                       </>
                     )}
 
