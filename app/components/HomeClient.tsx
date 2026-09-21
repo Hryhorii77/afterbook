@@ -948,11 +948,20 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
                 <ImpactCurve points={quote.curve} currentUsdcIn={quote.usdcIn} currentImpactBp={quote.impactBp} />
 
-                <p className="geo-note">
-                  Estimated from the pool&apos;s current on-chain price and in-range liquidity — not a firm quote.
-                  {quote.largeTradeCaveat && ' This size is large relative to in-range liquidity and may cross into a wider price range; the real fill on Aerodrome could differ from this estimate.'}
-                  {' '}Shaded region: sizes where the estimate is less reliable for the same reason.
-                </p>
+                {quote.largeTradeCaveat && (
+                  <p className="geo-note">
+                    Large trade relative to in-range liquidity — may cross into a wider price range, so the real
+                    fill on Aerodrome could differ from this estimate.
+                  </p>
+                )}
+                <details className="geo-more">
+                  <summary>More</summary>
+                  <p className="geo-note">
+                    Estimated from the pool&apos;s current on-chain price and in-range liquidity — not a firm
+                    quote. Shaded region on the curve above: sizes where the estimate is less reliable for the
+                    same reason.
+                  </p>
+                </details>
                 {activeRow?.nextEarningsDate != null && daysUntil(activeRow.nextEarningsDate) <= EARNINGS_CAVEAT_WINDOW_DAYS && daysUntil(activeRow.nextEarningsDate) >= 0 && (
                   <p className="geo-note">
                     {activeStock.cashTicker} reports earnings in {daysUntil(activeRow.nextEarningsDate)} day
