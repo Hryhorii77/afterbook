@@ -114,11 +114,14 @@ drag, check whether the range still brackets current price before
 assuming a bug — `capitalEfficiencyMultiplier`/
 `computeInRangeProbabilityPct` intentionally return `null` otherwise.
 
-## My Lots' wallet-connect modal — dev-mode CPU gotcha
+## Wallet-connect modal — dev-mode CPU gotcha
 
-My Lots' "Connect wallet" now opens a RainbowKit multi-wallet picker
-(`app/providers.tsx`, `lib/wagmiConfig.ts`) instead of grabbing
-`window.ethereum` directly. **Under `npm run dev` specifically**, loading
+Both My Lots' own "Connect wallet" and the header's "Connect wallet"
+button (`app/components/WalletConnectButton.tsx`) open the same
+RainbowKit multi-wallet picker (`app/providers.tsx`, `lib/wagmiConfig.ts`)
+instead of grabbing `window.ethereum` directly — they read the same
+global wagmi account state, so testing either one is equivalent.
+**Under `npm run dev` specifically**, loading
 the page has been observed to spin up a Chrome renderer process that
 climbs to 60%+ CPU and keeps climbing — confirmed via `ps aux` showing
 one PID monotonically increasing over ~30s, and confirmed it does NOT
