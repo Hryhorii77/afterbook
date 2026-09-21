@@ -114,6 +114,31 @@ drag, check whether the range still brackets current price before
 assuming a bug — `capitalEfficiencyMultiplier`/
 `computeInRangeProbabilityPct` intentionally return `null` otherwise.
 
+## My Lots' wallet-connect modal — dev-mode CPU gotcha
+
+My Lots' "Connect wallet" now opens a RainbowKit multi-wallet picker
+(`app/providers.tsx`, `lib/wagmiConfig.ts`) instead of grabbing
+`window.ethereum` directly. **Under `npm run dev` specifically**, loading
+the page has been observed to spin up a Chrome renderer process that
+climbs to 60%+ CPU and keeps climbing — confirmed via `ps aux` showing
+one PID monotonically increasing over ~30s, and confirmed it does NOT
+stop on its own even after the tab is closed (only `kill -9`ing the
+renderer PID stops it). Root-caused to React 19's dev-only strict-mode
+double-invocation interacting with wagmi/RainbowKit's connector setup —
+confirmed by testing the identical code as a production build
+(`npm run build && npm run start`) under repeated, sustained `ps aux`
+monitoring (20s+, including opening the connect modal) with zero runaway
+CPU. So this is a `next dev`-only artifact, not a bug that reaches
+production/Vercel (React never double-invokes in production regardless
+of `reactStrictMode`) — but it's a real hazard while developing locally:
+if a Chrome tab feels stuck after touching My Lots in dev, check
+`ps aux | grep -i "chrome.*renderer"` for a PID climbing over time and
+`kill -9` it rather than waiting it out or repeatedly reloading (reloading
+without killing the old renderer compounds the problem — each stuck tab
+keeps consuming CPU even after "closing" it in the UI). Prefer verifying
+wallet-connect changes specifically against `npm run build && npm run
+start` rather than `npm run dev` for this reason.
+
 ## Cache-aware timing
 
 `/api/depth` and `/api/v1/x402/history` both call

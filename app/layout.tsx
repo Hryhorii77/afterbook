@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
+import '@rainbow-me/rainbowkit/styles.css';
 import './globals.css';
+import { Providers } from './providers';
 
 // Without an explicit metadataBase, Next resolves the og:image/twitter:image
 // meta tags against "http://localhost:3000" even in production.
@@ -41,7 +43,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }
