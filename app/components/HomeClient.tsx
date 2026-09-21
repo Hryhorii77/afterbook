@@ -1295,14 +1295,14 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         <div className="actions">
           {unlocked ? (
             <>
-              <a className="btn" href={aerodromeSwapUrl(activeStock)} target="_blank" rel="noopener noreferrer">
-                Open {activeStock.symbol} on Aerodrome ↗
-              </a>
               {quote && (
                 <button type="button" className="copy-trade-btn" onClick={copyAmount}>
                   {amountCopied ? 'Copied ✓' : `Copy ${usd(quote.usdcIn, 0)}`}
                 </button>
               )}
+              <a className="btn" href={aerodromeSwapUrl(activeStock)} target="_blank" rel="noopener noreferrer">
+                Open {activeStock.symbol} on Aerodrome ↗
+              </a>
               <a className="btn btn-secondary" href={aerodromeDepositUrl(activeStock)} target="_blank" rel="noopener noreferrer">
                 Add {activeStock.symbol} liquidity
               </a>
@@ -1318,6 +1318,23 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             </>
           )}
         </div>
+        {unlocked && quote && (
+          // Aerodrome's swap URL has no amount param (verified live), so the
+          // deep link alone leaves the user guessing what to paste where.
+          // Spelling out the 3 clicks beats a silent assumption they'll
+          // figure it out — this is the actual last-mile drop-off, not the
+          // math above it.
+          <ol className="paste-checklist">
+            <li>
+              Copy <strong>{usd(quote.usdcIn, 0)}</strong> — the button above puts it on your clipboard.
+            </li>
+            <li>Open {activeStock.symbol} on Aerodrome — the token pair is already selected.</li>
+            <li>
+              Paste into the USDC amount field, confirm, and sign in your own wallet — this app never touches
+              it.
+            </li>
+          </ol>
+        )}
         {!eligibleChecked && geo.nonUs && <p className="geo-note">Confirm eligibility to open Aerodrome.</p>}
         <p className={`geo-note${geo.country === 'US' ? ' geo-note-blocked' : ''}`} style={{ marginBottom: 2 }}>
           {geo.country === 'US' ? 'Not available in the US.' : geo.country ? `Detected region: ${geo.country}.` : 'Region could not be detected.'}{' '}
