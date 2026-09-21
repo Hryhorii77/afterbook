@@ -147,6 +147,23 @@ export function MyLots() {
     if (!window.ethereum) return;
     setConnecting(true);
     try {
+      // eth_requestAccounts alone silently returns the already-authorized
+      // account with no picker UI once this site has permission — which
+      // is why hitting "Connect" right after "Disconnect" used to just
+      // reconnect the same wallet with no way to switch. wallet_request-
+      // Permissions (EIP-2255) re-prompts the wallet's own account picker
+      // every time, even when already authorized. Not every injected
+      // provider implements it, so a real rejection (user closed the
+      // picker) should still abort connect(), but "method not supported"
+      // should fall through to the plain request below.
+      try {
+        await window.ethereum.request({
+          method: 'wallet_requestPermissions',
+          params: [{ eth_accounts: {} }],
+        });
+      } catch (err) {
+        if ((err as { code?: number } | undefined)?.code === 4001) throw err;
+      }
       const accounts = (await window.ethereum.request({ method: 'eth_requestAccounts' })) as string[];
       if (accounts.length > 0) setAddress(accounts[0]);
     } catch {
