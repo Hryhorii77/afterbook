@@ -820,6 +820,14 @@ select {
   stroke-width: 3;
 }
 
+.trade-summary {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  margin: 4px 0 0;
+}
+
 /* A <label> wrapping the checkbox, not a <div> with a separately-linked
    label — the whole row (including its own padding) toggles the checkbox
    this way, not just the checkbox itself and the text glyphs. */

@@ -1293,6 +1293,16 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
       <section className="panel">
         <h2>Execute</h2>
+        {quote && (
+          // Visible regardless of the eligibility checkbox below — a user
+          // shouldn't have to affirm a legal checkbox just to see what
+          // they'd actually be trading. The buttons and paste checklist
+          // stay gated; this preview line doesn't need to be.
+          <p className="trade-summary">
+            {activeStock.symbol} · {usd(quote.usdcIn, 0)} · ~{quote.sharesOut.toFixed(2)} sh · pool{' '}
+            {truncateAddr(activeStock.pool.address)}
+          </p>
+        )}
         <label className="eligibility">
           <input
             type="checkbox"
