@@ -604,9 +604,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         )}
         {activeRow?.cashLastUsd != null && activeRow?.onchainMidUsd != null && (
           <span className="sticky-symbol-detail">
-            <span className="gap-detail-label">cash</span> {usd(activeRow.cashLastUsd)}
+            <span className="gap-price-pair">
+              <span className="gap-detail-label">cash</span> {usd(activeRow.cashLastUsd)}
+            </span>
             {' → '}
-            <span className="gap-detail-label">aero</span> {usd(activeRow.onchainMidUsd)}
+            <span className="gap-price-pair">
+              <span className="gap-detail-label">aero</span> {usd(activeRow.onchainMidUsd)}
+            </span>
           </span>
         )}
       </div>
@@ -644,9 +648,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                     {bp(closeBasisBp)}
                   </div>
                   <div className="gap-detail">
-                    <span className="gap-detail-label">cash</span> {usd(row.closeUsd)}
+                    <span className="gap-price-pair">
+                      <span className="gap-detail-label">cash</span> {usd(row.closeUsd)}
+                    </span>
                     {' → '}
-                    <span className="gap-detail-label">aero</span> {usd(row.onchainMidUsd)}
+                    <span className="gap-price-pair">
+                      <span className="gap-detail-label">aero</span> {usd(row.onchainMidUsd)}
+                    </span>
                   </div>
                 </button>
               );

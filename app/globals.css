@@ -213,6 +213,14 @@ section.gap-hero {
   vertical-align: 1px;
 }
 
+/* Keeps a label glued to its own price — a line break must fall between
+   the cash and aero pairs, never between a label and the number it's
+   naming (that split briefly makes the number unattributed again, which
+   is exactly what these labels exist to prevent). */
+.gap-price-pair {
+  white-space: nowrap;
+}
+
 .gap-detail {
   font-family: var(--mono);
   letter-spacing: -0.02em;
