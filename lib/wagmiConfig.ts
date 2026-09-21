@@ -1,7 +1,6 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import {
   injectedWallet,
-  metaMaskWallet,
   rabbyWallet,
   coinbaseWallet,
   rainbowWallet,
@@ -42,9 +41,23 @@ const transport = fallback([http('https://mainnet.base.org'), http('https://base
 // a relay socket) at config-build time, not lazily on click. With no real
 // project id, that socket churns against the relay continuously (confirmed:
 // caused the whole tab to hang and never reach document_idle) — so those
-// entries are simply left out rather than shipped broken. metaMask/
-// coinbase/rabby/injected all have real desktop-extension connectors and
-// need no WalletConnect involvement at all.
+// entries are simply left out rather than shipped broken. coinbase/rabby/
+// injected all have real desktop-extension connectors and need no
+// WalletConnect involvement at all.
+//
+// No metaMaskWallet entry, deliberately: RainbowKit's per-wallet detection
+// is purely flag-based (window.ethereum.isMetaMask), not EIP-6963/rdns —
+// and several alternative wallets (Rabby included) set that same
+// compatibility flag so MetaMask-aware dapps still recognize them. With
+// both installed, whichever wallet currently holds window.ethereum answers
+// to "MetaMask" regardless of which one is real, and confirmed in practice
+// (console: "Error: MetaMask extension not found" thrown from inside the
+// click) — clicking "MetaMask" can silently attempt to connect through a
+// different wallet's shim, which then fails outright rather than opening
+// the real extension. rabbyWallet below checks the isRabby flag
+// specifically, which only Rabby sets, so it doesn't have this ambiguity.
+// injectedWallet (generic "Browser Wallet") remains as the correct fallback
+// for a real MetaMask-only setup with no other flag-setting wallet present.
 const hasWalletConnectProjectId = Boolean(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID);
 
 const wallets = [
@@ -52,7 +65,6 @@ const wallets = [
     groupName: 'Popular',
     wallets: [
       injectedWallet,
-      metaMaskWallet,
       coinbaseWallet,
       rabbyWallet,
       ...(hasWalletConnectProjectId ? [rainbowWallet] : []),
