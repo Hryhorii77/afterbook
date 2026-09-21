@@ -1411,7 +1411,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               Pool ↗
             </a>
             <a href="https://www.base.org/stocks" target="_blank" rel="noopener noreferrer">
-              Listings ↗
+              Coinbase tokenized stocks ↗
             </a>
           </div>
         </div>
