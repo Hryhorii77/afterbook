@@ -86,7 +86,7 @@ h1 {
   cursor: pointer;
   transition: background-color 0.12s ease, opacity 0.12s ease;
 }
-.wallet-connect-btn:hover:not(:disabled) {
+.wallet-connect-btn:not(.wallet-connect-btn-connected):hover:not(:disabled) {
   background: var(--primary-bg-hover);
 }
 .wallet-connect-btn:disabled {
