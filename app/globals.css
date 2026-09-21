@@ -253,6 +253,11 @@ section.panel h2 {
 table {
   width: 100%;
   border-collapse: collapse;
+  /* Fixed layout + the shared <colgroup> widths in TapeColGroup (HomeClient.tsx)
+     keep the tape and thin-books tables' columns aligned — they're separate
+     <table> elements, so auto layout would otherwise size each one's columns
+     from its own content and the two tables would drift out of sync. */
+  table-layout: fixed;
 }
 
 .table-scroll table {

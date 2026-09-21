@@ -165,6 +165,25 @@ const SORT_COLUMNS: { key: SortKey; label: (cashColumnLabel: string) => string }
   { key: 'depthUsd', label: () => 'Depth' },
 ];
 
+// The tape and thin-books tables are two separate <table> elements, so
+// with the default auto layout each sizes its own columns from its own
+// content — a long thin-book name/price (e.g. "Space Exploration
+// Technologies Corp.", "$1,791.82") throws its column widths out of sync
+// with the table above it. Fixed, shared percentages (paired with
+// `table-layout: fixed` in globals.css) keep both tables' columns lined up
+// regardless of what either one's rows contain.
+const TAPE_COLUMN_WIDTHS = ['24%', '18%', '18%', '16%', '24%'];
+
+function TapeColGroup() {
+  return (
+    <colgroup>
+      {TAPE_COLUMN_WIDTHS.map((width, i) => (
+        <col key={i} style={{ width }} />
+      ))}
+    </colgroup>
+  );
+}
+
 function TapeHead({
   cashColumnLabel,
   sort,
@@ -692,6 +711,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         )}
         <div className="table-scroll">
           <table>
+            <TapeColGroup />
             <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} />
             <tbody>
               <TapeRows rows={sortedLiquidRows} activeSymbol={symbol} onSelect={selectSymbol} />
@@ -713,6 +733,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                 </p>
                 <div className="table-scroll">
                   <table className="thin-table">
+                    <TapeColGroup />
                     <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} />
                     <tbody>
                       <TapeRows rows={sortedThinRows} activeSymbol={symbol} onSelect={selectSymbol} />
