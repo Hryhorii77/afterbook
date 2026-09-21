@@ -24,25 +24,13 @@ export function middleware(request: NextRequest) {
       ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`
       : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`;
 
-  // The wallet-connect modal (RainbowKit/wagmi, lib/wagmiConfig.ts) needs
-  // its own carve-outs on top of the policy above:
-  //  - connect-src: WalletConnect/Reown's relay (wss, for the actual
-  //    session) and their API (wallet metadata/icons, fetched over https).
-  //    A blocked relay socket isn't a silent no-op — WalletConnect's SDK
-  //    retries aggressively, which under connect-src 'self' alone showed up
-  //    as the tab never reaching document_idle (looked like a hang, not an
-  //    error) rather than a clean CSP-violation message.
-  //  - img-src: same Reown domains, for wallet icons the modal fetches
-  //    remotely instead of bundling.
-  //  - frame-src: Coinbase Wallet's SDK popup communication happens through
-  //    an iframe on Coinbase's own domain, not window.open.
   const csp = [
     "default-src 'self'",
     scriptSrc,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https://explorer-api.walletconnect.com https://api.web3modal.org",
-    "connect-src 'self' https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.reown.com https://api.web3modal.org https://pulse.walletconnect.org https://mainnet.base.org https://base-rpc.publicnode.com",
-    "frame-src https://*.coinbase.com https://keys.coinbase.com",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "frame-src 'none'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
