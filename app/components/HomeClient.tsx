@@ -1387,9 +1387,6 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             <a href="https://www.base.org/stocks" target="_blank" rel="noopener noreferrer">
               Listings ↗
             </a>
-            <a href={aerodromeSwapUrl(activeStock)} target="_blank" rel="noopener noreferrer">
-              Aerodrome ↗
-            </a>
           </div>
         </div>
         <div className="footer-legal">
