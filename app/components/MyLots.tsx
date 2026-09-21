@@ -147,23 +147,9 @@ export function MyLots() {
     if (!window.ethereum) return;
     setConnecting(true);
     try {
-      // eth_requestAccounts alone silently returns the already-authorized
-      // account with no picker UI once this site has permission — which
-      // is why hitting "Connect" right after "Disconnect" used to just
-      // reconnect the same wallet with no way to switch. wallet_request-
-      // Permissions (EIP-2255) re-prompts the wallet's own account picker
-      // every time, even when already authorized. Not every injected
-      // provider implements it, so a real rejection (user closed the
-      // picker) should still abort connect(), but "method not supported"
-      // should fall through to the plain request below.
-      try {
-        await window.ethereum.request({
-          method: 'wallet_requestPermissions',
-          params: [{ eth_accounts: {} }],
-        });
-      } catch (err) {
-        if ((err as { code?: number } | undefined)?.code === 4001) throw err;
-      }
+      // With permission genuinely revoked by disconnect() below, this
+      // gets a real fresh prompt (including account choice) rather than
+      // silently returning the same already-authorized account.
       const accounts = (await window.ethereum.request({ method: 'eth_requestAccounts' })) as string[];
       if (accounts.length > 0) setAddress(accounts[0]);
     } catch {
@@ -174,6 +160,19 @@ export function MyLots() {
   };
 
   const disconnect = () => {
+    // Clearing local state alone doesn't tell the wallet to forget this
+    // site — MetaMask (and eth_requestAccounts generally) then just
+    // silently re-returns the same already-authorized account on the next
+    // Connect, with no way to pick a different one. wallet_revokePermissions
+    // is MetaMask's actual disconnect call (eth_requestAccounts internally
+    // *is* a wallet_requestPermissions call, so re-requesting permissions
+    // without revoking first doesn't force a fresh prompt either — this is
+    // the one that does). Not every provider supports it; local state below
+    // still gets cleared either way, so a silent failure here just means
+    // the next Connect reconnects the same wallet, same as before this fix.
+    window.ethereum
+      ?.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] })
+      .catch(() => {});
     setAddress(null);
     setLots(null);
   };
