@@ -5,7 +5,7 @@ import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
 import type { TapeResult, TapeRow } from '@/lib/tape';
 import { splitByLiquidity, isLiquid, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import type { GeoInfo } from '@/lib/geo';
-import { bp } from '@/lib/format';
+import { bp, formatWindow } from '@/lib/format';
 import { ImpactCurve } from './ImpactCurve';
 import { DepthChart } from './DepthChart';
 import { computeCashAndCarryEdge, GAS_ESTIMATE_USD } from '@/lib/arb';
@@ -66,6 +66,7 @@ interface DepthResponse {
   buckets: LiquidityBucket[];
   feeAprPct: number | null;
   feeAprWindowDays: number | null;
+  feeAprEstimated: boolean;
 }
 
 interface PriceSample {
@@ -957,7 +958,10 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                           </div>
                           <div className="result-cell">
                             <div className="label">
-                              Est. fee APR{depth.feeAprWindowDays != null ? ` (last ${depth.feeAprWindowDays.toFixed(1)}d)` : ''}
+                              Est. fee APR
+                              {depth.feeAprWindowDays != null
+                                ? ` (last ${formatWindow(depth.feeAprWindowDays)}${depth.feeAprEstimated ? ', prelim.' : ''})`
+                                : ''}
                             </div>
                             <div className="value">{rangeMetrics.estimatedFeeAprPct != null ? `${rangeMetrics.estimatedFeeAprPct.toFixed(1)}%` : '—'}</div>
                           </div>
@@ -980,7 +984,10 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                           Capital efficiency: how much more liquidity this range buys vs. a full-range position for the
                           same deposit, from the range width alone. Est. fee APR: the pool&apos;s own trailing fee APR
                           (feeGrowth-based, same figure My Lots shows for real positions) times that multiplier — an
-                          extrapolation assuming price stays in range, not a guarantee. In-range probability: chance the
+                          extrapolation assuming price stays in range, not a guarantee.
+                          {depth.feeAprEstimated &&
+                            ' "Prelim." means there isn’t enough feeGrowth snapshot history yet (a fresh deploy, or a pool that only recently got worth tracking) — this is a rougher stand-in estimated from actual swap volume over the last hour or so instead, replaced automatically by the real multi-day figure once enough snapshots accumulate.'}{' '}
+                          In-range probability: chance the
                           price is still inside this range in {IN_RANGE_HORIZON_DAYS} days, from recent realized
                           volatility — both null until enough history has accumulated for this symbol. Divergence loss
                           at boundary: value lost vs. simply holding the position&apos;s initial split (low% / high%),

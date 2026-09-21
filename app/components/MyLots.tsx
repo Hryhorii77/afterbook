@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAccount, useDisconnect } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
+import { formatWindow } from '@/lib/format';
 
 interface SpotHolding {
   symbol: string;
@@ -26,6 +27,7 @@ interface LpHolding {
   currentPriceUsd: number | null;
   feeAprPct: number | null;
   feeAprWindowDays: number | null;
+  feeAprEstimated: boolean;
   inRangeProbabilityPct: number | null;
   inRangeHorizonDays: number | null;
   gaugeAprPct: number | null;
@@ -201,8 +203,9 @@ export function MyLots() {
                     <RangeBar low={h.rangeLowUsd} high={h.rangeHighUsd} current={h.currentPriceUsd} />
                     {h.feeAprPct != null ? (
                       <div className="geo-note">
-                        Fee APR ≈ {h.feeAprPct.toFixed(1)}% (last {h.feeAprWindowDays!.toFixed(1)}d, pool-wide),
-                        currently <span className={h.isStaked ? 'basis-pos' : ''}>{h.isStaked ? 'staked' : 'unstaked'}</span>
+                        Fee APR ≈ {h.feeAprPct.toFixed(1)}% (last {formatWindow(h.feeAprWindowDays!)}, pool-wide
+                        {h.feeAprEstimated ? ', preliminary — from recent swap volume, not yet the full snapshot history' : ''}
+                        ), currently <span className={h.isStaked ? 'basis-pos' : ''}>{h.isStaked ? 'staked' : 'unstaked'}</span>
                       </div>
                     ) : (
                       <div className="geo-note">Fee APR: collecting data — check back in a day or two.</div>

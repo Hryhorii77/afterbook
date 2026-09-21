@@ -1,5 +1,6 @@
 import { redis } from './redis';
 import type { CbStock } from './tokens';
+import { getClient } from './quote';
 
 // Snapshot-based fee APR: Aerodrome exposes no volume/fee-revenue API
 // anywhere (confirmed — no api.aerodrome.finance, Sugar's Lp struct has no
@@ -125,4 +126,96 @@ export async function computeFeeApr(
   const aprPct = (feeUsd / newest.tvlUsd) * (365 / windowDays) * 100;
 
   return { aprPct, windowDays };
+}
+
+const SWAP_EVENT = {
+  type: 'event',
+  name: 'Swap',
+  inputs: [
+    { name: 'sender', type: 'address', indexed: true },
+    { name: 'recipient', type: 'address', indexed: true },
+    { name: 'amount0', type: 'int256', indexed: false },
+    { name: 'amount1', type: 'int256', indexed: false },
+    { name: 'sqrtPriceX96', type: 'uint160', indexed: false },
+    { name: 'liquidity', type: 'uint128', indexed: false },
+    { name: 'tick', type: 'int24', indexed: false },
+  ],
+} as const;
+
+// mainnet.base.org (and most public Base RPCs) cap eth_getLogs at a
+// 2,000-block range — confirmed live against a real pool (error: "eth_getLogs
+// is limited to a 2,000 range"). At Base's current ~2s block time that's a
+// bit under 1.1 hours, so this samples the most recent ~1900 blocks (a
+// safety margin under the cap, since "latest" can advance between the
+// block-number read and the getLogs call) and extrapolates that window's
+// fee-to-TVL ratio out to an annualized figure. Deliberately a much
+// noisier, single-hour-sample estimate than computeFeeApr's multi-day
+// feeGrowthGlobal delta above — this exists only to replace "collecting
+// data" with *something* for a fresh deploy or a newly-thin pool, not to
+// match that method's precision. Confirmed live that Slipstream pools emit
+// the standard Uniswap V3 Swap event signature (topic0 0xc42079f9...ca6,
+// verified against a real NVDAc pool log).
+const LOG_RANGE_BLOCKS = 1900n;
+
+export async function estimateFeeAprFromRecentSwaps(stock: CbStock, tvlUsd: number): Promise<FeeAprResult | null> {
+  if (tvlUsd <= 0) return null;
+  const client = getClient();
+  try {
+    const toBlock = await client.getBlockNumber();
+    const fromBlock = toBlock > LOG_RANGE_BLOCKS ? toBlock - LOG_RANGE_BLOCKS : 0n;
+
+    const [logs, fromBlockInfo, toBlockInfo] = await Promise.all([
+      client.getLogs({ address: stock.pool.address as `0x${string}`, event: SWAP_EVENT, fromBlock, toBlock }),
+      client.getBlock({ blockNumber: fromBlock }),
+      client.getBlock({ blockNumber: toBlock }),
+    ]);
+    if (logs.length === 0) return null;
+
+    const windowMs = Number(toBlockInfo.timestamp - fromBlockInfo.timestamp) * 1000;
+    if (windowMs <= 0) return null;
+
+    const isToken0Usdc = stock.pool.token0 === 'USDC';
+    let usdcVolumeRaw = 0n;
+    for (const log of logs) {
+      const amount0 = log.args.amount0 as bigint | undefined;
+      const amount1 = log.args.amount1 as bigint | undefined;
+      const usdcAmount = (isToken0Usdc ? amount0 : amount1) ?? 0n;
+      usdcVolumeRaw += usdcAmount < 0n ? -usdcAmount : usdcAmount;
+    }
+
+    const volumeUsd = Number(usdcVolumeRaw) / 1e6;
+    const feeUsd = volumeUsd * (stock.pool.feePpm / 1_000_000);
+    const windowDays = windowMs / 86_400_000;
+    const aprPct = (feeUsd / tvlUsd) * (365 / windowDays) * 100;
+
+    return { aprPct, windowDays };
+  } catch {
+    // Best-effort — a cold-start caller falls back further to null (the UI's
+    // existing "collecting data" copy), not a thrown error.
+    return null;
+  }
+}
+
+export interface FeeAprWithFallback extends FeeAprResult {
+  /** true when this came from the getLogs cold-start fallback rather than
+   *  the real feeGrowthGlobal snapshot delta — callers should caveat
+   *  accordingly rather than presenting it with the same confidence. */
+  estimated: boolean;
+}
+
+/** Tries the real snapshot-delta method first; only falls back to the
+ *  noisier recent-swaps estimate when there isn't enough snapshot history
+ *  yet (a fresh deploy, or a pool that only recently became worth tracking). */
+export async function computeFeeAprWithFallback(
+  symbol: string,
+  stock: CbStock,
+  currentPriceUsd: number,
+  multiplier: bigint,
+  tvlUsd: number,
+): Promise<FeeAprWithFallback | null> {
+  const real = await computeFeeApr(symbol, stock, currentPriceUsd, multiplier);
+  if (real) return { ...real, estimated: false };
+
+  const estimate = await estimateFeeAprFromRecentSwaps(stock, tvlUsd);
+  return estimate ? { ...estimate, estimated: true } : null;
 }

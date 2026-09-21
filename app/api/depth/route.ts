@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getStock } from '@/lib/tokens';
-import { getCachedPoolState } from '@/lib/quote';
+import { getCachedPoolState, poolDepth } from '@/lib/quote';
 import { getCachedLiquidityDistribution } from '@/lib/depth';
-import { computeFeeApr } from '@/lib/feeApr';
+import { computeFeeAprWithFallback } from '@/lib/feeApr';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -20,12 +20,16 @@ export async function GET(request: Request) {
     // positions. The range selector's own capitalEfficiencyMultiplier
     // (lib/lpRange.ts) is what turns this into a range-specific estimate,
     // computed client-side so it can update live while dragging.
-    const feeApr = await computeFeeApr(stock.symbol, stock, distribution.currentPriceUsd, state.multiplier).catch(() => null);
+    const tvlUsd = poolDepth(state, stock).totalUsd;
+    const feeApr = await computeFeeAprWithFallback(stock.symbol, stock, distribution.currentPriceUsd, state.multiplier, tvlUsd).catch(
+      () => null,
+    );
     return NextResponse.json({
       symbol: stock.symbol,
       ...distribution,
       feeAprPct: feeApr?.aprPct ?? null,
       feeAprWindowDays: feeApr?.windowDays ?? null,
+      feeAprEstimated: feeApr?.estimated ?? false,
     });
   } catch (err) {
     return NextResponse.json({ error: 'depth unavailable', detail: String(err) }, { status: 502 });

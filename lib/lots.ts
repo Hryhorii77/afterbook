@@ -1,7 +1,7 @@
-import { getClient, TOKEN_ABI, ERC20_ABI, MULTIPLIER_ONE, priceFromSqrtX96, getCachedPoolState } from './quote';
+import { getClient, TOKEN_ABI, ERC20_ABI, MULTIPLIER_ONE, priceFromSqrtX96, getCachedPoolState, poolDepth } from './quote';
 import { STOCKS, CL_FACTORY, type CbStock } from './tokens';
 import type { TapeRow } from './tape';
-import { computeFeeApr } from './feeApr';
+import { computeFeeAprWithFallback } from './feeApr';
 import { getPriceHistory, computeInRangeProbabilityPct, IN_RANGE_HORIZON_DAYS } from './volatility';
 import { getGaugeYield, getVotingIncentiveFlag } from './gaugeYield';
 
@@ -88,9 +88,12 @@ export interface LpHolding {
    *  client can place a range-position marker without also fetching tape. */
   currentPriceUsd: number | null;
   /** Pool-wide fee APR from a feeGrowthGlobal snapshot delta (see
-   *  lib/feeApr.ts) — null until at least two daily cron snapshots exist. */
+   *  lib/feeApr.ts) — falls back to a rougher recent-swaps estimate
+   *  (feeAprEstimated: true) until at least two daily cron snapshots
+   *  exist, rather than showing null/"collecting data". */
   feeAprPct: number | null;
   feeAprWindowDays: number | null;
+  feeAprEstimated: boolean;
   /** P(price is back inside this range at the IN_RANGE_HORIZON_DAYS horizon)
    *  — null until enough price history has accumulated (see
    *  lib/volatility.ts). */
@@ -219,21 +222,28 @@ export async function getMyLots(address: `0x${string}`, tapeRows: TapeRow[]): Pr
 
       let feeAprPct: number | null = null;
       let feeAprWindowDays: number | null = null;
+      let feeAprEstimated = false;
       let inRangeProbabilityPct: number | null = null;
       let inRangeHorizonDays: number | null = null;
       let gaugeAprPct: number | null = null;
       let stakedRatioPct: number | null = null;
       let votingIncentiveFlag: LpHolding['votingIncentiveFlag'] = null;
       if (currentPriceUsd != null) {
-        const [feeApr, priceHistory, poolState, incentiveFlag] = await Promise.all([
-          computeFeeApr(stock.symbol, stock, currentPriceUsd, multiplier).catch(() => null),
+        const [priceHistory, poolState, incentiveFlag] = await Promise.all([
           getPriceHistory(stock.symbol, Date.now() - 30 * 24 * 60 * 60_000).catch(() => []),
           getCachedPoolState(stock).catch(() => null),
           getVotingIncentiveFlag(stock, currentPriceUsd).catch(() => null),
         ]);
+        // Needs poolState's TVL for the getLogs cold-start fallback, so this
+        // can't join the Promise.all above — only costs real extra latency
+        // on the cold-start path itself (the normal snapshot method below
+        // it doesn't need poolState at all).
+        const tvlUsd = poolState ? poolDepth(poolState, stock).totalUsd : 0;
+        const feeApr = await computeFeeAprWithFallback(stock.symbol, stock, currentPriceUsd, multiplier, tvlUsd).catch(() => null);
         if (feeApr) {
           feeAprPct = feeApr.aprPct;
           feeAprWindowDays = feeApr.windowDays;
+          feeAprEstimated = feeApr.estimated;
         }
         const probability = computeInRangeProbabilityPct(priceHistory, currentPriceUsd, rangeLowUsd, rangeHighUsd);
         if (probability != null) {
@@ -266,6 +276,7 @@ export async function getMyLots(address: `0x${string}`, tapeRows: TapeRow[]): Pr
         currentPriceUsd,
         feeAprPct,
         feeAprWindowDays,
+        feeAprEstimated,
         inRangeProbabilityPct,
         inRangeHorizonDays,
         gaugeAprPct,
