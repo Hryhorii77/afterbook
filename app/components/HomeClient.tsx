@@ -1365,22 +1365,41 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         </p>
       </section>
 
-      <footer>
-        <p>
-          Afterbook reads Aerodrome&apos;s on-chain pool state and public cash-market prices server-side, and never
-          holds keys, requests approvals, or constructs swap calldata. All trading, lending, and liquidity actions
-          happen on Aerodrome&apos;s own app.
-        </p>
-        <ul>
-          <li>
-            Allowlisted contracts only — {STOCKS.length} token addresses and {STOCKS.length} pool addresses, verified
-            on-chain
-          </li>
-          <li>Server-side fetches; the browser only talks to this site&apos;s own /api routes</li>
-          <li>My Lots connects a wallet to read balances only — no seed phrase, no approvals, no custom router, no signature ever requested</li>
-          <li>Official Aerodrome URLs only for every execution link</li>
-        </ul>
-        <p>MIT licensed.</p>
+      <footer className="site-footer">
+        <div className="footer-columns">
+          <div className="footer-brand">
+            <div className="footer-brand-name">Afterbook</div>
+            <p className="footer-tagline">Cash close vs the Aero book. Execution stays on Aerodrome.</p>
+            <div className="footer-links">
+              <a href="https://x.com/hryhorii77" target="_blank" rel="noopener noreferrer">X</a>
+              <a href="https://github.com/Hryhorii77/afterbook" target="_blank" rel="noopener noreferrer">GitHub</a>
+              <a href="https://github.com/Hryhorii77/afterbook#readme" target="_blank" rel="noopener noreferrer">README</a>
+            </div>
+          </div>
+          <div className="footer-onchain">
+            <div className="footer-label">Onchain</div>
+            <a href={`https://basescan.org/address/${activeStock.tokenAddress}`} target="_blank" rel="noopener noreferrer">
+              Token ↗
+            </a>
+            <a href={`https://basescan.org/address/${activeStock.pool.address}`} target="_blank" rel="noopener noreferrer">
+              Pool ↗
+            </a>
+            <a href="https://www.base.org/stocks" target="_blank" rel="noopener noreferrer">
+              Listings ↗
+            </a>
+            <a href={aerodromeSwapUrl(activeStock)} target="_blank" rel="noopener noreferrer">
+              Aerodrome ↗
+            </a>
+          </div>
+        </div>
+        <div className="footer-legal">
+          <p>Not investment advice. Not available in the US.</p>
+          <p>
+            Independent and non-custodial. Not affiliated with Coinbase, Base, NVIDIA, or the issuer. B20 backing is
+            the issuer&apos;s claim — this app does not verify reserves onchain. Never asks for a seed phrase.
+          </p>
+        </div>
+        <p className="footer-meta">MIT licensed · Built on Base</p>
       </footer>
     </main>
   );

@@ -1016,19 +1016,92 @@ footer {
   margin-top: 32px;
 }
 
-footer ul {
-  padding-left: 18px;
+.footer-columns {
+  display: flex;
+  justify-content: space-between;
+  gap: 32px;
+  flex-wrap: wrap;
 }
 
-footer li {
-  margin-bottom: 8px;
+.footer-brand-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
 }
-footer li:last-child {
+
+.footer-tagline {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 4px 0 12px;
+}
+
+.footer-links {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.footer-onchain {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: right;
+}
+
+.footer-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dimmer);
+  margin-bottom: 2px;
+}
+
+.footer-links a,
+.footer-onchain a {
+  color: var(--text-dim);
+  text-decoration: none;
+}
+
+.footer-links a:hover,
+.footer-onchain a:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.footer-legal {
+  border-top: 1px solid var(--panel-border);
+  margin-top: 24px;
+  padding-top: 16px;
+}
+
+.footer-legal p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.footer-legal p:last-child {
   margin-bottom: 0;
 }
 
-footer a {
-  color: var(--accent);
+.footer-meta {
+  margin-top: 16px;
+  font-size: 13px;
+}
+
+@media (max-width: 767px) {
+  .footer-columns {
+    flex-direction: column;
+    gap: 24px;
+  }
+  .footer-onchain {
+    text-align: left;
+  }
+  .footer-links a,
+  .footer-onchain a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
 }
 
 .sparkline {
