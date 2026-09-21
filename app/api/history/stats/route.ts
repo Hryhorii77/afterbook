@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getClosedPeriodStats } from '@/lib/history';
+import { getClosedPeriodStats, getOpenSnapStats } from '@/lib/history';
 
 export const revalidate = 0;
 
@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'symbol required' }, { status: 400 });
   }
 
-  const stats = await getClosedPeriodStats(symbol, Date.now() - LOOKBACK_MS);
-  return NextResponse.json({ symbol, stats });
+  const since = Date.now() - LOOKBACK_MS;
+  const [stats, openSnap] = await Promise.all([getClosedPeriodStats(symbol, since), getOpenSnapStats(symbol, since)]);
+  return NextResponse.json({ symbol, stats, openSnap });
 }

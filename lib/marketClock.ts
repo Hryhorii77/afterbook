@@ -120,15 +120,22 @@ export function isCashMarketLive(state: SessionState): boolean {
   return state === 'open' || state === 'pre-market' || state === 'after-hours';
 }
 
-function isTradingDay(dateKey: string, weekday: number): boolean {
+export function isTradingDay(dateKey: string, weekday: number): boolean {
   return weekday !== 0 && weekday !== 6 && !HOLIDAYS_2026.has(dateKey);
+}
+
+/** NY calendar-day key (YYYY-MM-DD) for a given instant — for grouping
+ *  samples by trading day regardless of which UTC day they happen to fall
+ *  on near midnight ET. */
+export function nyDateKey(now: Date): string {
+  return nyNow(now).dateKey;
 }
 
 // Finds the UTC instant for 9:30am America/New_York on a given NY calendar
 // day, without a manual DST table: NY is always either UTC-4 (EDT) or UTC-5
 // (EST), so try both candidate UTC instants and keep whichever one actually
 // formats back to 09:30 in America/New_York for that date.
-function nyOpenInstant(dateKey: string): Date {
+export function nyOpenInstant(dateKey: string): Date {
   for (const utcHour of [13, 14]) {
     const candidate = new Date(`${dateKey}T${String(utcHour).padStart(2, '0')}:30:00.000Z`);
     const formatted = new Intl.DateTimeFormat('en-US', {

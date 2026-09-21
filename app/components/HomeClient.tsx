@@ -46,6 +46,13 @@ interface ClosedPeriodStats {
   maxAbsBp: number;
 }
 
+interface OpenSnapStats {
+  days30: number;
+  revertedPct30: number;
+  days90: number;
+  revertedPct90: number;
+}
+
 interface EventLogEntry {
   ts: number;
   text: string;
@@ -336,6 +343,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const [lotLabTab, setLotLabTab] = useState<'trade' | 'lp' | 'carry'>('trade');
   const [history, setHistory] = useState<HistorySample[]>([]);
   const [basisStats, setBasisStats] = useState<ClosedPeriodStats | null>(null);
+  const [openSnap, setOpenSnap] = useState<OpenSnapStats | null>(null);
   const [eventLog, setEventLog] = useState<EventLogEntry[]>([]);
   const [copied, setCopied] = useState(false);
   const [amountCopied, setAmountCopied] = useState(false);
@@ -509,10 +517,16 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     fetch(`/api/history/stats?symbol=${encodeURIComponent(symbol)}`)
       .then((res) => res.json())
       .then((json) => {
-        if (!cancelled) setBasisStats(json.stats ?? null);
+        if (!cancelled) {
+          setBasisStats(json.stats ?? null);
+          setOpenSnap(json.openSnap ?? null);
+        }
       })
       .catch(() => {
-        if (!cancelled) setBasisStats(null);
+        if (!cancelled) {
+          setBasisStats(null);
+          setOpenSnap(null);
+        }
       });
     return () => {
       cancelled = true;
@@ -788,6 +802,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           <p className="geo-note">
             Last 30 days (market closed): avg {bp(basisStats.meanBp)}, max {bp(basisStats.maxAbsBp)}, {basisStats.count}{' '}
             samples.
+          </p>
+        )}
+        {openSnap && (
+          <p className="geo-note">
+            At 9:30 ET open, basis moved toward $0 within 30 min in {openSnap.revertedPct30.toFixed(0)}% of the last{' '}
+            {openSnap.days30} sessions
+            {openSnap.days90 > 0 && ` (${openSnap.revertedPct90.toFixed(0)}% within 90 min, ${openSnap.days90} sessions)`}.
           </p>
         )}
       </section>

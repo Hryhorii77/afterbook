@@ -1,5 +1,5 @@
 import { redis } from './redis';
-import { getSessionInfo } from './marketClock';
+import { getSessionInfo, nyDateKey, nyOpenInstant, isTradingDay } from './marketClock';
 
 // Basis-since-close history, sampled opportunistically off real traffic
 // instead of a cron job — there's no dedicated worker in this app, just
@@ -96,5 +96,97 @@ export async function getClosedPeriodStats(symbol: string, sinceMs: number): Pro
     meanBp: sum / closed.length,
     meanAbsBp: sumAbs / closed.length,
     maxAbsBp: maxAbs,
+  };
+}
+
+export interface OpenSnapStats {
+  days30: number;
+  revertedPct30: number;
+  days90: number;
+  revertedPct90: number;
+}
+
+// How far before 9:30 ET a sample can be and still count as "the pre-open
+// basis" — wide because pre-open sampling depends on someone loading the
+// page overnight/pre-market, which is sparser traffic than during the day.
+const PRE_OPEN_LOOKBACK_MS = 3 * 60 * 60_000;
+// How close a sample needs to land to the 30/90-min-after-open mark to
+// count for that bucket — tight enough that "shortly after open" means
+// what it says, loose enough to survive the opportunistic 5-min sampling.
+const POST_OPEN_TOLERANCE_MS = 15 * 60_000;
+const MIN_DAYS_FOR_OPEN_SNAP = 8;
+
+function closestBefore(samples: HistorySample[], targetMs: number, maxAgeMs: number): HistorySample | null {
+  let best: HistorySample | null = null;
+  for (const s of samples) {
+    if (s.ts > targetMs || targetMs - s.ts > maxAgeMs) continue;
+    if (!best || s.ts > best.ts) best = s;
+  }
+  return best;
+}
+
+function closestNear(samples: HistorySample[], targetMs: number, toleranceMs: number): HistorySample | null {
+  let best: HistorySample | null = null;
+  let bestDiff = Infinity;
+  for (const s of samples) {
+    const diff = Math.abs(s.ts - targetMs);
+    if (diff > toleranceMs) continue;
+    if (diff < bestDiff) {
+      best = s;
+      bestDiff = diff;
+    }
+  }
+  return best;
+}
+
+/**
+ * "At 9:30 ET, basis usually did X" — for each trading day in the window,
+ * compares the last sample before that day's 9:30am NY open (the closed-
+ * market basis) against samples ~30min and ~90min after, and reports how
+ * often |basis| shrank (reverted toward zero) rather than widened or held.
+ * Reuses the same opportunistically-sampled history as the sparkline — no
+ * new sampling, just a different slice of the same 30-day window.
+ */
+export async function getOpenSnapStats(symbol: string, sinceMs: number): Promise<OpenSnapStats | null> {
+  const samples = await getHistory(symbol, sinceMs);
+  if (samples.length === 0) return null;
+
+  const dateKeys = new Set<string>();
+  for (const s of samples) {
+    const key = nyDateKey(new Date(s.ts));
+    const weekday = new Date(`${key}T12:00:00.000Z`).getUTCDay();
+    if (isTradingDay(key, weekday)) dateKeys.add(key);
+  }
+
+  let days30 = 0;
+  let reverted30 = 0;
+  let days90 = 0;
+  let reverted90 = 0;
+
+  for (const dateKey of dateKeys) {
+    const openMs = nyOpenInstant(dateKey).getTime();
+    const preOpen = closestBefore(samples, openMs, PRE_OPEN_LOOKBACK_MS);
+    if (!preOpen) continue;
+
+    const post30 = closestNear(samples, openMs + 30 * 60_000, POST_OPEN_TOLERANCE_MS);
+    if (post30) {
+      days30++;
+      if (Math.abs(post30.basisBp) < Math.abs(preOpen.basisBp)) reverted30++;
+    }
+
+    const post90 = closestNear(samples, openMs + 90 * 60_000, POST_OPEN_TOLERANCE_MS);
+    if (post90) {
+      days90++;
+      if (Math.abs(post90.basisBp) < Math.abs(preOpen.basisBp)) reverted90++;
+    }
+  }
+
+  if (days30 < MIN_DAYS_FOR_OPEN_SNAP && days90 < MIN_DAYS_FOR_OPEN_SNAP) return null;
+
+  return {
+    days30,
+    revertedPct30: days30 > 0 ? (reverted30 / days30) * 100 : 0,
+    days90,
+    revertedPct90: days90 > 0 ? (reverted90 / days90) * 100 : 0,
   };
 }
