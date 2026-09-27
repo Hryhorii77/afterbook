@@ -678,6 +678,26 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     }
   };
 
+  // Fires alongside every outbound Execute click, purely to log that it
+  // happened — never gates or delays the link itself. sendBeacon (not
+  // fetch) because it queues the send and returns immediately even as the
+  // browser navigates away to open the new tab, which a blocking fetch call
+  // in a click handler can't guarantee. Best-effort: no error handling,
+  // since there's nothing useful to do with a dropped analytics beacon.
+  const logOutboundClick = (venue: 'aerodrome-swap' | 'aerodrome-deposit', direction?: 'buy' | 'sell') => {
+    try {
+      const body = JSON.stringify({
+        symbol: activeStock.symbol,
+        usdIn: quote?.usdcIn ?? null,
+        venue,
+        direction,
+      });
+      navigator.sendBeacon('/api/clicks', new Blob([body], { type: 'application/json' }));
+    } catch {
+      // sendBeacon unsupported or blocked — click still proceeds either way
+    }
+  };
+
   const showGapHero = tape.session.state !== 'open' && cashClosedAsOfMs > 0;
 
   // Real, deep pools vs freshly-listed thin ones don't belong at the same
@@ -1278,6 +1298,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                       href={aerodromeSwapUrl(activeStock, 'sell')}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={() => logOutboundClick('aerodrome-swap', 'sell')}
                     >
                       Sell {activeStock.symbol} on Aerodrome ↗
                     </a>
@@ -1362,10 +1383,22 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                   {amountCopied ? 'Copied ✓' : `Copy ${usd(quote.usdcIn, 0)}`}
                 </button>
               )}
-              <a className="btn" href={aerodromeSwapUrl(activeStock)} target="_blank" rel="noopener noreferrer">
+              <a
+                className="btn"
+                href={aerodromeSwapUrl(activeStock)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => logOutboundClick('aerodrome-swap', 'buy')}
+              >
                 Open {activeStock.symbol} on Aerodrome ↗
               </a>
-              <a className="btn btn-secondary" href={aerodromeDepositUrl(activeStock)} target="_blank" rel="noopener noreferrer">
+              <a
+                className="btn btn-secondary"
+                href={aerodromeDepositUrl(activeStock)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => logOutboundClick('aerodrome-deposit')}
+              >
                 Add {activeStock.symbol} liquidity
               </a>
             </>
