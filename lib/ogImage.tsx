@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { getTape } from './tape';
 import { splitByLiquidity } from './liquidity';
+import { buildTodaySnapshot } from './todaySnapshot';
 
 export const OG_ALT = 'Afterbook — cash close vs the Aero book, in shares';
 export const OG_SIZE = { width: 1200, height: 630 };
@@ -156,6 +157,92 @@ export async function buildOgImage(symbol?: string) {
               </div>
             ))}
           </div>
+        )}
+
+        <div style={{ display: 'flex', marginTop: 'auto', fontSize: 20, color: '#5b8cff' }}>
+          No wallet connect. Execution stays on Aerodrome.
+        </div>
+      </div>
+    ),
+    { ...OG_SIZE },
+  );
+}
+
+/** app/today's own card — one number, not a grid. Distinct from buildOgImage
+ *  above: that one either shows a specific requested symbol or a 6-wide
+ *  movers grid, this always shows whichever single row currently has the
+ *  largest |basis| (lib/todaySnapshot.ts), same "one screenshot stat" this
+ *  page is built around. */
+export async function buildTodayOgImage() {
+  let sessionLabel = '';
+  let headline: Awaited<ReturnType<typeof getTape>>['rows'][number] | null = null;
+  let headlineBp: number | null = null;
+  let marketOpen = false;
+  try {
+    const tape = await getTape();
+    sessionLabel = tape.session.label;
+    marketOpen = tape.session.state === 'open';
+    const snapshot = buildTodaySnapshot(tape);
+    headline = snapshot.headline;
+    headlineBp = marketOpen ? headline?.basisBp ?? null : snapshot.headlineCloseBasisBp;
+  } catch {
+    // fall through to a branding-only card below
+  }
+
+  return new ImageResponse(
+    (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: '#0b0d10',
+          backgroundImage: 'linear-gradient(180deg, #12151a 0%, #0b0d10 60%)',
+          padding: '64px 72px',
+          fontFamily: 'sans-serif',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+          <span style={{ fontSize: 40, fontWeight: 700, color: '#8b93a1', letterSpacing: '-0.02em' }}>
+            Afterbook · Today
+          </span>
+          {sessionLabel && <span style={{ fontSize: 22, color: '#6b7280' }}>{sessionLabel}</span>}
+        </div>
+
+        {headline ? (
+          // A bare Fragment here (as opposed to buildOgImage's focus-card
+          // above, which has no conditional wrapper at all) does not
+          // flatten into ordinary flex siblings under satori/next-og —
+          // confirmed live: it silently reorders and collapses these three
+          // blocks instead of stacking them. A real flex-column div avoids
+          // it and stacks correctly.
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 48 }}>
+              <span style={{ fontSize: 24, color: '#8b93a1' }}>Biggest gap</span>
+              <span style={{ fontSize: 72, fontWeight: 700, color: '#e6e9ef', letterSpacing: '-0.02em', marginTop: 4 }}>
+                {headline.symbol}
+              </span>
+            </div>
+
+            <span
+              style={{
+                fontSize: 100,
+                fontWeight: 700,
+                marginTop: 32,
+                color: headlineBp == null ? '#8b93a1' : headlineBp >= 0 ? '#3ddc97' : '#ff6b6b',
+              }}
+            >
+              {bp(headlineBp)}
+            </span>
+
+            <div style={{ display: 'flex', gap: 32, marginTop: 24, fontSize: 28, color: '#8b93a1' }}>
+              <span>cash {usd(marketOpen ? headline.cashLastUsd : headline.closeUsd)}</span>
+              <span>aero {usd(headline.onchainMidUsd)}</span>
+            </div>
+          </div>
+        ) : (
+          <span style={{ fontSize: 32, color: '#8b93a1', marginTop: 48 }}>No basis reading yet.</span>
         )}
 
         <div style={{ display: 'flex', marginTop: 'auto', fontSize: 20, color: '#5b8cff' }}>

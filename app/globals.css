@@ -476,6 +476,28 @@ th {
 .basis-pos { color: var(--green); }
 .basis-neg { color: var(--red); }
 
+/* /today's single-stat hero — the "one screenshot stat" page, deliberately
+   built around one big number rather than the homepage's multi-symbol
+   .gap-grid. .basis-pos/.basis-neg above still color the number itself. */
+.today-symbol {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin-top: 4px;
+}
+.today-stat-value {
+  font-family: var(--mono);
+  letter-spacing: -0.02em;
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-top: 8px;
+}
+@media (max-width: 480px) {
+  .today-stat-value {
+    font-size: 44px;
+  }
+}
+
 /* Basis is the reason to open this page — give it more visual weight than
    the surrounding cells. Depth is useful context, not the headline. */
 td.basis-cell {

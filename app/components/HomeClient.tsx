@@ -5,7 +5,7 @@ import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
 import type { TapeResult, TapeRow } from '@/lib/tape';
 import { splitByLiquidity, isLiquid, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import type { GeoInfo } from '@/lib/geo';
-import { bp, formatWindow } from '@/lib/format';
+import { bp, formatWindow, usd, usdCompact, formatDuration, formatNextOpen } from '@/lib/format';
 import { ImpactCurve } from './ImpactCurve';
 import { DepthChart } from './DepthChart';
 import { computeCashAndCarryEdge, GAS_ESTIMATE_USD } from '@/lib/arb';
@@ -109,20 +109,9 @@ function sortRows(rows: TapeRow[], sort: SortState): TapeRow[] {
   });
 }
 
-const usd = (n: number | null, digits = 2) =>
-  n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: digits, maximumFractionDigits: digits });
-
-
 const shares = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
 const truncateAddr = (addr: string) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-
-const usdCompact = (n: number | null) => {
-  if (n == null) return '—';
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}k`;
-  return `$${n.toFixed(0)}`;
-};
 
 const sharesCompact = (n: number | null) => (n == null ? '—' : `${n.toLocaleString('en-US', { maximumFractionDigits: 0 })} sh`);
 
@@ -136,34 +125,10 @@ function daysUntil(isoDate: string): number {
   return Math.round((target - todayUtc) / 86_400_000);
 }
 
-function formatDuration(ms: number): string {
-  if (ms <= 0) return '0m';
-  const totalMinutes = Math.floor(ms / 60_000);
-  const days = Math.floor(totalMinutes / 1440);
-  const hours = Math.floor((totalMinutes % 1440) / 60);
-  const minutes = totalMinutes % 60;
-  const parts: string[] = [];
-  if (days > 0) parts.push(`${days}d`);
-  if (days > 0 || hours > 0) parts.push(`${hours}h`);
-  parts.push(`${minutes}m`);
-  return parts.join(' ');
-}
-
 function formatLogTime(ts: number): string {
   return (
     new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' }).format(new Date(ts)) +
     ' ET'
-  );
-}
-
-function formatNextOpen(iso: string): string {
-  return (
-    new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York',
-      weekday: 'short',
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(new Date(iso)) + ' ET'
   );
 }
 
