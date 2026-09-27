@@ -14,3 +14,11 @@ export const tapeLimiter = redis
 export const keyCreationLimiter = redis
   ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(5, '1 d'), prefix: 'ratelimit:keys' })
   : null;
+
+// Outbound-click logging (lib/clicks.ts) is analytics, not a security
+// boundary, but it's still a public unauthenticated write — this just
+// keeps one browser tab from being able to flood the log, not a real
+// abuse defense.
+export const clickLimiter = redis
+  ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '1 m'), prefix: 'ratelimit:clicks' })
+  : null;
