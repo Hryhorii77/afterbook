@@ -73,6 +73,11 @@ export interface ClosedPeriodStats {
 
 const MIN_SAMPLES_FOR_STATS = 20;
 
+// Shared "how far back" window for both stats below — exported so callers
+// beyond app/api/history/stats (e.g. app/today's leaderboard) don't have to
+// re-guess the same 30-day figure as a separate literal.
+export const STATS_LOOKBACK_MS = 30 * 24 * 60 * 60_000;
+
 /**
  * Summarizes how big the basis typically gets while the cash market is
  * NOT open — the product's actual premise (24/7 onchain vs 24/5 cash),
