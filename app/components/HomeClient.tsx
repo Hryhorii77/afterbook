@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
 import type { TapeResult, TapeRow } from '@/lib/tape';
 import { splitByLiquidity, isLiquid, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
@@ -684,6 +685,9 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             <span className={`dot ${tape.session.state}`} />
             {tape.session.label} · {tape.session.nyTime} ET
           </span>
+          <Link href="/today" className="today-link">
+            Today →
+          </Link>
           <WalletConnectButton />
         </div>
       </header>

@@ -131,6 +131,24 @@ h1 {
   background: var(--panel);
 }
 
+/* Same pill weight as .clock-badge next to it — the homepage's only entry
+   point into /today, which otherwise has no link pointing at it from
+   anywhere in the app (only a link back out, from /today itself). */
+.today-link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  text-decoration: none;
+}
+.today-link:hover {
+  border-color: var(--secondary-border-hover);
+  color: var(--text);
+}
+
 .dot {
   width: 8px;
   height: 8px;
