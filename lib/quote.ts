@@ -282,6 +282,35 @@ export function estimateLot(state: PoolState, stock: CbStock, usdcIn: number): L
   };
 }
 
+/**
+ * Inverse of estimateLot: "how much USDC would it take to move the average
+ * execution price by this many bp?" — bisects on usdcIn using the exact same
+ * virtual-reserve math (not a separate model), so it carries the same
+ * single-tick caveat estimateLot does: a pool that never trips
+ * largeTradeCaveat at the returned size stayed within the current tick's
+ * liquidity for this whole answer, one that does means the real answer
+ * likely differs once the trade walks into the next tick range.
+ * impactBp(usdcIn) is monotonically non-decreasing for usdcIn >= 0 in this
+ * constant-product model (a bigger buy is never a better average price),
+ * which is what makes bisection valid here.
+ */
+export function usdcSizeForImpact(state: PoolState, stock: CbStock, targetImpactBp: number): number {
+  if (targetImpactBp <= 0) return 0;
+
+  let hi = 1;
+  while (estimateLot(state, stock, hi).impactBp < targetImpactBp && hi < 100_000_000) {
+    hi *= 4;
+  }
+  let lo = hi / 4;
+
+  for (let i = 0; i < 50; i++) {
+    const mid = (lo + hi) / 2;
+    if (estimateLot(state, stock, mid).impactBp < targetImpactBp) lo = mid;
+    else hi = mid;
+  }
+  return hi;
+}
+
 // Fixed log-spaced sizes for the impact curve — same points for every stock
 // so pools can be compared at a glance.
 export const CURVE_SIZES_USDC = [500, 1_000, 2_500, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000];
