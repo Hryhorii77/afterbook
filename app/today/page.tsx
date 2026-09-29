@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { unstable_cache } from 'next/cache';
 import { getTape } from '@/lib/tape';
 import { buildTodaySnapshot } from '@/lib/todaySnapshot';
 import { bp, usd, usdCompact, formatDuration, formatNextOpen } from '@/lib/format';
@@ -57,7 +58,7 @@ interface LeaderboardRow {
 /** Same "did the gap mean-revert after 9:30 ET open" stat HomeClient shows
  *  for one symbol at a time — run across all 10 so /today can show which
  *  names actually fade vs which gaps stick, not just today's biggest one. */
-async function getLeaderboard(): Promise<LeaderboardRow[]> {
+async function computeLeaderboard(): Promise<LeaderboardRow[]> {
   const since = Date.now() - STATS_LOOKBACK_MS;
   const results = await Promise.all(
     STOCKS.map(async (stock) => ({ symbol: stock.symbol, stats: await getOpenSnapStats(stock.symbol, since).catch(() => null) })),
@@ -66,6 +67,12 @@ async function getLeaderboard(): Promise<LeaderboardRow[]> {
     .filter((r): r is LeaderboardRow => r.stats != null)
     .sort((a, b) => b.stats.revertedPct30 - a.stats.revertedPct30);
 }
+
+// The stat is a 30-day window over 5-minute samples, so it barely moves
+// between page loads — but computing it pulls thousands of history samples
+// per symbol from Redis (~2.5s for all ten), which was the bulk of this
+// page's load time. Cached for 10 minutes; the rest of the page stays live.
+const getLeaderboard = unstable_cache(computeLeaderboard, ['today-open-snap-leaderboard'], { revalidate: 600 });
 
 export default async function TodayPage() {
   const tape = await getTape().catch(() => null);
