@@ -36,6 +36,10 @@ export function gliderConfigured(): boolean {
 
 const MAX_RETRIES = 3;
 
+type Envelope<T> =
+  | { success: true; data: T }
+  | { success: false; error: { code: string; message: string; details?: string[] } };
+
 async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
   const key = process.env.GLIDER_API_KEY;
   if (!key) throw new GliderError(503, null, 'GLIDER_API_KEY is not set');
@@ -48,27 +52,25 @@ async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown):
       body: body ? JSON.stringify(body) : undefined,
       cache: 'no-store',
     });
+    const json = (await res.json().catch(() => null)) as (Envelope<T> & { message?: string }) | null;
+    const errCode = json && json.success === false ? json.error.code : null;
 
-    // 429: honor Retry-After, else exponential backoff with jitter. 503 with
-    // API_506 (signature verifier down) is documented as safe to retry.
-    if ((res.status === 429 || res.status === 503) && attempt < MAX_RETRIES) {
+    // Retry only what Glider documents as safe: 429 (honor Retry-After, else
+    // exponential backoff with jitter) and API_506 (signature verifier
+    // unavailable). The write routes are idempotent on flowId/nonce, so a
+    // replay can't double-apply.
+    if ((res.status === 429 || errCode === 'API_506') && attempt < MAX_RETRIES) {
       const retryAfter = Number(res.headers.get('retry-after'));
       const waitMs = retryAfter > 0 ? retryAfter * 1000 : 500 * 2 ** attempt + Math.random() * 250;
       await new Promise((r) => setTimeout(r, Math.min(waitMs, 10_000)));
       continue;
     }
 
-    const json = (await res.json().catch(() => null)) as
-      | { success: true; data: T }
-      | { success: false; error: { code: string; message: string; details?: string[] } }
-      | { error?: string; message?: string }
-      | null;
-
-    if (res.ok && json && 'success' in json && json.success) return json.data;
-    if (json && 'success' in json && json.success === false) {
+    if (res.ok && json && json.success) return json.data;
+    if (json && json.success === false) {
       throw new GliderError(res.status, json.error.code, json.error.message, json.error.details);
     }
-    throw new GliderError(res.status, null, (json && 'message' in json && json.message) || `HTTP ${res.status}`);
+    throw new GliderError(res.status, null, json?.message || `HTTP ${res.status}`);
   }
 }
 
@@ -92,3 +94,77 @@ export const createStrategy = (s: GliderStrategyInput) =>
 /** Goes live immediately for every enrolled portfolio on its next run. */
 export const publishStrategyVersion = (strategyId: string, allocation: GliderAllocation, changeLog?: string) =>
   request<{ version: number }>('POST', `/strategies/${strategyId}/versions`, { allocation, ...(changeLog ? { changeLog } : {}) });
+
+// --- Enrollment (two-stage, user-signed) -----------------------------------
+
+export interface EnrollSignatureResponse {
+  flowId: string;
+  accountIndex: string;
+  agentAccountId: string;
+  accountType: 'ECDSA' | 'ERC1271';
+  message: { kind: 'ecdsa'; raw: string } | { kind: 'typed-data'; typedData: unknown };
+}
+
+export const enrollSignature = (input: { ownerAccountId: string; strategyId: string; chainIds: number[]; accountType?: 'ECDSA' | 'ERC1271' }) =>
+  request<EnrollSignatureResponse>('POST', '/enroll/signature', input);
+
+export interface EnrollInput {
+  ownerAccountId: string;
+  strategyId: string;
+  chainIds: number[];
+  accountIndex: string;
+  agentAccountId: string;
+  signature: string;
+  flowId: string;
+  portfolioName?: string;
+}
+
+export const enroll = (input: EnrollInput) =>
+  request<{ portfolioId: string; strategyId: string; smartAccounts: { accountId: string }[] }>('POST', '/enroll', input);
+
+// --- Portfolios -------------------------------------------------------------
+
+export interface GliderPortfolio {
+  portfolioId: string;
+  portfolioName: string;
+  ownerAccountId: string;
+  strategyId: string;
+  strategyVersion?: number;
+  smartAccounts: { accountId: string; depositAccountId?: string }[];
+  schedule: { status: 'active' | 'paused'; frequency: string; nextDueAt?: string; lastRebalanceAt?: string };
+}
+
+export const listPortfolios = (q: { ownerAccountId: string; strategyId?: string }) => {
+  const params = new URLSearchParams({ ownerAccountId: q.ownerAccountId });
+  if (q.strategyId) params.set('strategyId', q.strategyId);
+  return request<{ portfolios: GliderPortfolio[]; nextCursor: string | null }>('GET', `/portfolios?${params}`);
+};
+
+export const getPortfolio = (portfolioId: string) =>
+  request<GliderPortfolio>('GET', `/portfolios/${encodeURIComponent(portfolioId)}`);
+
+export const getPositions = (portfolioId: string) =>
+  request<unknown>('GET', `/portfolios/${encodeURIComponent(portfolioId)}/positions`);
+
+export const startPortfolio = (portfolioId: string) =>
+  request<unknown>('POST', `/portfolios/${encodeURIComponent(portfolioId)}/start`);
+
+// --- Withdrawal (two-stage, user-signed, 10-minute expiry) -------------------
+
+export interface WithdrawSignatureInput {
+  recipientAccountId: string;
+  assets: { assetId: string; amountRaw: string }[];
+}
+
+export const withdrawSignature = (portfolioId: string, input: WithdrawSignatureInput) =>
+  request<{ authorizationId: string; expiresAt: string; typedData: { message: unknown } & Record<string, unknown> }>(
+    'POST',
+    `/portfolios/${encodeURIComponent(portfolioId)}/withdraw/signature`,
+    input,
+  );
+
+export const withdraw = (portfolioId: string, input: { message: unknown; signature: string }) =>
+  request<{ operationId: string; submittedAt: string }>('POST', `/portfolios/${encodeURIComponent(portfolioId)}/withdraw`, input);
+
+export const getOperation = (portfolioId: string, operationId: string) =>
+  request<unknown>('GET', `/portfolios/${encodeURIComponent(portfolioId)}/operations/${encodeURIComponent(operationId)}`);
