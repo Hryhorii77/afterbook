@@ -1,0 +1,74 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { getTape } from '@/lib/tape';
+import { getGeoInfo } from '@/lib/geo';
+import { buildTilt } from '@/lib/baskets/tilt';
+import { DEPTH_SHARE, MIN_WEIGHT, MAX_WEIGHT } from '@/lib/baskets/weights';
+import { bp, usdCompact } from '@/lib/format';
+
+export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  title: 'Baskets — Afterbook',
+  description: 'Afterbook Basis Tilt: the ten Base tokenized stocks, weighted by on-chain depth and cash-vs-chain basis.',
+};
+
+export default async function BasketsPage() {
+  const [tape, geo] = await Promise.all([getTape().catch(() => null), getGeoInfo()]);
+  const tilt = tape ? buildTilt(tape) : null;
+
+  return (
+    <main>
+      <header className="top">
+        <h1>Afterbook · Baskets</h1>
+      </header>
+
+      <section className="panel">
+        <h2>Basis Tilt</h2>
+        <p className="geo-note" style={{ marginTop: 0 }}>
+          The same ten Base tokenized stocks Afterbook tracks, weighted by what the on-chain books actually show rather
+          than equally or by market cap. {Math.round(DEPTH_SHARE * 100)}% of the tilt follows real pool depth; the other{' '}
+          {Math.round((1 - DEPTH_SHARE) * 100)}% follows the size of the cash-vs-chain gap, counted only for liquid pools
+          since a thin pool&apos;s basis is mostly noise. Every name stays between {MIN_WEIGHT * 100}% and{' '}
+          {MAX_WEIGHT * 100}%. Computed from Afterbook&apos;s own on-chain reads — no third-party price feed.
+        </p>
+
+        {!tilt ? (
+          <p className="geo-note">Tape unavailable right now — try again shortly.</p>
+        ) : (
+          <div className="gap-grid">
+            {tilt.map((row) => (
+              <div className="gap-cell" key={row.symbol}>
+                <div className="gap-symbol">{row.symbol}</div>
+                <div>{row.weight}%</div>
+                <div className="gap-detail">
+                  depth {row.depthUsd != null ? usdCompact(row.depthUsd) : '—'} · basis {bp(row.basisBp)}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>Enroll</h2>
+        <button type="button" disabled>
+          {geo.nonUs ? 'Enrollment opens soon' : 'Not available in your region'}
+        </button>
+        <p className={`geo-note${geo.country === 'US' ? ' geo-note-blocked' : ''}`}>
+          {geo.country === 'US'
+            ? 'Not available in the US.'
+            : geo.country
+              ? `Detected region: ${geo.country}.`
+              : 'Region could not be detected.'}{' '}
+          This is a best-effort check based on IP country, not a compliance control — it does not stop a VPN. Afterbook
+          never holds funds or executes trades for baskets.
+        </p>
+      </section>
+
+      <p className="geo-note">
+        <Link href="/">Open the full tape →</Link>
+      </p>
+    </main>
+  );
+}
