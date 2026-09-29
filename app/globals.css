@@ -149,6 +149,30 @@ h1 {
   color: var(--text);
 }
 
+/* Text link with a visible hover/focus response: the arrow slides right and
+   the underline appears. Used for in-page "go elsewhere" links that have no
+   button chrome (e.g. the footer link on /today). */
+.page-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.page-link .arrow {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+.page-link:hover, .page-link:focus-visible {
+  color: var(--text);
+  border-bottom-color: var(--secondary-border-hover);
+}
+.page-link:hover .arrow, .page-link:focus-visible .arrow {
+  transform: translateX(4px);
+}
+
 .dot {
   width: 8px;
   height: 8px;
