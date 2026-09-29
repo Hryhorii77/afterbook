@@ -167,7 +167,9 @@ export default async function TodayPage() {
       )}
 
       <p className="geo-note">
-        <Link href="/">Open the full tape, size a trade, or check every symbol →</Link>
+        <Link href="/" className="page-link">
+          Open the full tape, size a trade, or check every symbol <span className="arrow">→</span>
+        </Link>
       </p>
     </main>
   );
