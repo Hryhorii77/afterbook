@@ -6,7 +6,7 @@ export default function Loading() {
   return (
     <main>
       <header className="top">
-        <h1>Afterbook · Today</h1>
+        <h1>Afterbook · Biggest gap</h1>
       </header>
       <section className="panel gap-hero today-hero" aria-busy="true">
         <p className="geo-note">Reading the tape…</p>

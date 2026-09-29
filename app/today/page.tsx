@@ -16,7 +16,7 @@ import { getOpenSnapStats, STATS_LOOKBACK_MS, type OpenSnapStats } from '@/lib/h
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Today — Afterbook',
+  title: 'Biggest gap — Afterbook',
   description: "The single biggest cash-vs-chain gap across Base's tokenized stocks right now, and how deep the book behind it is.",
 };
 
@@ -89,7 +89,7 @@ export default async function TodayPage() {
   return (
     <main>
       <header className="top">
-        <h1>Afterbook · Today</h1>
+        <h1>Afterbook · Biggest gap</h1>
       </header>
 
       <section className="panel gap-hero today-hero">
