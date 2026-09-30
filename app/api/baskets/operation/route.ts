@@ -4,7 +4,11 @@ import { guardBasketRequest, errorResponse, OWNER_RE, ownerAccountId, strategyId
 
 export const revalidate = 0;
 
-const OPERATION_RE = /^[A-Za-z0-9_-]{1,80}$/;
+// Glider's operation ids aren't all one shape (a plain transfer returned one
+// this app rejected when the pattern was letters/digits/_/- only), so this only
+// bounds length and control characters. The id is percent-encoded into a
+// single path segment before it reaches Glider, so it can't alter the path.
+const OPERATION_RE = /^[^\x00-\x1f\x7f]{1,200}$/;
 
 // Poll target for an async withdrawal. The portfolio is resolved from the
 // owner address, so an operation id is only ever looked up inside that

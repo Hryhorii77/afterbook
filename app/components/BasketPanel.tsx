@@ -178,9 +178,16 @@ export function BasketPanel() {
       // up to ~2 min), then re-read balances instead of guessing with a timer.
       for (let i = 0; i < 40; i++) {
         await new Promise((r) => setTimeout(r, 3000));
-        const op = await api<{ state: string; error: string | null }>(
-          `/api/baskets/operation?owner=${address}&operationId=${encodeURIComponent(operationId)}`,
-        );
+        let op: { state: string; error: string | null };
+        try {
+          op = await api(`/api/baskets/operation?owner=${address}&operationId=${encodeURIComponent(operationId)}`);
+        } catch {
+          // The withdrawal itself was already accepted; only the status check
+          // failed. Say that instead of showing an error that reads like a failed withdrawal.
+          setNotice('Withdrawal submitted, but its status could not be read. Press Refresh to see your balance.');
+          await refresh();
+          return;
+        }
         if (op.state === 'completed') {
           setNotice('Withdrawal complete — the funds are in your wallet.');
           await refresh();
