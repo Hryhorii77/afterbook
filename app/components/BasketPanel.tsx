@@ -118,7 +118,7 @@ export function BasketPanel() {
         },
       });
       setReview(null);
-      setNotice('Enrolled. Send funds to the deposit address below, then start automation.');
+      setNotice('Enrolled. Automation is on — send funds to the deposit address below and the first rebalance will allocate them.');
       await refresh();
     });
 
