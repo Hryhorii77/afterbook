@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
     }
   }
-  const strategyId = process.env.GLIDER_STRATEGY_ID;
+  const strategyId = process.env.GLIDER_STRATEGY_ID?.trim();
   if (!gliderConfigured() || !strategyId) return NextResponse.json({ ok: false, reason: 'baskets not configured' });
 
   try {

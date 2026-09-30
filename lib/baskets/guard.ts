@@ -11,7 +11,8 @@ export const RAW_AMOUNT_RE = /^[0-9]{1,78}$/;
 export const ownerAccountId = (address: string) => `eip155:0:${address}`;
 
 export function strategyId(): string | null {
-  return process.env.GLIDER_STRATEGY_ID ?? null;
+  // Trimmed: a pasted-in env value with stray whitespace otherwise reaches Glider as a different id.
+  return process.env.GLIDER_STRATEGY_ID?.trim() || null;
 }
 
 function callerIp(request: NextRequest): string {

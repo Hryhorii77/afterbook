@@ -20,7 +20,7 @@ export default async function BasketsPage() {
   const tilt = tape ? buildTilt(tape) : null;
   // Only live once both the API key and a strategy id are set — removing
   // either is the off switch.
-  const enabled = gliderConfigured() && !!process.env.GLIDER_STRATEGY_ID;
+  const enabled = gliderConfigured() && !!process.env.GLIDER_STRATEGY_ID?.trim();
 
   return (
     <main>
