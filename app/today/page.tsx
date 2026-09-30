@@ -89,7 +89,9 @@ export default async function TodayPage() {
   return (
     <main>
       <header className="top">
-        <h1>Afterbook · Biggest gap</h1>
+        <h1>
+          <Link href="/" className="page-link">Afterbook</Link> · Biggest gap
+        </h1>
       </header>
 
       <section className="panel gap-hero today-hero">
