@@ -31,7 +31,7 @@ export class GliderError extends Error {
 }
 
 export function gliderConfigured(): boolean {
-  return !!process.env.GLIDER_API_KEY;
+  return !!process.env.GLIDER_API_KEY?.trim();
 }
 
 const MAX_RETRIES = 3;
@@ -41,9 +41,11 @@ type Envelope<T> =
   | { success: false; error: { code: string; message: string; details?: string[] } };
 
 async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
-  const key = process.env.GLIDER_API_KEY;
+  // Env values are trimmed: a stray space from a dashboard paste would otherwise
+  // make a valid key read as invalid, or a valid URL as a different host.
+  const key = process.env.GLIDER_API_KEY?.trim();
   if (!key) throw new GliderError(503, null, 'GLIDER_API_KEY is not set');
-  const base = process.env.GLIDER_API_BASE ?? DEFAULT_BASE;
+  const base = process.env.GLIDER_API_BASE?.trim() || DEFAULT_BASE;
 
   for (let attempt = 0; ; attempt++) {
     const res = await fetch(`${base}${path}`, {
