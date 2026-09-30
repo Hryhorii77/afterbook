@@ -5,6 +5,8 @@ import { getGeoInfo } from '@/lib/geo';
 import { buildTilt } from '@/lib/baskets/tilt';
 import { DEPTH_SHARE, MIN_WEIGHT, MAX_WEIGHT } from '@/lib/baskets/weights';
 import { bp, usdCompact } from '@/lib/format';
+import { gliderConfigured } from '@/lib/glider';
+import { BasketPanel } from '@/app/components/BasketPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +18,9 @@ export const metadata: Metadata = {
 export default async function BasketsPage() {
   const [tape, geo] = await Promise.all([getTape().catch(() => null), getGeoInfo()]);
   const tilt = tape ? buildTilt(tape) : null;
+  // Only live once both the API key and a strategy id are set — removing
+  // either is the off switch.
+  const enabled = gliderConfigured() && !!process.env.GLIDER_STRATEGY_ID;
 
   return (
     <main>
@@ -52,9 +57,13 @@ export default async function BasketsPage() {
 
       <section className="panel">
         <h2>Enroll</h2>
-        <button type="button" disabled>
-          {geo.nonUs ? 'Enrollment opens soon' : 'Not available in your region'}
-        </button>
+        {!geo.nonUs ? (
+          <button type="button" disabled>Not available in your region</button>
+        ) : enabled ? (
+          <BasketPanel />
+        ) : (
+          <button type="button" disabled>Enrollment opens soon</button>
+        )}
         <p className={`geo-note${geo.country === 'US' ? ' geo-note-blocked' : ''}`}>
           {geo.country === 'US'
             ? 'Not available in the US.'

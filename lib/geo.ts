@@ -10,7 +10,12 @@ export interface GeoInfo {
 // that plainly in the UI rather than imply it's KYC-grade.
 export async function getGeoInfo(): Promise<GeoInfo> {
   const h = await headers();
-  const country = h.get('x-vercel-ip-country');
+  // Local `next dev` never gets Vercel's edge header, so the fail-closed gate
+  // would lock a developer out of their own machine. DEV_GEO_COUNTRY only
+  // applies when NODE_ENV is 'development' — a production build ignores it
+  // entirely, so setting it there (by mistake or otherwise) changes nothing.
+  const devOverride = process.env.NODE_ENV === 'development' ? process.env.DEV_GEO_COUNTRY : undefined;
+  const country = devOverride ?? h.get('x-vercel-ip-country');
 
   return {
     country: country ?? null,
