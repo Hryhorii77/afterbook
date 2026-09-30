@@ -688,6 +688,9 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           <Link href="/today" className="today-link">
             Biggest gap →
           </Link>
+          <Link href="/baskets" className="today-link">
+            Baskets →
+          </Link>
           <WalletConnectButton />
         </div>
       </header>
