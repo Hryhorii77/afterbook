@@ -1,8 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useAccount, useSignMessage, useSignTypedData } from 'wagmi';
-import type { Hex } from 'viem';
+import { useAccount, useReadContract, useSignMessage, useSignTypedData, useWriteContract } from 'wagmi';
+import { base } from 'wagmi/chains';
+import { erc20Abi, formatUnits, parseUnits, type Hex } from 'viem';
+import { USDC } from '@/lib/tokens';
 import { WalletConnectButton } from './WalletConnectButton';
 
 interface Portfolio {
@@ -56,6 +58,17 @@ export function BasketPanel() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [amount, setAmount] = useState('');
+  const { writeContractAsync } = useWriteContract();
+
+  const { data: usdcBalance, refetch: refetchUsdc } = useReadContract({
+    address: USDC.address,
+    abi: erc20Abi,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    chainId: base.id,
+    query: { enabled: !!address },
+  });
 
   const refresh = useCallback(async () => {
     if (!address) return;
@@ -129,6 +142,22 @@ export function BasketPanel() {
       await refresh();
     });
 
+  // A plain ERC-20 transfer from the user's own wallet to their own Glider
+  // smart account — the wallet shows the exact recipient and amount, and this
+  // app never holds the funds. Recipient is re-derived from Glider's portfolio
+  // response, not from anything the user typed.
+  const sendUsdc = (to: string) =>
+    run('deposit', async () => {
+      const value = parseUnits(amount, USDC.decimals);
+      if (value <= BigInt(0)) throw new Error('Enter an amount above zero.');
+      if (usdcBalance !== undefined && value > usdcBalance) throw new Error('That is more USDC than your wallet holds on Base.');
+      await writeContractAsync({ address: USDC.address, abi: erc20Abi, functionName: 'transfer', args: [to as Hex, value], chainId: base.id });
+      setAmount('');
+      setNotice('USDC sent. It should appear in your balance after the transaction confirms and Glider picks it up — press Refresh.');
+      void refetchUsdc();
+      setTimeout(() => void refresh(), 10000);
+    });
+
   const withdrawAll = () =>
     run('withdraw', async () => {
       const assets = (positions?.assets ?? []).filter((a) => a.balanceRaw !== '0' && a.assetId.startsWith('eip155:8453/'));
@@ -200,6 +229,26 @@ export function BasketPanel() {
             Only send assets on <strong>Base</strong> to this address. Funds sent on another network, or to the wrong
             address, may not be recoverable.
           </p>
+          {depositAddr && (
+            <p className="geo-note">
+              Your wallet: {usdcBalance !== undefined ? `${formatUnits(usdcBalance, USDC.decimals)} USDC` : '…'} on Base
+              <br />
+              <input
+                inputMode="decimal"
+                placeholder="USDC amount"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+                style={{ marginRight: 8, width: 140 }}
+                disabled={busy !== null}
+              />
+              <button type="button" className="btn" onClick={() => sendUsdc(depositAddr)} disabled={busy !== null || !/^\d*\.?\d+$/.test(amount)}>
+                {busy === 'deposit' ? 'Confirm in wallet…' : 'Send USDC'}
+              </button>
+              <br />
+              Sends USDC from your wallet to your own Basis Tilt account on Base, then Glider spreads it across the basket.
+              Each position needs at least $1 to trade, so tiny deposits may leave some names unfilled.
+            </p>
+          )}
           {positions && (
             <p className="geo-note">
               Balance {usd(positions.totalValueUsd)} · automation {portfolio.schedule.status}
