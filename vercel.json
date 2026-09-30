@@ -4,6 +4,7 @@
     { "path": "/api/cron/discover-tokens", "schedule": "0 13 * * *" },
     { "path": "/api/cron/fee-snapshot", "schedule": "0 6 * * *" },
     { "path": "/api/cron/earnings-sync", "schedule": "0 11 * * *" },
-    { "path": "/api/cron/jensen-burn-check", "schedule": "0 * * * *" }
+    { "path": "/api/cron/jensen-burn-check", "schedule": "0 * * * *" },
+    { "path": "/api/cron/basket-tilt", "schedule": "0 22 * * *" }
   ]
 }

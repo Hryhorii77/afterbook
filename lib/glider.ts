@@ -170,3 +170,6 @@ export const withdraw = (portfolioId: string, input: { message: unknown; signatu
 
 export const getOperation = (portfolioId: string, operationId: string) =>
   request<unknown>('GET', `/portfolios/${encodeURIComponent(portfolioId)}/operations/${encodeURIComponent(operationId)}`);
+
+export const getStrategy = (strategyId: string) =>
+  request<{ strategyId: string; version: number; allocation: GliderAllocation }>('GET', `/strategies/${encodeURIComponent(strategyId)}`);

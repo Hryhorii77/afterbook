@@ -100,3 +100,62 @@ export function computeTiltWeights(inputs: WeightInput[]): BasketWeight[] {
     basisScore: basisScore[i],
   }));
 }
+
+// --- Smoothing --------------------------------------------------------------
+//
+// A raw tilt moves with every tape read (a live basis flips sign at the open),
+// and every published change makes each enrolled portfolio trade — ~1% round
+// trip in the deepest pools, more in the thin ones. So the published weights
+// follow a moving average of the target, and a new version only goes out when
+// enough of the basket would actually change hands.
+
+/** Weight given to the newest target in the moving average (0–1). */
+export const EMA_ALPHA = 0.3;
+/** Publish only when at least this fraction of the basket would be traded. */
+export const MIN_TURNOVER = 0.05;
+
+export interface SmoothInput {
+  target: BasketWeight[];
+  /** Previous moving average by symbol (fractions summing to 1), if any. */
+  ema: Record<string, number> | null;
+  /** Weights currently live in the strategy by symbol (fractions), if any. */
+  published: Record<string, number> | null;
+}
+
+export interface SmoothResult {
+  ema: Record<string, number>;
+  weights: { symbol: string; weight: string; weightHundredths: number }[];
+  /** Half the summed absolute change vs published: the share of the basket traded. */
+  turnover: number;
+  publish: boolean;
+  reason: string;
+}
+
+export function smoothWeights({ target, ema, published }: SmoothInput): SmoothResult {
+  const symbols = target.map((t) => t.symbol);
+  const nextEma: Record<string, number> = {};
+  for (const t of target) {
+    const fresh = t.weightHundredths / 10_000;
+    const prev = ema?.[t.symbol];
+    nextEma[t.symbol] = prev === undefined ? fresh : EMA_ALPHA * fresh + (1 - EMA_ALPHA) * prev;
+  }
+  const bounded = clampToSimplex(symbols.map((s) => nextEma[s]), MIN_WEIGHT, MAX_WEIGHT);
+  const hundredths = toHundredths(bounded);
+  const weights = symbols.map((symbol, i) => ({ symbol, weight: (hundredths[i] / 100).toFixed(2), weightHundredths: hundredths[i] }));
+
+  if (!published) {
+    return { ema: nextEma, weights, turnover: 1, publish: true, reason: 'no published weights yet' };
+  }
+  const turnover =
+    symbols.reduce((sum, s, i) => sum + Math.abs(hundredths[i] / 10_000 - (published[s] ?? 0)), 0) / 2;
+  const publish = turnover >= MIN_TURNOVER;
+  return {
+    ema: nextEma,
+    weights,
+    turnover,
+    publish,
+    reason: publish
+      ? `turnover ${(turnover * 100).toFixed(1)}% >= ${(MIN_TURNOVER * 100).toFixed(0)}%`
+      : `turnover ${(turnover * 100).toFixed(1)}% below ${(MIN_TURNOVER * 100).toFixed(0)}% — keep current weights`,
+  };
+}
