@@ -169,9 +169,29 @@ export function BasketPanel() {
       );
       const { domain, types, primaryType, message } = sig.typedData;
       const signature = await signTypedDataAsync({ domain, types, primaryType, message } as Parameters<typeof signTypedDataAsync>[0]);
-      await api('/api/baskets/withdraw', { method: 'POST', body: { owner: address, message, signature } });
-      setNotice('Withdrawal submitted to your wallet address. It can take a minute to settle.');
-      setTimeout(() => void refresh(), 8000);
+      const { operationId } = await api<{ operationId: string }>('/api/baskets/withdraw', {
+        method: 'POST',
+        body: { owner: address, message, signature },
+      });
+      setNotice('Withdrawal submitted — waiting for it to settle…');
+      // Poll Glider's operation until it reaches a terminal state (every 3s,
+      // up to ~2 min), then re-read balances instead of guessing with a timer.
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const op = await api<{ state: string; error: string | null }>(
+          `/api/baskets/operation?owner=${address}&operationId=${encodeURIComponent(operationId)}`,
+        );
+        if (op.state === 'completed') {
+          setNotice('Withdrawal complete — the funds are in your wallet.');
+          await refresh();
+          return;
+        }
+        if (op.state === 'failed' || op.state === 'cancelled') {
+          throw new Error(`Withdrawal ${op.state}${op.error ? `: ${op.error}` : ''}. Your funds stay in your Basis Tilt account.`);
+        }
+      }
+      setNotice('Still processing — press Refresh in a minute to check.');
+      await refresh();
     });
 
   if (!address) {
@@ -273,7 +293,7 @@ export function BasketPanel() {
             </>
           )}
           <button type="button" className="btn btn-secondary" onClick={withdrawAll} disabled={busy !== null || !withdrawable}>
-            {busy === 'withdraw' ? 'Waiting for signature…' : 'Withdraw everything'}
+            {busy === 'withdraw' ? 'Withdrawing…' : 'Withdraw everything'}
           </button>{' '}
           <button type="button" className="btn btn-secondary" onClick={() => void refresh()} disabled={busy !== null}>
             Refresh
