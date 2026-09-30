@@ -25,7 +25,9 @@ export default async function BasketsPage() {
   return (
     <main>
       <header className="top">
-        <h1>Afterbook · Baskets</h1>
+        <h1>
+          <Link href="/" className="page-link">Afterbook</Link> · Baskets
+        </h1>
       </header>
 
       <section className="panel">
@@ -76,7 +78,9 @@ export default async function BasketsPage() {
       </section>
 
       <p className="geo-note">
-        <Link href="/">Open the full tape →</Link>
+        <Link href="/" className="page-link">
+          Open the full tape <span className="arrow">→</span>
+        </Link>
       </p>
     </main>
   );
