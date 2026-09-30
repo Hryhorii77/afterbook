@@ -72,6 +72,7 @@ export function BasketPanel() {
 
   const refresh = useCallback(async () => {
     if (!address) return;
+    void refetchUsdc();
     try {
       const data = await api<{ portfolio: Portfolio | null; positions: Positions | null }>(`/api/baskets/portfolio?owner=${address}`);
       setPortfolio(data.portfolio);
@@ -81,7 +82,7 @@ export function BasketPanel() {
     } finally {
       setLoaded(true);
     }
-  }, [address]);
+  }, [address, refetchUsdc]);
 
   useEffect(() => {
     setPortfolio(null);
