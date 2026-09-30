@@ -13,7 +13,8 @@ export async function POST(request: NextRequest) {
   const blocked = await guardBasketRequest(request);
   if (blocked) return blocked;
   const b = await readJson(request);
-  const { owner, recipient, assets } = b ?? {};
+  const { owner, recipient, assets, liquidate } = b ?? {};
+  if (liquidate !== undefined && typeof liquidate !== 'boolean') return NextResponse.json({ error: 'liquidate must be a boolean' }, { status: 400 });
   if (typeof owner !== 'string' || !OWNER_RE.test(owner)) return NextResponse.json({ error: 'owner must be a 0x address' }, { status: 400 });
   const to = recipient ?? owner;
   if (typeof to !== 'string' || !OWNER_RE.test(to)) return NextResponse.json({ error: 'recipient must be a 0x address' }, { status: 400 });
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
     const { portfolios } = await listPortfolios({ ownerAccountId: ownerAccountId(owner), strategyId: strategyId()! });
     const portfolio = portfolios[0];
     if (!portfolio) return NextResponse.json({ error: 'no portfolio for this address' }, { status: 404 });
-    const sig = await withdrawSignature(portfolio.portfolioId, { recipientAccountId: `eip155:${BASE_CHAIN_ID}:${to}`, assets: clean });
+    const sig = await withdrawSignature(portfolio.portfolioId, { recipientAccountId: `eip155:${BASE_CHAIN_ID}:${to}`, assets: clean, ...(liquidate ? { liquidate: true } : {}) });
     return NextResponse.json({ portfolioId: portfolio.portfolioId, ...sig });
   } catch (err) {
     return errorResponse(err);

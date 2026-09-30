@@ -154,6 +154,8 @@ export const startPortfolio = (portfolioId: string) =>
 export interface WithdrawSignatureInput {
   recipientAccountId: string;
   assets: { assetId: string; amountRaw: string }[];
+  /** Swap the assets into the settlement asset (USDC by default on EVM) first. */
+  liquidate?: boolean;
 }
 
 export const withdrawSignature = (portfolioId: string, input: WithdrawSignatureInput) =>

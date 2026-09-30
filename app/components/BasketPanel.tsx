@@ -159,13 +159,13 @@ export function BasketPanel() {
       setTimeout(() => void refresh(), 10000);
     });
 
-  const withdrawAll = () =>
+  const withdrawAll = (liquidate: boolean) =>
     run('withdraw', async () => {
       const assets = (positions?.assets ?? []).filter((a) => a.balanceRaw !== '0' && a.assetId.startsWith('eip155:8453/'));
       if (assets.length === 0) throw new Error('Nothing to withdraw yet.');
       const sig = await api<{ typedData: { domain: object; types: Record<string, unknown>; primaryType: string; message: unknown } }>(
         '/api/baskets/withdraw/signature',
-        { method: 'POST', body: { owner: address, assets: assets.map((a) => ({ assetId: a.assetId, amountRaw: a.balanceRaw })) } },
+        { method: 'POST', body: { owner: address, liquidate, assets: assets.map((a) => ({ assetId: a.assetId, amountRaw: a.balanceRaw })) } },
       );
       const { domain, types, primaryType, message } = sig.typedData;
       const signature = await signTypedDataAsync({ domain, types, primaryType, message } as Parameters<typeof signTypedDataAsync>[0]);
@@ -292,8 +292,11 @@ export function BasketPanel() {
               </button>{' '}
             </>
           )}
-          <button type="button" className="btn btn-secondary" onClick={withdrawAll} disabled={busy !== null || !withdrawable}>
-            {busy === 'withdraw' ? 'Withdrawing…' : 'Withdraw everything'}
+          <button type="button" className="btn btn-secondary" onClick={() => withdrawAll(true)} disabled={busy !== null || !withdrawable}>
+            {busy === 'withdraw' ? 'Withdrawing…' : 'Withdraw as USDC'}
+          </button>{' '}
+          <button type="button" className="btn btn-secondary" onClick={() => withdrawAll(false)} disabled={busy !== null || !withdrawable}>
+            Withdraw as tokens
           </button>{' '}
           <button type="button" className="btn btn-secondary" onClick={() => void refresh()} disabled={busy !== null}>
             Refresh
