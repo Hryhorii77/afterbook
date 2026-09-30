@@ -205,7 +205,7 @@ export async function buildTodayOgImage() {
       >
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
           <span style={{ fontSize: 40, fontWeight: 700, color: '#8b93a1', letterSpacing: '-0.02em' }}>
-            Afterbook · Today
+            Afterbook · Biggest gap
           </span>
           {sessionLabel && <span style={{ fontSize: 22, color: '#6b7280' }}>{sessionLabel}</span>}
         </div>

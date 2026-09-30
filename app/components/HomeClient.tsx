@@ -686,7 +686,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             {tape.session.label} · {tape.session.nyTime} ET
           </span>
           <Link href="/today" className="today-link">
-            Today →
+            Biggest gap →
           </Link>
           <WalletConnectButton />
         </div>
