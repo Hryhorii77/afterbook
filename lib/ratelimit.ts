@@ -22,3 +22,10 @@ export const keyCreationLimiter = redis
 export const clickLimiter = redis
   ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '1 m'), prefix: 'ratelimit:clicks' })
   : null;
+
+// Every /api/baskets/* call spends the shared Glider tenant key, whose own
+// rate limits are per IP (ours, since calls come from Vercel) — so this keeps
+// one visitor from burning the budget for everyone else.
+export const basketLimiter = redis
+  ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '1 m'), prefix: 'ratelimit:baskets' })
+  : null;
