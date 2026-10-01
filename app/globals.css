@@ -40,6 +40,7 @@
   --overlay-3: rgba(255, 255, 255, 0.07);
   --shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.35);
   --header-bg: #121214;
+  --shadow-pill: 0 10px 30px rgba(0, 0, 0, 0.45);
   --pad: 16px;
   --site-header-h: 56px;
   --font-ui: var(--font-poppins), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
@@ -78,6 +79,7 @@
   --overlay-3: rgba(0, 0, 0, 0.06);
   --shadow-hover: 0 6px 16px rgba(17, 19, 24, 0.12);
   --header-bg: #fafaf9;
+  --shadow-pill: 0 8px 24px rgba(17, 19, 24, 0.12);
 }
 
 * {
@@ -140,14 +142,22 @@ h1 {
   top: 0;
   z-index: 40;
   height: var(--site-header-h);
+  /* flow-root stops the pill's top margin collapsing through this element,
+     which would push the whole page down 8px when the pill appears. */
+  display: flow-root;
   background: var(--header-bg);
   border-bottom: 1px solid var(--panel-border);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 .site-header-inner {
+  width: 100%;
   max-width: 1240px;
   height: 100%;
   margin: 0 auto;
   padding: 0 20px;
+  border: 1px solid transparent;
+  transition: max-width 0.3s ease, height 0.3s ease, margin 0.3s ease, padding 0.3s ease, border-radius 0.3s ease,
+    background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -156,7 +166,6 @@ h1 {
 .site-brand {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -168,6 +177,13 @@ h1 {
   height: 20px;
   border-radius: 6px;
   background: var(--accent);
+  flex-shrink: 0;
+}
+.site-brand-text {
+  margin-left: 8px;
+  max-width: 120px;
+  overflow: hidden;
+  white-space: nowrap;
 }
 .site-nav {
   display: flex;
@@ -216,6 +232,44 @@ h1 {
   transition: color 0.12s ease, border-color 0.12s ease;
 }
 .theme-toggle:hover { color: var(--text); border-color: var(--secondary-border-hover); }
+/* Once the page is scrolled, the full-width bar condenses into a floating,
+   centred pill (the site-header element keeps its height, so nothing below it
+   shifts). data-scrolled is set by SiteHeader with a little hysteresis so it
+   doesn't flicker at the threshold. Phones keep the two-row bar below, which
+   scrolls away, so none of this applies there. */
+@media (min-width: 641px) {
+  .site-header[data-scrolled='true'] {
+    background: transparent;
+    border-bottom-color: transparent;
+    pointer-events: none; /* the empty strip beside the pill must not block clicks */
+  }
+  .site-header[data-scrolled='true'] .site-header-inner {
+    pointer-events: auto;
+    max-width: 700px;
+    height: 48px;
+    margin: 8px auto 0;
+    padding: 0 6px 0 14px;
+    border-radius: 999px;
+    border-color: var(--panel-border);
+    background: var(--header-bg);
+    box-shadow: var(--shadow-pill);
+  }
+  .site-header[data-scrolled='true'] .site-brand-text { max-width: 0; margin-left: 0; opacity: 0; }
+  .site-header[data-scrolled='true'] .site-nav { margin-left: 12px; }
+  .site-header[data-scrolled='true'] .wallet-connect-btn { min-height: 36px; padding: 4px 14px; }
+  .site-header[data-scrolled='true'] .theme-toggle { width: 36px; height: 36px; }
+}
+.site-brand-text { transition: max-width 0.3s ease, margin-left 0.3s ease, opacity 0.2s ease; }
+.site-header .wallet-connect-btn {
+  transition: min-height 0.3s ease, padding 0.3s ease, background-color 0.12s ease, opacity 0.12s ease;
+}
+.site-header .theme-toggle {
+  transition: width 0.3s ease, height 0.3s ease, color 0.12s ease, border-color 0.12s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-header, .site-header * { transition: none !important; }
+}
+
 /* Phones: two rows (brand + wallet + theme, then the page links) so no link is
    hidden off-screen, and the bar scrolls away rather than eating a tall strip
    of every screen. The sticky symbol bar then pins to the very top. */
