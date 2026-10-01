@@ -9,6 +9,8 @@ import { NotifyProvider } from './components/notify';
 import { Toaster } from './components/Toaster';
 import { LiveAlerts } from './components/LiveAlerts';
 import { TickerStrip } from './components/TickerStrip';
+import { TokenIconsProvider } from './components/TokenIcons';
+import { getTokenIcons } from '@/lib/coinbaseIcons';
 import { THEME_INIT_SCRIPT } from './components/theme';
 
 // Self-hosted at build time by next/font, so the CSP needs no extra font host.
@@ -53,6 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // this, the CSP nonce in the response header wouldn't match anything in
   // a statically-baked page and hydration would still be blocked.
   const nonce = (await headers()).get('x-nonce') ?? undefined;
+  const icons = await getTokenIcons();
 
   return (
     // suppressHydrationWarning: the init script sets data-theme on <html>
@@ -64,11 +67,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <Providers>
           <NotifyProvider>
-            <SiteHeader />
-            <TickerStrip />
-            {children}
-            <Toaster />
-            <LiveAlerts />
+            <TokenIconsProvider icons={icons}>
+              <SiteHeader />
+              <TickerStrip />
+              {children}
+              <Toaster />
+              <LiveAlerts />
+            </TokenIconsProvider>
           </NotifyProvider>
         </Providers>
       </body>
