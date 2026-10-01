@@ -1,0 +1,156 @@
+---
+name: basis-tilt-ops
+description: Operate the Basis Tilt basket on Glider safely — check who is enrolled and what they hold, dry-run the weight update, publish a new strategy version by hand, create a private test strategy, and diagnose Glider API errors. Use before ANY write to Glider (publish, rebalance, strategy settings) and when the user asks about the live basket's weights or health. Real money; read the rules first.
+---
+
+# Basis Tilt operations (Glider, real money)
+
+Background: `README.md` → "Baskets (Basis Tilt)". Code: `lib/glider.ts`
+(client), `lib/baskets/{weights,tilt,update,guard}.ts`,
+`app/api/baskets/*`, `app/api/cron/basket-tilt/route.ts`.
+
+## Rules (also in `CLAUDE.md`)
+
+1. **Glider's B2B API is production-only.** The key is a production tenant
+   key; every write is real. There is no staging (`staging-api.glider.fi`
+   rejects the key).
+2. **Publishing a strategy version makes every enrolled portfolio
+   rebalance to it.** Never publish, trigger a rebalance
+   (`POST /portfolios/{id}/rebalance`), change strategy settings, or
+   submit a withdrawal unless the user told you to in this turn — and for
+   a publish, only after step 1 below.
+3. **The permission classifier may block real-money calls** (a manual
+   rebalance trigger was blocked once). Don't route around a denial:
+   explain what you were doing and give the user the command to run
+   themselves (`!` prefix runs it as them).
+4. `BASKET_AUTOPUBLISH` stays unset unless the user decides otherwise.
+5. Never print, log or paste `GLIDER_API_KEY`. Run scripts with
+   `.env.local` loaded (`set -a; . ./.env.local; set +a`) and print only
+   counts, ids and weights.
+6. The live strategy is `GLIDER_STRATEGY_ID` in Vercel Production.
+   `.env.local` may hold a **test** strategy id in `GLIDER_STRATEGY_ID`
+   and the real one in `GLIDER_STRATEGY_ID_MAIN` — check which you are
+   about to touch.
+
+Scripts below import repo modules, so write them as `tmp-*.ts` in the
+**repo root**, run with `npx tsx ./tmp-x.ts`, and **delete them
+afterwards**. Don't commit them.
+
+## 1. Who is enrolled and what do they hold? (read-only, always first)
+
+```ts
+import { getStrategy } from './lib/glider';
+const base = (process.env.GLIDER_API_BASE ?? 'https://api.glider.fi/v2').trim();
+const key = process.env.GLIDER_API_KEY!.trim();
+const get = async (p: string) => (await fetch(base + p, { headers: { 'x-api-key': key } })).json();
+(async () => {
+  const id = process.env.GLIDER_STRATEGY_ID_MAIN!.trim();       // the LIVE strategy
+  const s = await getStrategy(id);
+  const ps = (await get(`/portfolios?strategyId=${id}&limit=200`)).data?.portfolios ?? [];
+  console.log('version', s.version, '| assets', s.allocation.assets.length, '| enrolled', ps.length);
+  for (const p of ps) {
+    const pos = (await get(`/portfolios/${p.portfolioId}/positions`)).data;
+    console.log(p.portfolioId, 'owner …' + p.ownerAccountId.slice(-6), p.schedule.status, '| $' + pos.totalValueUsd, '| inTransit', pos.inTransit?.items?.length);
+  }
+})();
+```
+
+Decision rule: if every enrolled portfolio holds ~$0 (or only the
+owner's own test money), a publish moves no one's money. Otherwise stop
+and tell the user how many people and how much value are affected before
+doing anything.
+
+## 2. Dry-run the update (read-only)
+
+```ts
+import { getTape } from './lib/tape';
+import { planTiltUpdate } from './lib/baskets/update';
+(async () => {
+  const plan = await planTiltUpdate(process.env.GLIDER_STRATEGY_ID_MAIN!.trim(), await getTape());
+  console.log('blocked:', plan.blocked, '| publish:', plan.publish, '|', plan.reason);
+  console.log(plan.weights.map((w) => `${w.symbol} ${w.weight}`).join(', '));
+})();
+```
+
+Or `curl -H "Authorization: Bearer $CRON_SECRET" "<host>/api/cron/basket-tilt?dry=1"`
+(the deployed route uses the deployed `GLIDER_STRATEGY_ID`).
+
+- `blocked: strategy asset list does not match the tracked stocks` means
+  the strategy's assets aren't exactly `BASKET_SYMBOLS` — usually you
+  pointed at the test strategy, or someone edited it. Don't force it.
+- `publish: false … below 5%` is the smoothing gate working: the live
+  weights are already close to the target.
+- The first run after a publish has no stored moving average unless the
+  publish also saved one (step 3).
+
+## 3. Publish a new version by hand (only when told to, after step 1)
+
+Write the new weights through the same path the cron uses so the moving
+average is saved too, but with an accurate change log:
+
+```ts
+import { getTape } from './lib/tape';
+import { planTiltUpdate } from './lib/baskets/update';
+import { assetIdFor } from './lib/baskets/tilt';
+import { publishStrategyVersion, getStrategy } from './lib/glider';
+import { redis } from './lib/redis';
+(async () => {
+  const id = process.env.GLIDER_STRATEGY_ID_MAIN!.trim();
+  const plan = await planTiltUpdate(id, await getTape());
+  if (plan.blocked || !plan.publish) { console.log('NOT publishing:', plan.blocked ?? plan.reason); return; }
+  if (plan.weights.reduce((s, w) => s + w.weightHundredths, 0) !== 10_000) throw new Error('weights do not sum to 100');
+  const out = await publishStrategyVersion(id, { assets: plan.weights.map((w) => ({ assetId: assetIdFor(w.symbol), weight: w.weight })) }, 'Manual refresh to the current target.');
+  await redis?.set(`basket:ema:${id}`, plan.ema);     // key format lives in lib/baskets/update.ts
+  console.log('published v' + out.version, (await getStrategy(id)).allocation.assets.map((a) => a.weight).join(' '));
+})();
+```
+
+Versions are immutable and a new one is live immediately. To undo,
+publish the previous version's allocation as a *new* version (read it
+with `GET /strategies/{id}`/the versions list) — there is no delete.
+
+## 4. Moving to auto-publish
+
+Only when the user decides. Prerequisites: several days of dry-run
+output showing sensible, stable weights and low turnover; the user
+accepts that every enrolled portfolio then trades whenever turnover
+reaches 5%. Then set `BASKET_AUTOPUBLISH=1` in Vercel Production (see the
+`vercel-env-verify` skill: redeploy and verify). Unset it to stop.
+
+## 5. A private test strategy (to try things without touching the real one)
+
+```ts
+import { createStrategy } from './lib/glider';
+import { assetIdFor } from './lib/baskets/tilt';
+createStrategy({
+  name: 'Afterbook Basis Tilt (test, 3 tokens)',
+  allocation: { assets: [['NVDAc', '33.34'], ['AMZNc', '33.33'], ['GOOGLc', '33.33']].map(([s, w]) => ({ assetId: assetIdFor(s), weight: w })) },
+  schedule: { type: 'interval', frequency: 'daily' },
+  preferences: { swap: { slippageBps: 100, priceImpactBps: 100, thresholdUsd: '1.00' } },
+  isPublic: false,
+}).then((r) => console.log(r.strategyId));
+```
+
+Use the deepest pools, keep it private, and size tests so each position
+is at least $1 (Glider's minimum swap, `thresholdUsd` cannot be below
+`1.00`). Measured: a ~$5 round trip through three liquid names cost about
+0.9% in swaps; a USDC-only deposit and withdrawal costs nothing.
+`POST /v2/strategies/validate` is a dry run with no side effects.
+
+## Glider API cheat sheet
+
+- Envelope: `{success, data}` or `{success:false, error:{code,message,details}}`.
+- `API_102` invalid key — wrong host (staging) or a malformed value
+  (placeholders, spaces). `API_104` missing scope — see `GET /whoami`.
+- `API_400 Strategy not found or not owned by tenant: <id>` with spaces
+  in the id — a bad env value (the client trims now).
+- `API_004` / 429 on rebalance — a rebalance finished too recently
+  (cooldown); in our test the first scheduled rebalance ran about a minute
+  after enrollment, so a manual trigger right after is usually refused.
+- Async work returns `202` with an `operationId`; poll
+  `GET /portfolios/{id}/operations/{operationId}` until `completed`,
+  `failed` or `cancelled`. Operation ids are not all one shape.
+- Withdrawal authorizations expire after 10 minutes; enrollment `flowId`
+  after 24 hours; both are idempotency anchors — replay, don't recreate.
+- Rate limits are per IP (all Vercel requests share IPs); the app's own
+  limiter is 20 requests/min/IP on `/api/baskets/*`.
