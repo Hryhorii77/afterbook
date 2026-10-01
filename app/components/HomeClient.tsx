@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
 import type { TapeResult, TapeRow } from '@/lib/tape';
 import { splitByLiquidity, isLiquid, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
@@ -14,7 +13,6 @@ import { computeInRangeProbabilityPct, IN_RANGE_HORIZON_DAYS, solveImpliedHorizo
 import { capitalEfficiencyMultiplier, computeDivergenceLossAtBoundary, computeLiquidityConcentrationRange } from '@/lib/lpRange';
 import { Sparkline } from './Sparkline';
 import { MyLots } from './MyLots';
-import { WalletConnectButton } from './WalletConnectButton';
 
 interface CurvePoint {
   usdcIn: number;
@@ -677,21 +675,14 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     <main>
       <header className="top">
         <div>
-          <h1>Afterbook</h1>
-          <p className="tagline">Cash close vs the Aero book, in shares. Execution stays on Aerodrome.</p>
+          <h1>Cash close vs the Aero book</h1>
+          <p className="tagline">In shares. Execution stays on Aerodrome.</p>
         </div>
         <div className="header-actions">
           <span className="clock-badge">
             <span className={`dot ${tape.session.state}`} />
             {tape.session.label} · {tape.session.nyTime} ET
           </span>
-          <Link href="/today" className="today-link">
-            Biggest gap →
-          </Link>
-          <Link href="/baskets" className="today-link">
-            Baskets →
-          </Link>
-          <WalletConnectButton />
         </div>
       </header>
 

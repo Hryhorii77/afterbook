@@ -25,9 +25,7 @@ export default async function BasketsPage() {
   return (
     <main>
       <header className="top">
-        <h1>
-          <Link href="/" className="page-link">Afterbook</Link> · Baskets
-        </h1>
+        <h1>Baskets</h1>
       </header>
 
       <section className="panel">
