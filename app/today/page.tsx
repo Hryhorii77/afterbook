@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { SymbolTile } from '@/app/components/SymbolTile';
 import { unstable_cache } from 'next/cache';
 import { getTape } from '@/lib/tape';
+import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import { buildTodaySnapshot } from '@/lib/todaySnapshot';
 import { bp, usd, usdCompact, formatDuration, formatNextOpen } from '@/lib/format';
 import { STOCKS, getStock } from '@/lib/tokens';
@@ -109,8 +111,13 @@ export default async function TodayPage() {
 
             {headline ? (
               <>
-                <div className="today-symbol">
-                  Biggest gap: {headline.symbol} · {headline.name}
+                <div className="today-id">
+                  <SymbolTile cashTicker={headline.cashTicker} />
+                  <div className="sym-cell-text">
+                    <span className="today-id-label">Biggest gap right now</span>
+                    <span className="symbol">{headline.symbol}</span>
+                    <span className="symbol-name" title={headline.name}>{headline.name}</span>
+                  </div>
                 </div>
                 <div className={`today-stat-value ${headlineBp != null && headlineBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>
                   {bp(headlineBp)}
@@ -143,12 +150,25 @@ export default async function TodayPage() {
       {snapshot && (
         <section className="panel">
           <h2>Liquidity behind the tape</h2>
-          <p className="geo-note" style={{ marginTop: 0 }}>
-            {usdCompact(snapshot.totalLiquidDepthUsd)} in real on-chain depth across {snapshot.liquidCount} liquid{' '}
-            {snapshot.liquidCount === 1 ? 'pool' : 'pools'}
-            {snapshot.thinCount > 0 &&
-              ` (${snapshot.thinCount} thinner ${snapshot.thinCount === 1 ? 'name' : 'names'} not counted here — see the full tape)`}
-            .
+          <div className="stat-grid">
+            <div className="stat-card">
+              <div className="stat-value">{usdCompact(snapshot.totalLiquidDepthUsd)}</div>
+              <div className="stat-label">Real on-chain depth</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{snapshot.liquidCount}</div>
+              <div className="stat-label">Liquid {snapshot.liquidCount === 1 ? 'pool' : 'pools'}</div>
+            </div>
+            {snapshot.thinCount > 0 && (
+              <div className="stat-card">
+                <div className="stat-value">{snapshot.thinCount}</div>
+                <div className="stat-label">Thinner {snapshot.thinCount === 1 ? 'name' : 'names'}, not counted</div>
+              </div>
+            )}
+          </div>
+          <p className="geo-note">
+            Depth is what is actually deployed in each pool. Names under {usdCompact(LIQUID_DEPTH_THRESHOLD_USD)} are left
+            out of this total; they are in the full tape.
           </p>
         </section>
       )}
@@ -161,14 +181,30 @@ export default async function TodayPage() {
             the 9:30 ET open, rather than holding or widening. Higher means the overnight gap usually fades fast; lower
             means it tends to stick.
           </p>
-          <div className="gap-grid">
-            {leaderboard.map((row) => (
-              <div className="gap-cell" key={row.symbol}>
-                <div className="gap-symbol">{row.symbol}</div>
-                <div>{row.stats.revertedPct30.toFixed(0)}%</div>
-                <div className="gap-detail">{row.stats.days30} sessions</div>
-              </div>
-            ))}
+          <div className="weight-grid">
+            {leaderboard.map((row) => {
+              const stock = getStock(row.symbol);
+              const p = row.stats.revertedPct30;
+              return (
+                <div className="weight-card" key={row.symbol}>
+                  <div className="weight-card-top">
+                    <SymbolTile cashTicker={stock?.cashTicker ?? row.symbol} />
+                    <div className="sym-cell-text">
+                      <span className="symbol">{row.symbol}</span>
+                      <span className="symbol-name" title={stock?.name}>{stock?.name}</span>
+                    </div>
+                  </div>
+                  <div className="weight-pct">{p.toFixed(0)}%</div>
+                  <div className="weight-bar" aria-hidden="true">
+                    <span style={{ width: `${Math.max(0, Math.min(100, p))}%` }} />
+                  </div>
+                  <div className="weight-meta">
+                    <span>{row.stats.days30} sessions</span>
+                    <span>{p >= 80 ? 'Usually fades' : p >= 50 ? 'Mixed' : 'Tends to stick'}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}
