@@ -148,7 +148,16 @@ const SORT_COLUMNS: { key: SortKey; label: (cashColumnLabel: string) => string }
 // with the table above it. Fixed, shared percentages (paired with
 // `table-layout: fixed` in globals.css) keep both tables' columns lined up
 // regardless of what either one's rows contain.
-const TAPE_COLUMN_WIDTHS = ['27%', '14%', '14%', '13%', '19%', '13%'];
+const TAPE_COLUMN_WIDTHS = ['23%', '12%', '12%', '11%', '17%', '10%', '15%'];
+
+interface TrendData {
+  series: Record<string, number[]>;
+  change24h: Record<string, number | null>;
+  /** Days of history the charts actually cover (up to 30). */
+  days: number;
+}
+
+const pct = (n: number) => `${Math.abs(n).toFixed(2)}%`;
 
 function TapeColGroup() {
   return (
@@ -164,10 +173,12 @@ function TapeHead({
   cashColumnLabel,
   sort,
   onSort,
+  trendDays,
 }: {
   cashColumnLabel: string;
   sort: SortState;
   onSort: (key: SortKey) => void;
+  trendDays: number | null;
 }) {
   return (
     <thead>
@@ -180,7 +191,8 @@ function TapeHead({
             </span>
           </th>
         ))}
-        <th>Aero 24h</th>
+        <th>24h</th>
+        <th>{trendDays ? `Past ${trendDays}d` : 'Trend'}</th>
       </tr>
     </thead>
   );
@@ -190,12 +202,12 @@ function TapeRows({
   rows,
   activeSymbol,
   onSelect,
-  sparks,
+  trend,
 }: {
   rows: TapeRow[];
   activeSymbol: string;
   onSelect: (symbol: string) => void;
-  sparks: Record<string, number[]> | null;
+  trend: TrendData | null;
 }) {
   return (
     <>
@@ -232,8 +244,11 @@ function TapeRows({
               <span className="depth-shares">{sharesCompact(row.depthShares)}</span>
             </div>
           </td>
+          <td className={`change-cell ${trend?.change24h[row.symbol] != null ? ((trend.change24h[row.symbol] as number) >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
+            {trend?.change24h[row.symbol] != null ? `${(trend.change24h[row.symbol] as number) >= 0 ? '▲' : '▼'} ${pct(trend.change24h[row.symbol] as number)}` : '—'}
+          </td>
           <td className="spark-cell">
-            <MiniSpark values={sparks?.[row.symbol]} />
+            <MiniSpark values={trend?.series[row.symbol]} label={`Aero price, past ${trend?.days ?? ''} days`} />
           </td>
         </tr>
       ))}
@@ -250,10 +265,12 @@ function TapeCards({
   rows,
   activeSymbol,
   onSelect,
+  trend,
 }: {
   rows: TapeRow[];
   activeSymbol: string;
   onSelect: (symbol: string) => void;
+  trend: TrendData | null;
 }) {
   return (
     <div className="tape-cards">
@@ -284,6 +301,11 @@ function TapeCards({
           </div>
           <div className="tape-card-depth">
             {usdCompact(row.depthUsd)} · {sharesCompact(row.depthShares)}
+            {trend?.change24h[row.symbol] != null && (
+              <span className={`tape-card-24h ${(trend.change24h[row.symbol] as number) >= 0 ? 'basis-pos' : 'basis-neg'}`}>
+                24h {(trend.change24h[row.symbol] as number) >= 0 ? '▲' : '▼'} {pct(trend.change24h[row.symbol] as number)}
+              </span>
+            )}
           </div>
         </button>
       ))}
@@ -299,17 +321,18 @@ interface HomeClientProps {
 
 export default function HomeClient({ initialTape, initialGeo, initialSymbol }: HomeClientProps) {
   const [tape, setTape] = useState<TapeResult>(initialTape);
-  // 24h on-chain price trend per symbol for the tape's mini charts. Loaded once
-  // and refreshed every 5 min; rows just show a dash until it arrives.
-  const [sparks, setSparks] = useState<Record<string, number[]> | null>(null);
+  // On-chain price trend per symbol (up to 30 days) and the 24h change, for the
+  // tape's chart and 24h columns. Loaded once and refreshed every 5 min; cells
+  // show a dash until it arrives.
+  const [trend, setTrend] = useState<TrendData | null>(null);
   useEffect(() => {
     let off = false;
     const load = async () => {
       try {
         const res = await fetch('/api/sparklines');
         if (!res.ok) return;
-        const json = (await res.json()) as { series?: Record<string, number[]> };
-        if (!off && json.series) setSparks(json.series);
+        const json = (await res.json()) as TrendData;
+        if (!off && json.series) setTrend(json);
       } catch {
         // Trend lines are decoration; the table works without them.
       }
@@ -846,13 +869,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         <div className="table-scroll tape-table-desktop">
           <table>
             <TapeColGroup />
-            <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} />
+            <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} trendDays={trend?.days ?? null} />
             <tbody>
-              <TapeRows rows={sortedLiquidRows} activeSymbol={symbol} onSelect={selectSymbol} sparks={sparks} />
+              <TapeRows rows={sortedLiquidRows} activeSymbol={symbol} onSelect={selectSymbol} trend={trend} />
             </tbody>
           </table>
         </div>
-        <TapeCards rows={sortedLiquidRows} activeSymbol={symbol} onSelect={selectSymbol} />
+        <TapeCards rows={sortedLiquidRows} activeSymbol={symbol} onSelect={selectSymbol} trend={trend} />
         {tape.error && <p className="geo-note">{tape.error}</p>}
 
         {thinRows.length > 0 && (
@@ -869,13 +892,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                 <div className="table-scroll tape-table-desktop">
                   <table className="thin-table">
                     <TapeColGroup />
-                    <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} />
+                    <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} trendDays={trend?.days ?? null} />
                     <tbody>
-                      <TapeRows rows={sortedThinRows} activeSymbol={symbol} onSelect={selectSymbol} sparks={sparks} />
+                      <TapeRows rows={sortedThinRows} activeSymbol={symbol} onSelect={selectSymbol} trend={trend} />
                     </tbody>
                   </table>
                 </div>
-                <TapeCards rows={sortedThinRows} activeSymbol={symbol} onSelect={selectSymbol} />
+                <TapeCards rows={sortedThinRows} activeSymbol={symbol} onSelect={selectSymbol} trend={trend} />
               </>
             )}
           </div>

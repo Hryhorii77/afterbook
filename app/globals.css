@@ -522,11 +522,12 @@ h1 {
 #tape .tape-row-active td:last-child { border-right-color: var(--accent); }
 #tape .thin-table tbody td { padding: 8px 8px; }
 td.spark-cell { text-align: right; }
-.mini-spark { width: 96px; height: 28px; display: inline-block; vertical-align: middle; }
-.mini-spark-up path { stroke: var(--green); }
-.mini-spark-up circle { fill: var(--green); }
-.mini-spark-down path { stroke: var(--red); }
-.mini-spark-down circle { fill: var(--red); }
+.mini-spark { width: 120px; height: 36px; display: inline-block; vertical-align: middle; overflow: visible; }
+.mini-spark-up { color: var(--green); }
+.mini-spark-down { color: var(--red); }
+/* On phone cards the 24h change sits at the end of the depth line. */
+.tape-card-24h { margin-left: 10px; font-weight: 600; }
+td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .mini-spark-empty { color: var(--text-dimmer); }
 
 .weight-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-top: 16px; }
