@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { WalletConnectButton } from './WalletConnectButton';
 import { ThemeToggle } from './ThemeToggle';
+import { NotificationBell } from './NotificationBell';
 
 const LINKS = [
   { href: '/', label: 'Tape' },
@@ -49,6 +50,7 @@ export function SiteHeader() {
         </nav>
         <div className="site-header-actions">
           <WalletConnectButton />
+          <NotificationBell />
           <ThemeToggle />
         </div>
       </div>

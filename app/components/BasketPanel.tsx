@@ -6,6 +6,7 @@ import { base } from 'wagmi/chains';
 import { erc20Abi, formatUnits, parseUnits, type Hex } from 'viem';
 import { USDC } from '@/lib/tokens';
 import { WalletConnectButton } from './WalletConnectButton';
+import { useNotify } from './notify';
 
 interface Portfolio {
   portfolioId: string;
@@ -48,6 +49,7 @@ const usd = (s: string) => `$${Number(s).toLocaleString('en-US', { minimumFracti
 
 export function BasketPanel() {
   const { address } = useAccount();
+  const { notify } = useNotify();
   const { signMessageAsync } = useSignMessage();
   const { signTypedDataAsync } = useSignTypedData();
 
@@ -116,7 +118,12 @@ export function BasketPanel() {
     } catch (e) {
       // Wallet rejections surface here too — say so plainly rather than as a fault.
       const msg = (e as Error).message ?? 'failed';
-      setError(/reject|denied/i.test(msg) ? 'Signature declined in your wallet — nothing was submitted.' : msg);
+      const declined = /reject|denied/i.test(msg);
+      setError(declined ? 'Signature declined in your wallet — nothing was submitted.' : msg);
+      const what: Record<string, string> = { review: 'Could not prepare enrollment', enroll: 'Enrollment failed', deposit: 'Deposit failed', start: 'Could not start automation', withdraw: 'Withdrawal failed' };
+      notify(declined
+        ? { kind: 'tx', tone: 'info', title: 'Signature declined', body: 'Nothing was submitted.' }
+        : { kind: 'tx', tone: 'error', title: what[label] ?? 'Something went wrong', body: msg });
     } finally {
       setBusy(null);
     }
@@ -146,6 +153,7 @@ export function BasketPanel() {
       });
       setReview(null);
       setNotice('Enrolled. Automation is on — send funds to the deposit address below and the first rebalance will allocate them.');
+      notify({ kind: 'tx', tone: 'success', title: 'Enrolled in Basis Tilt', body: 'Send USDC to your deposit address to get started.' });
       await refresh();
     });
 
@@ -168,6 +176,7 @@ export function BasketPanel() {
       await writeContractAsync({ address: USDC.address, abi: erc20Abi, functionName: 'transfer', args: [to as Hex, value], chainId: base.id });
       setAmount('');
       setNotice('USDC sent. It should appear in your balance after the transaction confirms and Glider picks it up — press Refresh.');
+      notify({ kind: 'tx', tone: 'success', title: 'USDC sent', body: 'It will show in your balance once the transaction confirms.' });
       void refetchUsdc();
       setTimeout(() => void refresh(), 10000);
     });
@@ -187,6 +196,7 @@ export function BasketPanel() {
         body: { owner: address, message, signature },
       });
       setNotice('Withdrawal submitted — waiting for it to settle…');
+      notify({ kind: 'tx', tone: 'info', title: 'Withdrawal submitted', body: 'Waiting for it to settle.' });
       // Poll Glider's operation until it reaches a terminal state (every 3s,
       // up to ~2 min), then re-read balances instead of guessing with a timer.
       for (let i = 0; i < 40; i++) {
@@ -203,6 +213,7 @@ export function BasketPanel() {
         }
         if (op.state === 'completed') {
           setNotice('Withdrawal complete — the funds are in your wallet.');
+          notify({ kind: 'tx', tone: 'success', title: 'Withdrawal complete', body: 'The funds are in your wallet.' });
           await refresh();
           return;
         }
