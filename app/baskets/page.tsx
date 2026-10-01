@@ -132,7 +132,7 @@ export default async function BasketsPage() {
 
       <p className="geo-note">
         <Link href="/" className="page-link">
-          Open the full tape <span className="arrow">→</span>
+          Open the Tape <span className="arrow">→</span>
         </Link>
       </p>
     </main>

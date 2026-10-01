@@ -168,7 +168,7 @@ export default async function TodayPage() {
           </div>
           <p className="geo-note">
             Depth is what is actually deployed in each pool. Names under {usdCompact(LIQUID_DEPTH_THRESHOLD_USD)} are left
-            out of this total; they are in the full tape.
+            out of this total; they are on the Tape.
           </p>
         </section>
       )}
@@ -211,7 +211,7 @@ export default async function TodayPage() {
 
       <p className="geo-note">
         <Link href="/" className="page-link">
-          Open the full tape, size a trade, or check every symbol <span className="arrow">→</span>
+          Open the Tape <span className="arrow">→</span>
         </Link>
       </p>
     </main>
