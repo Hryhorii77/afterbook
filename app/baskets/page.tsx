@@ -57,6 +57,10 @@ export default async function BasketsPage() {
 
       <section className="panel">
         <h2>Enroll</h2>
+        <p className="geo-note" style={{ marginTop: 0 }}>
+          Real money, and you can lose it.{' '}
+          <Link href="/baskets/risks" className="page-link">Read the risks and terms</Link> first.
+        </p>
         {!geo.nonUs ? (
           <button type="button" disabled>Not available in your region</button>
         ) : enabled ? (

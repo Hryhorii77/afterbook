@@ -59,6 +59,7 @@ export function BasketPanel() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
+  const [ack, setAck] = useState(false);
   const { writeContractAsync } = useWriteContract();
 
   const { data: usdcBalance, refetch: refetchUsdc } = useReadContract({
@@ -93,6 +94,18 @@ export function BasketPanel() {
     setNotice(null);
     void refresh();
   }, [refresh]);
+
+  // Amount in USDC base units, or null while the field is empty / not a number.
+  const amountUnits = (() => {
+    if (!/^\d*\.?\d+$/.test(amount)) return null;
+    try {
+      return parseUnits(amount, USDC.decimals);
+    } catch {
+      return null;
+    }
+  })();
+  const overBalance = amountUnits !== null && usdcBalance !== undefined && amountUnits > usdcBalance;
+  const canSend = amountUnits !== null && amountUnits > BigInt(0) && !overBalance;
 
   const run = async (label: string, fn: () => Promise<void>) => {
     setBusy(label);
@@ -222,7 +235,17 @@ export function BasketPanel() {
           <p className="geo-note" style={{ marginTop: 0 }}>
             Enrolling creates a smart account on Base that only you can withdraw from. Afterbook never holds funds.
           </p>
-          <button type="button" className="btn" onClick={startEnroll} disabled={busy !== null}>
+          <label className="geo-note" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
+            <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} style={{ marginTop: 3 }} />
+            <span>
+              I have read the{' '}
+              <a href="/baskets/risks" target="_blank" rel="noopener noreferrer">
+                risks and terms
+              </a>
+              , including that I can lose money, and that this is not available to people in the US.
+            </span>
+          </label>
+          <button type="button" className="btn" onClick={startEnroll} disabled={busy !== null || !ack}>
             {busy === 'review' ? 'Preparing…' : 'Enroll in Basis Tilt'}
           </button>
         </>
@@ -265,13 +288,31 @@ export function BasketPanel() {
                 inputMode="decimal"
                 placeholder="USDC amount"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+                onChange={(e) => {
+                  const next = e.target.value.replace(/[^0-9.]/g, '');
+                  // USDC has 6 decimals; refuse more rather than silently rounding the amount sent.
+                  if (/^\d*\.?\d{0,6}$/.test(next)) setAmount(next);
+                }}
                 style={{ marginRight: 8, width: 140 }}
                 disabled={busy !== null}
               />
-              <button type="button" className="btn" onClick={() => sendUsdc(depositAddr)} disabled={busy !== null || !/^\d*\.?\d+$/.test(amount)}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => usdcBalance !== undefined && setAmount(formatUnits(usdcBalance, USDC.decimals))}
+                disabled={busy !== null || !usdcBalance}
+                style={{ marginRight: 8 }}
+              >
+                Max
+              </button>
+              <button type="button" className="btn" onClick={() => sendUsdc(depositAddr)} disabled={busy !== null || !canSend}>
                 {busy === 'deposit' ? 'Confirm in wallet…' : 'Send USDC'}
               </button>
+              {overBalance && (
+                <span className="geo-note-blocked" style={{ display: 'block', marginTop: 6 }}>
+                  That is more than the {formatUnits(usdcBalance ?? BigInt(0), USDC.decimals)} USDC in your wallet on Base.
+                </span>
+              )}
               <br />
               Sends USDC from your wallet to your own Basis Tilt account on Base, then Glider spreads it across the basket.
               Each position needs at least $1 to trade, so tiny deposits may leave some names unfilled.
