@@ -13,6 +13,8 @@ import { computeInRangeProbabilityPct, IN_RANGE_HORIZON_DAYS, solveImpliedHorizo
 import { capitalEfficiencyMultiplier, computeDivergenceLossAtBoundary, computeLiquidityConcentrationRange } from '@/lib/lpRange';
 import { Sparkline } from './Sparkline';
 import { MyLots } from './MyLots';
+import { SymbolTile } from './SymbolTile';
+import { MiniSpark } from './MiniSpark';
 
 interface CurvePoint {
   usdcIn: number;
@@ -146,7 +148,7 @@ const SORT_COLUMNS: { key: SortKey; label: (cashColumnLabel: string) => string }
 // with the table above it. Fixed, shared percentages (paired with
 // `table-layout: fixed` in globals.css) keep both tables' columns lined up
 // regardless of what either one's rows contain.
-const TAPE_COLUMN_WIDTHS = ['24%', '18%', '18%', '16%', '24%'];
+const TAPE_COLUMN_WIDTHS = ['27%', '14%', '14%', '13%', '19%', '13%'];
 
 function TapeColGroup() {
   return (
@@ -178,6 +180,7 @@ function TapeHead({
             </span>
           </th>
         ))}
+        <th>Aero 24h</th>
       </tr>
     </thead>
   );
@@ -187,10 +190,12 @@ function TapeRows({
   rows,
   activeSymbol,
   onSelect,
+  sparks,
 }: {
   rows: TapeRow[];
   activeSymbol: string;
   onSelect: (symbol: string) => void;
+  sparks: Record<string, number[]> | null;
 }) {
   return (
     <>
@@ -201,11 +206,16 @@ function TapeRows({
           onClick={() => onSelect(row.symbol)}
         >
           <td>
-            <span className="symbol">{row.symbol}</span>
-            <span className="symbol-name">{row.name}</span>
-            {row.nextEarningsDate != null && daysUntil(row.nextEarningsDate) <= EARNINGS_CAVEAT_WINDOW_DAYS && daysUntil(row.nextEarningsDate) >= 0 && (
-              <span className="earnings-tag">Earnings in {daysUntil(row.nextEarningsDate)}d</span>
-            )}
+            <div className="sym-cell">
+              <SymbolTile cashTicker={row.cashTicker} />
+              <div className="sym-cell-text">
+                <span className="symbol">{row.symbol}</span>
+                <span className="symbol-name" title={row.name}>{row.name}</span>
+                {row.nextEarningsDate != null && daysUntil(row.nextEarningsDate) <= EARNINGS_CAVEAT_WINDOW_DAYS && daysUntil(row.nextEarningsDate) >= 0 && (
+                  <span className="earnings-tag">Earnings in {daysUntil(row.nextEarningsDate)}d</span>
+                )}
+              </div>
+            </div>
           </td>
           <td>
             {usd(row.cashLastUsd)}
@@ -221,6 +231,9 @@ function TapeRows({
               <span className="depth-sep">·</span>
               <span className="depth-shares">{sharesCompact(row.depthShares)}</span>
             </div>
+          </td>
+          <td className="spark-cell">
+            <MiniSpark values={sparks?.[row.symbol]} />
           </td>
         </tr>
       ))}
@@ -252,7 +265,10 @@ function TapeCards({
           onClick={() => onSelect(row.symbol)}
         >
           <div className="tape-card-top">
-            <span className="symbol">{row.symbol}</span>
+            <span className="tape-card-id">
+              <SymbolTile cashTicker={row.cashTicker} size="sm" />
+              <span className="symbol">{row.symbol}</span>
+            </span>
             <span className={`tape-card-basis ${row.basisBp != null ? (row.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
               {bp(row.basisBp)}
             </span>
@@ -283,6 +299,28 @@ interface HomeClientProps {
 
 export default function HomeClient({ initialTape, initialGeo, initialSymbol }: HomeClientProps) {
   const [tape, setTape] = useState<TapeResult>(initialTape);
+  // 24h on-chain price trend per symbol for the tape's mini charts. Loaded once
+  // and refreshed every 5 min; rows just show a dash until it arrives.
+  const [sparks, setSparks] = useState<Record<string, number[]> | null>(null);
+  useEffect(() => {
+    let off = false;
+    const load = async () => {
+      try {
+        const res = await fetch('/api/sparklines');
+        if (!res.ok) return;
+        const json = (await res.json()) as { series?: Record<string, number[]> };
+        if (!off && json.series) setSparks(json.series);
+      } catch {
+        // Trend lines are decoration; the table works without them.
+      }
+    };
+    void load();
+    const id = setInterval(load, 5 * 60_000);
+    return () => {
+      off = true;
+      clearInterval(id);
+    };
+  }, []);
   const [geo] = useState<GeoInfo>(initialGeo);
   const [eligibleChecked, setEligibleChecked] = useState(false);
   const [symbol, setSymbol] = useState(initialSymbol ?? STOCKS[0].symbol);
@@ -810,7 +848,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             <TapeColGroup />
             <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} />
             <tbody>
-              <TapeRows rows={sortedLiquidRows} activeSymbol={symbol} onSelect={selectSymbol} />
+              <TapeRows rows={sortedLiquidRows} activeSymbol={symbol} onSelect={selectSymbol} sparks={sparks} />
             </tbody>
           </table>
         </div>
@@ -833,7 +871,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                     <TapeColGroup />
                     <TapeHead cashColumnLabel={cashColumnLabel} sort={sort} onSort={toggleSort} />
                     <tbody>
-                      <TapeRows rows={sortedThinRows} activeSymbol={symbol} onSelect={selectSymbol} />
+                      <TapeRows rows={sortedThinRows} activeSymbol={symbol} onSelect={selectSymbol} sparks={sparks} />
                     </tbody>
                   </table>
                 </div>

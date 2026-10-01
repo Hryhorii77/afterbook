@@ -5,6 +5,8 @@ import { getGeoInfo } from '@/lib/geo';
 import { buildTilt } from '@/lib/baskets/tilt';
 import { DEPTH_SHARE, MIN_WEIGHT, MAX_WEIGHT } from '@/lib/baskets/weights';
 import { bp, usdCompact } from '@/lib/format';
+import { getStock } from '@/lib/tokens';
+import { SymbolTile } from '@/app/components/SymbolTile';
 import { gliderConfigured } from '@/lib/glider';
 import { BasketPanel } from '@/app/components/BasketPanel';
 
@@ -41,16 +43,29 @@ export default async function BasketsPage() {
         {!tilt ? (
           <p className="geo-note">Tape unavailable right now — try again shortly.</p>
         ) : (
-          <div className="gap-grid">
-            {tilt.map((row) => (
-              <div className="gap-cell" key={row.symbol}>
-                <div className="gap-symbol">{row.symbol}</div>
-                <div>{row.weight}%</div>
-                <div className="gap-detail">
-                  depth {row.depthUsd != null ? usdCompact(row.depthUsd) : '—'} · basis {bp(row.basisBp)}
+          <div className="weight-grid">
+            {tilt.map((row) => {
+              const stock = getStock(row.symbol);
+              return (
+                <div className="weight-card" key={row.symbol}>
+                  <div className="weight-card-top">
+                    <SymbolTile cashTicker={stock?.cashTicker ?? row.symbol} />
+                    <div className="sym-cell-text">
+                      <span className="symbol">{row.symbol}</span>
+                      <span className="symbol-name" title={stock?.name}>{stock?.name}</span>
+                    </div>
+                  </div>
+                  <div className="weight-pct">{row.weight}%</div>
+                  <div className="weight-bar" aria-hidden="true">
+                    <span style={{ width: `${Math.min(100, (Number(row.weight) / (MAX_WEIGHT * 100)) * 100)}%` }} />
+                  </div>
+                  <div className="weight-meta">
+                    <span>Depth {row.depthUsd != null ? usdCompact(row.depthUsd) : '—'}</span>
+                    <span className={row.basisBp != null ? (row.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}>{bp(row.basisBp)}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

@@ -447,6 +447,91 @@ h1 {
 }
 .emph-link:hover, .emph-link:focus-visible { filter: brightness(1.15); text-decoration-thickness: 2px; }
 
+/* Symbol tiles (ticker on a tinted rounded square), the live ticker strip,
+   card-style tape rows, row trend lines, and basket weight cards. */
+.symbol-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: color-mix(in srgb, var(--hue) 18%, var(--panel));
+  color: color-mix(in srgb, var(--hue) 72%, var(--text));
+  border: 1px solid color-mix(in srgb, var(--hue) 34%, transparent);
+}
+.symbol-tile-md { width: 52px; height: 38px; border-radius: 11px; font-size: 11px; }
+.symbol-tile-sm { width: 42px; height: 24px; border-radius: 8px; font-size: 10px; }
+
+.ticker {
+  height: 44px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--bg);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+.ticker-track {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  height: 100%;
+  animation: ticker-scroll 60s linear infinite;
+}
+.ticker:hover .ticker-track { animation-play-state: paused; }
+.ticker-item { display: inline-flex; align-items: center; gap: 8px; padding: 0 20px; white-space: nowrap; font-size: 13px; }
+.ticker-price { font-weight: 600; }
+.ticker-change { font-size: 12.5px; font-weight: 500; }
+@keyframes ticker-scroll { to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .ticker { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
+  .ticker-track { animation: none; }
+}
+
+.sym-cell { display: flex; align-items: center; gap: 12px; }
+.sym-cell-text { min-width: 0; }
+/* One line per name so card rows and table rows keep their numbers aligned;
+   the full name is in the title attribute. */
+.sym-cell-text .symbol, .sym-cell-text .symbol-name { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tape-card-id { display: inline-flex; align-items: center; gap: 8px; }
+
+/* Tape rows as individual rounded cards. Still a real <table> (sorting, fixed
+   column alignment between the tape and thin-books tables), just with
+   separated borders so each row reads as its own card. */
+#tape table { border-collapse: separate; border-spacing: 0 8px; }
+#tape thead th { border-bottom: 0; padding-bottom: 2px; }
+#tape tbody td {
+  background: var(--inset);
+  border-top: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--panel-border);
+  padding: 12px 8px;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+#tape tbody td:first-child { border-left: 1px solid var(--panel-border); border-radius: 14px 0 0 14px; padding-left: 12px; }
+#tape tbody td:last-child { border-right: 1px solid var(--panel-border); border-radius: 0 14px 14px 0; padding-right: 14px; }
+#tape .tape-row-clickable:hover td { background: var(--surface-hover); }
+#tape .tape-row-active { box-shadow: none; background: transparent; }
+#tape .tape-row-active td { background: var(--surface-hover); border-top-color: var(--accent); border-bottom-color: var(--accent); }
+#tape .tape-row-active td:first-child { border-left-color: var(--accent); }
+#tape .tape-row-active td:last-child { border-right-color: var(--accent); }
+#tape .thin-table tbody td { padding: 8px 8px; }
+td.spark-cell { text-align: right; }
+.mini-spark { width: 96px; height: 28px; display: inline-block; vertical-align: middle; }
+.mini-spark-up path { stroke: var(--green); }
+.mini-spark-up circle { fill: var(--green); }
+.mini-spark-down path { stroke: var(--red); }
+.mini-spark-down circle { fill: var(--red); }
+.mini-spark-empty { color: var(--text-dimmer); }
+
+.weight-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-top: 16px; }
+.weight-card { padding: 16px; background: var(--inset); border: 1px solid var(--panel-border); border-radius: 14px; }
+.weight-card-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.weight-pct { margin-top: 14px; font-size: 26px; font-weight: 600; letter-spacing: -0.03em; }
+.weight-bar { margin-top: 10px; height: 6px; border-radius: 999px; background: var(--overlay-3); overflow: hidden; }
+.weight-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.weight-meta { margin-top: 12px; display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--text-dim); }
+
 /* Phones: two rows (brand + wallet + theme, then the page links) so no link is
    hidden off-screen, and the bar scrolls away rather than eating a tall strip
    of every screen. The sticky symbol bar then pins to the very top. */
