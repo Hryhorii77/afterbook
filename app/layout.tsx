@@ -4,6 +4,8 @@ import { headers } from 'next/headers';
 import '@rainbow-me/rainbowkit/styles.css';
 import './globals.css';
 import { Providers } from './providers';
+import { SiteHeader } from './components/SiteHeader';
+import { THEME_INIT_SCRIPT } from './components/theme';
 
 // Self-hosted at build time by next/font, so the CSP needs no extra font host.
 const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-poppins', display: 'swap' });
@@ -25,7 +27,7 @@ export const metadata: Metadata = {
   other: { 'base:app_id': '6a78ca7585896ee843331757' },
 };
 
-// This is a dark-only design by intent — not "supports dark mode," just dark.
+// Dark is the default and light is opt-in (saved choice, else the OS setting).
 // Without this, a device set to light mode renders native form controls
 // (checkbox, select, number input spinner) and the mobile browser chrome
 // (status bar / address bar) in light colors on top of our near-black page.
@@ -33,8 +35,11 @@ export const metadata: Metadata = {
 // of the OS preference; themeColor matches the mobile browser chrome to the
 // page background instead of leaving it white.
 export const viewport: Viewport = {
-  colorScheme: 'dark',
-  themeColor: '#121214',
+  colorScheme: 'dark light',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fafaf9' },
+    { media: '(prefers-color-scheme: dark)', color: '#121214' },
+  ],
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -43,12 +48,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // that same nonce onto the inline hydration scripts it renders — without
   // this, the CSP nonce in the response header wouldn't match anything in
   // a statically-baked page and hydration would still be blocked.
-  await headers();
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
 
   return (
-    <html lang="en" className={poppins.variable}>
+    // suppressHydrationWarning: the init script sets data-theme on <html>
+    // before React hydrates, which would otherwise read as a mismatch.
+    <html lang="en" className={poppins.variable} suppressHydrationWarning>
+      <head>
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <SiteHeader />
+          {children}
+        </Providers>
       </body>
     </html>
   );
