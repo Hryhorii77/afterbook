@@ -422,6 +422,18 @@ h1 {
 @media (max-width: 960px) { .how-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .how-grid { grid-template-columns: 1fr; } }
 
+/* Rows of buttons/fields in the basket panel: real gaps instead of <br> and
+   inline spaces, so text above and below never sits flush against a button. */
+.basket-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+.basket-amount { width: 180px; max-width: 100%; }
+.basket-deposit { margin-top: 16px; }
+
 /* Phones: two rows (brand + wallet + theme, then the page links) so no link is
    hidden off-screen, and the bar scrolls away rather than eating a tall strip
    of every screen. The sticky symbol bar then pins to the very top. */

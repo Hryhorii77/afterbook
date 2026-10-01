@@ -274,12 +274,14 @@ export function BasketPanel() {
             <br />
             Message hash: <code>{review.message.raw}</code>
           </p>
-          <button type="button" className="btn" onClick={confirmEnroll} disabled={busy !== null}>
-            {busy === 'enroll' ? 'Waiting for signature…' : 'Sign and enroll'}
-          </button>{' '}
-          <button type="button" className="btn btn-secondary" onClick={() => setReview(null)} disabled={busy !== null}>
-            Cancel
-          </button>
+          <div className="basket-row">
+            <button type="button" className="btn" onClick={confirmEnroll} disabled={busy !== null}>
+              {busy === 'enroll' ? 'Waiting for signature…' : 'Sign and enroll'}
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => setReview(null)} disabled={busy !== null}>
+              Cancel
+            </button>
+          </div>
         </>
       )}
 
@@ -292,43 +294,46 @@ export function BasketPanel() {
             address, may not be recoverable.
           </p>
           {depositAddr && (
-            <p className="geo-note">
-              Your wallet: {usdcBalance !== undefined ? `${formatUnits(usdcBalance, USDC.decimals)} USDC` : '…'} on Base
-              <br />
-              <input
-                inputMode="decimal"
-                aria-label="USDC amount"
-                placeholder="USDC amount"
-                value={amount}
-                onChange={(e) => {
-                  const next = e.target.value.replace(/[^0-9.]/g, '');
-                  // USDC has 6 decimals; refuse more rather than silently rounding the amount sent.
-                  if (/^\d*\.?\d{0,6}$/.test(next)) setAmount(next);
-                }}
-                style={{ marginRight: 8, width: 160 }}
-                disabled={busy !== null}
-              />
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => usdcBalance !== undefined && setAmount(formatUnits(usdcBalance, USDC.decimals))}
-                disabled={busy !== null || !usdcBalance}
-                style={{ marginRight: 8 }}
-              >
-                Max
-              </button>
-              <button type="button" className="btn" onClick={() => sendUsdc(depositAddr)} disabled={busy !== null || !canSend}>
-                {busy === 'deposit' ? 'Confirm in wallet…' : 'Send USDC'}
-              </button>
+            <div className="basket-deposit">
+              <p className="geo-note" style={{ marginTop: 0 }}>
+                Your wallet: {usdcBalance !== undefined ? `${formatUnits(usdcBalance, USDC.decimals)} USDC` : '…'} on Base
+              </p>
+              <div className="basket-row">
+                <input
+                  inputMode="decimal"
+                  aria-label="USDC amount"
+                  placeholder="USDC amount"
+                  className="basket-amount"
+                  value={amount}
+                  onChange={(e) => {
+                    const next = e.target.value.replace(/[^0-9.]/g, '');
+                    // USDC has 6 decimals; refuse more rather than silently rounding the amount sent.
+                    if (/^\d*\.?\d{0,6}$/.test(next)) setAmount(next);
+                  }}
+                  disabled={busy !== null}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => usdcBalance !== undefined && setAmount(formatUnits(usdcBalance, USDC.decimals))}
+                  disabled={busy !== null || !usdcBalance}
+                >
+                  Max
+                </button>
+                <button type="button" className="btn" onClick={() => sendUsdc(depositAddr)} disabled={busy !== null || !canSend}>
+                  {busy === 'deposit' ? 'Confirm in wallet…' : 'Send USDC'}
+                </button>
+              </div>
               {overBalance && (
-                <span className="geo-note-blocked" style={{ display: 'block', marginTop: 6 }}>
+                <p className="geo-note geo-note-blocked" style={{ marginTop: 0 }}>
                   That is more than the {formatUnits(usdcBalance ?? BigInt(0), USDC.decimals)} USDC in your wallet on Base.
-                </span>
+                </p>
               )}
-              <br />
-              Sends USDC from your wallet to your own Basis Tilt account on Base, then Glider spreads it across the basket.
-              Each position needs at least $1 to trade, so tiny deposits may leave some names unfilled.
-            </p>
+              <p className="geo-note" style={{ marginTop: 0 }}>
+                Sends USDC from your wallet to your own Basis Tilt account on Base, then Glider spreads it across the
+                basket. Each position needs at least $1 to trade, so tiny deposits may leave some names unfilled.
+              </p>
+            </div>
           )}
           {positions && (
             <p className="geo-note">
@@ -345,22 +350,22 @@ export function BasketPanel() {
               ))}
             </p>
           )}
-          {portfolio.schedule.status === 'paused' && (
-            <>
+          <div className="basket-row">
+            {portfolio.schedule.status === 'paused' && (
               <button type="button" className="btn" onClick={startAutomation} disabled={busy !== null || !withdrawable}>
                 {busy === 'start' ? 'Starting…' : 'Start automation'}
-              </button>{' '}
-            </>
-          )}
-          <button type="button" className="btn btn-secondary" onClick={() => withdrawAll(true)} disabled={busy !== null || !withdrawable}>
-            {busy === 'withdraw' ? 'Withdrawing…' : 'Withdraw as USDC'}
-          </button>{' '}
-          <button type="button" className="btn btn-secondary" onClick={() => withdrawAll(false)} disabled={busy !== null || !withdrawable}>
-            Withdraw as tokens
-          </button>{' '}
-          <button type="button" className="btn btn-secondary" onClick={() => void refresh()} disabled={busy !== null}>
-            Refresh
-          </button>
+              </button>
+            )}
+            <button type="button" className="btn btn-secondary" onClick={() => withdrawAll(true)} disabled={busy !== null || !withdrawable}>
+              {busy === 'withdraw' ? 'Withdrawing…' : 'Withdraw as USDC'}
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => withdrawAll(false)} disabled={busy !== null || !withdrawable}>
+              Withdraw as tokens
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => void refresh()} disabled={busy !== null}>
+              Refresh
+            </button>
+          </div>
         </>
       )}
 
