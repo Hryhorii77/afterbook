@@ -501,9 +501,9 @@ h1 {
 }
 .ticker-item:hover { background: var(--overlay-3); border-color: var(--panel-border); }
 .ticker-item-here { background: var(--panel); border-color: var(--secondary-border); }
-/* Pause while hovering, focusing or pressing (touch screens have no hover), so
-   the item can't slide out from under a tap. */
-.ticker:hover .ticker-track, .ticker:focus-within .ticker-track, .ticker:active .ticker-track { animation-play-state: paused; }
+/* The strip never pauses on hover, focus or press. A clicked link keeps focus
+   until you click elsewhere, so a pause-on-focus rule froze it after every tap.
+   (Only prefers-reduced-motion stops it, below.) */
 .ticker-price { font-weight: 600; }
 .ticker-change { font-size: 12.5px; font-weight: 500; }
 @keyframes ticker-scroll { to { transform: translateX(-50%); } }
