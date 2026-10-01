@@ -4,7 +4,10 @@
 // the endpoints Afterbook uses; the rest of the API is deliberately not
 // wrapped until it's needed.
 
-const DEFAULT_BASE = 'https://staging-api.glider.fi/v2';
+// B2B tenants all live on Glider's production API (confirmed by Glider: test with
+// separate keys, not a separate environment), so a missing GLIDER_API_BASE should
+// not silently point at a staging host that doesn't serve this tenant.
+const DEFAULT_BASE = 'https://api.glider.fi/v2';
 
 export interface GliderAllocation {
   assets: { assetId: string; weight: string }[];
