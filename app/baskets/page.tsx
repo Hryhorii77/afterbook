@@ -62,11 +62,11 @@ export default async function BasketsPage() {
           <Link href="/baskets/risks" className="page-link">Read the risks and terms</Link> first.
         </p>
         {!geo.nonUs ? (
-          <button type="button" disabled>Not available in your region</button>
+          <button type="button" className="btn" disabled>Not available in your region</button>
         ) : enabled ? (
           <BasketPanel />
         ) : (
-          <button type="button" disabled>Enrollment opens soon</button>
+          <button type="button" className="btn" disabled>Enrollment opens soon</button>
         )}
         <p className={`geo-note${geo.country === 'US' ? ' geo-note-blocked' : ''}`}>
           {geo.country === 'US'

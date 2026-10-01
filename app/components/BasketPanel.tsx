@@ -286,6 +286,7 @@ export function BasketPanel() {
               <br />
               <input
                 inputMode="decimal"
+                aria-label="USDC amount"
                 placeholder="USDC amount"
                 value={amount}
                 onChange={(e) => {
@@ -293,7 +294,7 @@ export function BasketPanel() {
                   // USDC has 6 decimals; refuse more rather than silently rounding the amount sent.
                   if (/^\d*\.?\d{0,6}$/.test(next)) setAmount(next);
                 }}
-                style={{ marginRight: 8, width: 140 }}
+                style={{ marginRight: 8, width: 160 }}
                 disabled={busy !== null}
               />
               <button
