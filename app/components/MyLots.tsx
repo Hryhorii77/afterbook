@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useAccount, useDisconnect } from 'wagmi';
-import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { formatWindow } from '@/lib/format';
 import { getStock } from '@/lib/tokens';
 import { SymbolTile } from './SymbolTile';
+import { WalletConnectButton } from './WalletConnectButton';
 
 interface SpotHolding {
   symbol: string;
@@ -251,7 +251,6 @@ export function MyLots() {
   // address state before.
   const { address: connectedAddress } = useAccount();
   const { disconnect } = useDisconnect();
-  const { openConnectModal } = useConnectModal();
   const address = connectedAddress ?? null;
 
   // wagmi's disconnect() only clears its own connection state — for an
@@ -323,9 +322,7 @@ export function MyLots() {
           <p className="geo-note" style={{ marginTop: 0, marginBottom: 12 }}>
             Read-only — connecting only reveals your address so balances can be read. Never signs a transaction.
           </p>
-          <button type="button" className="btn btn-secondary" onClick={openConnectModal} disabled={!openConnectModal}>
-            Connect wallet
-          </button>
+          <WalletConnectButton />
         </>
       ) : (
         <MyLotsContent label={basename ?? `${address.slice(0, 6)}…${address.slice(-4)}`} isName={!!basename} lots={lots} error={error} onDisconnect={handleDisconnect} />
