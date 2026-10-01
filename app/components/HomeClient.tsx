@@ -1505,6 +1505,10 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         <div className="footer-legal">
           <p>Not investment advice. Not available in the US.</p>
           <p>
+            Company logos are the token icons published by Coinbase and belong to their owners. Afterbook is not
+            affiliated with them.
+          </p>
+          <p>
             Baskets: trading and accounts run on{' '}
             <a href="https://glider.fi" target="_blank" rel="noopener noreferrer">
               Glider ↗

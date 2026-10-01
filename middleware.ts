@@ -40,7 +40,7 @@ export function middleware(request: NextRequest) {
     "default-src 'self'",
     scriptSrc,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https://explorer-api.walletconnect.com https://api.web3modal.org",
+    "img-src 'self' data: https://explorer-api.walletconnect.com https://api.web3modal.org https://metadata.coinbase.com",
     "connect-src 'self' https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.reown.com https://api.web3modal.org https://pulse.walletconnect.org https://mainnet.base.org https://base-rpc.publicnode.com",
     "frame-src https://*.coinbase.com https://keys.coinbase.com",
     "frame-ancestors 'none'",
