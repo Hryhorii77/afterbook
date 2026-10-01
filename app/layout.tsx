@@ -5,6 +5,9 @@ import '@rainbow-me/rainbowkit/styles.css';
 import './globals.css';
 import { Providers } from './providers';
 import { SiteHeader } from './components/SiteHeader';
+import { NotifyProvider } from './components/notify';
+import { Toaster } from './components/Toaster';
+import { LiveAlerts } from './components/LiveAlerts';
 import { THEME_INIT_SCRIPT } from './components/theme';
 
 // Self-hosted at build time by next/font, so the CSP needs no extra font host.
@@ -59,8 +62,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body>
         <Providers>
-          <SiteHeader />
-          {children}
+          <NotifyProvider>
+            <SiteHeader />
+            {children}
+            <Toaster />
+            <LiveAlerts />
+          </NotifyProvider>
         </Providers>
       </body>
     </html>
