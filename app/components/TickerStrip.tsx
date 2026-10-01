@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import type { TapeRow } from '@/lib/tape';
 import { bp, usd } from '@/lib/format';
 import { SymbolTile } from './SymbolTile';
@@ -12,6 +14,7 @@ const POLL_MS = 30_000;
 // before data arrives, so nothing shifts when it fills in.
 export function TickerStrip() {
   const [rows, setRows] = useState<TapeRow[] | null>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     let off = false;
@@ -35,11 +38,24 @@ export function TickerStrip() {
   }, []);
 
   const items = (rows ?? []).filter((r) => r.onchainMidUsd != null);
+  // Each item opens that stock's page. The second copy (which makes the marquee
+  // loop seamlessly) is hidden from assistive tech and the tab order, so
+  // keyboard users meet each stock once.
   const renderItems = (hidden: boolean) =>
     items.map((r) => {
       const up = (r.basisBp ?? 0) >= 0;
+      const here = pathname.toLowerCase() === `/${r.symbol}`.toLowerCase();
       return (
-        <span className="ticker-item" key={(hidden ? 'b-' : 'a-') + r.symbol} aria-hidden={hidden || undefined}>
+        <Link
+          href={`/${r.symbol}`}
+          prefetch={false}
+          className={`ticker-item${here ? ' ticker-item-here' : ''}`}
+          key={(hidden ? 'b-' : 'a-') + r.symbol}
+          aria-hidden={hidden || undefined}
+          tabIndex={hidden ? -1 : undefined}
+          aria-current={here && !hidden ? 'page' : undefined}
+          aria-label={hidden ? undefined : `${r.symbol}, ${usd(r.onchainMidUsd)}, open stock page`}
+        >
           <SymbolTile cashTicker={r.cashTicker} size="sm" />
           <span className="ticker-price">{usd(r.onchainMidUsd)}</span>
           {r.basisBp != null && (
@@ -47,7 +63,7 @@ export function TickerStrip() {
               {up ? '▲' : '▼'} {bp(Math.abs(r.basisBp)).replace('+', '')}
             </span>
           )}
-        </span>
+        </Link>
       );
     });
 
