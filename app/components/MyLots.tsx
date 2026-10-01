@@ -112,7 +112,7 @@ export function MyLotsContent({
           {error && <p className="geo-note">{error}</p>}
 
           {lots && lots.spot.length === 0 && lots.lp.length === 0 && !error && (
-            <p className="geo-note">No holdings found across these ten stocks or their Aero pools.</p>
+            <p className="geo-note">No holdings found across the tracked stocks or their Aero pools.</p>
           )}
 
           {lots && (lots.spot.length > 0 || lots.lp.length > 0) && (

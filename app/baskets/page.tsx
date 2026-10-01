@@ -33,7 +33,7 @@ export default async function BasketsPage() {
       <section className="panel">
         <h2>Basis Tilt</h2>
         <p className="geo-note" style={{ marginTop: 0 }}>
-          The same ten Base tokenized stocks Afterbook tracks, weighted by what the on-chain books actually show rather
+          Ten Base tokenized stocks, weighted by what the on-chain books actually show rather
           than equally or by market cap. {Math.round(DEPTH_SHARE * 100)}% of the tilt follows real pool depth; the other{' '}
           {Math.round((1 - DEPTH_SHARE) * 100)}% follows the size of the cash-vs-chain gap, counted only for liquid pools
           since a thin pool&apos;s basis is mostly noise. Every name stays between {MIN_WEIGHT * 100}% and{' '}

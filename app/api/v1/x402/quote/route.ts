@@ -47,7 +47,7 @@ export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configur
           network: X402_NETWORK,
           payTo: X402_PAYOUT_ADDRESS!,
         },
-        description: 'Sized USDC-to-share quote (execution price, impact, impact curve) for one of Afterbook\'s ten stock pools.',
+        description: 'Sized USDC-to-share quote (execution price, impact, impact curve) for one of Afterbook\'s tracked stock pools.',
       },
       getX402Server(),
     )

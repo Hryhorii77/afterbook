@@ -25,7 +25,7 @@ export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configur
           payTo: X402_PAYOUT_ADDRESS!,
         },
         description:
-          "Live cash-vs-Aerodrome basis, mid price, and pool depth for Afterbook's ten tokenized-stock pools on Base.",
+          "Live cash-vs-Aerodrome basis, mid price, and pool depth for Afterbook's tracked tokenized-stock pools on Base.",
       },
       getX402Server(),
     )

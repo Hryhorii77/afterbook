@@ -184,6 +184,32 @@ export const STOCKS: CbStock[] = [
       feePpm: 500,
     },
   },
+  {
+    symbol: 'PLTRc',
+    cashTicker: 'PLTR',
+    name: 'Palantir Technologies Inc.',
+    tokenAddress: '0xb2000000000000000000007d16372840dF4dAbbe',
+    decimals: 8,
+    pool: {
+      address: '0x650cc267AA248191978013d5Ae421e5Dc2A6e242',
+      token0: 'USDC',
+      tickSpacing: 10,
+      feePpm: 500,
+    },
+  },
+  {
+    symbol: 'MUc',
+    cashTicker: 'MU',
+    name: 'Micron Technology Inc.',
+    tokenAddress: '0xb200000000000000000000Fd2f87532B90095211',
+    decimals: 8,
+    pool: {
+      address: '0x17e1bEB2cD65493Da73ed4BbbC7BEcAAa0F91C73',
+      token0: 'USDC',
+      tickSpacing: 10,
+      feePpm: 500,
+    },
+  },
 ];
 
 export function getStock(symbol: string): CbStock | undefined {
