@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { SymbolTile } from '@/app/components/SymbolTile';
+import { SessionPill } from '@/app/components/SessionPill';
 import { unstable_cache } from 'next/cache';
 import { getTape } from '@/lib/tape';
 import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
@@ -110,16 +111,14 @@ export default async function TodayPage() {
                       <span className="symbol-name" title={headline.name}>{headline.name}</span>
                     </div>
                   </div>
-                  <span className="today-session">
-                    {snapshot.sessionLabel}
-                    {!marketOpen && snapshot.closedForMs > 0 && (
-                      <>
-                        {' '}
-                        · closed {formatDuration(snapshot.closedForMs)} ago · reopens {formatNextOpen(snapshot.nextOpenIso)}
-                      </>
-                    )}
-                  </span>
+                  {tape && <SessionPill state={tape.session.state} label={tape.session.label} nyTime={tape.session.nyTime} />}
                 </div>
+
+                {!marketOpen && snapshot.closedForMs > 0 && (
+                  <p className="geo-note" style={{ marginTop: 12, marginBottom: 0 }}>
+                    Closed {formatDuration(snapshot.closedForMs)} ago · reopens {formatNextOpen(snapshot.nextOpenIso)}
+                  </p>
+                )}
 
                 <div className="today-stats">
                   <div className="stat-card stat-card-hero">

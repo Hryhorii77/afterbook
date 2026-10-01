@@ -15,6 +15,7 @@ import { Sparkline } from './Sparkline';
 import { MyLots } from './MyLots';
 import { SymbolTile } from './SymbolTile';
 import { MiniSpark } from './MiniSpark';
+import { SessionPill } from './SessionPill';
 
 interface CurvePoint {
   usdcIn: number;
@@ -790,10 +791,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                 <span className="symbol-name" title={activeRow.name}>{activeRow.name}</span>
               </div>
             </div>
-            <span className="today-session">
-              <span className={`dot ${tape.session.state}`} />
-              {tape.session.label} · {tape.session.nyTime} ET
-            </span>
+            <SessionPill state={tape.session.state} label={tape.session.label} nyTime={tape.session.nyTime} />
           </div>
 
           <div className="today-stats">
