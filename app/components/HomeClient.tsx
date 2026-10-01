@@ -1467,6 +1467,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         <div className="footer-legal">
           <p>Not investment advice. Not available in the US.</p>
           <p>
+            Baskets: trading and accounts run on{' '}
+            <a href="https://glider.fi" target="_blank" rel="noopener noreferrer">
+              Glider ↗
+            </a>
+            ; see the <a href="/baskets/risks">risks and terms</a>.
+          </p>
+          <p>
             Independent and non-custodial. Not affiliated with Coinbase, Base, NVIDIA, or the issuer. B20 backing is
             the issuer&apos;s claim — this app does not verify reserves onchain. Never asks for a seed phrase.
           </p>

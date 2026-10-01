@@ -56,10 +56,46 @@ export default async function BasketsPage() {
       </section>
 
       <section className="panel">
+        <h2>How it works</h2>
+        <ol className="how-grid">
+          <li className="how-step">
+            <span className="how-num">01</span>
+            <h3>Connect and sign</h3>
+            <p>Connect your wallet and sign one message. That creates your own account on Base. No funds move.</p>
+          </li>
+          <li className="how-step">
+            <span className="how-num">02</span>
+            <h3>Deposit USDC</h3>
+            <p>Send USDC from your wallet to that account. It stays yours; Afterbook never holds it.</p>
+          </li>
+          <li className="how-step">
+            <span className="how-num">03</span>
+            <h3>Glider buys the basket</h3>
+            <p>
+              Glider spreads your deposit across the ten stocks at the target weights. It rebalances about once a day,
+              and only when the weights have moved enough to be worth the trading cost.
+            </p>
+          </li>
+          <li className="how-step">
+            <span className="how-num">04</span>
+            <h3>Withdraw any time</h3>
+            <p>Sign again to take everything out, as USDC or as the tokens themselves.</p>
+          </li>
+        </ol>
+      </section>
+
+      <section className="panel">
         <h2>Enroll</h2>
         <p className="geo-note" style={{ marginTop: 0 }}>
           Real money, and you can lose it.{' '}
           <Link href="/baskets/risks" className="page-link">Read the risks and terms</Link> first.
+        </p>
+        <p className="geo-note">
+          Trading and accounts run on{' '}
+          <a href="https://glider.fi" target="_blank" rel="noopener noreferrer" className="page-link">
+            Glider <span className="arrow">↗</span>
+          </a>
+          . Afterbook sets the target weights and charges no fee.
         </p>
         {!geo.nonUs ? (
           <button type="button" className="btn" disabled>Not available in your region</button>
