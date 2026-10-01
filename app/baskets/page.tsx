@@ -88,12 +88,12 @@ export default async function BasketsPage() {
         <h2>Enroll</h2>
         <p className="geo-note" style={{ marginTop: 0 }}>
           Real money, and you can lose it.{' '}
-          <Link href="/baskets/risks" className="page-link">Read the risks and terms</Link> first.
+          <Link href="/baskets/risks" className="emph-link">Read the risks and terms</Link> first.
         </p>
         <p className="geo-note">
           Trading and accounts run on{' '}
-          <a href="https://glider.fi" target="_blank" rel="noopener noreferrer" className="page-link">
-            Glider <span className="arrow">↗</span>
+          <a href="https://glider.fi" target="_blank" rel="noopener noreferrer" className="emph-link">
+            Glider ↗
           </a>
           . Afterbook sets the target weights and charges no fee.
         </p>

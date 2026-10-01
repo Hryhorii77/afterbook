@@ -250,7 +250,7 @@ export function BasketPanel() {
             <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} style={{ marginTop: 3 }} />
             <span>
               I have read the{' '}
-              <a href="/baskets/risks" target="_blank" rel="noopener noreferrer">
+              <a href="/baskets/risks" target="_blank" rel="noopener noreferrer" className="emph-link">
                 risks and terms
               </a>
               , including that I can lose money, and that this is not available to people in the US.
