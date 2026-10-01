@@ -14,6 +14,9 @@ const POLL_MS = 30_000;
 // before data arrives, so nothing shifts when it fills in.
 export function TickerStrip() {
   const [rows, setRows] = useState<TapeRow[] | null>(null);
+  // After a click the strip must run again even if the pointer is still over it
+  // (until the pointer leaves), so a tap never leaves it frozen.
+  const [resumed, setResumed] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -54,6 +57,11 @@ export function TickerStrip() {
           aria-hidden={hidden || undefined}
           tabIndex={hidden ? -1 : undefined}
           aria-current={here && !hidden ? 'page' : undefined}
+          onClick={(e) => {
+            setResumed(true);
+            // A clicked link keeps keyboard focus; release it so nothing stays "active".
+            e.currentTarget.blur();
+          }}
           aria-label={hidden ? undefined : `${r.symbol}, ${usd(r.onchainMidUsd)}, open stock page`}
         >
           <SymbolTile cashTicker={r.cashTicker} size="sm" />
@@ -68,7 +76,7 @@ export function TickerStrip() {
     });
 
   return (
-    <div className="ticker" aria-label="Live prices">
+    <div className={`ticker${resumed ? ' ticker-resumed' : ''}`} aria-label="Live prices" onMouseLeave={() => setResumed(false)}>
       {items.length > 0 && (
         <div className="ticker-track">
           {renderItems(false)}
