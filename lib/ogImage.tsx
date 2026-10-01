@@ -57,8 +57,8 @@ export async function buildOgImage(symbol?: string) {
             height: '100%',
             display: 'flex',
             flexDirection: 'column',
-            backgroundColor: '#0b0d10',
-            backgroundImage: 'linear-gradient(180deg, #12151a 0%, #0b0d10 60%)',
+            backgroundColor: '#121214',
+            backgroundImage: 'linear-gradient(180deg, #171719 0%, #121214 60%)',
             padding: '64px 72px',
             fontFamily: 'sans-serif',
           }}
@@ -91,7 +91,7 @@ export async function buildOgImage(symbol?: string) {
             <span>aero {usd(focusRow.onchainMidUsd)}</span>
           </div>
 
-          <div style={{ display: 'flex', marginTop: 'auto', fontSize: 20, color: '#5b8cff' }}>
+          <div style={{ display: 'flex', marginTop: 'auto', fontSize: 20, color: '#9cd6ff' }}>
             No wallet connect. Execution stays on Aerodrome.
           </div>
         </div>
@@ -108,8 +108,8 @@ export async function buildOgImage(symbol?: string) {
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          backgroundColor: '#0b0d10',
-          backgroundImage: 'linear-gradient(180deg, #12151a 0%, #0b0d10 60%)',
+          backgroundColor: '#121214',
+          backgroundImage: 'linear-gradient(180deg, #171719 0%, #121214 60%)',
           padding: '64px 72px',
           fontFamily: 'sans-serif',
         }}
@@ -135,7 +135,7 @@ export async function buildOgImage(symbol?: string) {
                   display: 'flex',
                   flexDirection: 'column',
                   flex: 1,
-                  backgroundColor: '#12151a',
+                  backgroundColor: '#171719',
                   border: '1px solid #232830',
                   borderRadius: 16,
                   padding: '20px 16px',
@@ -159,7 +159,7 @@ export async function buildOgImage(symbol?: string) {
           </div>
         )}
 
-        <div style={{ display: 'flex', marginTop: 'auto', fontSize: 20, color: '#5b8cff' }}>
+        <div style={{ display: 'flex', marginTop: 'auto', fontSize: 20, color: '#9cd6ff' }}>
           No wallet connect. Execution stays on Aerodrome.
         </div>
       </div>
@@ -197,8 +197,8 @@ export async function buildTodayOgImage() {
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          backgroundColor: '#0b0d10',
-          backgroundImage: 'linear-gradient(180deg, #12151a 0%, #0b0d10 60%)',
+          backgroundColor: '#121214',
+          backgroundImage: 'linear-gradient(180deg, #171719 0%, #121214 60%)',
           padding: '64px 72px',
           fontFamily: 'sans-serif',
         }}
@@ -245,7 +245,7 @@ export async function buildTodayOgImage() {
           <span style={{ fontSize: 32, color: '#8b93a1', marginTop: 48 }}>No basis reading yet.</span>
         )}
 
-        <div style={{ display: 'flex', marginTop: 'auto', fontSize: 20, color: '#5b8cff' }}>
+        <div style={{ display: 'flex', marginTop: 'auto', fontSize: 20, color: '#9cd6ff' }}>
           No wallet connect. Execution stays on Aerodrome.
         </div>
       </div>

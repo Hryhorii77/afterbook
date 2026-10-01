@@ -10,7 +10,7 @@ import { wagmiConfig } from '@/lib/wagmiConfig';
 // RainbowKit's default blue/purple theme — the wallet modal should look
 // like part of Afterbook, not a bolted-on third-party widget.
 const rainbowKitTheme = darkTheme({
-  accentColor: '#5b8cff',
+  accentColor: '#9cd6ff',
   accentColorForeground: '#111111',
   borderRadius: 'medium',
   fontStack: 'system',
