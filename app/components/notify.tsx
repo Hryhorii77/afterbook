@@ -39,8 +39,8 @@ interface NotifyValue {
   toasts: Toast[];
   dismiss: (id: number) => void;
   recent: RecentEvent[];
-  unseen: number;
-  markSeen: () => void;
+  /** True once the saved choice has been read, so the UI never flashes the default. */
+  ready: boolean;
 }
 
 const Ctx = createContext<NotifyValue | null>(null);
@@ -57,7 +57,7 @@ export function NotifyProvider({ children }: { children: React.ReactNode }) {
   const [liveOn, setLiveOnState] = useState(true);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [recent, setRecent] = useState<RecentEvent[]>([]);
-  const [unseen, setUnseen] = useState(0);
+  const [ready, setReady] = useState(false);
   const nextId = useRef(1);
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
 
@@ -68,6 +68,7 @@ export function NotifyProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Blocked or corrupt storage: keep the default.
     }
+    setReady(true);
   }, []);
 
   const setLiveOn = useCallback((on: boolean) => {
@@ -98,13 +99,10 @@ export function NotifyProvider({ children }: { children: React.ReactNode }) {
       timers.current.set(id, setTimeout(() => dismiss(id), TOAST_MS));
       if (input.kind === 'activity') {
         setRecent((list) => [{ id, at: Date.now(), title: input.title, body: input.body, href: input.href }, ...list].slice(0, MAX_RECENT));
-        setUnseen((n) => n + 1);
       }
     },
     [dismiss],
   );
-
-  const markSeen = useCallback(() => setUnseen(0), []);
 
   useEffect(() => {
     const map = timers.current;
@@ -112,8 +110,8 @@ export function NotifyProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ liveOn, setLiveOn, notify, toasts, dismiss, recent, unseen, markSeen }),
-    [liveOn, setLiveOn, notify, toasts, dismiss, recent, unseen, markSeen],
+    () => ({ liveOn, setLiveOn, notify, toasts, dismiss, recent, ready }),
+    [liveOn, setLiveOn, notify, toasts, dismiss, recent, ready],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
