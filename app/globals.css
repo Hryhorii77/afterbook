@@ -578,6 +578,16 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .range-badge-in { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
 .range-badge-out { color: var(--red); background: color-mix(in srgb, var(--red) 14%, transparent); }
 
+/* /today hero: identity and session on one row, then stat cards. */
+.today-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.today-top .today-id { margin-top: 0; }
+.today-session { padding: 6px 12px; border: 1px solid var(--panel-border); border-radius: 999px; font-size: 13px; color: var(--text-dim); background: var(--panel); }
+.today-stats { display: grid; grid-template-columns: 1.7fr 1fr 1fr; gap: 12px; margin-top: 18px; }
+.stat-card-hero { display: flex; flex-direction: column; justify-content: center; }
+.stat-card-hero .today-stat-value { margin-top: 6px; font-size: 56px; }
+.stat-card-hero .stat-label { margin-top: 8px; }
+@media (max-width: 760px) { .today-stats { grid-template-columns: 1fr; } .stat-card-hero .today-stat-value { font-size: 44px; } }
+
 /* Phones: two rows (brand + wallet + theme, then the page links) so no link is
    hidden off-screen, and the bar scrolls away rather than eating a tall strip
    of every screen. The sticky symbol bar then pins to the very top. */
