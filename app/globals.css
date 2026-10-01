@@ -434,6 +434,19 @@ h1 {
 .basket-amount { width: 180px; max-width: 100%; }
 .basket-deposit { margin-top: 16px; }
 
+/* An inline link inside body text that must read as a link at a glance
+   (accent colour, semibold, underlined) as opposed to .page-link, which stays
+   quiet until hovered. */
+.emph-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: filter 0.12s ease;
+}
+.emph-link:hover, .emph-link:focus-visible { filter: brightness(1.15); text-decoration-thickness: 2px; }
+
 /* Phones: two rows (brand + wallet + theme, then the page links) so no link is
    hidden off-screen, and the bar scrolls away rather than eating a tall strip
    of every screen. The sticky symbol bar then pins to the very top. */
