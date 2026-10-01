@@ -30,9 +30,17 @@ export interface TiltRow extends BasketWeight {
   depthUsd: number | null;
 }
 
+// The names Basis Tilt holds. Deliberately separate from the tracked list in
+// lib/tokens.ts: adding a stock to the tape must NOT silently change what
+// enrolled users hold. Widening the basket is an explicit decision (and a new
+// strategy version), made once a name's pool is deep enough.
+export const BASKET_SYMBOLS: readonly string[] = [
+  'NVDAc', 'AAPLc', 'METAc', 'GOOGLc', 'AMZNc', 'MSFTc', 'MSTRc', 'SNDKc', 'SPCXc', 'TSLAc',
+];
+
 export function buildTilt(tape: TapeResult): TiltRow[] {
   const marketOpen = tape.session.state === 'open';
-  const inputs = tape.rows.map((row) => ({
+  const inputs = tape.rows.filter((row) => BASKET_SYMBOLS.includes(row.symbol)).map((row) => ({
     symbol: row.symbol,
     depthUsd: row.depthUsd,
     basisBp: tiltBasisBp(row, marketOpen),

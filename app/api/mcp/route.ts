@@ -18,7 +18,7 @@ const handler = createMcpHandler((server) => {
     {
       title: 'Get Tape',
       description:
-        "Cash-market close price vs Aerodrome's on-chain price for Coinbase's ten tokenized stocks on Base — basis in bp and real pool depth. Read-only; no wallet is ever involved.",
+        "Cash-market close price vs Aerodrome's on-chain price for the Coinbase tokenized stocks Afterbook tracks on Base — basis in bp and real pool depth. Read-only; no wallet is ever involved.",
       inputSchema: z.object({}),
     },
     async () => {
@@ -32,7 +32,7 @@ const handler = createMcpHandler((server) => {
     {
       title: 'Get Quote',
       description:
-        'Estimate shares out, execution price, and price impact for sizing a USDC -> stock trade on one of the ten pools. This is a local estimate for sizing a trade, not a firm quote — the actual fill always happens on Aerodrome\'s own app, and no wallet ever signs anything here.',
+        'Estimate shares out, execution price, and price impact for sizing a USDC -> stock trade on one of the tracked pools. This is a local estimate for sizing a trade, not a firm quote — the actual fill always happens on Aerodrome\'s own app, and no wallet ever signs anything here.',
       inputSchema: z.object({
         symbol: z.enum(SYMBOLS),
         usdcIn: z.number().positive().max(10_000_000),

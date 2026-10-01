@@ -29,6 +29,61 @@ No lint script, no test suite. To verify a change actually works:
   real on-chain reads (pool state, wallet balances) that a build/typecheck
   pass can't catch.
 
+## Baskets / Glider (real money)
+
+`/baskets` runs on Glider's B2B API (`lib/glider.ts`, `lib/baskets/*`,
+`app/api/baskets/*`). Read the "Baskets (Basis Tilt)" section of
+`README.md` first.
+
+- **There is no staging.** Glider's B2B API is production-only; the key
+  in `.env.local` and Vercel is a production tenant key and every write
+  is real. Test with a separate private strategy (the 3-token test
+  strategy pattern) and tiny amounts.
+- **Never publish a strategy version, trigger a rebalance, or sign/
+  submit a withdrawal on the user's behalf without their explicit
+  instruction in that turn.** A publish makes *every enrolled portfolio*
+  trade. Check how many portfolios are enrolled and their balances
+  first (see the `basis-tilt-ops` skill). The permission classifier may
+  block real-money calls — don't route around it; explain and hand the
+  step to the user (the `!` prefix runs a command as them).
+- **`BASKET_AUTOPUBLISH` stays off** unless the user says otherwise.
+- **The basket universe is `BASKET_SYMBOLS` in `lib/baskets/tilt.ts`,
+  not `STOCKS`.** Adding a token to `lib/tokens.ts` must not change what
+  enrolled users hold. Widening the basket is a separate, explicit
+  decision (and a new strategy version).
+- Env values are pasted by hand and have broken things twice (stray
+  spaces around a strategy id; `<`/`>` placeholders around a key). The
+  Glider client trims them; still check shape without printing the
+  value. Never print, log or paste `GLIDER_API_KEY`.
+- Don't name Glider or use their logo beyond what is already on the
+  site without the user confirming; the wording ("run on", not "powered
+  by") is deliberate.
+
+## UI conventions
+
+- Tokens, not hard-coded colours: dark values on `:root`, light on
+  `:root[data-theme='light']` in `app/globals.css`. New surfaces use the
+  existing variables so both themes work. New inline links that must
+  look like links use `.emph-link`; buttons in a row use `.basket-row`
+  style gaps, never `<br>`/inline spaces.
+- Verify UI in a **real browser** and in **both themes and at a real
+  390px phone viewport** — a narrow desktop window is not one. See the
+  `verify` skill for the headless recipe and what can't be driven
+  (wallet modal).
+- User-visible counts ("ten stocks") go stale when the tracked list
+  changes. After adding/removing a token, grep for them (see the
+  `add-tokenized-stock` skill).
+
+## Working process
+
+- Branch → PR → merge only when the user asks → wait for the Vercel
+  deploy → verify the **live** site (curl, and a real browser for
+  anything client-rendered; the ticker strip, for example, is empty in
+  the server HTML by design).
+- Keep README, this file and the skills in step with the code in the
+  same PR as the change. A doc that says something false is worse than
+  none.
+
 ## Secrets and deploy safety
 
 - Never type or paste a private key into this session. Any command that

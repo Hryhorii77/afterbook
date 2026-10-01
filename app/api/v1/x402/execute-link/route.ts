@@ -72,7 +72,7 @@ export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configur
           payTo: X402_PAYOUT_ADDRESS!,
         },
         description:
-          'Sized trade estimate plus a verified Aerodrome deep link (buy or sell direction) for one of Afterbook\'s ten stock pools — not raw calldata, see route source for why.',
+          'Sized trade estimate plus a verified Aerodrome deep link (buy or sell direction) for one of Afterbook\'s tracked stock pools — not raw calldata, see route source for why.',
       },
       getX402Server(),
     )

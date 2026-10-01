@@ -47,6 +47,38 @@ permission.
    gets added later.) For a different env var, find an equivalent
    externally-observable signal before declaring the change live.
 
+## Pasted values and Glider (Basis Tilt) variables
+
+Env values are typed or pasted into the dashboard by hand, and stray
+characters have caused real failures. Never print a secret value to
+check it; check *shape* instead (length, leading/trailing whitespace,
+placeholder `<`/`>`).
+
+- `GLIDER_STRATEGY_ID` once had a space on each side in Vercel, so
+  Glider saw a different id and enrollment failed on the live site with
+  "Strategy not found or not owned by tenant". The client now trims
+  `GLIDER_API_KEY`, `GLIDER_API_BASE` and `GLIDER_STRATEGY_ID`, but
+  re-save a value cleanly if you notice this.
+- A **Secret/Sensitive** variable can't have its environments edited and
+  can't be read back (`vercel env ls` shows `Hidden`). To change its
+  scope, delete it and add it again. A plain URL like `GLIDER_API_BASE`
+  doesn't need to be sensitive.
+- Scopes matter: a variable set only for *Development* is invisible to
+  the live site. `vercel env ls` shows each variable's environments.
+- The Glider variables: `GLIDER_API_KEY` (production tenant key — there is
+  no staging), `GLIDER_API_BASE` (optional; defaults to
+  `https://api.glider.fi/v2`), `GLIDER_STRATEGY_ID` (**setting it, with
+  the key, is what switches the public enroll panel on**), and
+  `BASKET_AUTOPUBLISH` (leave unset unless the user decides otherwise).
+  Adding `GLIDER_STRATEGY_ID` to Production is a public launch of a real-
+  money feature: confirm with the user first.
+- Verifying a Glider change on the live site without moving money:
+  `curl -s -i -X POST -H 'content-type: application/json' -d '{"owner":"0x000000000000000000000000000000000000dEaD"}' https://afterbook.app/api/baskets/enroll/signature`
+  — expect `503 baskets are not enabled yet` before the switch is on,
+  `403` from a US/unknown location, and `200` with a signable message
+  from a non-US one (stage 1 only reads and reserves nothing). Never call
+  stage 2 or the withdraw routes as a test.
+
 ## Also watch for
 
 Unrelated build breakage surfacing during this sequence isn't

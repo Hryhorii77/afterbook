@@ -55,7 +55,7 @@ export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configur
           network: X402_NETWORK,
           payTo: X402_PAYOUT_ADDRESS!,
         },
-        description: '30-day basis-history samples plus the current on-chain tick liquidity distribution for one of Afterbook\'s ten stock pools.',
+        description: '30-day basis-history samples plus the current on-chain tick liquidity distribution for one of Afterbook\'s tracked stock pools.',
       },
       getX402Server(),
     )

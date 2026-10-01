@@ -89,7 +89,7 @@ x402-gated logic without configuring payment locally.
   `state.liquidity` — this is a hard invariant, not an approximation.
 - `tickForPriceUsd` (lib/quote.ts) round-trips `midPriceUsd` to within
   one `tickSpacing` of the pool's actual current tick.
-- All ten `lib/tokens.ts` pools share `tickSpacing: 10`.
+- All `lib/tokens.ts` pools share `tickSpacing: 10` (twelve tracked as of 2026-10-01).
 
 ## Testing the depth chart's drag interaction
 
@@ -118,6 +118,94 @@ there, not cross over. If a metrics cell goes blank (`—`) after a
 drag, check whether the range still brackets current price before
 assuming a bug — `capitalEfficiencyMultiplier`/
 `computeInRangeProbabilityPct` intentionally return `null` otherwise.
+
+## Driving the newer UI headlessly (real viewports, themes, touch)
+
+The claude-in-chrome window can't be resized below a desktop width, and
+`chrome --headless --window-size=390,…` is NOT a phone: new headless
+enforces a ~500px minimum, so layout happens wider and the screenshot is
+cropped. For real viewport, theme and touch checks drive Chrome over the
+DevTools protocol with `puppeteer-core` (install it in the scratchpad
+directory, not the repo):
+
+```js
+import puppeteer from 'puppeteer-core';
+const b = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new' });
+const p = await b.newPage();
+await p.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });   // a real phone viewport
+await p.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);  // theme with no saved choice
+await p.setExtraHTTPHeaders({ 'x-vercel-ip-country': 'DE' });                      // pass the fail-closed geo gate
+await p.goto('http://localhost:3000/baskets', { waitUntil: 'networkidle2' });
+```
+
+- Run against a **production build** (`npm run build && npx next start
+  -p <port>`), not `next dev` (see the wallet-modal CPU gotcha below).
+  Run it with `.env.local` loaded if the page needs Redis/Glider
+  (`set -a; . ./.env.local; set +a`).
+- **Overflow check**: `document.documentElement.scrollWidth > innerWidth`
+  at 390px, per page and per theme.
+- **Themes**: the saved choice is `localStorage['afterbook-theme']`
+  (`'light' | 'dark'`); with none saved the OS setting
+  (`prefers-color-scheme`) decides. Each port/origin has its own storage.
+- **Touch vs mouse**: `isMobile + hasTouch` gives `(hover: none)`, which
+  is what the ticker pause rule keys off; a plain desktop page has a
+  mouse (`hover: hover`).
+- **Marquee**: read `new DOMMatrix(getComputedStyle(el).transform).m41`
+  twice a second apart; unchanged means paused. It must move when idle,
+  pause while a mouse hovers an item, and keep moving after a click and on
+  touch.
+- **Layout shift**: compare an element's *document* position
+  (`getBoundingClientRect().top + scrollY`) before and after the thing
+  that should not move the page. Let the page settle first (several
+  seconds), or a chart still loading looks like a shift.
+- **Screenshots of a scrolled page**: use an element screenshot or an
+  unclipped viewport screenshot — `clip` coordinates are document-relative
+  and silently capture the top of the page.
+- **Lazy images**: full-page screenshots taken before scrolling show
+  offscreen token icons as empty tiles (`loading="lazy"`); scroll through,
+  then check `img.complete && img.naturalWidth > 0`.
+- **Client-rendered pieces** (the ticker strip, trend charts, toasts) are
+  absent from the server HTML by design — `curl` will not see them. Use a
+  browser.
+- **Notifications**: intercept `/api/tape` with `setRequestInterception`
+  and return a scripted sequence (baseline → gap crosses 100 bp → market
+  opens), and shorten the 60s poll by patching `window.setInterval`
+  in `evaluateOnNewDocument`.
+
+### What can't be driven headlessly
+
+- **The RainbowKit wallet modal / a connected wallet.** A fake
+  `window.ethereum` did not open the modal reliably. To look at
+  wallet-dependent UI, render the presentational component with sample
+  props in a **temporary** page (`MyLotsContent` takes plain props for
+  exactly this); delete the page before committing and confirm the
+  production build is clean without it. For the basket panel's connected
+  states, ask the user to look with a real wallet.
+- **Real-money actions** (enroll, deposit, publish a strategy version,
+  withdraw): never from a script on your own initiative. See the
+  `basis-tilt-ops` skill and `CLAUDE.md`.
+
+## Baskets locally
+
+- The enroll panel and `/api/baskets/*` only work when both
+  `GLIDER_API_KEY` and `GLIDER_STRATEGY_ID` are set; otherwise they
+  answer "not enabled yet". Locally `.env.local` may point
+  `GLIDER_STRATEGY_ID` at a **test strategy** — check which one before
+  trusting a "blocked: asset list does not match" from the basket job.
+- `DEV_GEO_COUNTRY=DE` in `.env.local` lets `next dev` pass the
+  fail-closed geo gate; a production build ignores it, so use the
+  `x-vercel-ip-country` header there.
+- Read-only checks are always safe: `curl` the `/api/baskets/portfolio`
+  route, the `?dry=1` forms of `/api/cron/basket-tilt` and
+  `/api/cron/discover-tokens` (with `Authorization: Bearer $CRON_SECRET`).
+
+## Verifying the deployed site
+
+After a merge, wait for the Vercel production deployment to be `Ready`
+(`vercel ls`), then check the live site, not just the build: status
+codes with `curl`, and a browser run (the `puppeteer-core` recipe works
+against `https://afterbook.app` for read-only checks) for anything
+rendered client-side.
 
 ## Wallet-connect modal — dev-mode CPU gotcha
 
