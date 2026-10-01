@@ -1,8 +1,12 @@
 import type { Metadata, Viewport } from 'next';
+import { Poppins } from 'next/font/google';
 import { headers } from 'next/headers';
 import '@rainbow-me/rainbowkit/styles.css';
 import './globals.css';
 import { Providers } from './providers';
+
+// Self-hosted at build time by next/font, so the CSP needs no extra font host.
+const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-poppins', display: 'swap' });
 
 // Without an explicit metadataBase, Next resolves the og:image/twitter:image
 // meta tags against "http://localhost:3000" even in production.
@@ -30,7 +34,7 @@ export const metadata: Metadata = {
 // page background instead of leaving it white.
 export const viewport: Viewport = {
   colorScheme: 'dark',
-  themeColor: '#0b0d10',
+  themeColor: '#121214',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -42,7 +46,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   await headers();
 
   return (
-    <html lang="en">
+    <html lang="en" className={poppins.variable}>
       <body>
         <Providers>{children}</Providers>
       </body>
