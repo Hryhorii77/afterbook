@@ -705,30 +705,51 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
   50% { opacity: 0.4; }
 }
 
-.sticky-symbol-bar {
+/* Compact pinned bar: a zero-height sticky anchor with the bar absolutely
+   positioned inside it, so showing or hiding it never moves the page. It fades
+   in only once the hero card has scrolled out of view. */
+.compact-anchor {
   position: sticky;
   top: var(--site-header-h);
+  height: 0;
   z-index: 20;
+}
+.sticky-symbol-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 8px;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--panel-border);
-  padding: 10px 0;
-  margin: 0 0 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 16px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-pill);
   font-family: var(--font-ui);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0s linear 0.15s;
+}
+.sticky-symbol-bar-on {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
 }
 
 .sticky-symbol-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 14px;
 }
 
 .sticky-symbol-select {
-  background: var(--panel);
+  background: var(--inset);
   color: var(--text);
   border: 1px solid var(--panel-border);
   border-radius: 8px;
@@ -740,32 +761,35 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
   cursor: pointer;
 }
 
-/* The number the whole hero exists to show — biggest, boldest thing under
-   the header, readable on a phone in daylight without leaning in. */
 .sticky-symbol-basis {
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-}
-@media (min-width: 768px) {
-  .sticky-symbol-basis {
-    font-size: 32px;
-  }
 }
 
 .sticky-symbol-detail {
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
-  font-size: 16px;
+  font-size: 14px;
 }
 .sticky-symbol-detail .gap-detail-label {
-  font-size: 12px;
+  font-size: 11px;
 }
-@media (min-width: 768px) {
-  .sticky-symbol-detail {
-    font-size: 18px;
-  }
+
+/* The stock chooser inside the hero card: reads as the card's title. */
+.hero-symbol-select {
+  display: block;
+  padding: 2px 28px 2px 0;
+  min-height: 0;
+  border: 0;
+  background-color: transparent;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  cursor: pointer;
 }
+.hero-symbol-select:hover:not(:disabled) { border-color: transparent; color: var(--accent); }
+.today-session .dot { display: inline-block; margin-right: 8px; vertical-align: middle; }
 
 .thin-chip {
   display: inline-flex;

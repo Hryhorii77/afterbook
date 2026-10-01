@@ -562,6 +562,22 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const activeStock = STOCKS.find((s) => s.symbol === symbol)!;
   const activeRow = tape.rows.find((r) => r.symbol === symbol);
 
+  // The compact pinned bar only shows once the hero card has scrolled out of
+  // view (under the site header), so the number is never repeated on screen.
+  const heroRef = useRef<HTMLElement>(null);
+  const [heroGone, setHeroGone] = useState(false);
+  const hasHero = !!activeRow;
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => setHeroGone(!entry.isIntersecting && entry.boundingClientRect.bottom < 120),
+      { rootMargin: '-56px 0px 0px 0px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasHero]);
+
   // Carry only earns its place as a tab when there's an edge worth
   // sizing — cash closed plus a basis spread wide enough to plausibly
   // clear fees/impact/gas. 20bp is a display threshold, not the exact
@@ -732,6 +748,27 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   const sortedLiquidRows = useMemo(() => sortRows(liquidRows, sort), [liquidRows, sort]);
   const sortedThinRows = useMemo(() => sortRows(thinRows, sort), [thinRows, sort]);
 
+  const symbolOptions = (
+    <>
+      <optgroup label="Liquid">
+        {liquidRows.map((r) => (
+          <option key={r.symbol} value={r.symbol}>
+            {r.symbol}
+          </option>
+        ))}
+      </optgroup>
+      {thinRows.length > 0 && (
+        <optgroup label="Thin">
+          {thinRows.map((r) => (
+            <option key={r.symbol} value={r.symbol}>
+              {r.symbol}
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </>
+  );
+
   return (
     <main>
       <header className="top">
@@ -739,33 +776,56 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           <h1>Cash close vs the Aero book</h1>
           <p className="tagline">In shares. Execution stays on Aerodrome.</p>
         </div>
-        <div className="header-actions">
-          <span className="clock-badge">
-            <span className={`dot ${tape.session.state}`} />
-            {tape.session.label} · {tape.session.nyTime} ET
-          </span>
-        </div>
       </header>
 
-      <div className="sticky-symbol-bar">
+      {activeRow && (
+        <section className="panel today-hero tape-hero" ref={heroRef}>
+          <div className="today-top">
+            <div className="today-id">
+              <SymbolTile cashTicker={activeRow.cashTicker} />
+              <div className="sym-cell-text">
+                <select className="hero-symbol-select" value={symbol} onChange={(e) => setSymbolAndUrl(e.target.value)} aria-label="Active symbol">
+                  {symbolOptions}
+                </select>
+                <span className="symbol-name" title={activeRow.name}>{activeRow.name}</span>
+              </div>
+            </div>
+            <span className="today-session">
+              <span className={`dot ${tape.session.state}`} />
+              {tape.session.label} · {tape.session.nyTime} ET
+            </span>
+          </div>
+
+          <div className="today-stats">
+            <div className="stat-card stat-card-hero">
+              <div className="stat-label" style={{ marginTop: 0 }}>Gap, Aero vs cash</div>
+              <div className={`today-stat-value ${activeRow.basisBp != null ? (activeRow.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
+                {bp(activeRow.basisBp)}
+              </div>
+              {activeRow.basisBp != null && (
+                <div className="stat-label">
+                  Aero is {Math.abs(activeRow.basisBp).toFixed(1)} bp {activeRow.basisBp >= 0 ? 'above' : 'below'} the{' '}
+                  {tape.session.state === 'open' ? 'cash price' : cashColumnLabel.toLowerCase()}
+                </div>
+              )}
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{usd(activeRow.cashLastUsd)}</div>
+              <div className="stat-label">{tape.session.state === 'open' ? 'Cash price' : cashColumnLabel}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-value">{usd(activeRow.onchainMidUsd)}</div>
+              <div className="stat-label">Aero price</div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <div className="compact-anchor">
+      <div className={`sticky-symbol-bar${heroGone ? ' sticky-symbol-bar-on' : ''}`}>
         <div className="sticky-symbol-row">
           <select className="sticky-symbol-select" value={symbol} onChange={(e) => setSymbolAndUrl(e.target.value)} aria-label="Active symbol">
-            <optgroup label="Liquid">
-              {liquidRows.map((r) => (
-                <option key={r.symbol} value={r.symbol}>
-                  {r.symbol}
-                </option>
-              ))}
-            </optgroup>
-            {thinRows.length > 0 && (
-              <optgroup label="Thin">
-                {thinRows.map((r) => (
-                  <option key={r.symbol} value={r.symbol}>
-                    {r.symbol}
-                  </option>
-                ))}
-              </optgroup>
-            )}
+            {symbolOptions}
           </select>
           {activeRow?.basisBp != null && (
             <span className={`sticky-symbol-basis ${activeRow.basisBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(activeRow.basisBp)}</span>
@@ -782,6 +842,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             </span>
           </div>
         )}
+      </div>
       </div>
 
       {activeRow && !isLiquid(activeRow) && (
