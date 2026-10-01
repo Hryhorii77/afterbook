@@ -8,6 +8,7 @@ import { SiteHeader } from './components/SiteHeader';
 import { NotifyProvider } from './components/notify';
 import { Toaster } from './components/Toaster';
 import { LiveAlerts } from './components/LiveAlerts';
+import { TickerStrip } from './components/TickerStrip';
 import { THEME_INIT_SCRIPT } from './components/theme';
 
 // Self-hosted at build time by next/font, so the CSP needs no extra font host.
@@ -64,6 +65,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <Providers>
           <NotifyProvider>
             <SiteHeader />
+            <TickerStrip />
             {children}
             <Toaster />
             <LiveAlerts />
