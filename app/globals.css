@@ -546,6 +546,15 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .stat-value { font-size: 30px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
 .stat-label { margin-top: 8px; font-size: 13px; color: var(--text-dim); }
 
+/* My Lots: wallet chip, LP card extras. */
+.my-lots-wallet { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; }
+.wallet-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
+.lp-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.lp-grid .weight-card .geo-note { font-size: 12.5px; }
+.range-badge { padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
+.range-badge-in { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.range-badge-out { color: var(--red); background: color-mix(in srgb, var(--red) 14%, transparent); }
+
 /* Phones: two rows (brand + wallet + theme, then the page links) so no link is
    hidden off-screen, and the bar scrolls away rather than eating a tall strip
    of every screen. The sticky symbol bar then pins to the very top. */
