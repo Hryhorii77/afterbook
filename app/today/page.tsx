@@ -99,45 +99,72 @@ export default async function TodayPage() {
           <p className="geo-note">Tape unavailable right now — try again shortly.</p>
         ) : (
           <>
-            <div className="gap-hero-sub">
-              {snapshot.sessionLabel}
-              {!marketOpen && snapshot.closedForMs > 0 && (
-                <>
-                  {' '}
-                  · closed {formatDuration(snapshot.closedForMs)} ago · reopens {formatNextOpen(snapshot.nextOpenIso)}
-                </>
-              )}
-            </div>
-
             {headline ? (
               <>
-                <div className="today-id">
-                  <SymbolTile cashTicker={headline.cashTicker} />
-                  <div className="sym-cell-text">
-                    <span className="today-id-label">Biggest gap right now</span>
-                    <span className="symbol">{headline.symbol}</span>
-                    <span className="symbol-name" title={headline.name}>{headline.name}</span>
+                <div className="today-top">
+                  <div className="today-id">
+                    <SymbolTile cashTicker={headline.cashTicker} />
+                    <div className="sym-cell-text">
+                      <span className="today-id-label">Biggest gap right now</span>
+                      <span className="symbol">{headline.symbol}</span>
+                      <span className="symbol-name" title={headline.name}>{headline.name}</span>
+                    </div>
                   </div>
-                </div>
-                <div className={`today-stat-value ${headlineBp != null && headlineBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>
-                  {bp(headlineBp)}
-                </div>
-                <div className="gap-detail">
-                  <span className="gap-price-pair">
-                    <span className="gap-detail-label">cash</span> {usd(marketOpen ? headline.cashLastUsd : headline.closeUsd)}
+                  <span className="today-session">
+                    {snapshot.sessionLabel}
+                    {!marketOpen && snapshot.closedForMs > 0 && (
+                      <>
+                        {' '}
+                        · closed {formatDuration(snapshot.closedForMs)} ago · reopens {formatNextOpen(snapshot.nextOpenIso)}
+                      </>
+                    )}
                   </span>
-                  {' → '}
-                  <span className="gap-price-pair">
-                    <span className="gap-detail-label">aero</span> {usd(headline.onchainMidUsd)}
-                  </span>
+                </div>
+
+                <div className="today-stats">
+                  <div className="stat-card stat-card-hero">
+                    <div className="stat-label" style={{ marginTop: 0 }}>Gap, Aero vs cash</div>
+                    <div className={`today-stat-value ${headlineBp != null && headlineBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>
+                      {bp(headlineBp)}
+                    </div>
+                    {headlineBp != null && (
+                      <div className="stat-label">
+                        Aero is {Math.abs(headlineBp).toFixed(1)} bp {headlineBp >= 0 ? 'above' : 'below'} the cash{' '}
+                        {marketOpen ? 'price' : 'close'}
+                      </div>
+                    )}
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-value">{usd(marketOpen ? headline.cashLastUsd : headline.closeUsd)}</div>
+                    <div className="stat-label">{marketOpen ? 'Cash price' : 'Cash close'}</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-value">{usd(headline.onchainMidUsd)}</div>
+                    <div className="stat-label">Aero price</div>
+                  </div>
                 </div>
 
                 {sizing && (
-                  <p className="geo-note" style={{ marginTop: 16 }}>
-                    A {usdCompact(CLIP_SIZE_USD)} clip moves the average price {sizing.clipImpactBp.toFixed(1)} bp
-                    {sizing.clipLargeTradeCaveat && ' (large enough it may cross into the next tick — rough)'}. Moving the
-                    price 50 bp takes about {usdCompact(sizing.usdFor50bp)}; 100 bp takes about {usdCompact(sizing.usdFor100bp)}.
-                  </p>
+                  <>
+                    <div className="today-id-label" style={{ marginTop: 20 }}>What it takes to trade it</div>
+                    <div className="stat-grid" style={{ marginTop: 8 }}>
+                      <div className="stat-card">
+                        <div className="stat-value">{sizing.clipImpactBp.toFixed(1)} bp</div>
+                        <div className="stat-label">Price impact of a {usdCompact(CLIP_SIZE_USD)} clip</div>
+                      </div>
+                      <div className="stat-card">
+                        <div className="stat-value">{usdCompact(sizing.usdFor50bp)}</div>
+                        <div className="stat-label">To move the price 50 bp</div>
+                      </div>
+                      <div className="stat-card">
+                        <div className="stat-value">{usdCompact(sizing.usdFor100bp)}</div>
+                        <div className="stat-label">To move the price 100 bp</div>
+                      </div>
+                    </div>
+                    {sizing.clipLargeTradeCaveat && (
+                      <p className="geo-note">The clip is large enough that it may cross into the next tick, so its impact is a rough estimate.</p>
+                    )}
+                  </>
                 )}
               </>
             ) : (
