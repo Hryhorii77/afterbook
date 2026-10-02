@@ -55,6 +55,14 @@ No lint script, no test suite. To verify a change actually works:
   spaces around a strategy id; `<`/`>` placeholders around a key). The
   Glider client trims them; still check shape without printing the
   value. Never print, log or paste `GLIDER_API_KEY`.
+- **Two API keys, by design** (rotated 2026-10-02): the production key
+  lives only in Vercel; the local `.env.local` key is **read-only**
+  (`strategies:read`, `portfolios:read`, `enroll:write`), so local
+  scripts can read and dry-run but cannot publish or withdraw. Keys can
+  only be created/revoked in the Glider console (no API for it). Rotation
+  steps are in the `basis-tilt-ops` skill. Never ask the user to paste a
+  key into the session; use hidden `read -s` prompts in their own
+  terminal.
 - Don't name Glider or use their logo beyond what is already on the
   site without the user confirming; the wording ("run on", not "powered
   by") is deliberate.
