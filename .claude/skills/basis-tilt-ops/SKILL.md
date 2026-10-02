@@ -26,11 +26,46 @@ Background: `README.md` → "Baskets (Basis Tilt)". Code: `lib/glider.ts`
 4. `BASKET_AUTOPUBLISH` stays unset unless the user decides otherwise.
 5. Never print, log or paste `GLIDER_API_KEY`. Run scripts with
    `.env.local` loaded (`set -a; . ./.env.local; set +a`) and print only
-   counts, ids and weights.
+   counts, ids and weights. The local key is read-only (see "API keys").
 6. The live strategy is `GLIDER_STRATEGY_ID` in Vercel Production.
    `.env.local` may hold a **test** strategy id in `GLIDER_STRATEGY_ID`
    and the real one in `GLIDER_STRATEGY_ID_MAIN` — check which you are
    about to touch.
+
+## API keys (rotated 2026-10-02)
+
+There are **two keys**, both for the same production tenant:
+
+| Key | Lives in | Scopes |
+| --- | --- | --- |
+| `afterbook-vercel-prod` | Vercel Production only (Sensitive) | `strategies:read`, `strategies:write`, `enroll:write`, `portfolios:read`, `portfolios:write`, `portfolios:withdraw` |
+| `afterbook-dev-local` | `.env.local` | `strategies:read`, `portfolios:read`, `enroll:write` |
+
+- **The local key is read-only on purpose.** Dry runs, reads and testing the
+  enroll panel work. Anything that writes (publishing a version, `start`,
+  strategy settings, withdrawals) is refused locally with a 403 — that is
+  the safety net, not a bug. Don't ask the user to widen the dev key.
+- **To publish by hand**, the user runs the script in **their own
+  terminal** with a write-capable key held only for that one command
+  (never stored, never pasted to the assistant), e.g.
+  `read -rs GLIDER_API_KEY; export GLIDER_API_KEY; npx tsx ./tmp-publish.ts; unset GLIDER_API_KEY`
+  (use the key `afterbook-vercel-prod` if they are comfortable creating a
+  short-lived one; otherwise create a temporary write key in the console
+  and revoke it afterwards). The assistant prepares and checks the plan
+  (steps 1–2) and hands over the command.
+- **Glider's API cannot create, list or revoke keys** (32 endpoints, none
+  for keys; only `GET /scopes` and `GET /whoami`). Creating and revoking is
+  console-only (console.glidercloud.dev).
+- **Rotation procedure** (keeps the live site working throughout): create
+  the new key(s) in the console → put the production key into Vercel with a
+  hidden prompt (`vercel env rm` then `printf '%s' "$KEY" | vercel env add
+  GLIDER_API_KEY production --sensitive`; confirm with `vercel env ls
+  production`) → redeploy → check the live site → put the dev key in
+  `.env.local` with a hidden prompt and a script that strips stray
+  spaces/`<` `>` → check it with `GET /whoami` (prints tenant, `apiKeyId`
+  and scopes, never the key) → **only then revoke the old key** → re-check
+  live: if it still works, it is on the new key. Never type a key into the
+  assistant session or a command line (shell history).
 
 Scripts below import repo modules, so write them as `tmp-*.ts` in the
 **repo root**, run with `npx tsx ./tmp-x.ts`, and **delete them

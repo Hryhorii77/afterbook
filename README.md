@@ -65,7 +65,7 @@ Earnings dates come from Nasdaq's public, undocumented `api.nasdaq.com/api/calen
 
 **Daily job** (`/api/cron/basket-tilt`, 22:00 UTC): plans the next update and publishes only when `BASKET_AUTOPUBLISH=1` and `?dry=1` is not set; otherwise it just reports the plan and writes nothing. It refuses to touch a strategy whose asset list is not exactly the basket names. Auto-publish is **off** by default; weights have been published by hand while the smoothing is observed (see the `basis-tilt-ops` skill for the safe procedure).
 
-**Environment variables**: `GLIDER_API_KEY` (a *production* tenant key — Glider's B2B API has no staging; test with separate keys), `GLIDER_API_BASE` (optional; defaults to `https://api.glider.fi/v2`), `GLIDER_STRATEGY_ID`, `BASKET_AUTOPUBLISH`, and `DEV_GEO_COUNTRY` (honoured only under `next dev`, so a developer machine can pass the fail-closed gate; a production build ignores it).
+**Environment variables**: `GLIDER_API_KEY` (a *production* tenant key — Glider's B2B API has no staging; test with separate keys. Production needs the six scopes `strategies:read/write`, `enroll:write`, `portfolios:read/write/withdraw`; a local dev key needs only `strategies:read`, `portfolios:read`, `enroll:write`), `GLIDER_API_BASE` (optional; defaults to `https://api.glider.fi/v2`), `GLIDER_STRATEGY_ID`, `BASKET_AUTOPUBLISH`, and `DEV_GEO_COUNTRY` (honoured only under `next dev`, so a developer machine can pass the fail-closed gate; a production build ignores it).
 
 ## Notifications
 
