@@ -7,6 +7,42 @@ import { useConnectModal } from '@rainbow-me/rainbowkit';
 
 const truncateAddr = (addr: string) => `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 
+const svgProps = {
+  width: 16,
+  height: 16,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 2,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  'aria-hidden': true,
+} as const;
+const CopyIcon = () => (
+  <svg {...svgProps}>
+    <rect x="9" y="9" width="12" height="12" rx="2" />
+    <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+  </svg>
+);
+const CheckIcon = () => (
+  <svg {...svgProps}>
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+);
+const ExternalIcon = () => (
+  <svg {...svgProps}>
+    <path d="M7 17 17 7" />
+    <path d="M8 7h9v9" />
+  </svg>
+);
+const ExitIcon = () => (
+  <svg {...svgProps}>
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <path d="m16 17 5-5-5-5" />
+    <path d="M21 12H9" />
+  </svg>
+);
+
 // One entry point into the wallet connection (header, My Lots, Baskets all read the
 // same wagmi state). Connected, it opens a small account panel instead of
 // disconnecting on click; on any network but Base it turns amber, because every
@@ -149,10 +185,12 @@ export function WalletButtonView({
 
           <div className="wallet-actions">
             <button type="button" className="wallet-action" onClick={copy}>
+              {copied ? <CheckIcon /> : <CopyIcon />}
               {copied ? 'Copied' : 'Copy address'}
             </button>
             <a className="wallet-action" href={`https://basescan.org/address/${address}`} target="_blank" rel="noopener noreferrer">
-              Basescan ↗
+              <ExternalIcon />
+              Basescan
             </a>
           </div>
 
@@ -182,7 +220,10 @@ export function WalletButtonView({
           </div>
 
           <button type="button" className="wallet-disconnect" onClick={handleDisconnect}>
-            <span>Disconnect</span>
+            <span className="wallet-disconnect-label">
+              <ExitIcon />
+              Disconnect
+            </span>
             <span className="wallet-disconnect-note">This site only</span>
           </button>
         </div>
