@@ -172,15 +172,12 @@ h1 {
   color: var(--text);
   text-decoration: none;
 }
-.site-brand-mark {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-  background: var(--accent);
-  flex-shrink: 0;
-}
+.brand-mark { flex-shrink: 0; display: block; }
+.brand-mark-tile { fill: var(--accent); }
+.brand-mark-ink { fill: #fff; }
+:root:not([data-theme='light']) .brand-mark-ink { fill: var(--bg); }
 .site-brand-text {
-  margin-left: 8px;
+  margin-left: 9px;
   max-width: 120px;
   overflow: hidden;
   white-space: nowrap;
