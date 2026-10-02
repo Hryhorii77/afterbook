@@ -1,7 +1,20 @@
+import { BRAND_BLUE, MARK_BARS, MARK_CRESCENT } from '@/lib/brand';
 import { ImageResponse } from 'next/og';
 import { getTape } from './tape';
 import { splitByLiquidity } from './liquidity';
 import { buildTodaySnapshot } from './todaySnapshot';
+
+function Mark({ px }: { px: number }) {
+  return (
+    <svg width={px} height={px} viewBox="0 0 64 64" style={{ marginRight: px * 0.3 }}>
+      <rect width="64" height="64" rx="16" fill={BRAND_BLUE} />
+      <path d={MARK_CRESCENT} fill="#fff" />
+      {MARK_BARS.map((b) => (
+        <rect key={b.y} x={b.x} y={b.y} width={b.w} height={b.h} rx={b.h / 2} fill="#fff" opacity={b.opacity} />
+      ))}
+    </svg>
+  );
+}
 
 export const OG_ALT = 'Afterbook — cash close vs the Aero book, in shares';
 export const OG_SIZE = { width: 1200, height: 630 };
@@ -63,7 +76,8 @@ export async function buildOgImage(symbol?: string) {
             fontFamily: 'sans-serif',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Mark px={44} />
             <span style={{ fontSize: 40, fontWeight: 700, color: '#8b93a1', letterSpacing: '-0.02em' }}>Afterbook</span>
             {sessionLabel && <span style={{ fontSize: 22, color: '#6b7280' }}>{sessionLabel}</span>}
           </div>
@@ -115,7 +129,8 @@ export async function buildOgImage(symbol?: string) {
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Mark px={68} />
             <span style={{ fontSize: 64, fontWeight: 700, color: '#e6e9ef', letterSpacing: '-0.02em' }}>
               Afterbook
             </span>
@@ -203,7 +218,8 @@ export async function buildTodayOgImage() {
           fontFamily: 'sans-serif',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <Mark px={44} />
           <span style={{ fontSize: 40, fontWeight: 700, color: '#8b93a1', letterSpacing: '-0.02em' }}>
             Afterbook · Biggest gap
           </span>

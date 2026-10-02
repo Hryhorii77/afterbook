@@ -1,5 +1,6 @@
 'use client';
 
+import { BrandMark } from './BrandMark';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -38,7 +39,7 @@ export function SiteHeader() {
     <header className="site-header" data-scrolled={scrolled}>
       <div className="site-header-inner">
         <Link href="/" className="site-brand" aria-label="Afterbook home">
-          <span className="site-brand-mark" aria-hidden="true" />
+          <BrandMark size={26} />
           <span className="site-brand-text">Afterbook</span>
         </Link>
         <nav className="site-nav" aria-label="Main">
