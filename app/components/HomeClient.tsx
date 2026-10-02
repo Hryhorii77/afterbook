@@ -152,11 +152,17 @@ const SORT_COLUMNS: { key: SortKey; label: (cashColumnLabel: string) => string }
 const TAPE_COLUMN_WIDTHS = ['23%', '12%', '12%', '11%', '17%', '10%', '15%'];
 
 interface TrendData {
-  series: Record<string, number[]>;
+  /** Prices on one shared time axis; null before a token's first sample. */
+  series: Record<string, (number | null)[]>;
+  /** Days of history each token actually has. */
+  spanDays: Record<string, number>;
   change24h: Record<string, number | null>;
   /** Days of history the charts actually cover (up to 30). */
   days: number;
 }
+
+/** Fewer days of history than this and the row says "New" instead of drawing a chart. */
+const MIN_TREND_DAYS = 3;
 
 const pct = (n: number) => `${Math.abs(n).toFixed(2)}%`;
 
@@ -249,7 +255,12 @@ function TapeRows({
             {trend?.change24h[row.symbol] != null ? `${(trend.change24h[row.symbol] as number) >= 0 ? '▲' : '▼'} ${pct(trend.change24h[row.symbol] as number)}` : '—'}
           </td>
           <td className="spark-cell">
-            <MiniSpark values={trend?.series[row.symbol]} label={`Aero price, past ${trend?.days ?? ''} days`} />
+            {trend && (trend.spanDays[row.symbol] ?? 0) < MIN_TREND_DAYS ? (
+              // Too little history for a meaningful line (it would be a few pixels wide): say so.
+              <span className="mini-spark-new">New · {Math.max(1, Math.round(trend.spanDays[row.symbol] ?? 0))}d</span>
+            ) : (
+              <MiniSpark values={trend?.series[row.symbol]} label={`Aero price, past ${trend?.days ?? ''} days`} />
+            )}
           </td>
         </tr>
       ))}
