@@ -852,7 +852,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             <button type="button" className="hero-cta" onClick={scrollToLotLab}>
               Size a {activeRow.symbol} trade ↓
             </button>
-            <a className="emph-link" href="https://t.me/AfterbookAlertsBot" target="_blank" rel="noopener noreferrer">
+            <a className="emph-link" href="https://t.me/afterbook_bot" target="_blank" rel="noopener noreferrer">
               Get alerts on Telegram ↗
             </a>
           </div>
