@@ -2001,7 +2001,7 @@ footer {
   background: var(--inset);
   border: 1px solid var(--panel-border);
   color: var(--text-dim);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 6px 12px;
   min-height: 40px;
   font-size: 12px;
