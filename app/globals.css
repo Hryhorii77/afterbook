@@ -884,6 +884,18 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
   cursor: pointer;
 }
 .hero-symbol-select:hover:not(:disabled) { border-color: transparent; color: var(--accent); }
+/* The title-style selects have no border, so the site-wide select focus glow (a 3px halo)
+   rendered as a heavy box hugging the name. A thin ring with breathing room instead. */
+.hero-symbol-select,
+.sticky-symbol-select { border-radius: 10px; }
+/* Room inside the ring (the negative margin keeps the text where it was) and a gap above the name. */
+.hero-symbol-select { padding-left: 8px; margin: 0 0 4px -8px; }
+.hero-symbol-select:focus-visible,
+.sticky-symbol-select:focus-visible {
+  box-shadow: none;
+  outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: 0;
+}
 .today-session .dot { display: inline-block; margin-right: 8px; vertical-align: middle; }
 
 .thin-chip {
@@ -1869,6 +1881,10 @@ footer {
 .footer-legal a:hover {
   color: var(--text);
 }
+/* Emphasised links (Glider, risks and terms) look the same here as on /baskets. */
+.footer-legal a.emph-link,
+.footer-legal a.emph-link:hover { color: var(--accent); }
+.footer-legal a.emph-link { font-weight: 600; text-underline-offset: 3px; }
 
 .footer-meta {
   margin-top: 16px;
@@ -1989,7 +2005,7 @@ footer {
   background: var(--inset);
   border: 1px solid var(--panel-border);
   color: var(--text-dim);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 6px 12px;
   min-height: 40px;
   font-size: 12px;
@@ -2093,4 +2109,39 @@ footer {
   .mobile-tape-link:hover {
     color: var(--text);
   }
+}
+
+/* First screen: the hero sentence, its actions, and the one-time explainer. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.hero-sentence { margin-top: 10px; font-size: 16px; line-height: 1.45; color: var(--text); max-width: 34em; }
+.hero-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 20px; margin-top: 18px; }
+.hero-cta {
+  min-height: 44px;
+  padding: 8px 20px;
+  border: 1px solid var(--primary-bg);
+  border-radius: 999px;
+  background: var(--primary-bg);
+  color: var(--primary-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hero-cta:hover { background: var(--primary-bg-hover); }
+.hero-note { margin: 14px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-dimmer); }
+@media (max-width: 760px) {
+  /* Price cards side by side on phones so the trade button isn't pushed off the first screen. */
+  .tape-hero .today-stats { grid-template-columns: 1fr 1fr; }
+  .tape-hero .stat-card-hero { grid-column: 1 / -1; }
+  .tape-hero .stat-card .stat-value { font-size: 22px; }
 }

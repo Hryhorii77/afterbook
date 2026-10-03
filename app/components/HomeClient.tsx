@@ -5,7 +5,7 @@ import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
 import type { TapeResult, TapeRow } from '@/lib/tape';
 import { splitByLiquidity, isLiquid, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import type { GeoInfo } from '@/lib/geo';
-import { bp, formatWindow, usd, usdCompact, formatDuration, formatNextOpen } from '@/lib/format';
+import { bp, formatWindow, usd, usdCompact, formatNextOpen } from '@/lib/format';
 import { ImpactCurve } from './ImpactCurve';
 import { DepthChart } from './DepthChart';
 import { computeCashAndCarryEdge, GAS_ESTIMATE_USD } from '@/lib/arb';
@@ -163,6 +163,13 @@ interface TrendData {
 
 /** Fewer days of history than this and the row says "New" instead of drawing a chart. */
 const MIN_TREND_DAYS = 3;
+
+// "NVIDIA Corporation" -> "NVIDIA (NVDA)". The ticker keeps names that are also plain words
+// ("Strategy") unambiguous; very long names fall back to the ticker alone.
+function shortName(row: { name: string; cashTicker: string }): string {
+  const name = row.name.replace(/(?:[, ]+(?:Inc\.?|Corporation|Corp\.?|Co\.?))+$/i, '').trim();
+  return name && name.length <= 22 ? `${name} (${row.cashTicker})` : row.cashTicker;
+}
 
 const pct = (n: number) => `${Math.abs(n).toFixed(2)}%`;
 
@@ -614,8 +621,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   }, [carryEligible, lotLabTab]);
 
   // Only meaningful while cash is closed — once it's open there's no
-  // "carry until reopen" window left to annualize over, same gate
-  // showGapHero already uses below.
+  // "carry until reopen" window left to annualize over.
   const arbEdge = useMemo(() => {
     if (tape.session.state === 'open' || !quote || activeRow?.basisBp == null) return null;
     const msUntilOpen = new Date(tape.session.nextOpenIso).getTime() - now;
@@ -676,13 +682,34 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     window.history.replaceState(null, '', `/${sym}`);
   };
 
+  // While the cash market is shut the headline gap is anchored to the actual close (same
+  // basis /today uses), not a live extended-hours print, so the sentence below, the big
+  // number and /today never disagree about the same instant.
+  const heroBp =
+    activeRow == null
+      ? null
+      : tape.session.state.startsWith('closed') && activeRow.closeUsd != null && activeRow.onchainMidUsd != null
+        ? ((activeRow.onchainMidUsd - activeRow.closeUsd) / activeRow.closeUsd) * 10_000
+        : activeRow.basisBp;
+  const closeWeekday =
+    cashClosedAsOfMs > 0
+      ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long' }).format(new Date(cashClosedAsOfMs))
+      : null;
+  const referenceLabel = tape.session.state.startsWith('closed')
+    ? closeWeekday
+      ? `${closeWeekday}’s close`
+      : 'the cash close'
+    : tape.session.state === 'open'
+      ? 'the cash price'
+      : `the ${cashColumnLabel.toLowerCase()} price`;
+
   const selectSymbol = (sym: string) => {
     setSymbolAndUrl(sym);
     document.getElementById('lot-lab')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const scrollToTape = () => {
-    document.getElementById('tape')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const scrollToLotLab = () => {
+    document.getElementById('lot-lab')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const toggleSort = (key: SortKey) => {
@@ -751,8 +778,6 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     }
   };
 
-  const showGapHero = tape.session.state !== 'open' && cashClosedAsOfMs > 0;
-
   // Real, deep pools vs freshly-listed thin ones don't belong at the same
   // visual rank — a $10k pool's basis swings hundreds of bp on noise alone
   // and reads as "the tape is broken" next to NVDAc's single-digit bp.
@@ -783,12 +808,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
   return (
     <main>
-      <header className="top">
-        <div>
-          <h1>Cash close vs the Aero book</h1>
-          <p className="tagline">In shares. Execution stays on Aerodrome.</p>
-        </div>
-      </header>
+      <h1 className="sr-only">Afterbook: cash close vs the Aero book, in shares</h1>
 
       {activeRow && (
         <section className="panel today-hero tape-hero" ref={heroRef}>
@@ -808,13 +828,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           <div className="today-stats">
             <div className="stat-card stat-card-hero">
               <div className="stat-label" style={{ marginTop: 0 }}>Gap, Aero vs cash</div>
-              <div className={`today-stat-value ${activeRow.basisBp != null ? (activeRow.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
-                {bp(activeRow.basisBp)}
+              <div className={`today-stat-value ${heroBp != null ? (heroBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
+                {bp(heroBp)}
               </div>
-              {activeRow.basisBp != null && (
-                <div className="stat-label">
-                  Aero is {Math.abs(activeRow.basisBp).toFixed(1)} bp {activeRow.basisBp >= 0 ? 'above' : 'below'} the{' '}
-                  {tape.session.state === 'open' ? 'cash price' : cashColumnLabel.toLowerCase()}
+              {heroBp != null && (
+                <div className="hero-sentence">
+                  {shortName(activeRow)} is trading {Math.abs(heroBp).toFixed(1)} bp {heroBp >= 0 ? 'above' : 'below'} {referenceLabel} on Aerodrome.
+                  {tape.session.state.startsWith('closed') && <> Cash reopens {formatNextOpen(tape.session.nextOpenIso)}.</>}
                 </div>
               )}
             </div>
@@ -827,6 +847,18 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               <div className="stat-label">Aero price</div>
             </div>
           </div>
+
+          <div className="hero-actions">
+            <button type="button" className="hero-cta" onClick={scrollToLotLab}>
+              Size a {activeRow.symbol} trade ↓
+            </button>
+            <a className="emph-link" href="https://t.me/afterbook_bot" target="_blank" rel="noopener noreferrer">
+              Get alerts on Telegram ↗
+            </a>
+          </div>
+          <p className="hero-note">
+            Aero is Aerodrome, the Base exchange where these stock tokens trade around the clock. 100 bp = 1%.
+          </p>
         </section>
       )}
 
@@ -836,9 +868,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           <select className="sticky-symbol-select" value={symbol} onChange={(e) => setSymbolAndUrl(e.target.value)} aria-label="Active symbol">
             {symbolOptions}
           </select>
-          {activeRow?.basisBp != null && (
-            <span className={`sticky-symbol-basis ${activeRow.basisBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(activeRow.basisBp)}</span>
-          )}
+          {heroBp != null && <span className={`sticky-symbol-basis ${heroBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(heroBp)}</span>}
         </div>
         {activeRow?.cashLastUsd != null && activeRow?.onchainMidUsd != null && (
           <div className="sticky-symbol-detail">
@@ -856,53 +886,6 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
       {activeRow && !isLiquid(activeRow) && (
         <div className="thin-chip">thin book · {usdCompact(activeRow.depthUsd)} depth</div>
-      )}
-
-      {showGapHero && (
-        <section className="panel gap-hero">
-          <div className="gap-hero-title">Cash market closed {formatDuration(now - cashClosedAsOfMs)} ago</div>
-          <div className="gap-hero-sub">
-            Aerodrome has kept trading the whole time · Reopens {formatNextOpen(tape.session.nextOpenIso)}
-          </div>
-          <div className="gap-grid">
-            {liquidRows.map((row) => {
-              // Deliberately close-anchored, not row.basisBp — that field
-              // now reflects the live pre-market/after-hours print when
-              // one exists (see lib/tape.ts), which would silently
-              // disagree with this card's own "since that exact close"
-              // headline on exactly the days a real extended-hours move
-              // happened. Badge and arrow here always tell the same story.
-              const closeBasisBp =
-                row.closeUsd != null && row.onchainMidUsd != null
-                  ? ((row.onchainMidUsd - row.closeUsd) / row.closeUsd) * 10_000
-                  : null;
-              return (
-                <button
-                  className={`gap-cell gap-cell-clickable${row.symbol === symbol ? ' gap-cell-active' : ''}`}
-                  key={row.symbol}
-                  onClick={() => selectSymbol(row.symbol)}
-                >
-                  <div className="gap-symbol">{row.symbol}</div>
-                  <div className={closeBasisBp != null ? (closeBasisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}>
-                    {bp(closeBasisBp)}
-                  </div>
-                  <div className="gap-detail">
-                    <span className="gap-price-pair">
-                      <span className="gap-detail-label">cash</span> {usd(row.closeUsd)}
-                    </span>
-                    {' → '}
-                    <span className="gap-price-pair">
-                      <span className="gap-detail-label">aero</span> {usd(row.onchainMidUsd)}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          <button type="button" className="mobile-tape-link" onClick={scrollToTape}>
-            View all {liquidRows.length + thinRows.length} in tape ↓
-          </button>
-        </section>
       )}
 
       <section className="panel">
@@ -1388,7 +1371,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                   </p>
                   {carryDirection === 'sell' && unlocked && (
                     <a
-                      className="btn btn-secondary"
+                      className="btn"
                       href={aerodromeSwapUrl(activeStock, 'sell')}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -1603,10 +1586,14 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           </p>
           <p>
             Baskets: trading and accounts run on{' '}
-            <a href="https://glider.fi" target="_blank" rel="noopener noreferrer">
+            <a href="https://glider.fi" target="_blank" rel="noopener noreferrer" className="emph-link">
               Glider ↗
             </a>
-            ; see the <a href="/baskets/risks">risks and terms</a>.
+            ; see the{' '}
+            <a href="/baskets/risks" className="emph-link">
+              risks and terms
+            </a>
+            .
           </p>
           <p>
             Independent and non-custodial. Not affiliated with Coinbase, Base, NVIDIA, or the issuer. B20 backing is
