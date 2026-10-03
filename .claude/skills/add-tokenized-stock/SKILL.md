@@ -102,8 +102,13 @@ grep -rnE "\bten\b|10 stocks" app lib README.md | grep -v "^app/baskets/risks"
 - Add the token + pool row to the README's contract address table, and
   note the verification date in "Why the math is done the way it is".
 - The earnings/history/trend data for a new symbol starts empty and
-  fills in as samples accumulate; its 24h change shows a dash until a
-  sample exists near 24 hours ago.
+  fills in as samples accumulate. Expect, for a brand-new token: a
+  "New · Nd" pill instead of a trend chart until it has 3 days of
+  samples; a 24h change measured over slightly under 24 hours (nearest
+  sample within a 3-hour tolerance) or a dash if none; and no card in
+  "who mean-reverts at the open" on `/today` until it has 8 usable
+  trading sessions (`MIN_DAYS_FOR_OPEN_SNAP` in `lib/history.ts`), so
+  roughly 1.5 to 2 calendar weeks. None of that is a bug.
 
 ## 6. Verify
 
