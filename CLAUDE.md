@@ -81,6 +81,15 @@ No lint script, no test suite. To verify a change actually works:
 - User-visible counts ("ten stocks") go stale when the tracked list
   changes. After adding/removing a token, grep for them (see the
   `add-tokenized-stock` skill).
+- **First screen:** the hero must say the gap as one plain sentence a
+  stranger can repeat (name, bp, versus what, when cash reopens), define
+  "Aero" and "100 bp = 1%" once, and carry one primary button. Don't
+  repeat the same numbers in several blocks above the fold. The home page
+  opens on the day's biggest liquid gap (same pick as `/today`).
+- **Owner decisions on the look** (don't undo without asking): the
+  header "Connect wallet" stays the solid primary button; the scrolling
+  ticker stays on every page; the wallet button opens an account panel
+  rather than disconnecting on click.
 
 ## Working process
 
@@ -88,6 +97,9 @@ No lint script, no test suite. To verify a change actually works:
   deploy → verify the **live** site (curl, and a real browser for
   anything client-rendered; the ticker strip, for example, is empty in
   the server HTML by design).
+- Gate commits and PRs on a passing build (`npm run build … && git
+  commit`), and check any external link you add actually resolves to the
+  right thing (a Telegram bot's display name is not its username).
 - Keep README, this file and the skills in step with the code in the
   same PR as the change. A doc that says something false is worse than
   none.

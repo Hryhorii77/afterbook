@@ -207,13 +207,54 @@ codes with `curl`, and a browser run (the `puppeteer-core` recipe works
 against `https://afterbook.app` for read-only checks) for anything
 rendered client-side.
 
+## Local production build: region gate, wallet states, build gotchas
+
+- **Region gate.** A local `next start` never receives Vercel's
+  `x-vercel-ip-country` header, so the gate fails closed: Lot Lab's
+  "Open on Aerodrome" / "Add liquidity" buttons and the Baskets panel are
+  disabled ("Region could not be detected"). That is correct, not a bug.
+  To click through the enabled state in your own browser without
+  `next dev`, run a tiny header-adding proxy (local only):
+
+  ```js
+  // geoproxy.mjs: localhost:3001 -> localhost:3000 plus the Vercel header
+  import http from 'node:http';
+  http.createServer((req, res) => {
+    const up = http.request({ host: '127.0.0.1', port: 3000, path: req.url, method: req.method,
+      headers: { ...req.headers, host: 'localhost:3000', 'x-vercel-ip-country': 'DE' } },
+      (r) => { res.writeHead(r.statusCode, r.headers); r.pipe(res); });
+    up.on('error', () => { res.writeHead(502); res.end('upstream down'); });
+    req.pipe(up);
+  }).listen(3001, '127.0.0.1');
+  ```
+- **Wallet UI states** (connected, wrong network, switch failed): render
+  `WalletButtonView` (props only) on a temporary page. Do **not** mount a
+  second `WagmiProvider` with a mock connector inside the root layout: it
+  looped ("Maximum update depth exceeded"; the cause was not found, and
+  giving it its own `storage: null` did not help). Read URL state in a
+  `useEffect`, not during render, or hydration mismatches. The layout's
+  header has its own `.wallet-connect-btn`, so scope selectors to your
+  test host (`#host .wallet-connect-btn`). Delete the temp page, then
+  `rm -rf .next/dev` before the final build: a prior `next dev` run leaves
+  generated types that still import the deleted page and fail the build
+  with "Cannot find module '../../../app/tmp-…/page.js'".
+- **Gate commits on the build.** Chain `npm run build > log 2>&1 && git
+  commit …`; with `;` a failed build still gets committed and a PR opened.
+- **Quoting external links.** For a `t.me/<name>` link, `curl` the page
+  and read `og:title`: "Contact @name" means no such user (a bot's real
+  page shows its name). Confirm a bot's username with Telegram's `getMe`.
+- Phone-width checks: price cards sit two per row under the hero and the
+  hero's trade button should be on the first screen at 390px.
+
 ## Wallet-connect modal — dev-mode CPU gotcha
 
 Both My Lots' own "Connect wallet" and the header's "Connect wallet"
 button (`app/components/WalletConnectButton.tsx`) open the same
 RainbowKit multi-wallet picker (`app/providers.tsx`, `lib/wagmiConfig.ts`)
 instead of grabbing `window.ethereum` directly — they read the same
-global wagmi account state, so testing either one is equivalent.
+global wagmi account state, so testing either one is equivalent. Once
+connected, clicking the button opens an account panel (it does not
+disconnect); on a non-Base network it turns amber ("Wrong network").
 **Under `npm run dev` specifically**, loading
 the page has been observed to spin up a Chrome renderer process that
 climbs to 60%+ CPU and keeps climbing — confirmed via `ps aux` showing
