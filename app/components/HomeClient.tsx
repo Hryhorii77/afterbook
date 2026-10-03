@@ -1586,10 +1586,14 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           </p>
           <p>
             Baskets: trading and accounts run on{' '}
-            <a href="https://glider.fi" target="_blank" rel="noopener noreferrer">
+            <a href="https://glider.fi" target="_blank" rel="noopener noreferrer" className="emph-link">
               Glider ↗
             </a>
-            ; see the <a href="/baskets/risks">risks and terms</a>.
+            ; see the{' '}
+            <a href="/baskets/risks" className="emph-link">
+              risks and terms
+            </a>
+            .
           </p>
           <p>
             Independent and non-custodial. Not affiliated with Coinbase, Base, NVIDIA, or the issuer. B20 backing is

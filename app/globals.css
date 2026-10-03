@@ -1881,6 +1881,10 @@ footer {
 .footer-legal a:hover {
   color: var(--text);
 }
+/* Emphasised links (Glider, risks and terms) look the same here as on /baskets. */
+.footer-legal a.emph-link,
+.footer-legal a.emph-link:hover { color: var(--accent); }
+.footer-legal a.emph-link { font-weight: 600; text-underline-offset: 3px; }
 
 .footer-meta {
   margin-top: 16px;
