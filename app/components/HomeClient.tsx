@@ -1371,7 +1371,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                   </p>
                   {carryDirection === 'sell' && unlocked && (
                     <a
-                      className="btn btn-secondary"
+                      className="btn"
                       href={aerodromeSwapUrl(activeStock, 'sell')}
                       target="_blank"
                       rel="noopener noreferrer"
