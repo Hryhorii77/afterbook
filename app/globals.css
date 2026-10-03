@@ -2135,17 +2135,6 @@ footer {
 }
 .hero-cta:hover { background: var(--primary-bg-hover); }
 .hero-note { margin: 14px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-dimmer); }
-/* Connect wallet in the header is a secondary action (a read-only balance check); the
-   trade button is the primary one. Elsewhere (Baskets, My Lots) it stays the solid button. */
-.site-header .wallet-connect-btn:not(.wallet-connect-btn-connected) {
-  background: transparent;
-  color: var(--text);
-  border-color: var(--panel-border);
-}
-.site-header .wallet-connect-btn:not(.wallet-connect-btn-connected):hover:not(:disabled) {
-  background: var(--overlay-3);
-  border-color: var(--secondary-border-hover);
-}
 @media (max-width: 760px) {
   /* Price cards side by side on phones so the trade button isn't pushed off the first screen. */
   .tape-hero .today-stats { grid-template-columns: 1fr 1fr; }
