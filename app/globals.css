@@ -884,6 +884,18 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
   cursor: pointer;
 }
 .hero-symbol-select:hover:not(:disabled) { border-color: transparent; color: var(--accent); }
+/* The title-style selects have no border, so the site-wide select focus glow (a 3px halo)
+   rendered as a heavy box hugging the name. A thin ring with breathing room instead. */
+.hero-symbol-select,
+.sticky-symbol-select { border-radius: 10px; }
+/* Room inside the ring (the negative margin keeps the text where it was) and a gap above the name. */
+.hero-symbol-select { padding-left: 8px; margin: 0 0 4px -8px; }
+.hero-symbol-select:focus-visible,
+.sticky-symbol-select:focus-visible {
+  box-shadow: none;
+  outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: 0;
+}
 .today-session .dot { display: inline-block; margin-right: 8px; vertical-align: middle; }
 
 .thin-chip {
