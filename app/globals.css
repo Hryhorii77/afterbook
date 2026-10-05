@@ -2039,9 +2039,10 @@ footer {
   background: transparent;
   border: 1px solid var(--secondary-border);
   color: var(--text-dim);
-  border-radius: 8px;
-  padding: 8px 14px;
-  font-size: 12px;
+  border-radius: 12px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
   transition: border-color 0.12s ease, color 0.12s ease;
   white-space: nowrap;
@@ -2147,4 +2148,12 @@ footer {
   .tape-hero .stat-card-hero { grid-column: 1 / -1; }
   .tape-hero .stat-card .stat-value { font-size: 22px; }
   .hero-sentence { font-size: 18px; }
+}
+
+/* Inside a panel (Baskets, My Lots) the Connect wallet button matches the standard .btn buttons
+   next to it; the header keeps its pill shape. */
+.panel .wallet-connect-btn:not(.wallet-connect-btn-connected) {
+  border-radius: 12px;
+  padding: 10px 18px;
+  font-size: 16px;
 }
