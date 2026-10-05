@@ -2,6 +2,8 @@ import { BRAND_BLUE, MARK_BARS, MARK_CRESCENT } from '@/lib/brand';
 import { ImageResponse } from 'next/og';
 import { unstable_cache } from 'next/cache';
 import { getOpenSnapStats, MIN_DAYS_FOR_OPEN_SNAP, STATS_LOOKBACK_MS } from './history';
+import { getTokenIcons } from './coinbaseIcons';
+import { tileHue } from './symbolStyle';
 import { getTape } from './tape';
 import { splitByLiquidity } from './liquidity';
 import { buildTodaySnapshot } from './todaySnapshot';
@@ -204,6 +206,34 @@ async function openFadeLine(symbol: string): Promise<string | null> {
   }
 }
 
+/** The token's Coinbase icon as a data URI, or null. Coinbase serves these PNGs as
+ *  "binary/octet-stream", so the bytes are checked for the PNG signature here (and a size
+ *  cap) instead of trusting a remote <img>; any failure or a 3 second wait means the card
+ *  draws a letter tile instead, never a broken image. The bytes ride Next's fetch cache. */
+async function iconDataUri(cashTicker: string): Promise<string | null> {
+  const work = (async () => {
+    const url = (await getTokenIcons())[cashTicker];
+    if (!url) return null;
+    const res = await fetch(url, { next: { revalidate: 6 * 60 * 60 }, signal: AbortSignal.timeout(2500) });
+    if (!res.ok) return null;
+    const bytes = Buffer.from(await res.arrayBuffer());
+    const isPng = bytes.length > 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+    return isPng && bytes.length <= 300_000 ? `data:image/png;base64,${bytes.toString('base64')}` : null;
+  })();
+  try {
+    return await Promise.race([work, new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))]);
+  } catch {
+    return null;
+  }
+}
+
+/** Same tinted-tile look as the site's SymbolTile fallback, for when there is no icon. */
+function tileColors(cashTicker: string): { background: string; color: string } {
+  const hex = tileHue(cashTicker).replace('#', '');
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return { background: `rgba(${r}, ${g}, ${b}, 0.22)`, color: `rgb(${r}, ${g}, ${b})` };
+}
+
 /** app/today's own card — one number, not a grid. Distinct from buildOgImage
  *  above: that one either shows a specific requested symbol or a 6-wide
  *  movers grid, this always shows whichever single row currently has the
@@ -215,6 +245,7 @@ export async function buildTodayOgImage() {
   let headlineBp: number | null = null;
   let marketOpen = false;
   let fade: string | null = null;
+  let icon: string | null = null;
   try {
     const tape = await getTape();
     sessionLabel = tape.session.label;
@@ -222,7 +253,7 @@ export async function buildTodayOgImage() {
     const snapshot = buildTodaySnapshot(tape);
     headline = snapshot.headline;
     headlineBp = marketOpen ? headline?.basisBp ?? null : snapshot.headlineCloseBasisBp;
-    if (headline) fade = await openFadeLine(headline.symbol);
+    if (headline) [fade, icon] = await Promise.all([openFadeLine(headline.symbol), iconDataUri(headline.cashTicker)]);
   } catch {
     // fall through to a branding-only card below
   }
@@ -257,7 +288,28 @@ export async function buildTodayOgImage() {
           // blocks instead of stacking them. A real flex-column div avoids
           // it and stacks correctly.
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 28 }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginTop: 28 }}>
+              {icon ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={icon} width={72} height={72} style={{ borderRadius: 18, marginRight: 22 }} />
+              ) : (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 72,
+                    height: 72,
+                    borderRadius: 18,
+                    marginRight: 22,
+                    fontSize: headline.cashTicker.length > 4 ? 20 : 24,
+                    fontWeight: 700,
+                    ...tileColors(headline.cashTicker),
+                  }}
+                >
+                  {headline.cashTicker}
+                </div>
+              )}
               <span style={{ fontSize: 64, fontWeight: 700, color: '#e6e9ef', letterSpacing: '-0.02em' }}>{headline.symbol}</span>
             </div>
 
