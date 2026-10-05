@@ -63,6 +63,7 @@ No lint script, no test suite. To verify a change actually works:
   steps are in the `basis-tilt-ops` skill. Never ask the user to paste a
   key into the session; use hidden `read -s` prompts in their own
   terminal.
+- **Wallet connect on phones relies on `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`** (public id, set in Vercel Production; the code leaves the phone-friendly wallets out without it). Don't remove it, and re-check the wallet list on a phone after touching `lib/wagmiConfig.ts` or the CSP in `middleware.ts` (see the `verify` skill).
 - Don't name Glider or use their logo beyond what is already on the
   site without the user confirming; the wording ("run on", not "powered
   by") is deliberate.
