@@ -65,6 +65,7 @@ export function TickerStrip() {
           aria-label={hidden ? undefined : `${r.symbol}, ${usd(r.onchainMidUsd)}, open stock page`}
         >
           <SymbolTile cashTicker={r.cashTicker} size="sm" />
+          <span className="ticker-symbol">{r.symbol}</span>
           <span className="ticker-price">{usd(r.onchainMidUsd)}</span>
           {r.basisBp != null && (
             <span className={`ticker-change ${up ? 'basis-pos' : 'basis-neg'}`}>
