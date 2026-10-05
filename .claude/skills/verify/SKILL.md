@@ -242,7 +242,7 @@ rendered client-side.
   `/api/tape` (puppeteer `setRequestInterception`), fetch the real tape from
   `127.0.0.1:3000`, then rewrite `session.state` (`'pre-market'`,
   `'after-hours'`, `'open'`) and each row's `cashPriceType`, `cashLastUsd`
-  and `basisBp`; also patch `window.setInterval` in `evaluateOnNewDocument`
+  and `basisBp` (for a mixed tape give only some rows the extended-hours type: the table header should then read "Cash (latest)"); also patch `window.setInterval` in `evaluateOnNewDocument`
   so the 20s tape poll fires quickly, and wait with
   `waitUntil: 'domcontentloaded'` (a fast poll never lets the network go
   idle). Check the hero sentence and the cash-card label per state. Note:

@@ -164,6 +164,12 @@ interface TrendData {
 /** Fewer days of history than this and the row says "New" instead of drawing a chart. */
 const MIN_TREND_DAYS = 3;
 
+// 285.4 bp -> "2.9%", 24 bp -> "0.24%": a stranger reads percent faster than basis points.
+function pctOfBp(bpValue: number): string {
+  const pct = Math.abs(bpValue) / 100;
+  return `${pct.toFixed(pct >= 1 ? 1 : 2)}%`;
+}
+
 // "NVIDIA Corporation" -> "NVIDIA (NVDA)". The ticker keeps names that are also plain words
 // ("Strategy") unambiguous; very long names fall back to the ticker alone.
 function shortName(row: { name: string; cashTicker: string }): string {
@@ -659,14 +665,20 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     return { concentration, impliedHorizonDays, daysToEarnings };
   }, [depth, symbol, priceHistory, activeRow?.nextEarningsDate]);
 
+  // The table's cash column is labelled from what the rows actually hold, not from the clock:
+  // in pre-market/after-hours a row only carries an extended-hours price when Yahoo had a real
+  // print (cashPriceType); otherwise its "cash" price is still the last regular close.
+  const extendedState = tape.session.state === 'pre-market' || tape.session.state === 'after-hours';
+  const extendedName = tape.session.state === 'pre-market' ? 'pre-market' : 'after-hours';
+  const rowsOnPrint = tape.rows.filter((r) => r.cashPriceType !== 'regular').length;
   const cashColumnLabel =
     tape.session.state === 'open'
       ? 'Cash last'
-      : tape.session.state === 'pre-market'
-        ? 'Cash pre-market'
-        : tape.session.state === 'after-hours'
-          ? 'Cash after-hours'
-          : 'Cash close';
+      : !extendedState || rowsOnPrint === 0
+        ? 'Cash close'
+        : rowsOnPrint === tape.rows.length
+          ? `Cash ${extendedName}`
+          : 'Cash (latest)';
 
   // Plain history API, not next/navigation's router.replace() — /[symbol]
   // is backed by an async Server Component (app/[symbol]/page.tsx) that
@@ -707,8 +719,8 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         ? closeWeekday
           ? `${closeWeekday}’s close`
           : 'the cash close'
-        : `the ${cashColumnLabel.toLowerCase()} price`;
-  const heroCashLabel = tape.session.state === 'open' ? 'Cash price' : usingClose ? 'Cash close' : cashColumnLabel;
+        : `the cash ${extendedName} price`;
+  const heroCashLabel = tape.session.state === 'open' ? 'Cash price' : usingClose ? 'Cash close' : `Cash ${extendedName}`;
 
   const selectSymbol = (sym: string) => {
     setSymbolAndUrl(sym);
@@ -815,7 +827,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
   return (
     <main>
-      <h1 className="sr-only">Afterbook: cash close vs the Aero book, in shares</h1>
+      <h1 className="sr-only">Afterbook: how far tokenized stocks on Base trade from the cash market</h1>
 
       {activeRow && (
         <section className="panel today-hero tape-hero" ref={heroRef}>
@@ -840,7 +852,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               </div>
               {heroBp != null && (
                 <div className="hero-sentence">
-                  {shortName(activeRow)} is trading {Math.abs(heroBp).toFixed(1)} bp {heroBp >= 0 ? 'above' : 'below'} <span className="nowrap">{referenceLabel}</span> on Aerodrome.
+                  {shortName(activeRow)} is trading {pctOfBp(heroBp)} ({Math.abs(heroBp).toFixed(1)} bp) {heroBp >= 0 ? 'above' : 'below'} <span className="nowrap">{referenceLabel}</span> on Aerodrome.
                   {tape.session.state.startsWith('closed') && <> Cash reopens {formatNextOpen(tape.session.nextOpenIso)}.</>}
                 </div>
               )}
@@ -919,11 +931,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
       <section className="panel" id="tape">
         <h2>Tape</h2>
-        {(tape.session.state === 'pre-market' || tape.session.state === 'after-hours') && (
+        {extendedState && (
           <p className="geo-note" style={{ marginTop: 0 }}>
-            Basis is against a live {tape.session.state === 'pre-market' ? 'pre-market' : 'after-hours'} print, not the
-            regular-session close — extended-hours trading is thinner, so this can move more than the regular-session
-            number would.
+            {rowsOnPrint === 0
+              ? `No ${extendedName} trades yet, so the basis is measured against the last regular-session close.`
+              : rowsOnPrint === tape.rows.length
+                ? `Basis is against a live ${extendedName} print, not the regular-session close — extended-hours trading is thinner, so this can move more than the regular-session number would.`
+                : `Basis is against a live ${extendedName} print where there is one and the last regular-session close otherwise — extended-hours trading is thinner, so this can move more than the regular-session number would.`}
           </p>
         )}
         <div className="table-scroll tape-table-desktop">
