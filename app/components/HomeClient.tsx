@@ -868,7 +868,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           </div>
 
           <div className="hero-actions">
-            <button type="button" className="hero-cta" onClick={scrollToLotLab}>
+            <button type="button" className="btn" onClick={scrollToLotLab}>
               Size a {activeRow.symbol} trade ↓
             </button>
             <ShareButton
@@ -1089,7 +1089,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                     <div className="label">Shares out</div>
                     <div className="value">{shares(quote.sharesOut)}</div>
                   </div>
-                  <button type="button" className="copy-trade-btn" onClick={copyTrade}>
+                  <button type="button" className="btn btn-secondary" onClick={copyTrade}>
                     {copied ? 'Copied' : 'Copy trade'}
                   </button>
                 </div>
@@ -1466,7 +1466,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               {activeStock.symbol} · {usd(quote.usdcIn, 0)} · ~{quote.sharesOut.toFixed(2)} sh · pool{' '}
               {truncateAddr(activeStock.pool.address)}
             </p>
-            <button type="button" className="copy-trade-btn" onClick={copyLot}>
+            <button type="button" className="btn btn-secondary" onClick={copyLot}>
               {lotCopied ? 'Copied ✓' : 'Copy lot'}
             </button>
           </div>
@@ -1483,7 +1483,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           {unlocked ? (
             <>
               {quote && (
-                <button type="button" className="copy-trade-btn" onClick={copyAmount}>
+                <button type="button" className="btn btn-secondary" onClick={copyAmount}>
                   {amountCopied ? 'Copied ✓' : `Copy ${usd(quote.usdcIn, 0)}`}
                 </button>
               )}

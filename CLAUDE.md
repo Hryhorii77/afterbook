@@ -74,7 +74,7 @@ No lint script, no test suite. To verify a change actually works:
   existing variables so both themes work. New inline links that must
   look like links use `.emph-link`; buttons in a row use `.basket-row`
   style gaps, never `<br>`/inline spaces.
-- Buttons share one shape: `.btn` / `.btn-secondary` (16px, semi-bold, 12px corners); the small copy buttons and preset chips use the same 12px corners, and the in-panel Connect wallet button matches `.btn` (only the header one is a pill). Run the same measurement on two sections before calling them "aligned": compare computed font size, weight, radius and height, not just how they look.
+- **One button system** (owner decision, 2026-10-05): every action is a pill, 44px tall, 14px semi-bold: solid `.btn` (primary) or outline `.btn btn-secondary`. That includes "Size a trade", Share, the Copy buttons, Execute, Baskets, and the header/panel "Connect wallet" (`.wallet-connect-btn`) and wallet panel buttons, which match it. Don't add a new button class or a different radius/size; reuse `.btn`. Inputs, selects and the size chips are data controls and keep their 12px corners; icon buttons are 44px circles. To check "aligned", compare computed height, font and radius across pages, not how they look.
 - Verify UI in a **real browser** and in **both themes and at a real
   390px phone viewport** — a narrow desktop window is not one. See the
   `verify` skill for the headless recipe and what can't be driven
@@ -89,7 +89,7 @@ No lint script, no test suite. To verify a change actually works:
   repeat the same numbers in several blocks above the fold. The home page
   opens on the day's biggest liquid gap (same pick as `/today`).
 - **Owner decisions on the look** (don't undo without asking): the
-  header "Connect wallet" stays the solid primary button; the scrolling
+  header "Connect wallet" stays the solid primary button and its pill shape is the app-wide button shape; the scrolling
   ticker stays on every page; the wallet button opens an account panel
   rather than disconnecting on click.
 
