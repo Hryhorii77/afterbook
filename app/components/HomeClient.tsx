@@ -872,7 +872,6 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               Size a {activeRow.symbol} trade ↓
             </button>
             <ShareButton
-              variant="hero"
               path={`/${activeRow.symbol}`}
               cardPath={`/${activeRow.symbol}/opengraph-image`}
               fileName={`afterbook-${activeRow.symbol}.png`}

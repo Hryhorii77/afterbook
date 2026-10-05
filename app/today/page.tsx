@@ -147,7 +147,6 @@ export default async function TodayPage() {
                 {headlineBp != null && (
                   <div className="hero-actions">
                     <ShareButton
-                      variant="btn"
                       path="/today"
                       cardPath="/today/opengraph-image"
                       fileName={`afterbook-biggest-gap-${headline.symbol}.png`}

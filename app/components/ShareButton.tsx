@@ -54,14 +54,12 @@ interface ShareButtonProps {
   fileName: string;
   /** The sentence that goes with the link: facts only, no advice. */
   text: string;
-  /** "hero" matches the pill buttons in the tape hero; "btn" matches the standard .btn buttons. */
-  variant: 'hero' | 'btn';
 }
 
 // Share what's on screen: post it on X, copy the link, download the card image, or (where the
 // browser has one) open the system share sheet. The link is built from the page's own origin,
 // so it is right on the live site, a preview deploy and localhost alike.
-export function ShareButton({ path, cardPath, fileName, text, variant }: ShareButtonProps) {
+export function ShareButton({ path, cardPath, fileName, text }: ShareButtonProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [origin, setOrigin] = useState('https://afterbook.app');
@@ -115,7 +113,7 @@ export function ShareButton({ path, cardPath, fileName, text, variant }: ShareBu
     <div className="share-wrap" ref={wrapRef}>
       <button
         type="button"
-        className={variant === 'hero' ? 'hero-cta hero-cta-secondary' : 'btn btn-secondary'}
+        className="hero-cta hero-cta-secondary"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="dialog"
