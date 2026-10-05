@@ -238,6 +238,16 @@ rendered client-side.
   `rm -rf .next/dev` before the final build: a prior `next dev` run leaves
   generated types that still import the deleted page and fail the build
   with "Cannot find module '../../../app/tmp-…/page.js'".
+- **See market-hours wording without waiting for the market.** Intercept
+  `/api/tape` (puppeteer `setRequestInterception`), fetch the real tape from
+  `127.0.0.1:3000`, then rewrite `session.state` (`'pre-market'`,
+  `'after-hours'`, `'open'`) and each row's `cashPriceType`, `cashLastUsd`
+  and `basisBp`; also patch `window.setInterval` in `evaluateOnNewDocument`
+  so the 20s tape poll fires quickly, and wait with
+  `waitUntil: 'domcontentloaded'` (a fast poll never lets the network go
+  idle). Check the hero sentence and the cash-card label per state. Note:
+  with no real extended-hours print (`cashPriceType === 'regular'`) the hero
+  must say "Friday's close", never "pre-market price".
 - **Gate commits on the build.** Chain `npm run build > log 2>&1 && git
   commit …`; with `;` a failed build still gets committed and a PR opened.
 - **Quoting external links.** For a `t.me/<name>` link, `curl` the page
