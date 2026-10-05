@@ -5,7 +5,7 @@ import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
 import type { TapeResult, TapeRow } from '@/lib/tape';
 import { splitByLiquidity, isLiquid, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import type { GeoInfo } from '@/lib/geo';
-import { bp, formatWindow, usd, usdCompact, formatNextOpen } from '@/lib/format';
+import { bp, formatWindow, usd, usdCompact, formatNextOpen, pctOfBp } from '@/lib/format';
 import { ImpactCurve } from './ImpactCurve';
 import { DepthChart } from './DepthChart';
 import { computeCashAndCarryEdge, GAS_ESTIMATE_USD } from '@/lib/arb';
@@ -14,6 +14,7 @@ import { capitalEfficiencyMultiplier, computeDivergenceLossAtBoundary, computeLi
 import { Sparkline } from './Sparkline';
 import { MyLots } from './MyLots';
 import { SymbolTile } from './SymbolTile';
+import { ShareButton } from './ShareButton';
 import { MiniSpark } from './MiniSpark';
 import { SessionPill } from './SessionPill';
 
@@ -163,12 +164,6 @@ interface TrendData {
 
 /** Fewer days of history than this and the row says "New" instead of drawing a chart. */
 const MIN_TREND_DAYS = 3;
-
-// 285.4 bp -> "2.9%", 24 bp -> "0.24%": a stranger reads percent faster than basis points.
-function pctOfBp(bpValue: number): string {
-  const pct = Math.abs(bpValue) / 100;
-  return `${pct.toFixed(pct >= 1 ? 1 : 2)}%`;
-}
 
 // "NVIDIA Corporation" -> "NVIDIA (NVDA)". The ticker keeps names that are also plain words
 // ("Strategy") unambiguous; very long names fall back to the ticker alone.
@@ -720,6 +715,11 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           ? `${closeWeekday}’s close`
           : 'the cash close'
         : `the cash ${extendedName} price`;
+  // The line that goes with a shared link: the hero sentence's wording, facts only.
+  const shareText =
+    activeRow && heroBp != null
+      ? `${shortName(activeRow)} is trading ${pctOfBp(heroBp)} (${Math.abs(heroBp).toFixed(1)} bp) ${heroBp >= 0 ? 'above' : 'below'} ${referenceLabel} on Aerodrome.`
+      : 'Cash close vs the Aerodrome price for Coinbase tokenized stocks on Base.';
   const heroCashLabel = tape.session.state === 'open' ? 'Cash price' : usingClose ? 'Cash close' : `Cash ${extendedName}`;
 
   const selectSymbol = (sym: string) => {
@@ -871,6 +871,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             <button type="button" className="hero-cta" onClick={scrollToLotLab}>
               Size a {activeRow.symbol} trade ↓
             </button>
+            <ShareButton
+              variant="hero"
+              path={`/${activeRow.symbol}`}
+              cardPath={`/${activeRow.symbol}/opengraph-image`}
+              fileName={`afterbook-${activeRow.symbol}.png`}
+              text={shareText}
+            />
             <a className="emph-link" href="https://t.me/afterbook_bot" target="_blank" rel="noopener noreferrer">
               Get alerts on Telegram ↗
             </a>

@@ -2,11 +2,12 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { SymbolTile } from '@/app/components/SymbolTile';
 import { SessionPill } from '@/app/components/SessionPill';
+import { ShareButton } from '@/app/components/ShareButton';
 import { unstable_cache } from 'next/cache';
 import { getTape } from '@/lib/tape';
 import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import { buildTodaySnapshot } from '@/lib/todaySnapshot';
-import { bp, usd, usdCompact, formatDuration, formatNextOpen } from '@/lib/format';
+import { bp, usd, usdCompact, formatDuration, formatNextOpen, pctOfBp } from '@/lib/format';
 import { STOCKS, getStock } from '@/lib/tokens';
 import { getCachedPoolState, estimateLot, usdcSizeForImpact } from '@/lib/quote';
 import { getOpenSnapStats, STATS_LOOKBACK_MS, type OpenSnapStats } from '@/lib/history';
@@ -142,6 +143,18 @@ export default async function TodayPage() {
                     <div className="stat-label">Aero price</div>
                   </div>
                 </div>
+
+                {headlineBp != null && (
+                  <div className="hero-actions">
+                    <ShareButton
+                      variant="btn"
+                      path="/today"
+                      cardPath="/today/opengraph-image"
+                      fileName={`afterbook-biggest-gap-${headline.symbol}.png`}
+                      text={`${headline.symbol} is trading ${pctOfBp(headlineBp)} (${Math.abs(headlineBp).toFixed(1)} bp) ${headlineBp >= 0 ? 'above' : 'below'} the cash ${marketOpen ? 'price' : 'close'} on Aerodrome.`}
+                    />
+                  </div>
+                )}
 
                 {sizing && (
                   <>

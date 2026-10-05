@@ -65,6 +65,10 @@ export async function buildOgImage(symbol?: string) {
     // fall through to a branding-only card below
   }
 
+  let fade: string | null = null;
+  let icon: string | null = null;
+  if (symbol && focusRow) [fade, icon] = await Promise.all([openFadeLine(focusRow.symbol), iconDataUri(focusRow.cashTicker)]);
+
   if (symbol && focusRow) {
     return new ImageResponse(
       (
@@ -86,28 +90,36 @@ export async function buildOgImage(symbol?: string) {
             {sessionLabel && <span style={{ fontSize: 22, color: '#6b7280' }}>{sessionLabel}</span>}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', marginTop: 48 }}>
-            <span style={{ fontSize: 88, fontWeight: 700, color: '#e6e9ef', letterSpacing: '-0.02em' }}>
-              {focusRow.symbol}
-            </span>
-            <span style={{ fontSize: 24, color: '#8b93a1', marginTop: 4 }}>{focusRow.name}</span>
+          <div style={{ display: 'flex', alignItems: 'center', marginTop: 20 }}>
+            <StockIcon icon={icon} cashTicker={focusRow.cashTicker} />
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: 64, fontWeight: 700, color: '#e6e9ef', letterSpacing: '-0.02em' }}>{focusRow.symbol}</span>
+              <span style={{ fontSize: 24, color: '#8b93a1' }}>{focusRow.name}</span>
+            </div>
           </div>
 
           <span
             style={{
-              fontSize: 100,
+              fontSize: 88,
               fontWeight: 700,
-              marginTop: 32,
+              marginTop: 8,
               color: focusRow.basisBp == null ? '#8b93a1' : focusRow.basisBp >= 0 ? '#3ddc97' : '#ff6b6b',
             }}
           >
             {bp(focusRow.basisBp)}
           </span>
 
-          <div style={{ display: 'flex', gap: 32, marginTop: 24, fontSize: 28, color: '#8b93a1' }}>
+          <div style={{ display: 'flex', gap: 32, marginTop: 12, fontSize: 28, color: '#8b93a1' }}>
             <span>cash {usd(focusRow.cashLastUsd)}</span>
             <span>aero {usd(focusRow.onchainMidUsd)}</span>
           </div>
+
+          {fade && (
+            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 22 }}>
+              <span style={{ fontSize: 28, color: '#e6e9ef' }}>{fade}</span>
+              <span style={{ fontSize: 20, color: '#6b7280', marginTop: 6 }}>Past sessions, not a forecast.</span>
+            </div>
+          )}
 
           <div style={{ display: 'flex', marginTop: 'auto', fontSize: 20, color: '#9cd6ff' }}>
             No wallet connect. Execution stays on Aerodrome.
@@ -234,6 +246,32 @@ function tileColors(cashTicker: string): { background: string; color: string } {
   return { background: `rgba(${r}, ${g}, ${b}, 0.22)`, color: `rgb(${r}, ${g}, ${b})` };
 }
 
+/** The stock's icon, or the tinted ticker tile when there is none (72px, shared by the cards). */
+function StockIcon({ icon, cashTicker }: { icon: string | null; cashTicker: string }) {
+  if (icon) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={icon} width={72} height={72} style={{ borderRadius: 18, marginRight: 22 }} />;
+  }
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 72,
+        height: 72,
+        borderRadius: 18,
+        marginRight: 22,
+        fontSize: cashTicker.length > 4 ? 20 : 24,
+        fontWeight: 700,
+        ...tileColors(cashTicker),
+      }}
+    >
+      {cashTicker}
+    </div>
+  );
+}
+
 /** app/today's own card — one number, not a grid. Distinct from buildOgImage
  *  above: that one either shows a specific requested symbol or a 6-wide
  *  movers grid, this always shows whichever single row currently has the
@@ -289,27 +327,7 @@ export async function buildTodayOgImage() {
           // it and stacks correctly.
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', marginTop: 28 }}>
-              {icon ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={icon} width={72} height={72} style={{ borderRadius: 18, marginRight: 22 }} />
-              ) : (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 72,
-                    height: 72,
-                    borderRadius: 18,
-                    marginRight: 22,
-                    fontSize: headline.cashTicker.length > 4 ? 20 : 24,
-                    fontWeight: 700,
-                    ...tileColors(headline.cashTicker),
-                  }}
-                >
-                  {headline.cashTicker}
-                </div>
-              )}
+              <StockIcon icon={icon} cashTicker={headline.cashTicker} />
               <span style={{ fontSize: 64, fontWeight: 700, color: '#e6e9ef', letterSpacing: '-0.02em' }}>{headline.symbol}</span>
             </div>
 

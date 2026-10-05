@@ -43,3 +43,9 @@ export function formatNextOpen(iso: string): string {
     }).format(new Date(iso)) + ' ET'
   );
 }
+
+/** 285.4 bp -> "2.9%", 24 bp -> "0.24%": a stranger reads percent faster than basis points. */
+export function pctOfBp(bpValue: number): string {
+  const pct = Math.abs(bpValue) / 100;
+  return `${pct.toFixed(pct >= 1 ? 1 : 2)}%`;
+}
