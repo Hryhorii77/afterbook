@@ -33,16 +33,20 @@ export function middleware(request: NextRequest) {
   //    as the tab never reaching document_idle (looked like a hang, not an
   //    error) rather than a clean CSP-violation message.
   //  - img-src: same Reown domains, for wallet icons the modal fetches
-  //    remotely instead of bundling.
+  //    remotely instead of bundling. WalletConnect's "All Wallets" window
+  //    (the searchable list on phones) loads those icons as blob: URLs, so
+  //    blob: is allowed too: without it every wallet icon is a broken image.
   //  - frame-src: Coinbase Wallet's SDK popup communication happens through
-  //    an iframe on Coinbase's own domain, not window.open.
+  //    an iframe on Coinbase's own domain, not window.open; WalletConnect's
+  //    Verify frame (verify.walletconnect.org/.com) is how a wallet app
+  //    checks which site is asking to connect.
   const csp = [
     "default-src 'self'",
     scriptSrc,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https://explorer-api.walletconnect.com https://api.web3modal.org https://metadata.coinbase.com",
+    "img-src 'self' data: blob: https://explorer-api.walletconnect.com https://api.web3modal.org https://metadata.coinbase.com",
     "connect-src 'self' https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.reown.com https://api.web3modal.org https://pulse.walletconnect.org https://mainnet.base.org https://base-rpc.publicnode.com",
-    "frame-src https://*.coinbase.com https://keys.coinbase.com",
+    "frame-src https://*.coinbase.com https://keys.coinbase.com https://verify.walletconnect.org https://verify.walletconnect.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

@@ -1,6 +1,7 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import {
   injectedWallet,
+  metaMaskWallet,
   rabbyWallet,
   coinbaseWallet,
   rainbowWallet,
@@ -60,13 +61,26 @@ const transport = fallback([http('https://mainnet.base.org'), http('https://base
 // for a real MetaMask-only setup with no other flag-setting wallet present.
 const hasWalletConnectProjectId = Boolean(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID);
 
+// Phones have no browser extensions, so on a phone "Browser Wallet" and Rabby (extension only)
+// can never connect, while MetaMask can: it opens the MetaMask app through WalletConnect.
+// The list is built when this module loads, in the browser, where the user agent is known (on
+// the server it is just the desktop list). RainbowKit's own `hidden` option would push those
+// wallets to the end of the list, which is the wrong place for MetaMask. Desktop is unchanged:
+// MetaMask stays out there, for the detection problem described above.
+const onPhone = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+// With an injected provider (an extension, or a wallet app's in-app browser) the injected
+// entries are the right ones even on a phone.
+const hasInjectedProvider = typeof window !== 'undefined' && Boolean((window as { ethereum?: unknown }).ethereum);
+const extensionWalletsUseless = onPhone && !hasInjectedProvider;
+
 const wallets = [
   {
     groupName: 'Popular',
     wallets: [
-      injectedWallet,
+      ...(hasWalletConnectProjectId && onPhone ? [metaMaskWallet] : []),
+      ...(extensionWalletsUseless ? [] : [injectedWallet]),
       coinbaseWallet,
-      rabbyWallet,
+      ...(extensionWalletsUseless ? [] : [rabbyWallet]),
       ...(hasWalletConnectProjectId ? [rainbowWallet] : []),
     ],
   },
