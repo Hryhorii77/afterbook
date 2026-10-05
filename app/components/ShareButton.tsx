@@ -113,7 +113,7 @@ export function ShareButton({ path, cardPath, fileName, text }: ShareButtonProps
     <div className="share-wrap" ref={wrapRef}>
       <button
         type="button"
-        className="hero-cta hero-cta-secondary"
+        className="btn btn-secondary"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-haspopup="dialog"

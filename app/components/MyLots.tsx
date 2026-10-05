@@ -104,7 +104,7 @@ export function MyLotsContent({
               <span className="wallet-dot" aria-hidden="true" />
               {label}
             </span>
-            <button type="button" className="copy-trade-btn" onClick={onDisconnect}>
+            <button type="button" className="btn btn-secondary" onClick={onDisconnect}>
               Disconnect
             </button>
           </div>
