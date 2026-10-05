@@ -1,7 +1,6 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import {
   injectedWallet,
-  metaMaskWallet,
   rabbyWallet,
   coinbaseWallet,
   rainbowWallet,
@@ -61,12 +60,13 @@ const transport = fallback([http('https://mainnet.base.org'), http('https://base
 // for a real MetaMask-only setup with no other flag-setting wallet present.
 const hasWalletConnectProjectId = Boolean(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID);
 
-// Phones have no browser extensions, so on a phone "Browser Wallet" and Rabby (extension only)
-// can never connect, while MetaMask can: it opens the MetaMask app through WalletConnect.
-// The list is built when this module loads, in the browser, where the user agent is known (on
-// the server it is just the desktop list). RainbowKit's own `hidden` option would push those
-// wallets to the end of the list, which is the wrong place for MetaMask. Desktop is unchanged:
-// MetaMask stays out there, for the detection problem described above.
+// Phones have no browser extensions, so "Browser Wallet" and Rabby (extension only) can never
+// connect there. (Phones without an injected provider skip this list altogether and open
+// WalletConnect's own wallet window, see WalletConnectButton.) The list is built when this
+// module loads, in the browser, where the user agent is known; on the server it is just the
+// desktop list. MetaMask is deliberately not here: RainbowKit's MetaMask entry uses MetaMask's
+// own SDK relay and did nothing on a phone, while MetaMask works through WalletConnect's list;
+// on desktop it also clashes with Rabby's compatibility flag, as described above.
 const onPhone = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 // With an injected provider (an extension, or a wallet app's in-app browser) the injected
 // entries are the right ones even on a phone.
@@ -77,7 +77,6 @@ const wallets = [
   {
     groupName: 'Popular',
     wallets: [
-      ...(hasWalletConnectProjectId && onPhone ? [metaMaskWallet] : []),
       ...(extensionWalletsUseless ? [] : [injectedWallet]),
       coinbaseWallet,
       ...(extensionWalletsUseless ? [] : [rabbyWallet]),
@@ -96,4 +95,20 @@ export const wagmiConfig = getDefaultConfig({
   chains: [base],
   transports: { [base.id]: transport },
   ssr: true,
+  // WalletConnect's own wallet window (opened directly on phones, see WalletConnectButton) lists
+  // these first, in this order, before the search over hundreds of others. Ids come from
+  // WalletConnect's registry (api.web3modal.org/getWallets?search=<name>).
+  walletConnectParameters: {
+    qrModalOptions: {
+      explorerRecommendedWalletIds: [
+        'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask,
+        '18388be9ac2d02726dbac9777c96efaac06d744b2f6d580fccdd4127a6d01fd1', // Rabby,
+        'fd20dc426fb37566d803205b19bbc1d4096b248ac04548e3cfb6b3a38bd033aa', // Base (formerly Coinbase Wallet),
+        '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust Wallet,
+        '1ae92b26df02f0abca6304df07debccd18262fdf5fe82daa81593582dac9a369', // Rainbow,
+        '971e689d0a5be527bac79629b4ee9b925e82208e5168b733496a09c0faed0709', // OKX Wallet,
+        'ecc4036f814562b41a5268adc86270fba1365471402006302e70169465b7ac18', // Zerion,
+      ],
+    },
+  },
 });
