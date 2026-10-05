@@ -49,3 +49,10 @@ export function pctOfBp(bpValue: number): string {
   const pct = Math.abs(bpValue) / 100;
   return `${pct.toFixed(pct >= 1 ? 1 : 2)}%`;
 }
+
+/** How big a gap is, in words: "2.9% (285.4 bp)". Under 5 bp the percent would read 0.04% or
+ *  less ("0.00% (0.3 bp)" looks like a mistake), so tiny gaps are just "0.3 bp". */
+export function gapSizeText(bpValue: number): string {
+  const abs = Math.abs(bpValue);
+  return abs >= 5 ? `${pctOfBp(bpValue)} (${abs.toFixed(1)} bp)` : `${abs.toFixed(1)} bp`;
+}

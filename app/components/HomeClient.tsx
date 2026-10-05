@@ -5,7 +5,7 @@ import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
 import type { TapeResult, TapeRow } from '@/lib/tape';
 import { splitByLiquidity, isLiquid, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import type { GeoInfo } from '@/lib/geo';
-import { bp, formatWindow, usd, usdCompact, formatNextOpen, pctOfBp } from '@/lib/format';
+import { bp, formatWindow, usd, usdCompact, formatNextOpen, gapSizeText } from '@/lib/format';
 import { ImpactCurve } from './ImpactCurve';
 import { DepthChart } from './DepthChart';
 import { computeCashAndCarryEdge, GAS_ESTIMATE_USD } from '@/lib/arb';
@@ -718,7 +718,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   // The line that goes with a shared link: the hero sentence's wording, facts only.
   const shareText =
     activeRow && heroBp != null
-      ? `${shortName(activeRow)} is trading ${pctOfBp(heroBp)} (${Math.abs(heroBp).toFixed(1)} bp) ${heroBp >= 0 ? 'above' : 'below'} ${referenceLabel} on Aerodrome.`
+      ? `${shortName(activeRow)} is trading ${gapSizeText(heroBp)} ${heroBp >= 0 ? 'above' : 'below'} ${referenceLabel} on Aerodrome.`
       : 'Cash close vs the Aerodrome price for Coinbase tokenized stocks on Base.';
   const heroCashLabel = tape.session.state === 'open' ? 'Cash price' : usingClose ? 'Cash close' : `Cash ${extendedName}`;
 
@@ -852,7 +852,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               </div>
               {heroBp != null && (
                 <div className="hero-sentence">
-                  {shortName(activeRow)} is trading {pctOfBp(heroBp)} ({Math.abs(heroBp).toFixed(1)} bp) {heroBp >= 0 ? 'above' : 'below'} <span className="nowrap">{referenceLabel}</span> on Aerodrome.
+                  {shortName(activeRow)} is trading {gapSizeText(heroBp)} {heroBp >= 0 ? 'above' : 'below'} <span className="nowrap">{referenceLabel}</span> on Aerodrome.
                   {tape.session.state.startsWith('closed') && <> Cash reopens {formatNextOpen(tape.session.nextOpenIso)}.</>}
                 </div>
               )}

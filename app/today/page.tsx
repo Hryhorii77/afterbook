@@ -7,7 +7,7 @@ import { unstable_cache } from 'next/cache';
 import { getTape } from '@/lib/tape';
 import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import { buildTodaySnapshot } from '@/lib/todaySnapshot';
-import { bp, usd, usdCompact, formatDuration, formatNextOpen, pctOfBp } from '@/lib/format';
+import { bp, usd, usdCompact, formatDuration, formatNextOpen, gapSizeText } from '@/lib/format';
 import { STOCKS, getStock } from '@/lib/tokens';
 import { getCachedPoolState, estimateLot, usdcSizeForImpact } from '@/lib/quote';
 import { getOpenSnapStats, STATS_LOOKBACK_MS, type OpenSnapStats } from '@/lib/history';
@@ -150,7 +150,7 @@ export default async function TodayPage() {
                       path="/today"
                       cardPath="/today/opengraph-image"
                       fileName={`afterbook-biggest-gap-${headline.symbol}.png`}
-                      text={`${headline.symbol} is trading ${pctOfBp(headlineBp)} (${Math.abs(headlineBp).toFixed(1)} bp) ${headlineBp >= 0 ? 'above' : 'below'} the cash ${marketOpen ? 'price' : 'close'} on Aerodrome.`}
+                      text={`${headline.symbol} is trading ${gapSizeText(headlineBp)} ${headlineBp >= 0 ? 'above' : 'below'} the cash ${marketOpen ? 'price' : 'close'} on Aerodrome.`}
                     />
                   </div>
                 )}
