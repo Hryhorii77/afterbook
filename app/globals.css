@@ -2123,7 +2123,8 @@ footer {
   white-space: nowrap;
   border: 0;
 }
-.hero-sentence { margin-top: 10px; font-size: 16px; line-height: 1.45; color: var(--text); max-width: 34em; }
+.hero-sentence { margin-top: 10px; font-size: 20px; line-height: 1.4; color: var(--text); max-width: 30em; }
+.nowrap { white-space: nowrap; }
 .hero-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 20px; margin-top: 18px; }
 .hero-cta {
   min-height: 44px;
@@ -2144,4 +2145,5 @@ footer {
   .tape-hero .today-stats { grid-template-columns: 1fr 1fr; }
   .tape-hero .stat-card-hero { grid-column: 1 / -1; }
   .tape-hero .stat-card .stat-value { font-size: 22px; }
+  .hero-sentence { font-size: 18px; }
 }

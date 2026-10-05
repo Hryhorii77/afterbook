@@ -695,13 +695,20 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     cashClosedAsOfMs > 0
       ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long' }).format(new Date(cashClosedAsOfMs))
       : null;
-  const referenceLabel = tape.session.state.startsWith('closed')
-    ? closeWeekday
-      ? `${closeWeekday}’s close`
-      : 'the cash close'
-    : tape.session.state === 'open'
+  // Before the open and after the close the row only holds an extended-hours price when Yahoo
+  // had a real print (cashPriceType). Without one, "cash" is still the last regular close, so
+  // the label must say so instead of claiming a pre-market / after-hours price.
+  const onExtendedPrint = activeRow?.cashPriceType === 'pre-market' || activeRow?.cashPriceType === 'after-hours';
+  const usingClose = tape.session.state.startsWith('closed') || (tape.session.state !== 'open' && !onExtendedPrint);
+  const referenceLabel =
+    tape.session.state === 'open'
       ? 'the cash price'
-      : `the ${cashColumnLabel.toLowerCase()} price`;
+      : usingClose
+        ? closeWeekday
+          ? `${closeWeekday}’s close`
+          : 'the cash close'
+        : `the ${cashColumnLabel.toLowerCase()} price`;
+  const heroCashLabel = tape.session.state === 'open' ? 'Cash price' : usingClose ? 'Cash close' : cashColumnLabel;
 
   const selectSymbol = (sym: string) => {
     setSymbolAndUrl(sym);
@@ -833,14 +840,14 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               </div>
               {heroBp != null && (
                 <div className="hero-sentence">
-                  {shortName(activeRow)} is trading {Math.abs(heroBp).toFixed(1)} bp {heroBp >= 0 ? 'above' : 'below'} {referenceLabel} on Aerodrome.
+                  {shortName(activeRow)} is trading {Math.abs(heroBp).toFixed(1)} bp {heroBp >= 0 ? 'above' : 'below'} <span className="nowrap">{referenceLabel}</span> on Aerodrome.
                   {tape.session.state.startsWith('closed') && <> Cash reopens {formatNextOpen(tape.session.nextOpenIso)}.</>}
                 </div>
               )}
             </div>
             <div className="stat-card">
               <div className="stat-value">{usd(activeRow.cashLastUsd)}</div>
-              <div className="stat-label">{tape.session.state === 'open' ? 'Cash price' : cashColumnLabel}</div>
+              <div className="stat-label">{heroCashLabel}</div>
             </div>
             <div className="stat-card">
               <div className="stat-value">{usd(activeRow.onchainMidUsd)}</div>
@@ -1558,7 +1565,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         <div className="footer-columns">
           <div className="footer-brand">
             <div className="footer-brand-name">Afterbook</div>
-            <p className="footer-tagline">Cash close vs the Aero book. Execution stays on Aerodrome.</p>
+            <p className="footer-tagline">How far tokenized stocks trade from the cash market. Execution stays on Aerodrome.</p>
             <div className="footer-links">
               <a href="https://x.com/hryhorii77" target="_blank" rel="noopener noreferrer">X</a>
               <a href="https://github.com/Hryhorii77/afterbook" target="_blank" rel="noopener noreferrer">GitHub</a>
