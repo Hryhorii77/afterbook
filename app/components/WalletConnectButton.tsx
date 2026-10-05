@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useAccount, useDisconnect, useSwitchChain } from 'wagmi';
+import { useAccount, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 
@@ -52,6 +52,24 @@ export function WalletConnectButton() {
   const { disconnect } = useDisconnect();
   const { switchChain, isPending: switching, error: switchError } = useSwitchChain();
   const { openConnectModal } = useConnectModal();
+  const { connectors, connect } = useConnect();
+
+  // On a phone with no injected provider (a normal browser, not a wallet app's own browser) the
+  // RainbowKit list can only offer WalletConnect-based wallets anyway, so open WalletConnect's
+  // own window directly: one search box over hundreds of wallets (MetaMask, Rabby, Trust...),
+  // tap one, "Open", approve in the app, come back connected. It is the connector RainbowKit
+  // builds with showQrModal. Desktop, and phones inside a wallet app's browser, keep the list.
+  const [phoneDirect, setPhoneDirect] = useState(false);
+  useEffect(() => {
+    setPhoneDirect(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) && !(window as { ethereum?: unknown }).ethereum);
+  }, []);
+  const walletConnectWindow = connectors.find(
+    (c) => (c as unknown as { rkDetails?: { isWalletConnectModalConnector?: boolean } }).rkDetails?.isWalletConnectModalConnector,
+  );
+  const handleConnect =
+    phoneDirect && walletConnectWindow
+      ? () => connect({ connector: walletConnectWindow, chainId: base.id }, { onError: () => {} })
+      : openConnectModal;
 
   // wagmi's disconnect() alone only clears local state, not the wallet extension's
   // own site permission — wallet_revokePermissions is what makes the next Connect
@@ -66,7 +84,7 @@ export function WalletConnectButton() {
       address={address}
       chainId={chainId}
       connectorName={connector?.name}
-      onConnect={openConnectModal}
+      onConnect={handleConnect}
       onDisconnect={handleDisconnect}
       onSwitch={() => switchChain({ chainId: base.id })}
       switching={switching}

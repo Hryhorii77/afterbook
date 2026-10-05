@@ -1,7 +1,6 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import {
   injectedWallet,
-  metaMaskWallet,
   rabbyWallet,
   coinbaseWallet,
   rainbowWallet,
@@ -61,12 +60,13 @@ const transport = fallback([http('https://mainnet.base.org'), http('https://base
 // for a real MetaMask-only setup with no other flag-setting wallet present.
 const hasWalletConnectProjectId = Boolean(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID);
 
-// Phones have no browser extensions, so on a phone "Browser Wallet" and Rabby (extension only)
-// can never connect, while MetaMask can: it opens the MetaMask app through WalletConnect.
-// The list is built when this module loads, in the browser, where the user agent is known (on
-// the server it is just the desktop list). RainbowKit's own `hidden` option would push those
-// wallets to the end of the list, which is the wrong place for MetaMask. Desktop is unchanged:
-// MetaMask stays out there, for the detection problem described above.
+// Phones have no browser extensions, so "Browser Wallet" and Rabby (extension only) can never
+// connect there. (Phones without an injected provider skip this list altogether and open
+// WalletConnect's own wallet window, see WalletConnectButton.) The list is built when this
+// module loads, in the browser, where the user agent is known; on the server it is just the
+// desktop list. MetaMask is deliberately not here: RainbowKit's MetaMask entry uses MetaMask's
+// own SDK relay and did nothing on a phone, while MetaMask works through WalletConnect's list;
+// on desktop it also clashes with Rabby's compatibility flag, as described above.
 const onPhone = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 // With an injected provider (an extension, or a wallet app's in-app browser) the injected
 // entries are the right ones even on a phone.
@@ -77,7 +77,6 @@ const wallets = [
   {
     groupName: 'Popular',
     wallets: [
-      ...(hasWalletConnectProjectId && onPhone ? [metaMaskWallet] : []),
       ...(extensionWalletsUseless ? [] : [injectedWallet]),
       coinbaseWallet,
       ...(extensionWalletsUseless ? [] : [rabbyWallet]),
