@@ -106,8 +106,11 @@ export async function getClosedPeriodStats(symbol: string, sinceMs: number): Pro
 
 export interface OpenSnapStats {
   days30: number;
+  /** Sessions (of days30) where |basis| was smaller 30 min after the open than just before it. */
+  reverted30: number;
   revertedPct30: number;
   days90: number;
+  reverted90: number;
   revertedPct90: number;
 }
 
@@ -119,7 +122,7 @@ const PRE_OPEN_LOOKBACK_MS = 3 * 60 * 60_000;
 // count for that bucket — tight enough that "shortly after open" means
 // what it says, loose enough to survive the opportunistic 5-min sampling.
 const POST_OPEN_TOLERANCE_MS = 15 * 60_000;
-const MIN_DAYS_FOR_OPEN_SNAP = 8;
+export const MIN_DAYS_FOR_OPEN_SNAP = 8;
 
 function closestBefore(samples: HistorySample[], targetMs: number, maxAgeMs: number): HistorySample | null {
   let best: HistorySample | null = null;
@@ -190,8 +193,10 @@ export async function getOpenSnapStats(symbol: string, sinceMs: number): Promise
 
   return {
     days30,
+    reverted30,
     revertedPct30: days30 > 0 ? (reverted30 / days30) * 100 : 0,
     days90,
+    reverted90,
     revertedPct90: days90 > 0 ? (reverted90 / days90) * 100 : 0,
   };
 }

@@ -1,5 +1,7 @@
 import { BRAND_BLUE, MARK_BARS, MARK_CRESCENT } from '@/lib/brand';
 import { ImageResponse } from 'next/og';
+import { unstable_cache } from 'next/cache';
+import { getOpenSnapStats, MIN_DAYS_FOR_OPEN_SNAP, STATS_LOOKBACK_MS } from './history';
 import { getTape } from './tape';
 import { splitByLiquidity } from './liquidity';
 import { buildTodaySnapshot } from './todaySnapshot';
@@ -183,6 +185,25 @@ export async function buildOgImage(symbol?: string) {
   );
 }
 
+// The same "did the gap shrink after the 9:30 ET open" stat /today shows. Cached for 10 minutes
+// (it barely moves, and link-preview crawlers hit this card in bursts) and given 3 seconds
+// at most, so a slow Redis read leaves the line out instead of failing the card.
+const getOpenFade = unstable_cache(
+  async (symbol: string) => getOpenSnapStats(symbol, Date.now() - STATS_LOOKBACK_MS),
+  ['og-open-fade-v1'],
+  { revalidate: 600 },
+);
+
+async function openFadeLine(symbol: string): Promise<string | null> {
+  try {
+    const stats = await Promise.race([getOpenFade(symbol), new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))]);
+    if (!stats || stats.days30 < MIN_DAYS_FOR_OPEN_SNAP) return null;
+    return `${symbol}'s gap shrank within 30 min of the 9:30 ET open in ${stats.reverted30} of the last ${stats.days30} sessions.`;
+  } catch {
+    return null;
+  }
+}
+
 /** app/today's own card — one number, not a grid. Distinct from buildOgImage
  *  above: that one either shows a specific requested symbol or a 6-wide
  *  movers grid, this always shows whichever single row currently has the
@@ -193,6 +214,7 @@ export async function buildTodayOgImage() {
   let headline: Awaited<ReturnType<typeof getTape>>['rows'][number] | null = null;
   let headlineBp: number | null = null;
   let marketOpen = false;
+  let fade: string | null = null;
   try {
     const tape = await getTape();
     sessionLabel = tape.session.label;
@@ -200,6 +222,7 @@ export async function buildTodayOgImage() {
     const snapshot = buildTodaySnapshot(tape);
     headline = snapshot.headline;
     headlineBp = marketOpen ? headline?.basisBp ?? null : snapshot.headlineCloseBasisBp;
+    if (headline) fade = await openFadeLine(headline.symbol);
   } catch {
     // fall through to a branding-only card below
   }
@@ -234,28 +257,32 @@ export async function buildTodayOgImage() {
           // blocks instead of stacking them. A real flex-column div avoids
           // it and stacks correctly.
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 48 }}>
-              <span style={{ fontSize: 24, color: '#8b93a1' }}>Biggest gap</span>
-              <span style={{ fontSize: 72, fontWeight: 700, color: '#e6e9ef', letterSpacing: '-0.02em', marginTop: 4 }}>
-                {headline.symbol}
-              </span>
+            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 28 }}>
+              <span style={{ fontSize: 64, fontWeight: 700, color: '#e6e9ef', letterSpacing: '-0.02em' }}>{headline.symbol}</span>
             </div>
 
             <span
               style={{
-                fontSize: 100,
+                fontSize: 88,
                 fontWeight: 700,
-                marginTop: 32,
+                marginTop: 8,
                 color: headlineBp == null ? '#8b93a1' : headlineBp >= 0 ? '#3ddc97' : '#ff6b6b',
               }}
             >
               {bp(headlineBp)}
             </span>
 
-            <div style={{ display: 'flex', gap: 32, marginTop: 24, fontSize: 28, color: '#8b93a1' }}>
+            <div style={{ display: 'flex', gap: 32, marginTop: 12, fontSize: 28, color: '#8b93a1' }}>
               <span>cash {usd(marketOpen ? headline.cashLastUsd : headline.closeUsd)}</span>
               <span>aero {usd(headline.onchainMidUsd)}</span>
             </div>
+
+            {fade && (
+              <div style={{ display: 'flex', flexDirection: 'column', marginTop: 22 }}>
+                <span style={{ fontSize: 28, color: '#e6e9ef' }}>{fade}</span>
+                <span style={{ fontSize: 20, color: '#6b7280', marginTop: 6 }}>Past sessions, not a forecast.</span>
+              </div>
+            )}
           </div>
         ) : (
           <span style={{ fontSize: 32, color: '#8b93a1', marginTop: 48 }}>No basis reading yet.</span>

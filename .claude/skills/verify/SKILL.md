@@ -248,6 +248,7 @@ rendered client-side.
   idle). Check the hero sentence and the cash-card label per state. Note:
   with no real extended-hours print (`cashPriceType === 'regular'`) the hero
   must say "Friday's close", never "pre-market price".
+- **Share cards** are plain PNG routes: `curl -s localhost:3000/today/opengraph-image -o card.png` (also `/opengraph-image` and `/<SYMBOL>/opengraph-image`) and open the file. They render with satori, so a conditional wrapper must be a real flex `<div>` (a bare Fragment reorders children), and the content must fit in 1200x630 (check the bottom line is not crowded).
 - **Gate commits on the build.** Chain `npm run build > log 2>&1 && git
   commit …`; with `;` a failed build still gets committed and a PR opened.
 - **Quoting external links.** For a `t.me/<name>` link, `curl` the page
