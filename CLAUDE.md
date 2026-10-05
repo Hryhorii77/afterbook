@@ -74,6 +74,7 @@ No lint script, no test suite. To verify a change actually works:
   existing variables so both themes work. New inline links that must
   look like links use `.emph-link`; buttons in a row use `.basket-row`
   style gaps, never `<br>`/inline spaces.
+- Buttons share one shape: `.btn` / `.btn-secondary` (16px, semi-bold, 12px corners); the small copy buttons and preset chips use the same 12px corners, and the in-panel Connect wallet button matches `.btn` (only the header one is a pill). Run the same measurement on two sections before calling them "aligned": compare computed font size, weight, radius and height, not just how they look.
 - Verify UI in a **real browser** and in **both themes and at a real
   390px phone viewport** — a narrow desktop window is not one. See the
   `verify` skill for the headless recipe and what can't be driven

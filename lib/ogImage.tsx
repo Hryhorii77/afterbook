@@ -16,7 +16,7 @@ function Mark({ px }: { px: number }) {
   );
 }
 
-export const OG_ALT = 'Afterbook — cash close vs the Aero book, in shares';
+export const OG_ALT = 'Afterbook: how far tokenized stocks on Base trade from the cash market';
 export const OG_SIZE = { width: 1200, height: 630 };
 
 const usd = (n: number | null) => (n == null ? '—' : `$${n.toFixed(2)}`);
@@ -137,7 +137,7 @@ export async function buildOgImage(symbol?: string) {
             {sessionLabel && <span style={{ fontSize: 24, color: '#8b93a1' }}>{sessionLabel}</span>}
           </div>
           <span style={{ fontSize: 26, color: '#8b93a1', marginTop: 8 }}>
-            Cash close vs the Aero book, in shares.
+            How far tokenized stocks trade from the cash market.
           </span>
         </div>
 
