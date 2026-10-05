@@ -75,7 +75,7 @@ No lint script, no test suite. To verify a change actually works:
   existing variables so both themes work. New inline links that must
   look like links use `.emph-link`; buttons in a row use `.basket-row`
   style gaps, never `<br>`/inline spaces.
-- **One button system** (owner decision, 2026-10-05): every action is a pill, 44px tall, 14px semi-bold: solid `.btn` (primary) or outline `.btn btn-secondary`. That includes "Size a trade", Share, the Copy buttons, Execute, Baskets, and the header/panel "Connect wallet" (`.wallet-connect-btn`) and wallet panel buttons, which match it. Don't add a new button class or a different radius/size; reuse `.btn`. Inputs, selects and the size chips are data controls and keep their 12px corners; icon buttons are 44px circles. To check "aligned", compare computed height, font and radius across pages, not how they look.
+- **One button system** (owner decision, 2026-10-05): every action is a pill, 44px tall, 14px semi-bold: solid `.btn` (primary) or outline `.btn btn-secondary`. That includes "Size a trade", Share, the Copy buttons, Execute, Baskets, and the header/panel "Connect wallet" (`.wallet-connect-btn`) and wallet panel buttons, which match it. Don't add a new button class or a different radius/size; reuse `.btn`. Inputs, selects and the size chips are data controls and keep their 12px corners, except the Baskets amount box, which sits in a row of pills and is a pill too; icon buttons are 44px circles. To check "aligned", compare computed height, font and radius across pages, not how they look.
 - Verify UI in a **real browser** and in **both themes and at a real
   390px phone viewport** — a narrow desktop window is not one. See the
   `verify` skill for the headless recipe and what can't be driven

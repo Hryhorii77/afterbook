@@ -428,7 +428,8 @@ h1 {
   gap: 10px;
   margin: 12px 0 16px;
 }
-.basket-amount { width: 180px; max-width: 100%; }
+/* The amount box sits in a row of pill buttons (Max, Send USDC), so it is a pill too. */
+.basket-amount { width: 180px; max-width: 100%; border-radius: 999px; padding-left: 20px; padding-right: 20px; }
 .basket-deposit { margin-top: 16px; }
 
 /* An inline link inside body text that must read as a link at a glance
@@ -2160,3 +2161,7 @@ footer {
   cursor: pointer;
 }
 .share-item:hover { background: var(--overlay-3); }
+
+/* A long address in a note (the Baskets deposit address) must wrap instead of pushing past its
+   card, which on phones under ~370px made the whole page scroll sideways. */
+.geo-note code { overflow-wrap: anywhere; }
