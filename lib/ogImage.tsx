@@ -121,9 +121,7 @@ export async function buildOgImage(symbol?: string) {
             </div>
           )}
 
-          <div style={{ display: 'flex', marginTop: 'auto', fontSize: 20, color: '#9cd6ff' }}>
-            No wallet connect. Execution stays on Aerodrome.
-          </div>
+          <CardFooter />
         </div>
       ),
       { ...OG_SIZE },
@@ -190,9 +188,7 @@ export async function buildOgImage(symbol?: string) {
           </div>
         )}
 
-        <div style={{ display: 'flex', marginTop: 'auto', fontSize: 20, color: '#9cd6ff' }}>
-          No wallet connect. Execution stays on Aerodrome.
-        </div>
+        <CardFooter />
       </div>
     ),
     { ...OG_SIZE },
@@ -244,6 +240,16 @@ function tileColors(cashTicker: string): { background: string; color: string } {
   const hex = tileHue(cashTicker).replace('#', '');
   const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
   return { background: `rgba(${r}, ${g}, ${b}, 0.22)`, color: `rgb(${r}, ${g}, ${b})` };
+}
+
+/** The line at the bottom of every card. It sits at the bottom RIGHT on purpose: X draws the image's
+ *  alt text as a label in the bottom-left corner of a card, which used to cover this line. */
+function CardFooter() {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto', fontSize: 20, color: '#9cd6ff' }}>
+      No wallet connect. Execution stays on Aerodrome.
+    </div>
+  );
 }
 
 /** The stock's icon, or the tinted ticker tile when there is none (72px, shared by the cards). */
@@ -358,9 +364,7 @@ export async function buildTodayOgImage() {
           <span style={{ fontSize: 32, color: '#8b93a1', marginTop: 48 }}>No basis reading yet.</span>
         )}
 
-        <div style={{ display: 'flex', marginTop: 'auto', fontSize: 20, color: '#9cd6ff' }}>
-          No wallet connect. Execution stays on Aerodrome.
-        </div>
+        <CardFooter />
       </div>
     ),
     { ...OG_SIZE },
