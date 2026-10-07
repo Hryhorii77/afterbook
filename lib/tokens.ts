@@ -216,6 +216,12 @@ export function getStock(symbol: string): CbStock | undefined {
   return STOCKS.find((s) => s.symbol.toLowerCase() === symbol.toLowerCase());
 }
 
+/** What a person types: the on-chain symbol ("NVDAc") or the plain ticker ("NVDA"), any case. */
+export function findStock(input: string): CbStock | undefined {
+  const q = input.trim().toLowerCase();
+  return STOCKS.find((s) => s.symbol.toLowerCase() === q) ?? STOCKS.find((s) => s.cashTicker.toLowerCase() === q);
+}
+
 // Official Aerodrome app — every execution deep link points here. We never
 // construct our own router calldata. Both URL shapes below were verified by
 // clicking through Aerodrome's own UI in a real browser and reading off the

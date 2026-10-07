@@ -15,6 +15,19 @@ export interface AlertRule {
 }
 
 export const MAX_RULES_PER_CHAT = 10;
+
+/** After a basis alert fires it re-arms only once |basis| falls back to this share of the level or
+ *  lower (50 bp alert -> back to 40 bp or lower). Without it a gap hovering around the level sent one message
+ *  per wiggle across the line (a public screenshot showed NVDAc alerting about 14 times in a day
+ *  and a half). */
+export const REARM_RATIO = 0.8;
+
+/** Next edge-trigger state of a basis rule. `absBp` is null when the tape has no reading: the
+ *  state is kept, so a data blip can't re-arm the alert. */
+export function nextBasisState(active: boolean, absBp: number | null, thresholdBp: number): boolean {
+  if (absBp == null) return active;
+  return active ? absBp > thresholdBp * REARM_RATIO : absBp > thresholdBp;
+}
 const CHATS_KEY = 'alerts:chats';
 const chatKey = (chatId: string) => `alerts:chat:${chatId}`;
 
