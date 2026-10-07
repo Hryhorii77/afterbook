@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTape } from '@/lib/tape';
 import { splitByLiquidity } from '@/lib/liquidity';
-import { getAllChatIds, getRules, setRules, type AlertRule } from '@/lib/alerts';
+import { getAllChatIds, getRules, setRules, nextBasisState, type AlertRule } from '@/lib/alerts';
 import { sendTelegramMessage } from '@/lib/telegram';
 import { bp } from '@/lib/format';
 
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
         if (nowActive && !rule.active) message = closeDigest;
       } else if (rule.type === 'basis' && rule.symbol && rule.thresholdBp != null) {
         const row = tape.rows.find((r) => r.symbol === rule.symbol);
-        nowActive = row?.basisBp != null && Math.abs(row.basisBp) > rule.thresholdBp;
+        nowActive = nextBasisState(rule.active, row?.basisBp != null ? Math.abs(row.basisBp) : null, rule.thresholdBp);
         if (nowActive && !rule.active) {
           message = `${rule.symbol} |basis| crossed ${rule.thresholdBp}bp — now ${bp(row!.basisBp)}.`;
         }

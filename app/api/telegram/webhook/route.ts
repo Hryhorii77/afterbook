@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStock } from '@/lib/tokens';
+import { findStock, STOCKS } from '@/lib/tokens';
 import { getTape } from '@/lib/tape';
-import { getRules, setRules, canAddRule, MAX_RULES_PER_CHAT, type AlertRule } from '@/lib/alerts';
+import { getRules, setRules, canAddRule, MAX_RULES_PER_CHAT, REARM_RATIO, type AlertRule } from '@/lib/alerts';
 import { sendTelegramMessage } from '@/lib/telegram';
 
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 
 const HELP_TEXT = `Afterbook alerts — cash close vs the Aero book, in shares.
 
-/alert SYMBOL BP — ping when |basis| crosses that many bp, e.g. "/alert NVDAc 50"
+/alert STOCK BP — ping when |basis| crosses that many bp, e.g. "/alert NVDA 50" (NVDAc works too). After an alert it re-arms once the gap falls back to 80% of the level or lower, so one stretch near the line is one message.
 /close — ping once when the cash market closes, with every liquid name's basis
 /list — show your active alerts
 /stop — clear all your alerts
@@ -33,7 +33,7 @@ async function handleCommand(chatId: number, text: string): Promise<string> {
 
   if (cmd === '/list') {
     const rules = await getRules(String(chatId));
-    if (rules.length === 0) return 'No active alerts. Try "/alert NVDAc 50" or "/close".';
+    if (rules.length === 0) return 'No active alerts. Try "/alert NVDA 50" or "/close".';
     return rules.map(describeRule).join('\n');
   }
 
@@ -53,10 +53,10 @@ async function handleCommand(chatId: number, text: string): Promise<string> {
 
   if (cmd === '/alert') {
     const [symbolArg, bpArg] = args;
-    if (!symbolArg || !bpArg) return 'Usage: /alert SYMBOL BP — e.g. "/alert NVDAc 50"';
+    if (!symbolArg || !bpArg) return 'Usage: /alert STOCK BP — e.g. "/alert NVDA 50"';
 
-    const stock = getStock(symbolArg);
-    if (!stock) return `Unknown symbol "${symbolArg}". Check the tape at afterbook.app for the exact ticker.`;
+    const stock = findStock(symbolArg);
+    if (!stock) return `Unknown stock "${symbolArg}". Tracked: ${STOCKS.map((s) => s.cashTicker).join(', ')}.`;
 
     const thresholdBp = Number(bpArg);
     if (!Number.isFinite(thresholdBp) || thresholdBp <= 0) return 'BP threshold must be a positive number.';
@@ -82,7 +82,7 @@ async function handleCommand(chatId: number, text: string): Promise<string> {
 
     rules.push({ id: newRuleId(), type: 'basis', symbol: stock.symbol, thresholdBp, active });
     await setRules(String(chatId), rules);
-    return `Set: ${stock.symbol} |basis| > ${thresholdBp}bp.`;
+    return `Set: ${stock.symbol} |basis| > ${thresholdBp}bp. After an alert it re-arms once the gap is back to ${Number((thresholdBp * REARM_RATIO).toFixed(1))}bp or lower.`;
   }
 
   return `Unknown command. ${HELP_TEXT}`;
