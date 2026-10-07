@@ -113,7 +113,7 @@ Or `curl -H "Authorization: Bearer $CRON_SECRET" "<host>/api/cron/basket-tilt?dr
 - `blocked: strategy asset list does not match the tracked stocks` means
   the strategy's assets aren't exactly `BASKET_SYMBOLS` — usually you
   pointed at the test strategy, or someone edited it. Don't force it.
-- `publish: false … below 5%` is the smoothing gate working: the live
+- `publish: false … below 10%` is the smoothing gate working: the live
   weights are already close to the target.
 - The first run after a publish has no stored moving average unless the
   publish also saved one (step 3).
@@ -144,13 +144,33 @@ Versions are immutable and a new one is live immediately. To undo,
 publish the previous version's allocation as a *new* version (read it
 with `GET /strategies/{id}`/the versions list) — there is no delete.
 
-## 4. Moving to auto-publish
+## 4. Auto-publish
 
-Only when the user decides. Prerequisites: several days of dry-run
-output showing sensible, stable weights and low turnover; the user
-accepts that every enrolled portfolio then trades whenever turnover
-reaches 5%. Then set `BASKET_AUTOPUBLISH=1` in Vercel Production (see the
-`vercel-env-verify` skill: redeploy and verify). Unset it to stop.
+The daily job publishes by itself only when `BASKET_AUTOPUBLISH=1` in Vercel
+Production; `GET /api/cron/basket-tilt?dry=1` (cron bearer) shows the plan and
+`autopublishEnabled` (whether the switch is on) without writing anything. Every
+publish makes every enrolled portfolio trade, so:
+
+- **The threshold is 10% turnover** (`MIN_TURNOVER` in `lib/baskets/weights.ts`).
+  Evidence (2026-10-07, a replay of 19 days of stored history through the same
+  rules, depth held at today's level, so approximate): 5% would have published
+  about 10 to 12 times (2 days in 3, roughly 90 bp a month at ~0.9% cost per
+  unit of basket moved); 10% about 3 (~50 bp); 15% about 1 (~23 bp). Don't lower
+  it without redoing that replay (script idea: `computeTiltWeights` +
+  `smoothWeights` over `getHistory` samples at 22:00 UTC; see git history of
+  this file for the sweep).
+- **Dry runs were misleading before 2026-10-07:** the job didn't save the moving
+  average unless it published, so a dry run showed one step from a stale
+  average. Scheduled runs now save it even with the switch off; `?dry=1` still
+  writes nothing. **Never call the endpoint without `?dry=1` from a local
+  machine:** `.env.local` shares production's Redis, so it would write the real
+  moving average (and could publish if the switch is on).
+- **Each publish sends a Telegram message** to `TELEGRAM_ADMIN_CHAT_ID`
+  ("Basis Tilt vN published (reason) ... largest weights ..."). If a publish
+  happens that the owner didn't expect, check that message and the strategy's
+  version list; undo = publish the previous allocation as a new version.
+- Turn it off by unsetting `BASKET_AUTOPUBLISH` (see the `vercel-env-verify`
+  skill: change, redeploy, verify).
 
 ## 5. A private test strategy (to try things without touching the real one)
 

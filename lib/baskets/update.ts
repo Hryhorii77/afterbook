@@ -46,6 +46,12 @@ export async function planTiltUpdate(strategyId: string, tape: TapeResult): Prom
   };
 }
 
+/** Saves the moving average without publishing anything (a scheduled run while auto-publish is
+ *  off), so the average keeps tracking and a dry run shows what auto-publish would really do. */
+export async function saveTiltEma(plan: TiltPlan): Promise<void> {
+  if (redis) await redis.set(emaKey(plan.strategyId), plan.ema).catch(() => {});
+}
+
 /** Persists the moving average and, only if the plan says so, publishes a new
  *  strategy version (live for every enrolled portfolio on its next run). */
 export async function applyTiltUpdate(plan: TiltPlan): Promise<{ published: boolean; version?: number }> {
