@@ -932,54 +932,6 @@ section.gap-hero {
   margin-bottom: 16px;
 }
 
-.gap-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-}
-
-.mobile-tape-link {
-  display: none;
-}
-
-.gap-cell {
-  background: var(--inset);
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.gap-cell-clickable {
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-  width: 100%;
-}
-/* Hover and "this is the selected lot" must never look the same — a cursor
-   resting on a different card than the actually-selected one used to render
-   as two blue outlines at once, reading as a selection bug in a screenshot.
-   Only the true selection gets accent blue; hover gets a neutral lighten. */
-.gap-cell-clickable:hover {
-  border-color: var(--border-strong);
-}
-.gap-cell-active {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
-}
-
-.gap-symbol {
-  font-size: 12px;
-  color: var(--text-dim);
-  margin-bottom: 4px;
-}
-
-.gap-cell .basis-pos, .gap-cell .basis-neg {
-  font-family: var(--font-ui);
-  letter-spacing: -0.02em;
-  font-size: 20px;
-  font-weight: 600;
-}
-
 .gap-detail-label {
   font-size: 9px;
   color: var(--text-dimmer);
@@ -1170,8 +1122,8 @@ th {
 .basis-neg { color: var(--red); }
 
 /* /today's single-stat hero — the "one screenshot stat" page, deliberately
-   built around one big number rather than the homepage's multi-symbol
-   .gap-grid. .basis-pos/.basis-neg above still color the number itself. */
+   built around one big number rather than a multi-symbol grid.
+   .basis-pos/.basis-neg above still color the number itself. */
 .today-symbol {
   color: var(--text-dim);
   font-size: 14px;
@@ -2075,30 +2027,6 @@ footer {
   font-size: 12px;
   color: var(--text-dimmer);
   margin-top: 2px;
-}
-
-@media (max-width: 640px) {
-  .gap-grid > .gap-cell:nth-child(n + 4) {
-    display: none;
-  }
-
-  .mobile-tape-link {
-    display: block;
-    width: 100%;
-    margin-top: 12px;
-    background: none;
-    border: 1px solid var(--panel-border);
-    border-radius: 8px;
-    color: var(--text-dim);
-    font-family: inherit;
-    font-size: 13px;
-    padding: 10px;
-    cursor: pointer;
-  }
-
-  .mobile-tape-link:hover {
-    color: var(--text);
-  }
 }
 
 /* First screen: the hero sentence, its actions, and the one-time explainer. */

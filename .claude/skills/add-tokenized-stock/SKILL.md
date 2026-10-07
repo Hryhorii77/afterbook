@@ -8,7 +8,7 @@ description: Verify and add a new Coinbase tokenized-stock symbol (B20 token + A
 `lib/tokens.ts`'s `STOCKS` array is the **single source of truth** for
 what the tape tracks — the tape, Lot Lab, My Lots, the ticker strip, the
 trend charts, the earnings/fee-snapshot crons, and the MCP route all
-derive from it. Nothing else needs separate registration. The
+derive from it (including the per-stock pages in `sitemap.xml`). Nothing else needs separate registration. The
 liquid-vs-thin split is automatic (driven by live depth, not a hardcoded
 list) — a new addition doesn't need to be sorted into a bucket by hand.
 A pool under `LIQUID_DEPTH_THRESHOLD_USD` ($1M, `lib/liquidity.ts`) lands
