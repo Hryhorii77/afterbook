@@ -1,6 +1,6 @@
 ---
 name: add-tokenized-stock
-description: Verify and add a new Coinbase tokenized-stock symbol (B20 token + Aerodrome Slipstream USDC pool) to lib/tokens.ts. Use when the discover-tokens cron sends a Telegram digest naming a candidate, or the user asks to add a new stock symbol to Afterbook. Coinbase lists far more tokens than Afterbook tracks (58 vs 12 on 2026-10-01); adding one never changes the Basis Tilt basket.
+description: Verify and add a new Coinbase tokenized-stock symbol (B20 token + Aerodrome Slipstream USDC pool) to lib/tokens.ts. Use when the discover-tokens cron sends a Telegram digest naming a candidate, or the user asks to add a new stock symbol to Afterbook. Coinbase lists far more tokens than Afterbook tracks (92 vs 12 on 2026-10-07; 58 on 2026-10-01); adding one never changes the Basis Tilt basket.
 ---
 
 # Add a new tokenized stock
@@ -20,6 +20,8 @@ basket is a separate decision (new strategy version, wording to
 Glider/users) — don't do it as part of this skill.
 
 ## 1. Find and rank candidates
+
+*State on 2026-10-07:* of the 80 untracked tokens none had a liquid Aerodrome pool (best on Aerodrome ~$5k; best anywhere ~$25k on Uniswap), so nothing was added. Re-check only when the daily digest names a candidate.
 
 Coinbase's own public list is the source of truth for *which tokens
 exist*: `GET https://api.coinbase.com/v1/tokenized-stocks` (keyless; each
