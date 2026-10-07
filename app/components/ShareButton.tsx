@@ -63,6 +63,7 @@ export function ShareButton({ path, cardPath, fileName, text }: ShareButtonProps
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [origin, setOrigin] = useState('https://afterbook.app');
+  const [stamp, setStamp] = useState('');
   const [canNativeShare, setCanNativeShare] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -87,7 +88,11 @@ export function ShareButton({ path, cardPath, fileName, text }: ShareButtonProps
     };
   }, [open]);
 
-  const url = `${origin}${path}`;
+  // X and Telegram cache a link's preview card by its exact URL (X for about a week), and the card
+  // shows live numbers. A bare /MSTRc would keep showing whatever it looked like the first time
+  // anyone shared it, contradicting the sentence in the post. A fresh stamp per share (set when
+  // the panel opens) makes every share a new URL, so the card is fetched at share time.
+  const url = `${origin}${path}${stamp ? `?s=${stamp}` : ''}`;
   const xHref = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
 
   const copyLink = async () => {
@@ -114,7 +119,10 @@ export function ShareButton({ path, cardPath, fileName, text }: ShareButtonProps
       <button
         type="button"
         className="btn btn-secondary"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          setStamp(Date.now().toString(36));
+          setOpen((o) => !o);
+        }}
         aria-expanded={open}
         aria-haspopup="dialog"
       >

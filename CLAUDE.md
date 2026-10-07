@@ -83,6 +83,7 @@ No lint script, no test suite. To verify a change actually works:
 - User-visible counts ("ten stocks") go stale when the tracked list
   changes. After adding/removing a token, grep for them (see the
   `add-tokenized-stock` skill).
+- **Share cards and link previews:** after changing `lib/ogImage.tsx`, bump the `// Card version N` comment in all six `opengraph-image`/`twitter-image` route files (otherwise the image URL's hash is unchanged and X/Telegram keep the old card), and confirm the `?hash` in the page's `og:image` tag changed. Share links carry a per-share `?s=` stamp for the same reason; don't strip it.
 - **Labels come from data, not the clock:** never label a price "pre-market"/"after-hours" from the session state alone; use each row's `cashPriceType` (the hero, the card and the tape header/note all do). Two labels for one price was a real contradiction.
 - **First screen:** the hero must say the gap as one plain sentence a
   stranger can repeat (name, bp, versus what, when cash reopens), define
