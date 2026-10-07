@@ -1,3 +1,5 @@
+// Card version 2. Bump this number whenever lib/ogImage.tsx changes: the ?hash on the image URL
+// is computed from this file alone, and link previews (X, Telegram) cache by that URL.
 import { buildTodayOgImage, OG_ALT, OG_SIZE } from '@/lib/ogImage';
 
 export const alt = OG_ALT;
