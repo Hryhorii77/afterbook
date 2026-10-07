@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useAccount, useReadContract, useSignMessage, useSignTypedData, useWriteContract } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { erc20Abi, formatUnits, parseUnits, type Hex } from 'viem';
@@ -60,7 +60,7 @@ export function BasketPanel() {
   const [review, setReview] = useState<EnrollStage1 | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<ReactNode>(null);
   const [amount, setAmount] = useState('');
   const [ack, setAck] = useState(false);
   const { writeContractAsync } = useWriteContract();
@@ -74,9 +74,23 @@ export function BasketPanel() {
     query: { enabled: !!address },
   });
 
+  // The USDC sitting in the user's Basis Tilt account, read straight from the chain (every 15s), so a
+  // deposit is visible as soon as it confirms, before Glider has counted it.
+  const deposit = portfolio?.smartAccounts.find((a) => a.accountId.startsWith(BASE_PREFIX));
+  const depositAddr = (deposit?.depositAccountId ?? deposit?.accountId)?.split(':')[2];
+  const { data: accountUsdc, refetch: refetchAccountUsdc } = useReadContract({
+    address: USDC.address,
+    abi: erc20Abi,
+    functionName: 'balanceOf',
+    args: depositAddr ? [depositAddr as Hex] : undefined,
+    chainId: base.id,
+    query: { enabled: !!depositAddr, refetchInterval: 15_000 },
+  });
+
   const refresh = useCallback(async () => {
     if (!address) return;
     void refetchUsdc();
+    void refetchAccountUsdc();
     try {
       const data = await api<{ portfolio: Portfolio | null; positions: Positions | null }>(`/api/baskets/portfolio?owner=${address}`);
       setPortfolio(data.portfolio);
@@ -86,7 +100,7 @@ export function BasketPanel() {
     } finally {
       setLoaded(true);
     }
-  }, [address, refetchUsdc]);
+  }, [address, refetchUsdc, refetchAccountUsdc]);
 
   useEffect(() => {
     setPortfolio(null);
@@ -174,11 +188,18 @@ export function BasketPanel() {
       const value = parseUnits(amount, USDC.decimals);
       if (value <= BigInt(0)) throw new Error('Enter an amount above zero.');
       if (usdcBalance !== undefined && value > usdcBalance) throw new Error('That is more USDC than your wallet holds on Base.');
-      await writeContractAsync({ address: USDC.address, abi: erc20Abi, functionName: 'transfer', args: [to as Hex, value], chainId: base.id, dataSuffix: BUILDER_CODE_SUFFIX });
+      const hash = await writeContractAsync({ address: USDC.address, abi: erc20Abi, functionName: 'transfer', args: [to as Hex, value], chainId: base.id, dataSuffix: BUILDER_CODE_SUFFIX });
       setAmount('');
-      setNotice('USDC sent. It should appear in your balance after the transaction confirms and Glider picks it up — press Refresh.');
+      setNotice(
+        <>
+          {formatUnits(value, USDC.decimals)} USDC sent.{' '}
+          <a href={`https://basescan.org/tx/${hash}`} target="_blank" rel="noopener noreferrer" className="emph-link">View transaction ↗</a>.
+          It shows below as USDC in your account as soon as it confirms, and in your Balance once Glider has counted it.
+        </>,
+      );
       notify({ kind: 'tx', tone: 'success', title: 'USDC sent', body: 'It will show in your balance once the transaction confirms.' });
       void refetchUsdc();
+      void refetchAccountUsdc();
       setTimeout(() => void refresh(), 10000);
     });
 
@@ -236,8 +257,6 @@ export function BasketPanel() {
   }
   if (!loaded) return <p className="geo-note" style={{ marginTop: 0 }}>Checking your portfolio…</p>;
 
-  const deposit = portfolio?.smartAccounts.find((a) => a.accountId.startsWith(BASE_PREFIX));
-  const depositAddr = (deposit?.depositAccountId ?? deposit?.accountId)?.split(':')[2];
   const withdrawable = (positions?.assets ?? []).some((a) => a.balanceRaw !== '0');
 
   return (
@@ -349,6 +368,17 @@ export function BasketPanel() {
                   Note: {w.message}
                 </span>
               ))}
+            </p>
+          )}
+          {accountUsdc !== undefined && accountUsdc >= BigInt(10_000) && (
+            <p className="geo-note">
+              USDC in your account on Base: {formatUnits(accountUsdc, USDC.decimals)}
+              {positions && Number(positions.totalValueUsd) < 0.01 && (
+                <span style={{ display: 'block' }}>
+                  It is yours and only you can withdraw it. Glider has not counted it yet, so Balance shows $0.00 and Withdraw stays
+                  off until it does. That can take a while after the deposit confirms: press Refresh later.
+                </span>
+              )}
             </p>
           )}
           <div className="basket-row">
