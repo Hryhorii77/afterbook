@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAccount, useReadContract, useSignMessage, useSignTypedData, useWriteContract } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { erc20Abi, formatUnits, parseUnits, type Hex } from 'viem';
+import { BUILDER_CODE_SUFFIX } from '@/lib/builderCode';
 import { USDC } from '@/lib/tokens';
 import { WalletConnectButton } from './WalletConnectButton';
 import { useNotify } from './notify';
@@ -173,7 +174,7 @@ export function BasketPanel() {
       const value = parseUnits(amount, USDC.decimals);
       if (value <= BigInt(0)) throw new Error('Enter an amount above zero.');
       if (usdcBalance !== undefined && value > usdcBalance) throw new Error('That is more USDC than your wallet holds on Base.');
-      await writeContractAsync({ address: USDC.address, abi: erc20Abi, functionName: 'transfer', args: [to as Hex, value], chainId: base.id });
+      await writeContractAsync({ address: USDC.address, abi: erc20Abi, functionName: 'transfer', args: [to as Hex, value], chainId: base.id, dataSuffix: BUILDER_CODE_SUFFIX });
       setAmount('');
       setNotice('USDC sent. It should appear in your balance after the transaction confirms and Glider picks it up — press Refresh.');
       notify({ kind: 'tx', tone: 'success', title: 'USDC sent', body: 'It will show in your balance once the transaction confirms.' });
