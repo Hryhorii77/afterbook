@@ -111,8 +111,13 @@ export function computeTiltWeights(inputs: WeightInput[]): BasketWeight[] {
 
 /** Weight given to the newest target in the moving average (0–1). */
 export const EMA_ALPHA = 0.3;
-/** Publish only when at least this fraction of the basket would be traded. */
-export const MIN_TURNOVER = 0.05;
+/** Publish only when at least this fraction of the basket would be traded.
+ *  10%, decided 2026-10-07 after replaying 19 days of stored history through these rules: at 5%
+ *  the basket would have changed on about 2 days in 3 (about 10 publishes, roughly 90 bp a month
+ *  in trading cost at ~0.9% per unit of basket moved); at 10% about 3 publishes (about 50 bp);
+ *  at 15% about 1 (about 23 bp). Half of every weight follows the size of the day's basis, which
+ *  flips around daily, so a low threshold mostly trades noise. */
+export const MIN_TURNOVER = 0.10;
 
 export interface SmoothInput {
   target: BasketWeight[];

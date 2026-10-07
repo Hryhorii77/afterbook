@@ -55,7 +55,7 @@ export default function BasketRisksPage() {
             smaller than $1 is not bought, so small deposits can leave some names unfilled.
           </li>
           <li>
-            The target weights are updated at most about once a day, and only when at least 5% of the basket would change.
+            The target weights are updated at most about once a day, and only when at least 10% of the basket would change.
             When they change, every enrolled account trades toward the new weights and pays those costs again.
           </li>
           <li>You also pay network gas for your own transactions on Base.</li>
