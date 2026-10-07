@@ -23,7 +23,7 @@ Background: `README.md` → "Baskets (Basis Tilt)". Code: `lib/glider.ts`
    rebalance trigger was blocked once). Don't route around a denial:
    explain what you were doing and give the user the command to run
    themselves (`!` prefix runs it as them).
-4. `BASKET_AUTOPUBLISH` stays unset unless the user decides otherwise.
+4. `BASKET_AUTOPUBLISH=1` is **on** in Vercel Production since 2026-10-07 (owner decision, threshold 10%); see section 4. Turning it off is the first move if a publish looks wrong.
 5. Never print, log or paste `GLIDER_API_KEY`. Run scripts with
    `.env.local` loaded (`set -a; . ./.env.local; set +a`) and print only
    counts, ids and weights. The local key is read-only (see "API keys").
@@ -146,7 +146,7 @@ with `GET /strategies/{id}`/the versions list) — there is no delete.
 
 ## 4. Auto-publish
 
-The daily job publishes by itself only when `BASKET_AUTOPUBLISH=1` in Vercel
+**Status: ON since 2026-10-07** (the live `?dry=1` response shows `autopublishEnabled: true`). The daily job publishes by itself only when `BASKET_AUTOPUBLISH=1` in Vercel
 Production; `GET /api/cron/basket-tilt?dry=1` (cron bearer) shows the plan and
 `autopublishEnabled` (whether the switch is on) without writing anything. Every
 publish makes every enrolled portfolio trade, so:

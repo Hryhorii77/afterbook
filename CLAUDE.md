@@ -46,7 +46,7 @@ No lint script, no test suite. To verify a change actually works:
   first (see the `basis-tilt-ops` skill). The permission classifier may
   block real-money calls — don't route around it; explain and hand the
   step to the user (the `!` prefix runs a command as them).
-- **`BASKET_AUTOPUBLISH` stays off** unless the user says otherwise.
+- **`BASKET_AUTOPUBLISH` is ON** (owner decision, 2026-10-07, set in Vercel Production, with the publish threshold raised to 10% first; evidence in the `basis-tilt-ops` skill). The nightly job (22:00 UTC) can now publish a new version, which makes every enrolled portfolio trade, and messages the owner when it does. Don't lower `MIN_TURNOVER` or change the weighting without redoing the replay, and turn the switch off (unset the variable, redeploy) if anything looks wrong. Production env changes and deploys may be blocked by this session's permission check: don't work around it, hand the step to the user.
 - **The basket universe is `BASKET_SYMBOLS` in `lib/baskets/tilt.ts`,
   not `STOCKS`.** Adding a token to `lib/tokens.ts` must not change what
   enrolled users hold. Widening the basket is a separate, explicit
