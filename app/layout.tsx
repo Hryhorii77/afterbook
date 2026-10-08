@@ -11,6 +11,7 @@ import { LiveAlerts } from './components/LiveAlerts';
 import { TickerStrip } from './components/TickerStrip';
 import { TokenIconsProvider } from './components/TokenIcons';
 import { getTokenIcons } from '@/lib/coinbaseIcons';
+import { Analytics } from '@vercel/analytics/next';
 import { siteUrl } from '@/lib/siteUrl';
 import { THEME_INIT_SCRIPT } from './components/theme';
 
@@ -67,6 +68,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {children}
               <Toaster />
               <LiveAlerts />
+              {/* Vercel Web Analytics: cookieless page views and visitor counts, no personal data. */}
+              <Analytics />
             </TokenIconsProvider>
           </NotifyProvider>
         </Providers>
