@@ -133,6 +133,14 @@ No lint script, no test suite. To verify a change actually works:
   contain a raw key before staging (they shouldn't; `forge script`
   doesn't write one there, but verify rather than assume).
 
+## Permission rules (`.claude/settings.json`, checked in)
+
+The "never do this on your own" rules above are also enforced as permission rules, so they don't depend on remembering them:
+- **Always asks first:** `vercel deploy --prod`, `vercel env add/rm/pull`, `forge script --broadcast`, `gh pr merge`, and any `curl` to `/api/cron/basket-tilt` (including the `?dry=1` form, which is read-only; just approve it).
+- **Denied outright:** `cast wallet` (raw keys), and any `curl` to `/api/cron/alerts` or `/api/telegram/webhook` (they would act on the shared production Redis and Telegram).
+- An ask rule beats an allow, so `.claude/settings.local.json` allowing `vercel deploy*` does not skip the production prompt.
+- Limits: these match the command text, so a different tool (`wget`, a script) is not covered. Don't use that to get around a rule; hand the step to the user.
+
 ## Vercel project
 
 Linked project: `gregs-projects-c49a01b8/afterbook`. `vercel env ls`

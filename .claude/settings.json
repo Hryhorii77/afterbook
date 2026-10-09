@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(vercel deploy *--prod*)",
+      "Bash(npx vercel deploy *--prod*)",
+      "Bash(vercel env add *)",
+      "Bash(vercel env rm *)",
+      "Bash(vercel env pull *)",
+      "Bash(npx vercel env add *)",
+      "Bash(npx vercel env rm *)",
+      "Bash(npx vercel env pull *)",
+      "Bash(forge script *--broadcast*)",
+      "Bash(gh pr merge *)",
+      "Bash(curl *api/cron/basket-tilt*)"
+    ],
+    "deny": [
+      "Bash(cast wallet *)",
+      "Bash(curl *api/cron/alerts*)",
+      "Bash(curl *api/telegram/webhook*)"
+    ]
+  }
+}
