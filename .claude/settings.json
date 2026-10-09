@@ -18,5 +18,19 @@
       "Bash(curl *api/cron/alerts*)",
       "Bash(curl *api/telegram/webhook*)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-secrets.sh",
+            "statusMessage": "Checking for secrets"
+          }
+        ]
+      }
+    ]
   }
 }
