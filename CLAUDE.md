@@ -98,6 +98,7 @@ No lint script, no test suite. To verify a change actually works:
 
 ## Working process
 
+- The full checklist is the `ship-and-verify` skill.
 - Branch → PR → merge only when the user asks → wait for the Vercel
   deploy → verify the **live** site (curl, and a real browser for
   anything client-rendered; the ticker strip, for example, is empty in
