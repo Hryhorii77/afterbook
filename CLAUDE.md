@@ -140,6 +140,7 @@ The "never do this on your own" rules above are also enforced as permission rule
 - **Denied outright:** `cast wallet` (raw keys), and any `curl` to `/api/cron/alerts` or `/api/telegram/webhook` (they would act on the shared production Redis and Telegram).
 - An ask rule beats an allow, so `.claude/settings.local.json` allowing `vercel deploy*` does not skip the production prompt.
 - Limits: these match the command text, so a different tool (`wget`, a script) is not covered. Don't use that to get around a rule; hand the step to the user.
+- **Secrets hook** (`.claude/hooks/guard-secrets.sh`, a PreToolUse hook in the same file): blocks Read/Edit/Write of any `.env*` file (except `.env.example`) and Bash that reads one with `cat`/`grep`/`sed` and the like, or prints a secret variable (`echo $…KEY|SECRET|TOKEN`, `printenv`, bare `env`). Sourcing is fine. To check a value exists, source it and test `[ -n "$NAME" ]`, printing only yes/no (use `bash -c`: `${!v}` does not work in zsh). It matches command text only, so a script that prints a secret is not caught; that is still on you. **False positive to expect:** it scans the whole Bash command, heredocs and commit/PR messages included, so text that mentions an env file next to a word like `cat` or `grep` gets blocked. Write such text with the Edit/Write tools and pass it with `git commit -F` / `gh pr create --body-file`.
 
 ## Vercel project
 
