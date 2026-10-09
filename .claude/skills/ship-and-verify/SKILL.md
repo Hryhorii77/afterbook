@@ -28,7 +28,7 @@ git status --short && git branch --show-current
 
 README, `CLAUDE.md` and the skills must say what the code now does. A doc
 that says something false is worse than none. If the change touches
-`lib/ogImage.tsx`, bump `// Card version N` in all six card route files; if
+`lib/ogImage.tsx`, run the `card-version-bump` skill (`bump.sh`, then `bump.sh --check`); if
 it adds a wallet transaction, it must pass `dataSuffix: BUILDER_CODE_SUFFIX`;
 if it changes the tracked list, grep for stale counts (see
 `add-tokenized-stock`).
