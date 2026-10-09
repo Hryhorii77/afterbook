@@ -99,6 +99,7 @@ No lint script, no test suite. To verify a change actually works:
 ## Working process
 
 - The full checklist is the `ship-and-verify` skill.
+- Before opening a PR that touches Glider, the baskets, the deposit panel, a wallet transaction, or the secrets/permission setup, run the read-only `real-money-reviewer` subagent (`.claude/agents/real-money-reviewer.md`) on the diff and act on its findings. If a check in it stops being true (a new route, a new guard), update the agent file in the same PR.
 - Branch → PR → merge only when the user asks → wait for the Vercel
   deploy → verify the **live** site (curl, and a real browser for
   anything client-rendered; the ticker strip, for example, is empty in
