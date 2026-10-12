@@ -116,7 +116,7 @@ export default async function BuildPage({ params }: PageProps) {
 
       <section className="panel">
         <h2>Change it</h2>
-        <BasketPicker symbols={symbols} initial={legs} />
+        <BasketPicker key={canonical} symbols={symbols} initial={legs} />
       </section>
 
       <section className="panel">

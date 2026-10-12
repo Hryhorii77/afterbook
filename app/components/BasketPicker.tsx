@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatSpec, normalizeLegs, MAX_LEGS, MIN_LEGS, type BasketLeg } from '@/lib/customBasket';
 
@@ -15,6 +15,11 @@ interface Props {
 // link someone can share, and nothing is kept in the browser.
 export function BasketPicker({ symbols, initial }: Props) {
   const router = useRouter();
+  // Load the new basket without jumping to the top: scroll: false keeps the
+  // position, and the transition keeps this page on screen until the new one
+  // is ready (app/build/[spec] has no loading.tsx on purpose; its full-page
+  // placeholder replaced the page on every change and the view jumped).
+  const [pending, startTransition] = useTransition();
   const [legs, setLegs] = useState(() => initial.map((l) => ({ symbol: l.symbol, weight: String(l.weightPct) })));
   const picked = new Set(legs.map((l) => l.symbol));
 
@@ -33,7 +38,7 @@ export function BasketPicker({ symbols, initial }: Props) {
 
   const show = () => {
     const spec = formatSpec(normalizeLegs(legs.map((l) => ({ symbol: l.symbol, weight: Number(l.weight) }))));
-    router.push(`/build/${spec}`);
+    startTransition(() => router.push(`/build/${spec}`, { scroll: false }));
   };
 
   return (
@@ -83,8 +88,8 @@ export function BasketPicker({ symbols, initial }: Props) {
       </p>
 
       <div className="basket-row">
-        <button type="button" className="btn" disabled={!canShow} onClick={show}>
-          Show this basket
+        <button type="button" className="btn" disabled={!canShow || pending} onClick={show}>
+          {pending ? 'Updating…' : 'Show this basket'}
         </button>
         <button type="button" className="btn btn-secondary" disabled={legs.length < MIN_LEGS} onClick={equalize}>
           Equal weights

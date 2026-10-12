@@ -233,9 +233,10 @@ h1 {
 /* Once the page is scrolled, the full-width bar condenses into a floating,
    centred pill (the site-header element keeps its height, so nothing below it
    shifts). data-scrolled is set by SiteHeader with a little hysteresis so it
-   doesn't flicker at the threshold. Phones keep the two-row bar below, which
-   scrolls away, so none of this applies there. */
-@media (min-width: 641px) {
+   doesn't flicker at the threshold. Phones and tablets keep the two-row bar
+   below (980px and narrower), which scrolls away, so none of this applies
+   there. */
+@media (min-width: 981px) {
   .site-header[data-scrolled='true'] {
     background: transparent;
     border-bottom-color: transparent;
@@ -243,7 +244,9 @@ h1 {
   }
   .site-header[data-scrolled='true'] .site-header-inner {
     pointer-events: auto;
-    max-width: 700px;
+    /* Five nav links need about 425px; at 700px the nav got 383px and
+       "Baskets" was clipped to "Bask" (2026-10-12). */
+    max-width: 780px;
     height: 48px;
     margin: 8px auto 0;
     padding: 0 6px 0 14px;
