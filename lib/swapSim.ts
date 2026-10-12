@@ -25,8 +25,11 @@ export interface SellResult {
   /** How far the average fill is below mid, positive bp (fee included). */
   discountBp: number;
   /** The sell ran past the edge of the scanned window (25% below mid), so
-   *  usdcOut only counts what the window holds: a real fill would be worse. */
+   *  usdcOut only counts what the window holds, and avgPriceUsd/discountBp
+   *  describe the filled part only: a best case, the real fill is worse. */
   exhaustedWindow: boolean;
+  /** Share of the sell the scanned window could fill (1 unless exhausted). */
+  filledFraction: number;
 }
 
 const sqrtAtTick = (tick: number) => Math.sqrt(1.0001 ** tick);
@@ -35,7 +38,8 @@ export function simulateSell(state: PoolState, dist: LiquidityDistribution, stoc
   const mid = midPriceUsd(state, stock);
   const multiplierRatio = Number(state.multiplier) / MULTIPLIER_ONE;
   const rawIn = (sharesIn / multiplierRatio) * 10 ** stock.decimals;
-  let remaining = rawIn * (1 - stock.pool.feePpm / 1_000_000);
+  const rawInAfterFee = rawIn * (1 - stock.pool.feePpm / 1_000_000);
+  let remaining = rawInAfterFee;
 
   let s = Number(state.sqrtPriceX96) / 2 ** 96;
   let usdcOutRaw = 0;
@@ -70,7 +74,12 @@ export function simulateSell(state: PoolState, dist: LiquidityDistribution, stoc
   }
 
   const usdcOut = usdcOutRaw / 10 ** USDC.decimals;
-  const avgPriceUsd = sharesIn > 0 ? usdcOut / sharesIn : mid;
+  // Average over the part that actually filled. Past the window that is a
+  // best case (the rest would fill lower still); dividing by all of sharesIn
+  // instead produced nonsense like a 99% "discount".
+  const filledFraction = rawInAfterFee > 0 ? 1 - remaining / rawInAfterFee : 1;
+  const filledShares = sharesIn * filledFraction;
+  const avgPriceUsd = filledShares > 0 ? usdcOut / filledShares : mid;
   return {
     sharesIn,
     usdcOut,
@@ -78,6 +87,7 @@ export function simulateSell(state: PoolState, dist: LiquidityDistribution, stoc
     avgPriceUsd,
     discountBp: mid > 0 && sharesIn > 0 ? ((mid - avgPriceUsd) / mid) * 10_000 : 0,
     exhaustedWindow,
+    filledFraction,
   };
 }
 
@@ -127,8 +137,11 @@ export interface BuyResult {
   /** How far the average fill is above mid, in bp, pool fee included. */
   costBp: number;
   /** The buy ran past the scanned window (25% above mid): sharesOut only
-   *  counts what the window holds, so the real fill would be worse. */
+   *  counts what the window holds, and avgPriceUsd/costBp describe the
+   *  filled part only: a best case, the real fill is worse. */
   exhaustedWindow: boolean;
+  /** Share of the USDC the scanned window could spend (1 unless exhausted). */
+  filledFraction: number;
 }
 
 /**
@@ -141,7 +154,8 @@ export interface BuyResult {
 export function simulateBuy(state: PoolState, dist: LiquidityDistribution, stock: CbStock, usdcIn: number): BuyResult {
   const mid = midPriceUsd(state, stock);
   const multiplierRatio = Number(state.multiplier) / MULTIPLIER_ONE;
-  let remaining = usdcIn * 10 ** USDC.decimals * (1 - stock.pool.feePpm / 1_000_000);
+  const usdcInAfterFeeRaw = usdcIn * 10 ** USDC.decimals * (1 - stock.pool.feePpm / 1_000_000);
+  let remaining = usdcInAfterFeeRaw;
 
   let s = Number(state.sqrtPriceX96) / 2 ** 96;
   let stockOutRaw = 0;
@@ -174,7 +188,9 @@ export function simulateBuy(state: PoolState, dist: LiquidityDistribution, stock
   }
 
   const sharesOut = (stockOutRaw / 10 ** stock.decimals) * multiplierRatio;
-  const avgPriceUsd = sharesOut > 0 ? usdcIn / sharesOut : mid;
+  // Average over the USDC that actually bought something (see simulateSell).
+  const filledFraction = usdcInAfterFeeRaw > 0 ? 1 - remaining / usdcInAfterFeeRaw : 1;
+  const avgPriceUsd = sharesOut > 0 ? (usdcIn * filledFraction) / sharesOut : mid;
   return {
     usdcIn,
     sharesOut,
@@ -182,5 +198,6 @@ export function simulateBuy(state: PoolState, dist: LiquidityDistribution, stock
     avgPriceUsd,
     costBp: mid > 0 && sharesOut > 0 ? ((avgPriceUsd - mid) / mid) * 10_000 : 0,
     exhaustedWindow,
+    filledFraction,
   };
 }

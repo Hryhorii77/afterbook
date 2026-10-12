@@ -10,14 +10,15 @@ import { simulateBuy, simulateSell } from './swapSim';
 // constant-product math, which is exact only while a trade stays inside the
 // current tick's liquidity and is off in either direction past it, with no
 // caveat shown. On 2026-10-12: NVDAc $100k 8.2 vs 14.5 bp walked (an hour
-// later, after LPs moved, 7.9 vs 7.9), SPCXc $100k 45.0 vs 38.9, TSLAc $500k
-// 200 vs 2,662 bp.
+// later, after LPs moved, 7.9 vs 7.9), SPCXc $100k 45.0 vs 38.9.
 //
 // Same LotEstimate shape as before, so API responses don't change. The one
 // change in meaning: largeTradeCaveat is now "the buy ran past the ±25%
 // window lib/depth.ts scans", the only point where this estimate stops
-// being a walk of real liquidity. If the tick scan itself fails, this falls
-// back to estimateLot rather than failing the quote.
+// being a walk of real liquidity; impactBp is then the cost of the part
+// that fits in the window, a lower bound (the UI shows it as "≥"; TSLAc
+// $500k read ≥125 bp with 80% fillable on 2026-10-12). If the tick scan
+// itself fails, this falls back to estimateLot rather than failing the quote.
 
 function walked(state: PoolState, dist: LiquidityDistribution, stock: CbStock, usdcIn: number): LotEstimate {
   const r = simulateBuy(state, dist, stock, usdcIn);
