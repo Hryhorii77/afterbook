@@ -1,7 +1,7 @@
 import { getStock } from './tokens';
 import { getCachedPoolState, midPriceUsd, MULTIPLIER_ONE } from './quote';
 import { getCachedLiquidityDistribution } from './depth';
-import { simulateSell, maxSellAtAvgPrice } from './sellSim';
+import { simulateSell, maxSellAtAvgPrice } from './swapSim';
 import { getMorphoStockMarkets, type MorphoStockMarket } from './morpho';
 import { liquidationIncentiveFactor, SELL_CURVE_SIZES_USD, type SellCurvePoint } from './liquidationMath';
 

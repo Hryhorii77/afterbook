@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withX402 } from '@x402/next';
 import { getStock } from '@/lib/tokens';
-import { buildImpactCurve, estimateLot, getCachedPoolState } from '@/lib/quote';
+import { getBuyQuoter } from '@/lib/lotQuote';
 import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE } from '@/lib/x402';
 
 export const revalidate = 0;
@@ -25,16 +25,16 @@ async function handler(request: NextRequest) {
   }
 
   try {
-    const state = await getCachedPoolState(stock);
-    const estimate = estimateLot(state, stock, usdcIn);
-    const curve = buildImpactCurve(state, stock);
+    const quoter = await getBuyQuoter(stock);
+    const estimate = quoter.estimate(usdcIn);
+    const curve = quoter.curve();
     return NextResponse.json({ symbol: stock.symbol, ...estimate, curve });
   } catch (err) {
     return NextResponse.json({ error: 'quote unavailable', detail: String(err) }, { status: 502 });
   }
 }
 
-// Same estimateLot/buildImpactCurve path /api/quote and the MCP get_quote
+// Same lib/lotQuote.ts path /api/quote and the MCP get_quote
 // tool already share (and the same 20s pool-state cache) — a third,
 // machine-payable caller of an already-shared, already-cached path.
 export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configured

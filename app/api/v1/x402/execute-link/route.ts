@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withX402 } from '@x402/next';
 import { getStock, aerodromeSwapUrl } from '@/lib/tokens';
-import { estimateLot, getCachedPoolState } from '@/lib/quote';
+import { getBuyQuoter } from '@/lib/lotQuote';
 import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE } from '@/lib/x402';
 
 export const revalidate = 0;
@@ -31,8 +31,27 @@ async function handler(request: NextRequest) {
   }
 
   try {
-    const state = await getCachedPoolState(stock);
-    const estimate = estimateLot(state, stock, usdcIn);
+    const quoter = await getBuyQuoter(stock);
+    const swapUrl = aerodromeSwapUrl(stock, direction);
+    if (direction === 'sell') {
+      // A sell is sized by its dollar value at the current Aero price
+      // (usdcIn = "sell about this much"). Before 2026-10-12 this route
+      // returned the buy estimate for both directions.
+      const sell = quoter.sell(usdcIn);
+      if (!sell) return NextResponse.json({ error: 'execute-link unavailable', detail: 'liquidity scan failed' }, { status: 502 });
+      return NextResponse.json({
+        symbol: stock.symbol,
+        direction,
+        usdcIn,
+        sharesIn: sell.sharesIn,
+        usdcOut: sell.usdcOut,
+        execPriceUsd: sell.execPriceUsd,
+        impactBp: sell.costBp,
+        largeTradeCaveat: sell.exhaustedWindow,
+        swapUrl,
+      });
+    }
+    const estimate = quoter.estimate(usdcIn);
     return NextResponse.json({
       symbol: stock.symbol,
       direction,
@@ -41,7 +60,7 @@ async function handler(request: NextRequest) {
       execPriceUsd: estimate.execPriceUsd,
       impactBp: estimate.impactBp,
       largeTradeCaveat: estimate.largeTradeCaveat,
-      swapUrl: aerodromeSwapUrl(stock, direction),
+      swapUrl,
     });
   } catch (err) {
     return NextResponse.json({ error: 'execute-link unavailable', detail: String(err) }, { status: 502 });

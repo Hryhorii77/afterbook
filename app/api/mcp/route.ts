@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getTape } from '@/lib/tape';
 import { toPublicTape } from '@/lib/publicTape';
 import { getStock, STOCKS } from '@/lib/tokens';
-import { buildImpactCurve, estimateLot, getCachedPoolState } from '@/lib/quote';
+import { getBuyQuoter } from '@/lib/lotQuote';
 import { getClosedPeriodStats } from '@/lib/history';
 
 const HISTORY_LOOKBACK_MS = 30 * 24 * 60 * 60_000;
@@ -43,9 +43,9 @@ const handler = createMcpHandler((server) => {
       if (!stock) {
         return { content: [{ type: 'text', text: JSON.stringify({ error: 'unknown symbol' }) }], isError: true };
       }
-      const state = await getCachedPoolState(stock);
-      const estimate = estimateLot(state, stock, usdcIn);
-      const curve = buildImpactCurve(state, stock);
+      const quoter = await getBuyQuoter(stock);
+      const estimate = quoter.estimate(usdcIn);
+      const curve = quoter.curve();
       return { content: [{ type: 'text', text: JSON.stringify({ symbol: stock.symbol, ...estimate, curve }) }] };
     },
   );

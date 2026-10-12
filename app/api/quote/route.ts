@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStock } from '@/lib/tokens';
-import { buildImpactCurve, estimateLot, getCachedPoolState } from '@/lib/quote';
+import { getBuyQuoter } from '@/lib/lotQuote';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -21,9 +21,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    const state = await getCachedPoolState(stock);
-    const estimate = estimateLot(state, stock, usdcIn);
-    const curve = buildImpactCurve(state, stock);
+    const quoter = await getBuyQuoter(stock);
+    const estimate = quoter.estimate(usdcIn);
+    const curve = quoter.curve();
     return NextResponse.json({ symbol: stock.symbol, ...estimate, curve });
   } catch (err) {
     return NextResponse.json({ error: 'quote unavailable', detail: String(err) }, { status: 502 });
