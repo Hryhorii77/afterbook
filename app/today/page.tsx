@@ -248,6 +248,11 @@ export default async function TodayPage() {
       )}
 
       <p className="geo-note">
+        <Link href="/build" className="page-link">
+          Build a basket of 2 to 4 stocks <span className="arrow">→</span>
+        </Link>
+      </p>
+      <p className="geo-note">
         <Link href="/" className="page-link">
           Open the Tape <span className="arrow">→</span>
         </Link>

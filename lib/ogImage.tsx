@@ -7,6 +7,9 @@ import { tileHue } from './symbolStyle';
 import { getTape } from './tape';
 import { splitByLiquidity } from './liquidity';
 import { buildTodaySnapshot } from './todaySnapshot';
+import { getStock } from './tokens';
+import { parseSpec, basketGapBp, basketReferenceLabel } from './customBasket';
+import { getBasketCost } from './basketCost';
 
 function Mark({ px }: { px: number }) {
   return (
@@ -362,6 +365,89 @@ export async function buildTodayOgImage() {
           </div>
         ) : (
           <span style={{ fontSize: 32, color: '#8b93a1', marginTop: 48 }}>No basis reading yet.</span>
+        )}
+
+        <CardFooter />
+      </div>
+    ),
+    { ...OG_SIZE },
+  );
+}
+
+/** A custom basket's card (app/build/[spec]): its 2–4 legs with weights, the
+ *  weighted gap the page leads with, and the cost to buy $10k of it. Same
+ *  numbers and wording as the page (lib/customBasket.ts, lib/basketCost.ts). */
+export async function buildBasketOgImage(spec: string) {
+  const legs = parseSpec(spec);
+  let sessionLabel = '';
+  let gap: number | null = null;
+  let reference = '';
+  let costBp: number | null = null;
+  let icons: (string | null)[] = [];
+  if (legs) {
+    try {
+      const [tape, cost] = await Promise.all([getTape(), getBasketCost(legs).catch(() => null)]);
+      sessionLabel = tape.session.label;
+      gap = basketGapBp(legs, tape.rows, tape.session.state);
+      reference = basketReferenceLabel(legs, tape.rows, tape.session.state);
+      costBp = cost?.points.find((p) => p.usd === 10_000)?.costBp ?? null;
+      icons = await Promise.all(legs.map((l) => iconDataUri(getStock(l.symbol)!.cashTicker)));
+    } catch {
+      // fall through to legs-only card
+    }
+  }
+
+  return new ImageResponse(
+    (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: '#121214',
+          backgroundImage: 'linear-gradient(180deg, #171719 0%, #121214 60%)',
+          padding: '64px 72px',
+          fontFamily: 'sans-serif',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <Mark px={44} />
+          <span style={{ fontSize: 40, fontWeight: 700, color: '#8b93a1', letterSpacing: '-0.02em' }}>Afterbook · Custom basket</span>
+          {sessionLabel && <span style={{ fontSize: 22, color: '#6b7280' }}>{sessionLabel}</span>}
+        </div>
+
+        {legs ? (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', gap: 28, marginTop: 32 }}>
+              {legs.map((l, i) => (
+                <div key={l.symbol} style={{ display: 'flex', alignItems: 'center' }}>
+                  <StockIcon icon={icons[i] ?? null} cashTicker={getStock(l.symbol)!.cashTicker} />
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: 32, fontWeight: 700, color: '#e6e9ef' }}>{l.symbol}</span>
+                    <span style={{ fontSize: 26, color: '#8b93a1' }}>{l.weightPct}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <span
+              style={{
+                fontSize: 88,
+                fontWeight: 700,
+                marginTop: 18,
+                color: gap == null ? '#8b93a1' : gap >= 0 ? '#3ddc97' : '#ff6b6b',
+              }}
+            >
+              {bp(gap)}
+            </span>
+            <span style={{ fontSize: 28, color: '#8b93a1', marginTop: 4 }}>
+              {gap == null ? 'No reading yet' : `Aero vs ${reference.replace(/^the /, '')}`}
+              {costBp != null ? ` · ${costBp.toFixed(1)} bp to buy $10k` : ''}
+            </span>
+          </div>
+        ) : (
+          <span style={{ fontSize: 32, color: '#8b93a1', marginTop: 48 }}>Build a basket of Base tokenized stocks.</span>
         )}
 
         <CardFooter />

@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import { WalletConnectButton } from './WalletConnectButton';
 import { ThemeToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
+import { getStock } from '@/lib/tokens';
 
 const LINKS = [
   { href: '/', label: 'Tape' },
@@ -34,8 +35,9 @@ export function SiteHeader() {
       cancelAnimationFrame(frame);
     };
   }, []);
-  // Symbol pages (/NVDAc etc.) are the tape for one name, so they count as Tape.
-  const active = (href: string) => (href === '/' ? !LINKS.slice(1).some((l) => pathname.startsWith(l.href)) : pathname.startsWith(href));
+  // Symbol pages (/NVDAc etc.) are the tape for one name, so they count as Tape. Other pages
+  // that aren't in the nav (/build) highlight nothing.
+  const active = (href: string) => (href === '/' ? pathname === '/' || getStock(pathname.slice(1)) != null : pathname.startsWith(href));
   return (
     <header className="site-header" data-scrolled={scrolled}>
       <div className="site-header-inner">

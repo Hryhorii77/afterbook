@@ -13,14 +13,14 @@ touching the route files and the URL (and its hash) stays the same, so X
 old card. Each route file therefore starts with `// Card version N.`; changing
 that number changes the hash and busts the cache.
 
-There are six such files (`app/`, `app/today/`, `app/[symbol]/`, each with an
+There are eight such files (`app/`, `app/today/`, `app/[symbol]/`, `app/build/[spec]/`, each with an
 `opengraph-image.tsx` and a `twitter-image.tsx`). All must carry the **same**
 number, and **all** must change together.
 
 ## Do this after changing `lib/ogImage.tsx`
 
 ```bash
-.claude/skills/card-version-bump/bump.sh          # 3 -> 4 in all six files
+.claude/skills/card-version-bump/bump.sh          # N -> N+1 in every card file
 .claude/skills/card-version-bump/bump.sh --check  # exit 0 only if nothing is stale
 ```
 

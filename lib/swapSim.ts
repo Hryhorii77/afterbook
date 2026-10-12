@@ -2,8 +2,9 @@ import { USDC, type CbStock } from './tokens';
 import { MULTIPLIER_ONE, midPriceUsd, type PoolState } from './quote';
 import type { LiquidityDistribution } from './depth';
 
-// Pure, no RPC: simulates *selling* stock into the pool (stock -> USDC), the
-// side a liquidator trades. lib/quote.ts's estimateLot only models buys and
+// Pure, no RPC: simulates swaps against the real tick liquidity — selling
+// stock into the pool (stock -> USDC, the side a liquidator trades) and
+// buying it (USDC -> stock, what a basket buyer does). lib/quote.ts's estimateLot only models buys and
 // only within the current tick; a liquidation can be big enough to walk
 // several ranges, so this steps through the real tick buckets lib/depth.ts
 // already reconstructs (±25% around the price) the same way the pool's own
@@ -115,4 +116,71 @@ export function maxSellAtAvgPrice(
   // floor, say so: the true answer is at least lo.
   const atHi = simulateSell(state, dist, stock, hi);
   return { shares: lo, exhaustedWindow: atHi.exhaustedWindow && atHi.avgPriceUsd >= minAvgPriceUsd };
+}
+
+export interface BuyResult {
+  usdcIn: number;
+  sharesOut: number;
+  midPriceUsd: number;
+  /** Average fill, USD per share, pool fee included. */
+  avgPriceUsd: number;
+  /** How far the average fill is above mid, in bp, pool fee included. */
+  costBp: number;
+  /** The buy ran past the scanned window (25% above mid): sharesOut only
+   *  counts what the window holds, so the real fill would be worse. */
+  exhaustedWindow: boolean;
+}
+
+/**
+ * Buying is the mirror of simulateSell: USDC (token0) goes in, sqrtP falls
+ * and the tick falls (USD price rises). Within a range of liquidity L,
+ * moving sqrtP from a down to b takes L*(1/b - 1/a) of token0 in and pays
+ * L*(a - b) of token1 out. Unlike lib/quote.ts's estimateLot this walks
+ * across ranges, so it stays right for a buy bigger than the current tick.
+ */
+export function simulateBuy(state: PoolState, dist: LiquidityDistribution, stock: CbStock, usdcIn: number): BuyResult {
+  const mid = midPriceUsd(state, stock);
+  const multiplierRatio = Number(state.multiplier) / MULTIPLIER_ONE;
+  let remaining = usdcIn * 10 ** USDC.decimals * (1 - stock.pool.feePpm / 1_000_000);
+
+  let s = Number(state.sqrtPriceX96) / 2 ** 96;
+  let stockOutRaw = 0;
+  let exhaustedWindow = false;
+
+  let i = dist.buckets.findIndex((b) => b.tickLower <= state.tick && state.tick < b.tickUpper);
+  if (i < 0) i = -1;
+
+  while (remaining > 0) {
+    const bucket = dist.buckets[i];
+    if (!bucket) {
+      exhaustedWindow = true;
+      break;
+    }
+    const L = Number(bucket.liquidity);
+    const sLower = sqrtAtTick(bucket.tickLower);
+    if (L > 0 && sLower < s) {
+      const toEdge = L * (1 / sLower - 1 / s);
+      if (remaining < toEdge) {
+        const sNext = 1 / (1 / s + remaining / L);
+        stockOutRaw += L * (s - sNext);
+        remaining = 0;
+        break;
+      }
+      stockOutRaw += L * (s - sLower);
+      remaining -= toEdge;
+    }
+    s = Math.min(s, sLower);
+    i--;
+  }
+
+  const sharesOut = (stockOutRaw / 10 ** stock.decimals) * multiplierRatio;
+  const avgPriceUsd = sharesOut > 0 ? usdcIn / sharesOut : mid;
+  return {
+    usdcIn,
+    sharesOut,
+    midPriceUsd: mid,
+    avgPriceUsd,
+    costBp: mid > 0 && sharesOut > 0 ? ((avgPriceUsd - mid) / mid) * 10_000 : 0,
+    exhaustedWindow,
+  };
 }
