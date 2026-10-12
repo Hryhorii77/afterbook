@@ -31,6 +31,30 @@ export function capitalEfficiencyMultiplier(rangeLowUsd: number, rangeHighUsd: n
   return 2 / denom;
 }
 
+// Yield per unit of liquidity -> APR. A position earns fees (or gauge
+// emissions) in proportion to its liquidity L while the price is inside its
+// range, so the honest input is a rate per unit of L, not a pool-wide APR:
+// the pool's own LPs are already concentrated (and mostly staked), so
+// "pool fees / pool value" times a range's capital efficiency counts that
+// concentration twice — it showed 6,093% for an NVDAc range on 2026-10-12.
+//
+// In USD terms a full-range position with liquidity l holds l*sqrt(P) USDC
+// and l/sqrt(P) shares, worth 2*l*sqrt(P). Pool L is in raw units
+// (sqrt(raw USDC * raw stock)), so raw L = l * sqrt(1e6 * 10^dec / m), with
+// m the B20 multiplier ratio (raw stock = shares / m * 10^dec).
+export function fullRangeAprPct(usdPerRawLiquidityPerYear: number, priceUsd: number, stockDecimals: number, multiplierRatio: number): number {
+  const rawLPerL = Math.sqrt((1e6 * 10 ** stockDecimals) / multiplierRatio);
+  return ((usdPerRawLiquidityPerYear * rawLPerL) / (2 * Math.sqrt(priceUsd))) * 100;
+}
+
+/** APR for a range while the price stays inside it: the full-range APR
+ *  times the range's capital efficiency (same liquidity, less money).
+ *  null when the price is outside the range, which earns nothing. */
+export function rangeAprPct(fullRangePct: number, rangeLowUsd: number, rangeHighUsd: number, currentPriceUsd: number): number | null {
+  const m = capitalEfficiencyMultiplier(rangeLowUsd, rangeHighUsd, currentPriceUsd);
+  return m == null ? null : fullRangePct * m;
+}
+
 // Divergence loss ("impermanent loss") if price reaches either edge of the
 // range, vs. simply holding the position's initial token split without
 // ever providing liquidity — the standard concentrated-liquidity IL

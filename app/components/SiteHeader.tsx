@@ -11,6 +11,7 @@ import { NotificationBell } from './NotificationBell';
 const LINKS = [
   { href: '/', label: 'Tape' },
   { href: '/today', label: 'Biggest gap' },
+  { href: '/borrow', label: 'Borrow' },
   { href: '/baskets', label: 'Baskets' },
 ];
 
