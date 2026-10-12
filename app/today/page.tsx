@@ -160,7 +160,7 @@ export default async function TodayPage() {
                     <div className="today-id-label" style={{ marginTop: 20 }}>What it takes to trade it</div>
                     <div className="stat-grid" style={{ marginTop: 8 }}>
                       <div className="stat-card">
-                        <div className="stat-value">{sizing.clipImpactBp.toFixed(1)} bp</div>
+                        <div className="stat-value">{sizing.clipLargeTradeCaveat ? '≥ ' : ''}{sizing.clipImpactBp.toFixed(1)} bp</div>
                         <div className="stat-label">Price impact of a {usdCompact(CLIP_SIZE_USD)} clip</div>
                       </div>
                       <div className="stat-card">

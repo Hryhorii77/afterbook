@@ -1101,7 +1101,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                   </div>
                   <div className="result-cell">
                     <div className="label">Impact</div>
-                    <div className="value">{bp(quote.impactBp)}</div>
+                    <div className="value">{quote.largeTradeCaveat ? '≥ ' : ''}{bp(quote.impactBp)}</div>
                   </div>
                   <div className="result-cell">
                     <div className="label">Pool fee</div>
