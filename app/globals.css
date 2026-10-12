@@ -204,6 +204,7 @@ h1 {
   transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
 }
 .site-nav a:hover { color: var(--text); background: var(--overlay-2); }
+.nav-label-short { display: none; }
 .site-nav a[aria-current='page'] {
   color: var(--text);
   border-color: var(--secondary-border);
@@ -588,10 +589,12 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .stat-card-hero .stat-label { margin-top: 8px; }
 @media (max-width: 760px) { .today-stats { grid-template-columns: 1fr; } .stat-card-hero .today-stat-value { font-size: 44px; } }
 
-/* Phones: two rows (brand + wallet + theme, then the page links) so no link is
-   hidden off-screen, and the bar scrolls away rather than eating a tall strip
-   of every screen. The sticky symbol bar then pins to the very top. */
-@media (max-width: 640px) {
+/* Phones and tablets: two rows (brand + wallet + theme, then the page links)
+   so no link is hidden off-screen, and the bar scrolls away rather than eating
+   a tall strip of every screen. The sticky symbol bar then pins to the very
+   top. This was 640px until 2026-10-12, which left the one-row nav cut off
+   between about 641 and 900px (at 641px only half of it was visible). */
+@media (max-width: 980px) {
   :root { --site-header-h: 0px; }
   .site-header { position: static; height: auto; }
   .site-header-inner { flex-wrap: wrap; padding: 8px 12px 6px; gap: 6px 8px; }
@@ -601,6 +604,11 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
   .site-nav a { flex: 1; text-align: center; padding: 8px 6px; font-size: 14px; }
   .site-header-actions .wallet-connect-btn { min-height: 40px; padding: 6px 14px; }
   .theme-toggle { width: 40px; height: 40px; }
+}
+/* Narrow phones: five links only fit if "Biggest gap" reads "Gap". */
+@media (max-width: 420px) {
+  .nav-label-long { display: none; }
+  .nav-label-short { display: inline; }
 }
 
 .wallet-connect-btn {

@@ -1113,8 +1113,8 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
                 {quote.largeTradeCaveat && (
                   <p className="geo-note">
-                    Large trade relative to in-range liquidity — may cross into a wider price range, so the real
-                    fill on Aerodrome could differ from this estimate.
+                    This trade runs past the liquidity Afterbook reads (25% from the current price), so the real
+                    fill on Aerodrome would be worse than this estimate.
                   </p>
                 )}
                 <details className="geo-more">

@@ -9,10 +9,14 @@ import { ThemeToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
 import { getStock } from '@/lib/tokens';
 
-const LINKS = [
+// `short` is the label on narrow phones (max-width 420px): five links only fit
+// in the phone nav down to 320px if "Biggest gap" reads "Gap" there (owner
+// decision, 2026-10-12). Desktop keeps the full label.
+const LINKS: { href: string; label: string; short?: string }[] = [
   { href: '/', label: 'Tape' },
-  { href: '/today', label: 'Biggest gap' },
+  { href: '/today', label: 'Biggest gap', short: 'Gap' },
   { href: '/borrow', label: 'Borrow' },
+  { href: '/build', label: 'Build' },
   { href: '/baskets', label: 'Baskets' },
 ];
 
@@ -35,8 +39,8 @@ export function SiteHeader() {
       cancelAnimationFrame(frame);
     };
   }, []);
-  // Symbol pages (/NVDAc etc.) are the tape for one name, so they count as Tape. Other pages
-  // that aren't in the nav (/build) highlight nothing.
+  // Symbol pages (/NVDAc etc.) are the tape for one name, so they count as Tape. Any other
+  // page that isn't in the nav highlights nothing.
   const active = (href: string) => (href === '/' ? pathname === '/' || getStock(pathname.slice(1)) != null : pathname.startsWith(href));
   return (
     <header className="site-header" data-scrolled={scrolled}>
@@ -47,8 +51,17 @@ export function SiteHeader() {
         </Link>
         <nav className="site-nav" aria-label="Main">
           {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} aria-current={active(l.href) ? 'page' : undefined}>
-              {l.label}
+            <Link key={l.href} href={l.href} aria-current={active(l.href) ? 'page' : undefined} aria-label={l.short ? l.label : undefined}>
+              {l.short ? (
+                <>
+                  <span className="nav-label-long">{l.label}</span>
+                  <span className="nav-label-short" aria-hidden="true">
+                    {l.short}
+                  </span>
+                </>
+              ) : (
+                l.label
+              )}
             </Link>
           ))}
         </nav>

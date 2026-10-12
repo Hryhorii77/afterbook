@@ -9,7 +9,7 @@ import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import { buildTodaySnapshot } from '@/lib/todaySnapshot';
 import { bp, usd, usdCompact, formatDuration, formatNextOpen, gapSizeText } from '@/lib/format';
 import { STOCKS, getStock } from '@/lib/tokens';
-import { getCachedPoolState, estimateLot, usdcSizeForImpact } from '@/lib/quote';
+import { getBuyQuoter } from '@/lib/lotQuote';
 import { getOpenSnapStats, STATS_LOOKBACK_MS, type OpenSnapStats } from '@/lib/history';
 
 // Forces a fresh getTape() read (bounded by its own 20s cache) on every
@@ -41,13 +41,13 @@ async function getSizingInfo(symbol: string): Promise<SizingInfo | null> {
   const stock = getStock(symbol);
   if (!stock) return null;
   try {
-    const state = await getCachedPoolState(stock);
-    const clip = estimateLot(state, stock, CLIP_SIZE_USD);
+    const quoter = await getBuyQuoter(stock);
+    const clip = quoter.estimate(CLIP_SIZE_USD);
     return {
       clipImpactBp: clip.impactBp,
       clipLargeTradeCaveat: clip.largeTradeCaveat,
-      usdFor50bp: usdcSizeForImpact(state, stock, 50),
-      usdFor100bp: usdcSizeForImpact(state, stock, 100),
+      usdFor50bp: quoter.sizeForImpact(50),
+      usdFor100bp: quoter.sizeForImpact(100),
     };
   } catch {
     return null;
@@ -173,7 +173,7 @@ export default async function TodayPage() {
                       </div>
                     </div>
                     {sizing.clipLargeTradeCaveat && (
-                      <p className="geo-note">The clip is large enough that it may cross into the next tick, so its impact is a rough estimate.</p>
+                      <p className="geo-note">The clip runs past the liquidity Afterbook reads (25% from the price), so the real cost would be higher.</p>
                     )}
                   </>
                 )}

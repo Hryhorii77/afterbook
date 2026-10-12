@@ -12,6 +12,15 @@ import { NextRequest, NextResponse } from 'next/server';
 // nonce onto the inline scripts it renders — so only Next's own hydration
 // scripts execute, nothing else.
 export function middleware(request: NextRequest) {
+  // A path with a malformed percent-escape (/%E0%A4) made Next.js throw while
+  // decoding route params and answer 500 before any page code ran. It is a
+  // bad request, so say so here, before routing.
+  try {
+    decodeURIComponent(request.nextUrl.pathname);
+  } catch {
+    return new NextResponse('Bad request: malformed URL', { status: 400, headers: { 'content-type': 'text/plain' } });
+  }
+
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
 
   // Next's dev-mode React Fast Refresh runtime evaluates code via eval() for
