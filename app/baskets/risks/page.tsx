@@ -130,7 +130,7 @@ export default function BasketRisksPage() {
 
       <p className="geo-note">
         <Link href="/baskets" className="page-link">
-          <span className="arrow" style={{ transform: 'none' }}>←</span> Back to Baskets
+          <span className="arrow arrow-back">←</span>Back to Baskets
         </Link>
       </p>
     </main>

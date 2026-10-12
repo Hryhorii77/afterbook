@@ -437,8 +437,8 @@ h1 {
 .basket-deposit { margin-top: 16px; }
 
 /* An inline link inside body text that must read as a link at a glance
-   (accent colour, semibold, underlined) as opposed to .page-link, which stays
-   quiet until hovered. */
+   (accent colour, semibold, underlined). .page-link, the end-of-page "go to"
+   link, has the same look plus an arrow. */
 .emph-link {
   color: var(--accent);
   font-weight: 600;
@@ -774,29 +774,35 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
   color: var(--text);
 }
 
-/* Text link with a visible hover/focus response: the arrow slides right and
-   the underline appears. Used for in-page "go elsewhere" links that have no
-   button chrome (e.g. the footer link on /today). */
+/* "Go to another page" links at the foot of a page. Same look as .emph-link
+   (owner decision, 2026-10-12: one link style), plus an arrow that nudges on
+   hover. */
 .page-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-dim);
-  text-decoration: none;
-  border-bottom: 1px solid transparent;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  display: inline;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: filter 0.12s ease;
 }
 .page-link .arrow {
+  /* inline-block (inside a plain inline link, not a flex one, where it would
+     be blockified) so the underline skips the arrow. */
   display: inline-block;
+  margin-left: 6px;
   transition: transform 0.15s ease;
 }
 .page-link:hover, .page-link:focus-visible {
-  color: var(--text);
-  border-bottom-color: var(--secondary-border-hover);
+  filter: brightness(1.15);
+  text-decoration-thickness: 2px;
 }
 .page-link:hover .arrow, .page-link:focus-visible .arrow {
   transform: translateX(4px);
 }
+/* A leading "←": space on the other side, and it doesn't nudge on hover. */
+.page-link .arrow-back { margin-left: 0; margin-right: 6px; }
+.page-link:hover .arrow-back, .page-link:focus-visible .arrow-back { transform: none; }
 
 .dot {
   width: 8px;
@@ -1826,16 +1832,24 @@ footer {
   margin-bottom: 2px;
 }
 
+/* Same look as .emph-link: one link style across the app, footer included
+   (owner decision, 2026-10-12). Only the header nav stays a quiet menu. */
 .footer-links a,
 .footer-onchain a {
-  color: var(--text-dim);
-  text-decoration: none;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: filter 0.12s ease;
 }
 
 .footer-links a:hover,
-.footer-onchain a:hover {
-  color: var(--text);
-  text-decoration: underline;
+.footer-links a:focus-visible,
+.footer-onchain a:hover,
+.footer-onchain a:focus-visible {
+  filter: brightness(1.15);
+  text-decoration-thickness: 2px;
 }
 
 .footer-legal {
