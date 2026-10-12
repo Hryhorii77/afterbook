@@ -10,7 +10,7 @@ import { ImpactCurve } from './ImpactCurve';
 import { DepthChart } from './DepthChart';
 import { computeCashAndCarryEdge, GAS_ESTIMATE_USD } from '@/lib/arb';
 import { computeInRangeProbabilityPct, IN_RANGE_HORIZON_DAYS, solveImpliedHorizonDays } from '@/lib/volatilityMath';
-import { capitalEfficiencyMultiplier, computeDivergenceLossAtBoundary, computeLiquidityConcentrationRange } from '@/lib/lpRange';
+import { capitalEfficiencyMultiplier, computeDivergenceLossAtBoundary, computeLiquidityConcentrationRange, rangeAprPct } from '@/lib/lpRange';
 import { Sparkline } from './Sparkline';
 import { MyLots } from './MyLots';
 import { SymbolTile } from './SymbolTile';
@@ -74,7 +74,7 @@ interface DepthResponse {
   currentTick: number;
   currentPriceUsd: number;
   buckets: LiquidityBucket[];
-  feeAprPct: number | null;
+  fullRangeFeeAprPct: number | null;
   feeAprWindowDays: number | null;
   feeAprEstimated: boolean;
   totalSupplyShares: number | null;
@@ -635,7 +635,8 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     if (!selectedRange || !depth || depth.symbol !== symbol) return null;
     const multiplier = capitalEfficiencyMultiplier(selectedRange.lowUsd, selectedRange.highUsd, depth.currentPriceUsd);
     const inRangeProbabilityPct = computeInRangeProbabilityPct(priceHistory, depth.currentPriceUsd, selectedRange.lowUsd, selectedRange.highUsd);
-    const estimatedFeeAprPct = multiplier != null && depth.feeAprPct != null ? depth.feeAprPct * multiplier : null;
+    const estimatedFeeAprPct =
+      depth.fullRangeFeeAprPct != null ? rangeAprPct(depth.fullRangeFeeAprPct, selectedRange.lowUsd, selectedRange.highUsd, depth.currentPriceUsd) : null;
     const divergenceLoss = computeDivergenceLossAtBoundary(selectedRange.lowUsd, selectedRange.highUsd, depth.currentPriceUsd);
     return { multiplier, inRangeProbabilityPct, estimatedFeeAprPct, divergenceLoss };
   }, [selectedRange, depth, symbol, priceHistory]);
@@ -1214,9 +1215,10 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                         </div>
                         <p className="geo-note">
                           Capital efficiency: how much more liquidity this range buys vs. a full-range position for the
-                          same deposit, from the range width alone. Est. fee APR: the pool&apos;s own trailing fee APR
-                          (feeGrowth-based, same figure My Lots shows for real positions) times that multiplier — an
-                          extrapolation assuming price stays in range, not a guarantee.
+                          same deposit, from the range width alone. Est. fee APR: what one unit of unstaked liquidity
+                          actually earned in fees over the window (the pool&apos;s own fee counter), as the APR of a full-range
+                          position, times that multiplier. It assumes the price stays in range and you don&apos;t stake; staked
+                          liquidity earns AERO instead of these fees. An extrapolation, not a guarantee.
                           {depth.feeAprEstimated &&
                             ' "Prelim." means there isn’t enough feeGrowth snapshot history yet (a fresh deploy, or a pool that only recently got worth tracking) — this is a rougher stand-in estimated from actual swap volume over the last hour or so instead, replaced automatically by the real multi-day figure once enough snapshots accumulate.'}{' '}
                           In-range probability: chance the

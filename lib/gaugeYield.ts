@@ -1,4 +1,5 @@
-import { getClient, poolDepth, type PoolState } from './quote';
+import { getClient, midPriceUsd, MULTIPLIER_ONE, type PoolState } from './quote';
+import { fullRangeAprPct } from './lpRange';
 import type { CbStock } from './tokens';
 import { USDC } from './tokens';
 
@@ -77,24 +78,24 @@ export async function getAeroUsdPrice(): Promise<number | null> {
 }
 
 export interface GaugeYield {
-  /** null if AERO's price or the pool's staked liquidity couldn't be read
-   *  this call, or if nothing is staked. */
-  gaugeAprPct: number | null;
+  /** AERO emissions APR of a staked, full-range position; a range's APR is
+   *  this times its capital efficiency (lib/lpRange.ts rangeAprPct). null if
+   *  AERO's price couldn't be read this call, or if nothing is staked. */
+  fullRangeGaugeAprPct: number | null;
   stakedRatioPct: number;
 }
 
 /**
- * Gauge staking APR vs. lib/feeApr.ts's unstaked fee APR — both annualized
- * so they're directly comparable. Staked liquidity's USD value can't be
- * derived from the virtual-reserve math lib/quote.ts's estimateLot uses
- * (that describes trade-impact behavior, not actual token holdings, and
- * systematically overstates value for a concentrated position — caught
- * this exact bug while building it, see the fix history). Instead this
- * takes the pool's real, balance-based total value (lib/quote.ts's
- * poolDepth) and scales it by staked/total liquidity — an approximation
- * assuming staked and unstaked positions are concentrated similarly on
- * average, not exact, but far more honest than the broken virtual-reserve
- * approach it replaced.
+ * Gauge emissions per unit of staked in-range liquidity, as the APR of a
+ * full-range staked position — the same basis lib/feeApr.ts uses for fees,
+ * so the two compare directly for any range. The gauge streams rewardRate
+ * AERO per second to staked liquidity that is in range, pro rata to L, so
+ * rewardRate / stakedLiquidity is exactly one unit's share.
+ *
+ * Replaced an estimate that divided emissions by the pool's total value
+ * times the staked share of active liquidity: that is a pool average, and
+ * the pool's own LPs are concentrated, so it mixed bases with the range
+ * math it was compared against.
  */
 export async function getGaugeYield(stock: CbStock, state: PoolState): Promise<GaugeYield | null> {
   const client = getClient();
@@ -105,18 +106,17 @@ export async function getGaugeYield(stock: CbStock, state: PoolState): Promise<G
   ]);
   if (stakedLiqResult == null || rewardRateResult == null) return null;
 
-  const stakedRatioPct = state.liquidity > 0n ? (Number(stakedLiqResult) / Number(state.liquidity)) * 100 : 0;
+  const stakedLiquidity = Number(stakedLiqResult);
+  const stakedRatioPct = state.liquidity > 0n ? (stakedLiquidity / Number(state.liquidity)) * 100 : 0;
 
-  let gaugeAprPct: number | null = null;
-  if (aeroPrice != null) {
-    const depth = poolDepth(state, stock);
-    const stakedLiquidityUsd = depth.totalUsd * (stakedRatioPct / 100);
-    const annualAeroEmitted = (Number(rewardRateResult) * SECONDS_PER_YEAR) / 10 ** AERO_DECIMALS;
-    const annualEmissionsUsd = annualAeroEmitted * aeroPrice;
-    gaugeAprPct = stakedLiquidityUsd > 0 ? (annualEmissionsUsd / stakedLiquidityUsd) * 100 : null;
+  let fullRangeGaugeAprPct: number | null = null;
+  if (aeroPrice != null && stakedLiquidity > 0) {
+    const annualEmissionsUsd = ((Number(rewardRateResult) * SECONDS_PER_YEAR) / 10 ** AERO_DECIMALS) * aeroPrice;
+    const multiplierRatio = Number(state.multiplier) / MULTIPLIER_ONE;
+    fullRangeGaugeAprPct = fullRangeAprPct(annualEmissionsUsd / stakedLiquidity, midPriceUsd(state, stock), stock.decimals, multiplierRatio);
   }
 
-  return { gaugeAprPct, stakedRatioPct };
+  return { fullRangeGaugeAprPct, stakedRatioPct };
 }
 
 const REWARD_COMPONENTS = [

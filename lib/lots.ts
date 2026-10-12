@@ -1,7 +1,8 @@
-import { getClient, TOKEN_ABI, ERC20_ABI, MULTIPLIER_ONE, priceFromSqrtX96, getCachedPoolState, poolDepth } from './quote';
+import { getClient, TOKEN_ABI, ERC20_ABI, MULTIPLIER_ONE, priceFromSqrtX96, getCachedPoolState } from './quote';
 import { STOCKS, CL_FACTORY, type CbStock } from './tokens';
 import type { TapeRow } from './tape';
 import { computeFeeAprWithFallback } from './feeApr';
+import { rangeAprPct } from './lpRange';
 import { getPriceHistory, computeInRangeProbabilityPct, IN_RANGE_HORIZON_DAYS } from './volatility';
 import { getGaugeYield, getVotingIncentiveFlag } from './gaugeYield';
 
@@ -87,10 +88,11 @@ export interface LpHolding {
   /** Same as tapeRows' onchainMidUsd for this symbol — surfaced here so the
    *  client can place a range-position marker without also fetching tape. */
   currentPriceUsd: number | null;
-  /** Pool-wide fee APR from a feeGrowthGlobal snapshot delta (see
-   *  lib/feeApr.ts) — falls back to a rougher recent-swaps estimate
-   *  (feeAprEstimated: true) until at least two daily cron snapshots
-   *  exist, rather than showing null/"collecting data". */
+  /** Fee APR of this position's own range while the price is inside it
+   *  (unstaked: lib/feeApr.ts full-range APR x the range's capital
+   *  efficiency); null when out of range (it earns no fees) or no data yet.
+   *  Falls back to a rougher recent-swaps estimate (feeAprEstimated: true)
+   *  until at least two daily cron snapshots exist. */
   feeAprPct: number | null;
   feeAprWindowDays: number | null;
   feeAprEstimated: boolean;
@@ -99,11 +101,9 @@ export interface LpHolding {
    *  lib/volatility.ts). */
   inRangeProbabilityPct: number | null;
   inRangeHorizonDays: number | null;
-  /** Annualized AERO emissions yield if this pool's liquidity were staked
-   *  in its gauge — see lib/gaugeYield.ts for the real on-chain reads
-   *  behind this (reward rate, staked liquidity, AERO's own price) and
-   *  the approximation it makes valuing staked liquidity in USD. null
-   *  until AERO's price and the pool's gauge state are both readable. */
+  /** AERO emissions APR of this position's range if it were staked, on the
+   *  same basis as feeAprPct (lib/gaugeYield.ts); null when out of range or
+   *  when AERO's price or the gauge can't be read. */
   gaugeAprPct: number | null;
   /** % of this pool's total active liquidity currently staked (not this
    *  position specifically — a pool-wide figure). */
@@ -234,14 +234,9 @@ export async function getMyLots(address: `0x${string}`, tapeRows: TapeRow[]): Pr
           getCachedPoolState(stock).catch(() => null),
           getVotingIncentiveFlag(stock, currentPriceUsd).catch(() => null),
         ]);
-        // Needs poolState's TVL for the getLogs cold-start fallback, so this
-        // can't join the Promise.all above — only costs real extra latency
-        // on the cold-start path itself (the normal snapshot method below
-        // it doesn't need poolState at all).
-        const tvlUsd = poolState ? poolDepth(poolState, stock).totalUsd : 0;
-        const feeApr = await computeFeeAprWithFallback(stock.symbol, stock, currentPriceUsd, multiplier, tvlUsd).catch(() => null);
+        const feeApr = await computeFeeAprWithFallback(stock.symbol, stock, currentPriceUsd, multiplier).catch(() => null);
         if (feeApr) {
-          feeAprPct = feeApr.aprPct;
+          feeAprPct = rangeAprPct(feeApr.fullRangeAprPct, rangeLowUsd, rangeHighUsd, currentPriceUsd);
           feeAprWindowDays = feeApr.windowDays;
           feeAprEstimated = feeApr.estimated;
         }
@@ -253,7 +248,10 @@ export async function getMyLots(address: `0x${string}`, tapeRows: TapeRow[]): Pr
         if (poolState) {
           const gaugeYield = await getGaugeYield(stock, poolState).catch(() => null);
           if (gaugeYield) {
-            gaugeAprPct = gaugeYield.gaugeAprPct;
+            gaugeAprPct =
+              gaugeYield.fullRangeGaugeAprPct != null
+                ? rangeAprPct(gaugeYield.fullRangeGaugeAprPct, rangeLowUsd, rangeHighUsd, currentPriceUsd)
+                : null;
             stakedRatioPct = gaugeYield.stakedRatioPct;
           }
         }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getStock } from '@/lib/tokens';
-import { getCachedPoolState, poolDepth, getClient, ERC20_ABI, MULTIPLIER_ONE } from '@/lib/quote';
+import { getCachedPoolState, getClient, ERC20_ABI, MULTIPLIER_ONE } from '@/lib/quote';
 import { getCachedLiquidityDistribution } from '@/lib/depth';
 import { computeFeeAprWithFallback } from '@/lib/feeApr';
 
@@ -16,13 +16,11 @@ export async function GET(request: Request) {
   try {
     const state = await getCachedPoolState(stock);
     const distribution = await getCachedLiquidityDistribution(stock, state);
-    // Pool-wide, not range-adjusted — same figure MyLots shows for existing
-    // positions. The range selector's own capitalEfficiencyMultiplier
-    // (lib/lpRange.ts) is what turns this into a range-specific estimate,
-    // computed client-side so it can update live while dragging.
-    const tvlUsd = poolDepth(state, stock).totalUsd;
+    // Full-range fee APR (lib/feeApr.ts); the range selector multiplies it
+    // by the range's capital efficiency client-side (lib/lpRange.ts
+    // rangeAprPct), so it can update live while dragging.
     const [feeApr, totalSupplyRaw] = await Promise.all([
-      computeFeeAprWithFallback(stock.symbol, stock, distribution.currentPriceUsd, state.multiplier, tvlUsd).catch(() => null),
+      computeFeeAprWithFallback(stock.symbol, stock, distribution.currentPriceUsd, state.multiplier).catch(() => null),
       // Live totalSupply() on the B20 token itself — the one piece of the
       // "is this token legit" question that's actually verifiable on-chain
       // from this app. The custodian/1:1-backing claim (Alpaca, per
@@ -39,7 +37,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       symbol: stock.symbol,
       ...distribution,
-      feeAprPct: feeApr?.aprPct ?? null,
+      fullRangeFeeAprPct: feeApr?.fullRangeAprPct ?? null,
       feeAprWindowDays: feeApr?.windowDays ?? null,
       feeAprEstimated: feeApr?.estimated ?? false,
       totalSupplyShares,

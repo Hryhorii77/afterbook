@@ -1,10 +1,9 @@
 import type { CbStock } from './tokens';
 import { getClient, midPriceUsd, priceFromSqrtX96, type PoolState } from './quote';
 
-// Slipstream (Aerodrome's CL fork) is a Uniswap V3 fork, so tickBitmap/ticks
-// carry the same storage layout and semantics as upstream V3 — verified
-// against the same custom-factory pools lib/quote.ts already reads
-// slot0()/liquidity() from.
+// Slipstream (Aerodrome's CL fork) is a Uniswap V3 fork: tickBitmap and the
+// liquidityNet semantics match upstream V3, but the ticks() struct does not
+// (see TICKS_ABI below).
 const TICK_BITMAP_ABI = [
   {
     type: 'function',
@@ -15,6 +14,13 @@ const TICK_BITMAP_ABI = [
   },
 ] as const;
 
+// ticks() is NOT the upstream V3 struct: Slipstream adds stakedLiquidityNet
+// and rewardGrowthOutsideX128, so it returns 10 words (320 bytes), not 8.
+// Decoding it with the V3 layout fails on every tick (an out-of-range int56
+// in the 7th word), and the fallback below then treated every liquidityNet as
+// 0 — the chart showed the current tick's liquidity flat across the whole
+// window until this was fixed on 2026-10-12 (checked against raw eth_call
+// output for NVDAc: gross >= |net|, initialized = true at word 10).
 const TICKS_ABI = [
   {
     type: 'function',
@@ -24,8 +30,10 @@ const TICKS_ABI = [
     outputs: [
       { name: 'liquidityGross', type: 'uint128' },
       { name: 'liquidityNet', type: 'int128' },
+      { name: 'stakedLiquidityNet', type: 'int128' },
       { name: 'feeGrowthOutside0X128', type: 'uint256' },
       { name: 'feeGrowthOutside1X128', type: 'uint256' },
+      { name: 'rewardGrowthOutsideX128', type: 'uint256' },
       { name: 'tickCumulativeOutside', type: 'int56' },
       { name: 'secondsPerLiquidityOutsideX128', type: 'uint160' },
       { name: 'secondsOutside', type: 'uint32' },
@@ -151,7 +159,7 @@ export async function getLiquidityDistribution(stock: CbStock, state: PoolState)
     initializedTicks.forEach((tick, i) => {
       const result = ticksResults[i];
       if (result.status !== 'success') return;
-      const [, liquidityNet] = result.result as readonly [bigint, bigint, bigint, bigint, bigint, bigint, number, boolean];
+      const [, liquidityNet] = result.result as readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, number, boolean];
       netByTick.set(tick, liquidityNet);
     });
   }

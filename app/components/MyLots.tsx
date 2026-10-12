@@ -187,19 +187,24 @@ export function MyLotsContent({
                       </div>
                     )}
                     <RangeBar low={h.rangeLowUsd} high={h.rangeHighUsd} current={h.currentPriceUsd} />
-                    {h.feeAprPct != null ? (
+                    {h.inRange === false ? (
                       <div className="geo-note">
-                        Fee APR ≈ {h.feeAprPct.toFixed(1)}% (last {formatWindow(h.feeAprWindowDays!)}, pool-wide
-                        {h.feeAprEstimated ? ', preliminary — from recent swap volume, not yet the full snapshot history' : ''}
+                        Out of range: earning no fees or emissions until the price is back inside it. Currently{' '}
+                        {h.isStaked ? 'staked' : 'unstaked'}.
+                      </div>
+                    ) : h.feeAprPct != null ? (
+                      <div className="geo-note">
+                        Fee APR for this range ≈ {h.feeAprPct.toFixed(1)}% if unstaked (last {formatWindow(h.feeAprWindowDays!)}
+                        {h.feeAprEstimated ? ', preliminary — from recent swaps, not yet the full snapshot history' : ''}
                         ), currently <span className={h.isStaked ? 'basis-pos' : ''}>{h.isStaked ? 'staked' : 'unstaked'}</span>
                       </div>
                     ) : (
                       <div className="geo-note">Fee APR: collecting data — check back in a day or two.</div>
                     )}
-                    {h.gaugeAprPct != null ? (
+                    {h.inRange === false ? null : h.gaugeAprPct != null ? (
                       <div className="geo-note">
-                        Gauge APR ≈ {h.gaugeAprPct.toFixed(1)}% if staked ({h.stakedRatioPct != null ? h.stakedRatioPct.toFixed(0) : '?'}%
-                        of this pool is)
+                        Gauge APR for this range ≈ {h.gaugeAprPct.toFixed(1)}% if staked ({h.stakedRatioPct != null ? h.stakedRatioPct.toFixed(0) : '?'}%
+                        of this pool&apos;s active liquidity is)
                         {h.feeAprPct != null && (
                           <>
                             {' — '}
