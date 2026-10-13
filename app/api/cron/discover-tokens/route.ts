@@ -3,6 +3,7 @@ import { redis } from '@/lib/redis';
 import { sendTelegramMessage } from '@/lib/telegram';
 import { fetchPublishedStockList, diffAgainstTracked, verifyCandidate, type CandidateResult } from '@/lib/discovery';
 import { usdCompact } from '@/lib/format';
+import { cronAuthorized } from '@/lib/sharedSecret';
 
 export const revalidate = 0;
 export const maxDuration = 30;
@@ -28,12 +29,8 @@ async function inChunks<T, R>(items: T[], size: number, fn: (item: T) => Promise
 // that now have an Aerodrome USDC pool, with real depth. Never edits tokens.ts.
 // ?dry=1 returns the digest without sending anything or touching Redis.
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    }
+  if (!cronAuthorized(request)) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
   const dry = request.nextUrl.searchParams.get('dry') === '1';

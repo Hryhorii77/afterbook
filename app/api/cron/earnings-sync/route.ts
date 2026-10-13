@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { STOCKS } from '@/lib/tokens';
 import { fetchNasdaqEarningsForDate, recordNextEarnings } from '@/lib/earningsCalendar';
 import { syncEarningsMovesForDate } from '@/lib/earningsHistory';
+import { cronAuthorized } from '@/lib/sharedSecret';
 
 export const revalidate = 0;
 export const maxDuration = 30;
@@ -19,12 +20,8 @@ const HISTORY_SYNC_LAG_DAYS = 4;
 // like SPCX right now) just doesn't get a key — treated as "nothing
 // scheduled," not an error.
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    }
+  if (!cronAuthorized(request)) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
   const now = Date.now();

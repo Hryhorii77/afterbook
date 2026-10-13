@@ -70,7 +70,7 @@ placeholder `<`/`>`).
   no staging), `GLIDER_API_BASE` (optional; defaults to
   `https://api.glider.fi/v2`), `GLIDER_STRATEGY_ID` (**setting it, with
   the key, is what switches the public enroll panel on**), and
-  `BASKET_AUTOPUBLISH` (leave unset unless the user decides otherwise).
+  `BASKET_AUTOPUBLISH` (**on** in Production since 2026-10-07, owner decision; unsetting it and redeploying is the off switch).
   Adding `GLIDER_STRATEGY_ID` to Production is a public launch of a real-
   money feature: confirm with the user first.
 - Verifying a Glider change on the live site without moving money:
@@ -79,6 +79,17 @@ placeholder `<`/`>`).
   `403` from a US/unknown location, and `200` with a signable message
   from a non-US one (stage 1 only reads and reserves nothing). Never call
   stage 2 or the withdraw routes as a test.
+
+## Secrets that switch routes off when missing
+
+`CRON_SECRET` and `TELEGRAM_WEBHOOK_SECRET` are fail-closed in every
+built deployment (`lib/sharedSecret.ts`): removing either, even for a moment during a
+rm/add swap, makes every cron run (or every Telegram message) answer 401
+until a redeploy with the new value. Swap them right before a redeploy, and
+for `TELEGRAM_WEBHOOK_SECRET` also call Telegram's `setWebhook` with the new
+`secret_token` (the user does that; it needs the bot token). Check after:
+`curl -s -o /dev/null -w "%{http_code}" https://afterbook.app/api/cron/fee-snapshot`
+must be `401` (refused without the header), never `200`.
 
 ## Also watch for
 

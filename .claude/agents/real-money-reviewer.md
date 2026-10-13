@@ -21,8 +21,12 @@ check passes, say so in one short line; do not pad.
 - Every route under `app/api/baskets/*` starts with `guardBasketRequest`
   (`lib/baskets/guard.ts`: non-US gate that fails closed, config check, rate
   limiter that refuses when missing). A new route without it is a finding.
-- Cron routes check the `CRON_SECRET` bearer before doing anything, and the
-  basket cron keeps `?dry=1` writing nothing.
+- Cron routes and the maintainer-only `/api/clicks/stats` start with
+  `cronAuthorized(request)`, and the Telegram webhook
+  with `secretMatches` (`lib/sharedSecret.ts`: constant-time, and refuses
+  everything in a built deployment when the secret is unset). A route that checks
+  a secret only `if (secret)`, or a new cron without the check, is a finding.
+  The basket cron keeps `?dry=1` writing nothing.
 - Nothing publishes a strategy version, triggers a rebalance, or submits a
   withdrawal without an explicit user action in that request. Any new path
   that can do so on its own (a cron, a retry, a default) is a finding.

@@ -7,3 +7,4 @@ out
 .vercel
 *.tsbuildinfo
 .env*
+!.env.example
