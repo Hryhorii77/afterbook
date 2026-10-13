@@ -6,10 +6,56 @@ import { getTokenIcons } from './coinbaseIcons';
 import { tileHue } from './symbolStyle';
 import { getTape } from './tape';
 import { splitByLiquidity } from './liquidity';
-import { buildTodaySnapshot } from './todaySnapshot';
+import { buildTodaySnapshot, closeBasisBp } from './todaySnapshot';
 import { getStock } from './tokens';
 import { parseSpec, basketGapBp, basketReferenceLabel } from './customBasket';
 import { getBasketCost } from './basketCost';
+import type { CardTheme } from './cardUrl';
+
+// Card colours per theme: dark is the site's dark look, light uses the light tokens in
+// app/globals.css. The person sharing picks it (whatever theme they had on), not the viewer.
+const PALETTES = {
+  dark: {
+    bg: '#121214',
+    bgImage: 'linear-gradient(180deg, #171719 0%, #121214 60%)',
+    text: '#e6e9ef',
+    dim: '#8b93a1',
+    dimmer: '#6b7280',
+    pos: '#3ddc97',
+    neg: '#ff6b6b',
+    tile: '#171719',
+    tileBorder: '#232830',
+    footer: '#9cd6ff',
+  },
+  light: {
+    bg: '#fafaf9',
+    bgImage: 'linear-gradient(180deg, #ffffff 0%, #fafaf9 60%)',
+    text: '#111318',
+    dim: '#4d5361',
+    dimmer: '#646b79',
+    pos: '#15803d',
+    neg: '#dc2626',
+    tile: '#ffffff',
+    tileBorder: '#e4e4e1',
+    footer: '#1f4fe0',
+  },
+} as const;
+type Palette = (typeof PALETTES)[CardTheme];
+
+function frame(c: Palette) {
+  return {
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    backgroundColor: c.bg,
+    backgroundImage: c.bgImage,
+    padding: '64px 72px',
+    fontFamily: 'sans-serif',
+  } as const;
+}
+
+const gapColor = (c: Palette, n: number | null) => (n == null ? c.dim : n >= 0 ? c.pos : c.neg);
 
 function Mark({ px }: { px: number }) {
   return (
@@ -29,20 +75,16 @@ export const OG_SIZE = { width: 1200, height: 630 };
 const usd = (n: number | null) => (n == null ? '—' : `$${n.toFixed(2)}`);
 const bp = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(1)}bp`);
 
-// Shared by app/opengraph-image.tsx and app/twitter-image.tsx. Each of those
-// files must locally re-declare `alt`/`size`/`contentType`/`dynamic` itself —
-// Next's build-time static analysis for these special files doesn't follow
-// re-exports (confirmed: it warned and silently fell back to defaults when
-// twitter-image.tsx re-exported `runtime` from this module) — only the
-// image-building logic itself is safe to share.
+// Drawn by app/card/route.tsx, the one route behind every link preview and "Download card".
 /**
  * Without `symbol`: the movers grid (up to 6 names), used for the root
  * share card. With `symbol`: a focused single-stock card for that name's
- * own page (app/[symbol]/opengraph-image.tsx) — same visual language, one
+ * own page (/NVDAc etc.) — same visual language, one
  * subject instead of six, so a tweet linking a specific name shows that
  * name's actual numbers instead of a generic grid it isn't part of.
  */
-export async function buildOgImage(symbol?: string) {
+export async function buildOgImage(symbol?: string, theme: CardTheme = 'dark') {
+  const c = PALETTES[theme];
   let rows: Awaited<ReturnType<typeof getTape>>['rows'] = [];
   let sessionLabel = '';
   let focusRow: Awaited<ReturnType<typeof getTape>>['rows'][number] | null = null;
@@ -76,28 +118,19 @@ export async function buildOgImage(symbol?: string) {
     return new ImageResponse(
       (
         <div
-          style={{
-            width: '100%',
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-            backgroundColor: '#121214',
-            backgroundImage: 'linear-gradient(180deg, #171719 0%, #121214 60%)',
-            padding: '64px 72px',
-            fontFamily: 'sans-serif',
-          }}
+          style={frame(c)}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Mark px={44} />
-            <span style={{ fontSize: 40, fontWeight: 700, color: '#8b93a1', letterSpacing: '-0.02em' }}>Afterbook</span>
-            {sessionLabel && <span style={{ fontSize: 22, color: '#6b7280' }}>{sessionLabel}</span>}
+            <span style={{ fontSize: 40, fontWeight: 700, color: c.dim, letterSpacing: '-0.02em' }}>Afterbook</span>
+            {sessionLabel && <span style={{ fontSize: 22, color: c.dimmer }}>{sessionLabel}</span>}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', marginTop: 20 }}>
             <StockIcon icon={icon} cashTicker={focusRow.cashTicker} />
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 64, fontWeight: 700, color: '#e6e9ef', letterSpacing: '-0.02em' }}>{focusRow.symbol}</span>
-              <span style={{ fontSize: 24, color: '#8b93a1' }}>{focusRow.name}</span>
+              <span style={{ fontSize: 64, fontWeight: 700, color: c.text, letterSpacing: '-0.02em' }}>{focusRow.symbol}</span>
+              <span style={{ fontSize: 24, color: c.dim }}>{focusRow.name}</span>
             </div>
           </div>
 
@@ -106,25 +139,25 @@ export async function buildOgImage(symbol?: string) {
               fontSize: 88,
               fontWeight: 700,
               marginTop: 8,
-              color: focusRow.basisBp == null ? '#8b93a1' : focusRow.basisBp >= 0 ? '#3ddc97' : '#ff6b6b',
+              color: gapColor(c, focusRow.basisBp),
             }}
           >
             {bp(focusRow.basisBp)}
           </span>
 
-          <div style={{ display: 'flex', gap: 32, marginTop: 12, fontSize: 28, color: '#8b93a1' }}>
+          <div style={{ display: 'flex', gap: 32, marginTop: 12, fontSize: 28, color: c.dim }}>
             <span>cash {usd(focusRow.cashLastUsd)}</span>
             <span>aero {usd(focusRow.onchainMidUsd)}</span>
           </div>
 
           {fade && (
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 22 }}>
-              <span style={{ fontSize: 28, color: '#e6e9ef' }}>{fade}</span>
-              <span style={{ fontSize: 20, color: '#6b7280', marginTop: 6 }}>Past sessions, not a forecast.</span>
+              <span style={{ fontSize: 28, color: c.text }}>{fade}</span>
+              <span style={{ fontSize: 20, color: c.dimmer, marginTop: 6 }}>Past sessions, not a forecast.</span>
             </div>
           )}
 
-          <CardFooter />
+          <CardFooter c={c} />
         </div>
       ),
       { ...OG_SIZE },
@@ -134,26 +167,17 @@ export async function buildOgImage(symbol?: string) {
   return new ImageResponse(
     (
       <div
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          backgroundColor: '#121214',
-          backgroundImage: 'linear-gradient(180deg, #171719 0%, #121214 60%)',
-          padding: '64px 72px',
-          fontFamily: 'sans-serif',
-        }}
+        style={frame(c)}
       >
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <Mark px={68} />
-            <span style={{ fontSize: 64, fontWeight: 700, color: '#e6e9ef', letterSpacing: '-0.02em' }}>
+            <span style={{ fontSize: 64, fontWeight: 700, color: c.text, letterSpacing: '-0.02em' }}>
               Afterbook
             </span>
-            {sessionLabel && <span style={{ fontSize: 24, color: '#8b93a1' }}>{sessionLabel}</span>}
+            {sessionLabel && <span style={{ fontSize: 24, color: c.dim }}>{sessionLabel}</span>}
           </div>
-          <span style={{ fontSize: 26, color: '#8b93a1', marginTop: 8 }}>
+          <span style={{ fontSize: 26, color: c.dim, marginTop: 8 }}>
             How far tokenized stocks trade from the cash market.
           </span>
         </div>
@@ -167,31 +191,31 @@ export async function buildOgImage(symbol?: string) {
                   display: 'flex',
                   flexDirection: 'column',
                   flex: 1,
-                  backgroundColor: '#171719',
-                  border: '1px solid #232830',
+                  backgroundColor: c.tile,
+                  border: `1px solid ${c.tileBorder}`,
                   borderRadius: 16,
                   padding: '20px 16px',
                 }}
               >
-                <span style={{ fontSize: 22, fontWeight: 700, color: '#e6e9ef' }}>{row.symbol}</span>
+                <span style={{ fontSize: 22, fontWeight: 700, color: c.text }}>{row.symbol}</span>
                 <span
                   style={{
                     fontSize: 27,
                     fontWeight: 700,
                     marginTop: 12,
-                    color: row.basisBp == null ? '#8b93a1' : row.basisBp >= 0 ? '#3ddc97' : '#ff6b6b',
+                    color: gapColor(c, row.basisBp),
                   }}
                 >
                   {bp(row.basisBp)}
                 </span>
-                <span style={{ fontSize: 14, color: '#8b93a1', marginTop: 8 }}>cash {usd(row.cashLastUsd)}</span>
-                <span style={{ fontSize: 14, color: '#8b93a1' }}>aero {usd(row.onchainMidUsd)}</span>
+                <span style={{ fontSize: 14, color: c.dim, marginTop: 8 }}>cash {usd(row.cashLastUsd)}</span>
+                <span style={{ fontSize: 14, color: c.dim }}>aero {usd(row.onchainMidUsd)}</span>
               </div>
             ))}
           </div>
         )}
 
-        <CardFooter />
+        <CardFooter c={c} />
       </div>
     ),
     { ...OG_SIZE },
@@ -247,9 +271,9 @@ function tileColors(cashTicker: string): { background: string; color: string } {
 
 /** The line at the bottom of every card. It sits at the bottom RIGHT on purpose: X draws the image's
  *  alt text as a label in the bottom-left corner of a card, which used to cover this line. */
-function CardFooter() {
+function CardFooter({ c }: { c: Palette }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto', fontSize: 20, color: '#9cd6ff' }}>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto', fontSize: 20, color: c.footer }}>
       No wallet connect. Execution stays on Aerodrome.
     </div>
   );
@@ -283,10 +307,13 @@ function StockIcon({ icon, cashTicker }: { icon: string | null; cashTicker: stri
 
 /** app/today's own card — one number, not a grid. Distinct from buildOgImage
  *  above: that one either shows a specific requested symbol or a 6-wide
- *  movers grid, this always shows whichever single row currently has the
- *  largest |basis| (lib/todaySnapshot.ts), same "one screenshot stat" this
- *  page is built around. */
-export async function buildTodayOgImage() {
+ *  movers grid, this shows the single row with the largest |basis|
+ *  (lib/todaySnapshot.ts), same "one screenshot stat" this page is built
+ *  around. A shared link pins `symbol` to the stock the page showed when it
+ *  was shared: two names a few tenths of a bp apart swap the lead minute to
+ *  minute, and the card used to show a different stock from the post. */
+export async function buildTodayOgImage(symbol?: string, theme: CardTheme = 'dark') {
+  const c = PALETTES[theme];
   let sessionLabel = '';
   let headline: Awaited<ReturnType<typeof getTape>>['rows'][number] | null = null;
   let headlineBp: number | null = null;
@@ -298,8 +325,9 @@ export async function buildTodayOgImage() {
     sessionLabel = tape.session.label;
     marketOpen = tape.session.state === 'open';
     const snapshot = buildTodaySnapshot(tape);
-    headline = snapshot.headline;
-    headlineBp = marketOpen ? headline?.basisBp ?? null : snapshot.headlineCloseBasisBp;
+    const pinned = symbol ? tape.rows.find((r) => r.symbol.toLowerCase() === symbol.toLowerCase()) : undefined;
+    headline = pinned ?? snapshot.headline;
+    headlineBp = headline ? (marketOpen ? headline.basisBp : closeBasisBp(headline)) : null;
     if (headline) [fade, icon] = await Promise.all([openFadeLine(headline.symbol), iconDataUri(headline.cashTicker)]);
   } catch {
     // fall through to a branding-only card below
@@ -308,23 +336,14 @@ export async function buildTodayOgImage() {
   return new ImageResponse(
     (
       <div
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          backgroundColor: '#121214',
-          backgroundImage: 'linear-gradient(180deg, #171719 0%, #121214 60%)',
-          padding: '64px 72px',
-          fontFamily: 'sans-serif',
-        }}
+        style={frame(c)}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <Mark px={44} />
-          <span style={{ fontSize: 40, fontWeight: 700, color: '#8b93a1', letterSpacing: '-0.02em' }}>
+          <span style={{ fontSize: 40, fontWeight: 700, color: c.dim, letterSpacing: '-0.02em' }}>
             Afterbook · Biggest gap
           </span>
-          {sessionLabel && <span style={{ fontSize: 22, color: '#6b7280' }}>{sessionLabel}</span>}
+          {sessionLabel && <span style={{ fontSize: 22, color: c.dimmer }}>{sessionLabel}</span>}
         </div>
 
         {headline ? (
@@ -337,7 +356,7 @@ export async function buildTodayOgImage() {
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', alignItems: 'center', marginTop: 28 }}>
               <StockIcon icon={icon} cashTicker={headline.cashTicker} />
-              <span style={{ fontSize: 64, fontWeight: 700, color: '#e6e9ef', letterSpacing: '-0.02em' }}>{headline.symbol}</span>
+              <span style={{ fontSize: 64, fontWeight: 700, color: c.text, letterSpacing: '-0.02em' }}>{headline.symbol}</span>
             </div>
 
             <span
@@ -345,29 +364,29 @@ export async function buildTodayOgImage() {
                 fontSize: 88,
                 fontWeight: 700,
                 marginTop: 8,
-                color: headlineBp == null ? '#8b93a1' : headlineBp >= 0 ? '#3ddc97' : '#ff6b6b',
+                color: gapColor(c, headlineBp),
               }}
             >
               {bp(headlineBp)}
             </span>
 
-            <div style={{ display: 'flex', gap: 32, marginTop: 12, fontSize: 28, color: '#8b93a1' }}>
+            <div style={{ display: 'flex', gap: 32, marginTop: 12, fontSize: 28, color: c.dim }}>
               <span>cash {usd(marketOpen ? headline.cashLastUsd : headline.closeUsd)}</span>
               <span>aero {usd(headline.onchainMidUsd)}</span>
             </div>
 
             {fade && (
               <div style={{ display: 'flex', flexDirection: 'column', marginTop: 22 }}>
-                <span style={{ fontSize: 28, color: '#e6e9ef' }}>{fade}</span>
-                <span style={{ fontSize: 20, color: '#6b7280', marginTop: 6 }}>Past sessions, not a forecast.</span>
+                <span style={{ fontSize: 28, color: c.text }}>{fade}</span>
+                <span style={{ fontSize: 20, color: c.dimmer, marginTop: 6 }}>Past sessions, not a forecast.</span>
               </div>
             )}
           </div>
         ) : (
-          <span style={{ fontSize: 32, color: '#8b93a1', marginTop: 48 }}>No basis reading yet.</span>
+          <span style={{ fontSize: 32, color: c.dim, marginTop: 48 }}>No basis reading yet.</span>
         )}
 
-        <CardFooter />
+        <CardFooter c={c} />
       </div>
     ),
     { ...OG_SIZE },
@@ -377,7 +396,8 @@ export async function buildTodayOgImage() {
 /** A custom basket's card (app/build/[spec]): its 2–4 legs with weights, the
  *  weighted gap the page leads with, and the cost to buy $10k of it. Same
  *  numbers and wording as the page (lib/customBasket.ts, lib/basketCost.ts). */
-export async function buildBasketOgImage(spec: string) {
+export async function buildBasketOgImage(spec: string, theme: CardTheme = 'dark') {
+  const c = PALETTES[theme];
   const legs = parseSpec(spec);
   let sessionLabel = '';
   let gap: number | null = null;
@@ -400,21 +420,12 @@ export async function buildBasketOgImage(spec: string) {
   return new ImageResponse(
     (
       <div
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          backgroundColor: '#121214',
-          backgroundImage: 'linear-gradient(180deg, #171719 0%, #121214 60%)',
-          padding: '64px 72px',
-          fontFamily: 'sans-serif',
-        }}
+        style={frame(c)}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <Mark px={44} />
-          <span style={{ fontSize: 40, fontWeight: 700, color: '#8b93a1', letterSpacing: '-0.02em' }}>Afterbook · Custom basket</span>
-          {sessionLabel && <span style={{ fontSize: 22, color: '#6b7280' }}>{sessionLabel}</span>}
+          <span style={{ fontSize: 40, fontWeight: 700, color: c.dim, letterSpacing: '-0.02em' }}>Afterbook · Custom basket</span>
+          {sessionLabel && <span style={{ fontSize: 22, color: c.dimmer }}>{sessionLabel}</span>}
         </div>
 
         {legs ? (
@@ -424,8 +435,8 @@ export async function buildBasketOgImage(spec: string) {
                 <div key={l.symbol} style={{ display: 'flex', alignItems: 'center' }}>
                   <StockIcon icon={icons[i] ?? null} cashTicker={getStock(l.symbol)!.cashTicker} />
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontSize: 32, fontWeight: 700, color: '#e6e9ef' }}>{l.symbol}</span>
-                    <span style={{ fontSize: 26, color: '#8b93a1' }}>{l.weightPct}%</span>
+                    <span style={{ fontSize: 32, fontWeight: 700, color: c.text }}>{l.symbol}</span>
+                    <span style={{ fontSize: 26, color: c.dim }}>{l.weightPct}%</span>
                   </div>
                 </div>
               ))}
@@ -436,21 +447,21 @@ export async function buildBasketOgImage(spec: string) {
                 fontSize: 88,
                 fontWeight: 700,
                 marginTop: 18,
-                color: gap == null ? '#8b93a1' : gap >= 0 ? '#3ddc97' : '#ff6b6b',
+                color: gapColor(c, gap),
               }}
             >
               {bp(gap)}
             </span>
-            <span style={{ fontSize: 28, color: '#8b93a1', marginTop: 4 }}>
+            <span style={{ fontSize: 28, color: c.dim, marginTop: 4 }}>
               {gap == null ? 'No reading yet' : `Aero vs ${reference.replace(/^the /, '')}`}
               {costBp != null ? ` · ${costBp.toFixed(1)} bp to buy $10k` : ''}
             </span>
           </div>
         ) : (
-          <span style={{ fontSize: 32, color: '#8b93a1', marginTop: 48 }}>Build a basket of Base tokenized stocks.</span>
+          <span style={{ fontSize: 32, color: c.dim, marginTop: 48 }}>Build a basket of Base tokenized stocks.</span>
         )}
 
-        <CardFooter />
+        <CardFooter c={c} />
       </div>
     ),
     { ...OG_SIZE },

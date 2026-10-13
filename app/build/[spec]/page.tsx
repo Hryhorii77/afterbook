@@ -11,6 +11,7 @@ import { STOCKS, getStock } from '@/lib/tokens';
 import { parseSpec, formatSpec, basketLabel, basketGapBp, basketReferenceLabel, legGapBp } from '@/lib/customBasket';
 import { getBasketCost, MAX_COST_BP } from '@/lib/basketCost';
 import { bp, usd, usdCompact, gapSizeText, formatNextOpen } from '@/lib/format';
+import { shareMetadata } from '@/lib/shareMeta';
 
 // Live tape and pool reads on every request (each cached 20–60s
 // underneath), same as /today and /borrow.
@@ -18,15 +19,20 @@ export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ spec: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const legs = parseSpec((await params).spec);
   if (!legs) return {};
-  return {
+  const spec = formatSpec(legs);
+  return shareMetadata({
     title: `${basketLabel(legs)} — Afterbook basket`,
     description: `How far this basket of Base tokenized stocks (${basketLabel(legs)}) trades from the cash market, and what it costs to buy on Aerodrome.`,
-  };
+    path: `/build/${spec}`,
+    card: { page: 'build', spec },
+    searchParams: await searchParams,
+  });
 }
 
 export default async function BuildPage({ params }: PageProps) {
@@ -107,7 +113,7 @@ export default async function BuildPage({ params }: PageProps) {
         <div className="hero-actions">
           <ShareButton
             path={`/build/${canonical}`}
-            cardPath={`/build/${canonical}/opengraph-image`}
+            card={{ page: 'build', spec: canonical }}
             fileName={`afterbook-basket-${legs.map((l) => l.symbol).join('-')}.png`}
             text={shareText}
           />

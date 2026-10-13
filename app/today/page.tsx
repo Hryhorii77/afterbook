@@ -11,18 +11,29 @@ import { bp, usd, usdCompact, formatDuration, formatNextOpen, gapSizeText } from
 import { STOCKS, getStock } from '@/lib/tokens';
 import { getBuyQuoter } from '@/lib/lotQuote';
 import { getOpenSnapStats, STATS_LOOKBACK_MS, type OpenSnapStats } from '@/lib/history';
+import { shareMetadata } from '@/lib/shareMeta';
+import { firstParam } from '@/lib/cardUrl';
 
 // Forces a fresh getTape() read (bounded by its own 20s cache) on every
 // request rather than a stale, build-time-frozen number — same reasoning as
-// opengraph-image.tsx's own force-dynamic, and this page exists specifically
+// the share card route's own force-dynamic (app/card/route.tsx), and this page exists specifically
 // to be screenshotted/shared, so a stale number here is worse than on the
 // full tape where live client-side polling papers over it.
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: 'Biggest gap — Afterbook',
-  description: "The single biggest cash-vs-chain gap across Base's tokenized stocks right now, and how deep the book behind it is.",
-};
+// A shared link carries the stock the page showed (`sym`), so its card shows that stock and not
+// whichever one leads a second later (lib/cardUrl.ts).
+export async function generateMetadata({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
+  const sp = await searchParams;
+  const sym = getStock(firstParam(sp.sym) ?? '')?.symbol;
+  return shareMetadata({
+    title: 'Biggest gap — Afterbook',
+    description: "The single biggest cash-vs-chain gap across Base's tokenized stocks right now, and how deep the book behind it is.",
+    path: '/today',
+    card: { page: 'today', sym },
+    searchParams: sp,
+  });
+}
 
 const CLIP_SIZE_USD = 25_000;
 
@@ -148,7 +159,7 @@ export default async function TodayPage() {
                   <div className="hero-actions">
                     <ShareButton
                       path="/today"
-                      cardPath="/today/opengraph-image"
+                      card={{ page: 'today', sym: headline.symbol }}
                       fileName={`afterbook-biggest-gap-${headline.symbol}.png`}
                       text={`${headline.symbol} is trading ${gapSizeText(headlineBp)} ${headlineBp >= 0 ? 'above' : 'below'} the cash ${marketOpen ? 'price' : 'close'} on Aerodrome.`}
                     />

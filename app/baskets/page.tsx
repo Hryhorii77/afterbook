@@ -9,13 +9,16 @@ import { getStock } from '@/lib/tokens';
 import { SymbolTile } from '@/app/components/SymbolTile';
 import { gliderConfigured } from '@/lib/glider';
 import { BasketPanel } from '@/app/components/BasketPanel';
+import { shareMetadata } from '@/lib/shareMeta';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = shareMetadata({
   title: 'Baskets — Afterbook',
   description: 'Afterbook Basis Tilt: the ten Base tokenized stocks, weighted by on-chain depth and cash-vs-chain basis.',
-};
+  path: '/baskets',
+  card: { page: 'home' },
+});
 
 export default async function BasketsPage() {
   const [tape, geo] = await Promise.all([getTape().catch(() => null), getGeoInfo()]);

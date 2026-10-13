@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { cardPath, type CardSpec } from '@/lib/cardUrl';
+import { useTheme } from './theme';
 
 const svgProps = {
   width: 16,
@@ -48,8 +50,9 @@ const DownloadIcon = () => (
 interface ShareButtonProps {
   /** Path of the page being shared, e.g. "/MSTRc" or "/today". */
   path: string;
-  /** Path of that page's share card image (the same one link previews use). */
-  cardPath: string;
+  /** What the card shows. On /today pass the stock on screen: it rides in the shared link
+   *  (`sym`), so the preview shows that stock even if another takes the lead a second later. */
+  card: CardSpec;
   /** File name for "Download card". */
   fileName: string;
   /** The sentence that goes with the link: facts only, no advice. */
@@ -59,13 +62,14 @@ interface ShareButtonProps {
 // Share what's on screen: post it on X, copy the link, download the card image, or (where the
 // browser has one) open the system share sheet. The link is built from the page's own origin,
 // so it is right on the live site, a preview deploy and localhost alike.
-export function ShareButton({ path, cardPath, fileName, text }: ShareButtonProps) {
+export function ShareButton({ path, card, fileName, text }: ShareButtonProps) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [origin, setOrigin] = useState('https://afterbook.app');
   const [stamp, setStamp] = useState('');
   const [canNativeShare, setCanNativeShare] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const theme = useTheme();
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -92,7 +96,15 @@ export function ShareButton({ path, cardPath, fileName, text }: ShareButtonProps
   // shows live numbers. A bare /MSTRc would keep showing whatever it looked like the first time
   // anyone shared it, contradicting the sentence in the post. A fresh stamp per share (set when
   // the panel opens) makes every share a new URL, so the card is fetched at share time.
-  const url = `${origin}${path}${stamp ? `?s=${stamp}` : ''}`;
+  // The link also carries the sharer's theme and, on /today, the stock shown, so the preview card
+  // and "Download card" are the same image as the one on screen (lib/cardUrl.ts).
+  const q = new URLSearchParams();
+  if (stamp) q.set('s', stamp);
+  if (card.page === 'today' && card.sym) q.set('sym', card.sym);
+  if (theme === 'light') q.set('theme', 'light');
+  const qs = q.toString();
+  const url = `${origin}${path}${qs ? `?${qs}` : ''}`;
+  const imageHref = cardPath(card, { theme, s: stamp || undefined });
   const xHref = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
 
   const copyLink = async () => {
@@ -148,7 +160,7 @@ export function ShareButton({ path, cardPath, fileName, text }: ShareButtonProps
             {copied ? <CheckIcon /> : <CopyIcon />}
             {copied ? 'Link copied' : 'Copy link'}
           </button>
-          <a className="share-item" href={cardPath} download={fileName} onClick={() => setOpen(false)}>
+          <a className="share-item" href={imageHref} download={fileName} onClick={() => setOpen(false)}>
             <DownloadIcon />
             Download card
           </a>

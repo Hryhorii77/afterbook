@@ -70,7 +70,7 @@ interface CacheEntry {
 
 // Module-level: survives across requests on a warm Vercel lambda instance,
 // and doubles as the "last known good" source when upstreams fail. Shared
-// between /api/tape and the opengraph-image generator so both reuse the same
+// between /api/tape and the share card route (app/card/route.tsx) so both reuse the same
 // 20s-fresh data instead of each hitting Yahoo/Base RPC independently.
 let cache: CacheEntry | null = null;
 

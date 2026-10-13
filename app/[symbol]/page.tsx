@@ -4,20 +4,25 @@ import { getTape } from '@/lib/tape';
 import { getGeoInfo } from '@/lib/geo';
 import { getStock } from '@/lib/tokens';
 import HomeClient from '../components/HomeClient';
+import { shareMetadata } from '@/lib/shareMeta';
 
 interface PageProps {
   params: Promise<{ symbol: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { symbol } = await params;
   const stock = getStock(symbol);
   if (!stock) return {};
 
-  return {
+  return shareMetadata({
     title: `${stock.symbol} — Afterbook`,
     description: `${stock.name} (${stock.symbol}): cash close vs the Aero book, in shares.`,
-  };
+    path: `/${stock.symbol}`,
+    card: { page: 'stock', sym: stock.symbol },
+    searchParams: await searchParams,
+  });
 }
 
 // Same data fetch as app/page.tsx — the / route stays the default view,

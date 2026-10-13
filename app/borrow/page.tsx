@@ -8,16 +8,19 @@ import { liquidationIncentiveFactor } from '@/lib/liquidationMath';
 import { getGeoInfo } from '@/lib/geo';
 import { getStock } from '@/lib/tokens';
 import { bp, usdCompact } from '@/lib/format';
+import { shareMetadata } from '@/lib/shareMeta';
 
 // Live pool and oracle reads on every request (each cached 20–60s
 // underneath), same as /today.
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = shareMetadata({
   title: 'Borrow against stocks — Afterbook',
   description:
     "Morpho's USDC loans against Base tokenized stocks, and whether Aerodrome is deep enough to absorb their liquidations.",
-};
+  path: '/borrow',
+  card: { page: 'home' },
+});
 
 const pct = (x: number, digits = 1) => `${(x * 100).toFixed(digits)}%`;
 

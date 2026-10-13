@@ -874,7 +874,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             </button>
             <ShareButton
               path={`/${activeRow.symbol}`}
-              cardPath={`/${activeRow.symbol}/opengraph-image`}
+              card={{ page: 'stock', sym: activeRow.symbol }}
               fileName={`afterbook-${activeRow.symbol}.png`}
               text={shareText}
             />
