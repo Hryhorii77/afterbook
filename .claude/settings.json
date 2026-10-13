@@ -9,7 +9,6 @@
       "Bash(npx vercel env add *)",
       "Bash(npx vercel env rm *)",
       "Bash(npx vercel env pull *)",
-      "Bash(forge script *--broadcast*)",
       "Bash(gh pr merge *)",
       "Bash(curl *api/cron/basket-tilt*)"
     ],

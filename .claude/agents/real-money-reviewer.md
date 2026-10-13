@@ -61,7 +61,7 @@ check passes, say so in one short line; do not pad.
   responses wholesale.
 - Env values read through the Glider client are trimmed; new env reads of
   pasted values should be too.
-- No raw private key in any script, command, or Foundry broadcast file.
+- No raw private key in any script or command.
 
 **Wording the owner decided**
 - Glider is described as "run on", never "powered by"; no new Glider name or

@@ -105,7 +105,6 @@ Defined in `vercel.json`; every route checks `CRON_SECRET` when it is set.
 | `/api/cron/discover-tokens` | 13:00 daily | reads Coinbase's token list, finds untracked names with an Aerodrome USDC pool and real depth, sends one Telegram digest (`?dry=1` sends nothing) |
 | `/api/cron/fee-snapshot` | 06:00 daily | snapshots pool fee-growth counters for fee APR |
 | `/api/cron/earnings-sync` | 11:00 daily | refreshes earnings dates and history |
-| `/api/cron/jensen-burn-check` | hourly | pings the maintainer when the JensenBuybackBurn contract's balance is high enough that anyone can call `swapAndBurn()` |
 | `/api/cron/basket-tilt` | 22:00 daily | plans the Basis Tilt update; publishes only with `BASKET_AUTOPUBLISH=1` |
 
 ## Security model
@@ -204,7 +203,7 @@ Three higher, $0.05 endpoints for agents doing heavier analysis:
 - **`/api/v1/x402/lp-range`** — `{ symbol, holdingDays?, targetProbabilityPct? }`. A recommended concentrated-liquidity tick range sized from realized volatility over a target holding period (default 7 days, 70% coverage), widened when the symbol's next earnings date falls inside that window. This one has no free equivalent — it's genuinely new derived output, not a convenience bundle of already-free routes. The earnings widening is a documented flat heuristic (no options-implied-vol data source exists in this app), not a real implied move. Also returns `divergenceLossAtBoundary` — the impermanent-loss benchmark at each edge of that range (`lib/lpRange.ts`).
 - **`/api/v1/x402/liquidation-capacity`** — `{ symbol, collateralShares?, borrowUsd?, marketId? }`. The `/borrow` numbers for one stock: its listed Morpho USDC markets, the Aero-vs-oracle gap, the largest liquidation Aerodrome can absorb at a profit, a sell-side impact curve, and (with a position) its liquidation price and whether that liquidation could be sold on Aerodrome. `marketId` defaults to the market holding the most collateral. $0.05.
 
-**Afterbook never holds a signing key for this.** Settlement is executed by Coinbase's hosted CDP facilitator, not by this app — Afterbook only supplies a plain receiving wallet address (`X402_PAYOUT_ADDRESS`) and a CDP *platform* API key/secret pair that authenticates this server to Coinbase's facilitator service (not a blockchain key). Payment lands directly in that address; nothing is ever custodied here, same as everywhere else in this app. Proceeds are not automatically swapped or spent — that's a deliberately separate, not-yet-built piece.
+**Afterbook never holds a signing key for this.** Settlement is executed by Coinbase's hosted CDP facilitator, not by this app — Afterbook only supplies a plain receiving wallet address (`X402_PAYOUT_ADDRESS`) and a CDP *platform* API key/secret pair that authenticates this server to Coinbase's facilitator service (not a blockchain key). Payment lands directly in that address (the owner's own wallet); nothing is ever custodied here, same as everywhere else in this app, and nothing swaps or spends it automatically.
 
 All six routes 503 with `{ "error": "x402 tier not configured" }` until `CDP_API_KEY_ID`, `CDP_API_KEY_SECRET`, and `X402_PAYOUT_ADDRESS` are all set.
 

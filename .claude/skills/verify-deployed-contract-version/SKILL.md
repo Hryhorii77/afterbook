@@ -9,11 +9,10 @@ description: Confirm a locally-installed dependency's source (forge install, npm
 latest tag happens to be — not necessarily what's actually deployed at
 the address you're about to hardcode. A mismatch here is silent: the
 code compiles fine, and only fails (often with a useless error) against
-the real contract. This is exactly what caused two failed mainnet
-`swapAndBurn()` calls in `contracts/jensen-buyback-burn` — a newer
-`v4-periphery` added a struct field that Base's actually-deployed
-Universal Router (pinned to an older `universal-router` release)
-doesn't have.
+the real contract. A real example: a newer `v4-periphery` added a
+struct field that Base's actually-deployed Universal Router (pinned to an
+older `universal-router` release) doesn't have, and calls built against
+it reverted on mainnet.
 
 ## Procedure
 

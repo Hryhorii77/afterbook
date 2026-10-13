@@ -22,8 +22,8 @@
 // (see lib/quote.ts's own docs on why), so there is no real transaction
 // to eth_estimateGas against. Base L2 swap gas is well known to run a
 // few cents at most; treat this as a conservative, round-number stand-in
-// for "what a swap plus the Jensen-style approval overhead roughly
-// costs," not a per-trade quote.
+// for "what a swap plus a token approval roughly costs," not a
+// per-trade quote.
 export const GAS_ESTIMATE_USD = 0.02;
 
 const MS_PER_YEAR = 365 * 24 * 60 * 60 * 1000;
