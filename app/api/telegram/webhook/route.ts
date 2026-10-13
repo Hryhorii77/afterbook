@@ -3,6 +3,7 @@ import { findStock, STOCKS } from '@/lib/tokens';
 import { getTape } from '@/lib/tape';
 import { getRules, setRules, canAddRule, MAX_RULES_PER_CHAT, REARM_RATIO, type AlertRule } from '@/lib/alerts';
 import { sendTelegramMessage } from '@/lib/telegram';
+import { secretMatches } from '@/lib/sharedSecret';
 
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 
@@ -89,11 +90,8 @@ async function handleCommand(chatId: number, text: string): Promise<string> {
 }
 
 export async function POST(request: NextRequest) {
-  if (WEBHOOK_SECRET) {
-    const header = request.headers.get('x-telegram-bot-api-secret-token');
-    if (header !== WEBHOOK_SECRET) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    }
+  if (!secretMatches(WEBHOOK_SECRET, request.headers.get('x-telegram-bot-api-secret-token'))) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
   const update = await request.json().catch(() => null);

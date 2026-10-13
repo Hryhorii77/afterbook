@@ -41,6 +41,12 @@ load it in a real browser (both themes, a real 390px phone viewport; see the
 `verify` skill). A change that is only docs or config may skip the build, but
 say so in the PR.
 
+When `package.json` or `package-lock.json` changes, also run `npm audit
+--omit=dev` and compare with the last known state in the README's
+"Security model" (as of 2026-10-13: 0 critical, 1 high and 23 moderate, all
+in the wagmi 2 / WalletConnect wallet stack). A new critical or high
+outside that stack is fixed in the same PR or reported to the owner.
+
 ## 4. Commit and open the PR
 
 - `git add` named paths, then `git status --short` and read it. No env

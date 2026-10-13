@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDailyClickStats, getRecentClicks } from '@/lib/clicks';
+import { cronAuthorized } from '@/lib/sharedSecret';
 
 export const revalidate = 0;
 
@@ -23,15 +24,9 @@ interface DaySummary {
 // "maintainer, not the public," and adding a new env var means a Vercel
 // redeploy this route shouldn't need to wait on.
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    }
+  if (!cronAuthorized(request)) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
-  // No CRON_SECRET configured (e.g. local dev) falls through unauthenticated
-  // — same posture as the cron routes this pattern is borrowed from.
 
   const { searchParams } = new URL(request.url);
   const days = Math.min(Math.max(Number(searchParams.get('days')) || 7, 1), 30);

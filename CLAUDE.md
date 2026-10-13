@@ -106,7 +106,17 @@ No lint script, no test suite. To verify a change actually works:
   touches a raw key (a contract deploy, `cast wallet import`) must be run
   by the user in their own terminal — walk them through it, don't run it
   yourself even if asked to.
-- The x402 payout address (`X402_PAYOUT_ADDRESS`) is a **public** wallet/
+- Cron routes, `/api/clicks/stats` and the Telegram webhook check their
+  shared secret through
+  `lib/sharedSecret.ts` (`cronAuthorized`, `secretMatches`), which refuses
+  every call in a built deployment if the secret is unset (open only under
+  `next dev`). New cron or webhook
+  routes use it too; never `if (secret) { check }`, which is open when unset.
+- `.env.example` (tracked) lists every variable the code reads, with no
+  values. Add a new variable there in the same PR; never put a real value in
+  it. All other `.env*` files stay ignored.
+- The x402 payout address (`X402_PAYOUT_ADDRESS`, the owner's Coinbase
+  Smart Wallet `0x9b3F…6Bae` since 2026-10-13) is a **public** wallet/
   contract address, not a secret — safe to read, discuss, and propose
   values for directly, unlike the CDP API keys or Redis/Telegram tokens.
 - Vercel production changes (env var edits, `vercel deploy --prod`) are

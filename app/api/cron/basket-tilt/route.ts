@@ -3,6 +3,7 @@ import { getTape } from '@/lib/tape';
 import { gliderConfigured, GliderError } from '@/lib/glider';
 import { planTiltUpdate, applyTiltUpdate, saveTiltEma } from '@/lib/baskets/update';
 import { sendTelegramMessage } from '@/lib/telegram';
+import { cronAuthorized } from '@/lib/sharedSecret';
 
 export const revalidate = 0;
 export const maxDuration = 30;
@@ -14,11 +15,8 @@ export const maxDuration = 30;
 // and publishes nothing (a scheduled run still saves the moving average; ?dry=1 writes
 // nothing at all). Each publish is announced to TELEGRAM_ADMIN_CHAT_ID.
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    if (request.headers.get('authorization') !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    }
+  if (!cronAuthorized(request)) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
   const strategyId = process.env.GLIDER_STRATEGY_ID?.trim();
   if (!gliderConfigured() || !strategyId) return NextResponse.json({ ok: false, reason: 'baskets not configured' });

@@ -4,6 +4,7 @@ import { splitByLiquidity } from '@/lib/liquidity';
 import { getAllChatIds, getRules, setRules, nextBasisState, type AlertRule } from '@/lib/alerts';
 import { sendTelegramMessage } from '@/lib/telegram';
 import { bp } from '@/lib/format';
+import { cronAuthorized } from '@/lib/sharedSecret';
 
 export const revalidate = 0;
 export const maxDuration = 30;
@@ -13,12 +14,8 @@ export const maxDuration = 30;
 // delivery can occasionally double-invoke or skip a run, so a duplicate or
 // missed tick has to self-correct on the next one instead of compounding.
 export async function GET(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    }
+  if (!cronAuthorized(request)) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
   const tape = await getTape().catch(() => null);
