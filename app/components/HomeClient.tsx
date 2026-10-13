@@ -1525,8 +1525,9 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             This is a best-effort geofence based on IP country, not a compliance control — it does not stop a
             VPN.{geo.country === 'US' && ' Execution stays locked regardless of the checkbox above.'} Buying and
             selling here sends a swap from your own wallet through KyberSwap&apos;s router (it splits the trade across
-            Aerodrome and other Base pools). Afterbook builds the transaction, checks every field before your wallet
-            sees it, and never holds funds; approvals are for the exact amount only.
+            Aerodrome and other Base pools). KyberSwap builds the transaction; Afterbook checks the
+            fields that decide what you pay, who receives, the minimum, the fee and the permit before your wallet sees it,
+            and never holds funds; approvals are for the exact amount only.
           </p>
         </details>
         <p className="geo-note contract-info">

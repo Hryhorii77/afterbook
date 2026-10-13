@@ -86,7 +86,7 @@ async function kyber<T>(path: string, init?: { body: unknown }): Promise<T> {
   });
   const json = (await res.json().catch(() => null)) as { code?: number; message?: string; data?: T } | null;
   // KyberSwap's message describes our request (e.g. "route not found"), never a key: safe to pass on.
-  if (!res.ok || !json?.data) throw new SwapError(json?.message ? `KyberSwap: ${json.message}` : `KyberSwap answered ${res.status}`);
+  if (!res.ok || !json?.data) throw new SwapError(json?.message ? `KyberSwap: ${String(json.message).slice(0, 120)}` : `KyberSwap answered ${res.status}`);
   return json.data;
 }
 
@@ -201,6 +201,7 @@ export function checkSwapCalldata(req: SwapRequest, account: `0x${string}`, fee:
     [desc.amount === req.amountIn, 'amount'],
     [desc.minReturnAmount > BigInt(0) && desc.minReturnAmount >= floor && desc.minReturnAmount <= expectedOut, 'minimum received'],
     [desc.permit === '0x', 'permit'],
+    [desc.srcAmounts.reduce((a, b) => a + b, BigInt(0)) <= desc.amount, 'split amounts'],
     [
       fee
         ? desc.feeReceivers.length === 1 &&
@@ -218,7 +219,7 @@ export function checkSwapCalldata(req: SwapRequest, account: `0x${string}`, fee:
 
 /** Decodes a mined router call for the swap log. Null when it is not a swap between USDC and a
  *  tracked stock token. Extra bytes after the arguments (the Builder Code) are ignored by the decoder. */
-export function decodeSwapCall(data: Hex): { stock: CbStock; side: SwapSide; amountIn: bigint; recipient: `0x${string}`; feeBps: number } | null {
+export function decodeSwapCall(data: Hex): { stock: CbStock; side: SwapSide; amountIn: bigint; recipient: `0x${string}`; feeRecipient: `0x${string}` | null; feeBps: number } | null {
   try {
     const decoded = decodeFunctionData({ abi: routerAbi, data });
     const desc = decoded.functionName === 'swap' ? decoded.args[0].desc : decoded.args[1];
@@ -228,7 +229,14 @@ export function decodeSwapCall(data: Hex): { stock: CbStock; side: SwapSide; amo
     const side: SwapSide | null = src === usdc ? 'buy' : dst === usdc ? 'sell' : null;
     const stock = STOCKS.find((s) => s.tokenAddress.toLowerCase() === (side === 'buy' ? dst : src).toLowerCase());
     if (!side || !stock) return null;
-    return { stock, side, amountIn: desc.amount, recipient: getAddress(desc.dstReceiver), feeBps: Number(desc.feeAmounts[0] ?? BigInt(0)) };
+    return {
+      stock,
+      side,
+      amountIn: desc.amount,
+      recipient: getAddress(desc.dstReceiver),
+      feeRecipient: desc.feeReceivers[0] ? getAddress(desc.feeReceivers[0]) : null,
+      feeBps: Number(desc.feeAmounts[0] ?? BigInt(0)),
+    };
   } catch {
     return null;
   }

@@ -70,8 +70,13 @@ check passes, say so in one short line; do not pad.
 - The fee is off unless `SWAP_FEE_BPS` (1-100) and a valid `SWAP_FEE_RECIPIENT`
   are both set; anything that turns it on by default, raises the cap, or sends
   it elsewhere is a finding (the owner keeps it at 0 until a legal check).
-- `/api/swap/log` records only a successful router call carrying the Builder
-  Code, read from the chain, and stores a wallet hash, never the address.
+- `/api/swap/log` records only a successful router call whose calldata
+  (minus the Builder Code) matches one `/api/swap/build` returned
+  (`rememberBuiltSwap`), sent by the account it was built for; fee and size
+  come from that stored build. Never the raw address in the record.
+- `SwapPanel.tsx` sends a rebuilt swap without a new review only if it is the
+  same trade with a minimum >= the reviewed one; approvals use the reviewed
+  amount and token, not the live input.
 - If the swap code changed, `.claude/skills/verify/swap-check.mts` must still
   pass (say if it was not run).
 

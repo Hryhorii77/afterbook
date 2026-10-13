@@ -42,6 +42,7 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
   const [amount, setAmount] = useState(defaultUsd ? String(Math.round(defaultUsd)) : '');
   const [quote, setQuote] = useState<SwapQuote | null>(null);
   const [review, setReview] = useState<SwapTx | null>(null);
+  const [reviewedAt, setReviewedAt] = useState(0);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // A failed background price refresh is its own message, hidden while a review is open (the review
@@ -147,34 +148,44 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
     run('review', async () => {
       setDone(null);
       setReview(await build());
+      setReviewedAt(Date.now());
     });
 
   const confirm = () =>
     run('swap', async () => {
-      if (!address || !review || !amountIn || !publicClient) return;
+      if (!address || !review || !publicClient) return;
       if (chainId !== base.id) await switchChainAsync({ chainId: base.id });
 
+      // Everything below uses the reviewed values, never the live input field.
+      const reviewedIn = BigInt(review.quote.amountIn);
       let tx = review;
+      let stale = Date.now() - reviewedAt > 60_000;
       const { data: allowance } = await refetchAllowance();
-      if ((allowance ?? BigInt(0)) < amountIn) {
-        // Exactly this swap's amount, never unlimited, and only ever for the router.
+      if ((allowance ?? BigInt(0)) < reviewedIn) {
+        // Exactly the reviewed amount, never unlimited, and only ever for the router.
         setBusy('approve');
         const approval = await writeContractAsync({
-          address: inToken.address,
+          address: review.tokenIn,
           abi: erc20Abi,
           functionName: 'approve',
-          args: [KYBER_ROUTER, amountIn],
+          args: [KYBER_ROUTER, reviewedIn],
           chainId: base.id,
           dataSuffix: BUILDER_CODE_SUFFIX,
         });
         await publicClient.waitForTransactionReceipt({ hash: approval });
-        // Prices moved while the approval confirmed: rebuild, and stop if the floor is now more than
-        // 0.2% below the one the user reviewed (a hair of movement is normal in those few seconds).
+        stale = true;
+      }
+      if (stale) {
+        // Prices moved while the approval confirmed or the card sat open: rebuild. The wallet is only
+        // asked to sign it without a second look if it is the same trade with a minimum at least as
+        // good as the one on the card; otherwise the card shows the new numbers and asks again.
         setBusy('rebuild');
         tx = await build();
-        if (BigInt(tx.minAmountOut) * BigInt(10_000) < BigInt(review.minAmountOut) * BigInt(9_980)) {
+        const same = tx.quote.amountIn === review.quote.amountIn && tx.quote.symbol === review.quote.symbol && tx.quote.side === review.quote.side && tx.tokenIn === review.tokenIn;
+        if (!same || BigInt(tx.minAmountOut) < BigInt(review.minAmountOut)) {
           setReview(tx);
-          throw new Error('The price moved while the approval confirmed. Check the new numbers and confirm again.');
+          setReviewedAt(Date.now());
+          throw new Error('The price moved since you reviewed it. Check the new numbers and confirm again (no approval needed this time).');
         }
       }
 
@@ -295,8 +306,8 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
             </dd>
           </dl>
           <p className="geo-note">
-            Your wallet may first ask to approve exactly {fmt(review.quote.amountIn, inToken.decimals)} {inToken.symbol} for this router, then the swap. You
-            need a little ETH on Base for network fees.
+            Your wallet may first ask to approve exactly {fmt(review.quote.amountIn, inToken.decimals)} {inToken.symbol} for this router, then the swap. If the
+            price moves while that approval confirms, you see the new numbers before anything else is signed. You need a little ETH on Base for network fees.
           </p>
           <div className="basket-row">
             <button type="button" className="btn" onClick={confirm} disabled={busy !== null}>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isAddress, getAddress } from 'viem';
 import { guardSwapRequest } from '@/lib/swapGuard';
 import { buildSwap, parseSwapRequest, SwapError } from '@/lib/swap';
+import { rememberBuiltSwap } from '@/lib/swapLog';
 
 export const revalidate = 0;
 
@@ -17,7 +18,10 @@ export async function POST(request: NextRequest) {
   if (typeof req === 'string') return NextResponse.json({ error: req }, { status: 400 });
   if (typeof body.account !== 'string' || !isAddress(body.account)) return NextResponse.json({ error: 'account must be an address' }, { status: 400 });
   try {
-    return NextResponse.json(await buildSwap(req, getAddress(body.account)));
+    const account = getAddress(body.account);
+    const tx = await buildSwap(req, account);
+    await rememberBuiltSwap(tx, account);
+    return NextResponse.json(tx);
   } catch (err) {
     return NextResponse.json({ error: err instanceof SwapError ? err.message : 'could not build the swap' }, { status: err instanceof SwapError ? err.status : 502 });
   }

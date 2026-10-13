@@ -1,17 +1,38 @@
 // Server-verified log of in-app swaps, for the product metrics (traders, volume, fees, Builder Code
 // transactions). A browser only reports a transaction hash; everything recorded is read back from
-// the chain, and only a successful call to KYBER_ROUTER between USDC and a tracked stock that carries
-// Afterbook's Builder Code counts. Wallets are stored as a short hash of the address: enough to count
-// unique traders, never listed.
+// the chain, and a swap counts only if its calldata is one this server built and checked
+// (rememberBuiltSwap, keyed by keccak256 of the calldata, kept 2 hours), it succeeded, it was sent to
+// KYBER_ROUTER by the account it was built for, and it carries Afterbook's Builder Code. The fee and
+// size come from that stored build, so a hand-made router call cannot inflate the numbers. Wallets are
+// stored as a short pseudonymous hash, enough to count unique traders; it is not a privacy guarantee
+// (anyone can hash a known address).
 import { createHash } from 'node:crypto';
-import { decodeEventLog, erc20Abi, getAddress, type Hex } from 'viem';
+import { decodeEventLog, erc20Abi, getAddress, keccak256, type Hex } from 'viem';
 import { BUILDER_CODE_SUFFIX } from './builderCode';
 import { getClient } from './quote';
 import { redis } from './redis';
-import { decodeSwapCall, KYBER_ROUTER } from './swap';
+import { decodeSwapCall, KYBER_ROUTER, MAX_SWAP_USD, type SwapTx } from './swap';
 import { USDC } from './tokens';
 
 const KEY = (hash: string) => `swap:${hash.toLowerCase()}`;
+const BUILT = (data: Hex) => `swapbuild:${keccak256(data)}`;
+const BUILT_TTL_S = 2 * 60 * 60;
+
+interface BuiltSwap {
+  account: string;
+  symbol: string;
+  side: 'buy' | 'sell';
+  feeBps: number;
+  amountInUsd: number;
+}
+
+/** Called by /api/swap/build for every transaction it returns, so the log can tell our swaps from any
+ *  other router call that happens to carry the (public) Builder Code. */
+export async function rememberBuiltSwap(tx: SwapTx, account: `0x${string}`): Promise<void> {
+  if (!redis) return;
+  const built: BuiltSwap = { account, symbol: tx.quote.symbol, side: tx.quote.side, feeBps: tx.quote.feeBps, amountInUsd: tx.quote.amountInUsd };
+  await redis.set(BUILT(tx.data), built, { ex: BUILT_TTL_S });
+}
 const INDEX = 'swaps';
 const TTL_S = 400 * 24 * 60 * 60;
 
@@ -39,13 +60,21 @@ export async function logSwap(hash: Hex): Promise<LogResult> {
   const [tx, receipt] = await Promise.all([client.getTransaction({ hash }), client.getTransactionReceipt({ hash })]);
   if (receipt.status !== 'success') return { ok: false, reason: 'transaction failed or pending' };
   if (!tx.to || getAddress(tx.to) !== KYBER_ROUTER) return { ok: false, reason: 'not a swap through the Afterbook router' };
-  if (!tx.input.toLowerCase().endsWith(BUILDER_CODE_SUFFIX.slice(2).toLowerCase())) return { ok: false, reason: 'not sent from Afterbook' };
+  const suffix = BUILDER_CODE_SUFFIX.slice(2).toLowerCase();
+  const input = tx.input.toLowerCase();
+  if (!input.endsWith(suffix)) return { ok: false, reason: 'not sent from Afterbook' };
+  const built = await redis.get<BuiltSwap>(BUILT(input.slice(0, input.length - suffix.length) as Hex));
+  if (!built) return { ok: false, reason: 'not a swap Afterbook built' };
+  if (getAddress(tx.from) !== getAddress(built.account)) return { ok: false, reason: 'sent by a different account' };
   const call = decodeSwapCall(tx.input);
-  if (!call) return { ok: false, reason: 'not a tracked stock swap' };
+  if (!call || call.recipient !== getAddress(built.account)) return { ok: false, reason: 'not a tracked stock swap' };
 
   // USD size: the USDC sold on a buy; on a sell, the USDC that reached the recipient (after any fee).
   let usd = Number(call.amountIn) / 10 ** USDC.decimals;
   if (call.side === 'sell') {
+    // USDC that reached the recipient in this transaction (from the router when a fee is taken, else
+    // straight from KyberSwap's executor; the calldata is one we built, so the route is KyberSwap's).
+
     let received = BigInt(0);
     for (const log of receipt.logs) {
       if (getAddress(log.address) !== getAddress(USDC.address)) continue;
@@ -58,6 +87,7 @@ export async function logSwap(hash: Hex): Promise<LogResult> {
     }
     usd = Number(received) / 10 ** USDC.decimals;
   }
+  usd = Math.min(usd, MAX_SWAP_USD);
   const block = await client.getBlock({ blockNumber: receipt.blockNumber });
   const record: SwapRecord = {
     hash: hash.toLowerCase(),
@@ -65,8 +95,8 @@ export async function logSwap(hash: Hex): Promise<LogResult> {
     symbol: call.stock.symbol,
     side: call.side,
     usd,
-    feeBps: call.feeBps,
-    feeUsd: (usd * call.feeBps) / 10_000,
+    feeBps: built.feeBps,
+    feeUsd: (usd * built.feeBps) / 10_000,
     wallet: walletId(tx.from),
   };
   const created = await redis.set(KEY(hash), record, { nx: true, ex: TTL_S });
