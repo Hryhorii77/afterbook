@@ -158,6 +158,9 @@ export default async function TodayPage() {
 
                 {headlineBp != null && (
                   <div className="hero-actions">
+                    <Link href={`/${headline.symbol}#execute`} className="btn">
+                      Trade {headline.symbol}
+                    </Link>
                     <ShareButton
                       path="/today"
                       card={{ page: 'today', sym: headline.symbol }}

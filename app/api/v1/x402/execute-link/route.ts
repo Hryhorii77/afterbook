@@ -79,7 +79,8 @@ async function handler(request: NextRequest) {
 // actually executes would risk an agent burning real gas on a revert — the
 // same verified deep link the human UI already uses is the responsible
 // thing to hand back instead. An agent's own execution layer opens/submits
-// it; this app still never constructs calldata or touches a key.
+// it; this route never returns calldata or touches a key (in-app swaps are a separate, browser-only
+// flow with their own checks, lib/swap.ts).
 export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configured
   ? withX402<unknown>(
       handler,

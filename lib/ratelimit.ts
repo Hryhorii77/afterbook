@@ -35,3 +35,9 @@ export const basketLimiter = redis
 export const shareLimiter = redis
   ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '10 m'), prefix: 'ratelimit:share' })
   : null;
+
+// /api/swap/* calls KyberSwap's public API (3 requests/s shared by every visitor, from our server's IP),
+// so one visitor's open swap panel (a quote every 15 s plus builds) must not use it up for everyone.
+export const swapLimiter = redis
+  ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(30, '1 m'), prefix: 'ratelimit:swap' })
+  : null;

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
+import { SwapPanel } from './SwapPanel';
 import type { TapeResult, TapeRow } from '@/lib/tape';
 import { splitByLiquidity, isLiquid, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
 import type { GeoInfo } from '@/lib/geo';
@@ -1432,7 +1433,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         )}
       </section>
 
-      <section className="panel">
+      <section className="panel" id="execute">
         <h2>Execute</h2>
         {quote && (
           // Visible regardless of the eligibility checkbox below — a user
@@ -1457,16 +1458,26 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           />
           I confirm I am not a US person and am eligible under my local law to trade tokenized equities.
         </label>
-        <div className="actions">
-          {unlocked ? (
-            <>
+        {unlocked ? (
+          <SwapPanel key={activeStock.symbol} stock={activeStock} defaultUsd={quote?.usdcIn} />
+        ) : (
+          <div className="actions">
+            <button className="btn" disabled>
+              Buy {activeStock.symbol}
+            </button>
+          </div>
+        )}
+        {unlocked && (
+          <details className="geo-more">
+            <summary>Or trade on Aerodrome&apos;s own site</summary>
+            <div className="actions">
               {quote && (
                 <button type="button" className="btn btn-secondary" onClick={copyAmount}>
                   {amountCopied ? 'Copied ✓' : `Copy ${usd(quote.usdcIn, 0)}`}
                 </button>
               )}
               <a
-                className="btn"
+                className="btn btn-secondary"
                 href={aerodromeSwapUrl(activeStock)}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -1483,46 +1494,39 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               >
                 Add {activeStock.symbol} liquidity
               </a>
-            </>
-          ) : (
-            <>
-              <button className="btn" disabled>
-                Open {activeStock.symbol} on Aerodrome
-              </button>
-              <button className="btn btn-secondary" disabled>
-                Add {activeStock.symbol} liquidity
-              </button>
-            </>
-          )}
-        </div>
-        {unlocked && quote && (
-          // Aerodrome's swap URL has no amount param (verified live), so the
-          // deep link alone leaves the user guessing what to paste where.
-          // Spelling out the 3 clicks beats a silent assumption they'll
-          // figure it out — this is the actual last-mile drop-off, not the
-          // math above it.
-          <ol className="paste-checklist">
-            <li>
-              Copy <strong>{usd(quote.usdcIn, 0)}</strong> — the button above puts it on your clipboard.
-            </li>
-            <li>Open {activeStock.symbol} on Aerodrome — the token pair is already selected.</li>
-            <li>
-              Paste into the USDC amount field, confirm, and sign in your own wallet — this app never touches
-              it.
-            </li>
-          </ol>
+            </div>
+            {quote && (
+              // Aerodrome's swap URL has no amount param (verified live), so the
+              // deep link alone leaves the user guessing what to paste where.
+              // Spelling out the 3 clicks beats a silent assumption they'll
+              // figure it out — this is the actual last-mile drop-off, not the
+              // math above it.
+              <ol className="paste-checklist">
+                <li>
+                  Copy <strong>{usd(quote.usdcIn, 0)}</strong> — the button above puts it on your clipboard.
+                </li>
+                <li>Open {activeStock.symbol} on Aerodrome — the token pair is already selected.</li>
+                <li>
+                  Paste into the USDC amount field, confirm, and sign in your own wallet — this app never touches
+                  it.
+                </li>
+              </ol>
+            )}
+          </details>
         )}
-        {!eligibleChecked && geo.nonUs && <p className="geo-note">Confirm eligibility to open Aerodrome.</p>}
+        {!eligibleChecked && geo.nonUs && <p className="geo-note">Confirm eligibility to trade.</p>}
         <p className={`geo-note${geo.country === 'US' ? ' geo-note-blocked' : ''}`} style={{ marginBottom: 2 }}>
           {geo.country === 'US' ? 'Not available in the US.' : geo.country ? `Detected region: ${geo.country}.` : 'Region could not be detected.'}{' '}
-          Button opens Aerodrome in a new tab.
+          Trades are signed in your own wallet; Afterbook never holds your funds.
         </p>
         <details className="geo-more">
           <summary>More</summary>
           <p className="geo-note">
             This is a best-effort geofence based on IP country, not a compliance control — it does not stop a
-            VPN.{geo.country === 'US' && ' Execution stays locked regardless of the checkbox above.'} No wallet
-            ever signs anything here; the button only opens Aerodrome&apos;s own app in a new tab.
+            VPN.{geo.country === 'US' && ' Execution stays locked regardless of the checkbox above.'} Buying and
+            selling here sends a swap from your own wallet through KyberSwap&apos;s router (it splits the trade across
+            Aerodrome and other Base pools). Afterbook builds the transaction, checks every field before your wallet
+            sees it, and never holds funds; approvals are for the exact amount only.
           </p>
         </details>
         <p className="geo-note contract-info">
