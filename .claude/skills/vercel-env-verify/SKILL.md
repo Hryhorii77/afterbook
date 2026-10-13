@@ -83,7 +83,6 @@ placeholder `<`/`>`).
 ## Also watch for
 
 Unrelated build breakage surfacing during this sequence isn't
-necessarily connected to the env var — e.g. `vercel deploy --prod` once
-failed here because of a missing `.vercelignore` letting an unrelated
-Foundry `lib/` tree into the Next.js typecheck. Read the actual build
-error rather than assuming it's about the env var change.
+necessarily connected to the env var (a redeploy builds whatever is on
+`main`). Read the actual build error rather than assuming it's about the
+env var change.

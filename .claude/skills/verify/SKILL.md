@@ -5,10 +5,6 @@ description: Build/launch/drive recipe for verifying changes to the afterbook Ne
 
 # Verifying afterbook (Next.js app)
 
-This is the root Next.js app (see project `CLAUDE.md` — do not confuse
-with `contracts/jensen-buyback-burn/`, which is a separate Foundry
-project with its own verify workflow).
-
 ## Launch
 
 ```bash

@@ -1,19 +1,8 @@
 # Afterbook — working conventions
 
-This repo holds **two independent projects** that must never be treated as
-one:
-
-1. **The Next.js app** (root — `app/`, `lib/`, `middleware.ts`, etc.) —
-   deploys to Vercel as afterbook.app. See `README.md` for what it does and
-   why; that file is the product/architecture reference, not this one.
-2. **`contracts/jensen-buyback-burn/`** — a standalone Foundry project.
-   Different toolchain, different deploy path, no shared config. See its
-   own `CLAUDE.md` and `README.md`. **Never let it leak into the Next.js
-   build** — `tsconfig.json`'s `exclude` and the root `.vercelignore` both
-   deliberately exclude `contracts/`; a vendored Foundry `lib/` tree full
-   of `.ts` scripts broke `npm run build` once already when those weren't
-   in place. If either exclusion is ever removed, expect the build to
-   break again the moment `contracts/*/lib/` is populated locally.
+This repo is **the Next.js app** (`app/`, `lib/`, `middleware.ts`, etc.),
+deployed to Vercel as afterbook.app. See `README.md` for what it does and
+why; that file is the product/architecture reference, not this one.
 
 ## Verifying changes
 
@@ -114,7 +103,7 @@ No lint script, no test suite. To verify a change actually works:
 ## Secrets and deploy safety
 
 - Never type or paste a private key into this session. Any command that
-  touches a raw key (contract deploys, `cast wallet import`) must be run
+  touches a raw key (a contract deploy, `cast wallet import`) must be run
   by the user in their own terminal — walk them through it, don't run it
   yourself even if asked to.
 - The x402 payout address (`X402_PAYOUT_ADDRESS`) is a **public** wallet/
@@ -127,18 +116,14 @@ No lint script, no test suite. To verify a change actually works:
   explain what was being attempted and offer the dashboard-UI path (same
   pattern used for the CDP keys) or ask the user to grant a Bash
   permission rule.
-- Before any push: confirm nothing suspicious is staged, especially
-  broadcast/deploy artifacts from the Foundry project (`git status`
-  after a broad `git add`, spot-check diffs). Real (non-dry-run) Foundry
-  broadcast records are meant to be committed — see the contracts
-  project's `.gitignore` comment — but check their contents don't
-  contain a raw key before staging (they shouldn't; `forge script`
-  doesn't write one there, but verify rather than assume).
+- Before any push: confirm nothing suspicious is staged (env files,
+  scratch files, anything holding a key): `git status` after a broad
+  `git add`, and spot-check the diff.
 
 ## Permission rules (`.claude/settings.json`, checked in)
 
 The "never do this on your own" rules above are also enforced as permission rules, so they don't depend on remembering them:
-- **Always asks first:** `vercel deploy --prod`, `vercel env add/rm/pull`, `forge script --broadcast`, `gh pr merge`, and any `curl` to `/api/cron/basket-tilt` (including the `?dry=1` form, which is read-only; just approve it).
+- **Always asks first:** `vercel deploy --prod`, `vercel env add/rm/pull`, `gh pr merge`, and any `curl` to `/api/cron/basket-tilt` (including the `?dry=1` form, which is read-only; just approve it).
 - **Denied outright:** `cast wallet` (raw keys), and any `curl` to `/api/cron/alerts` or `/api/telegram/webhook` (they would act on the shared production Redis and Telegram).
 - An ask rule beats an allow, so `.claude/settings.local.json` allowing `vercel deploy*` does not skip the production prompt.
 - Limits: these match the command text, so a different tool (`wget`, a script) is not covered. Don't use that to get around a rule; hand the step to the user.

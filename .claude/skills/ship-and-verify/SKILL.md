@@ -43,8 +43,8 @@ say so in the PR.
 
 ## 4. Commit and open the PR
 
-- `git add` named paths, then `git status --short` and read it. Nothing from
-  `contracts/` broadcast folders, no env files, no scratch files.
+- `git add` named paths, then `git status --short` and read it. No env
+  files, no scratch files.
 - **Write the commit message and the PR body to files** (with the Write
   tool) and use `git commit -F <file>` and `gh pr create --body-file <file>`.
   The secrets hook scans the whole Bash command and blocks text that mentions
