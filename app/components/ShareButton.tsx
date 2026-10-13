@@ -55,7 +55,8 @@ interface ShareButtonProps {
   card: CardSpec;
   /** File name for "Download card". */
   fileName: string;
-  /** The sentence that goes with the link: facts only, no advice. */
+  /** The sentence that goes with the link: facts only, no advice. Used only if the server can't
+   *  take a snapshot; normally the sentence comes back with the snapshot (lib/shareSnapshot.ts). */
   text: string;
 }
 
@@ -67,6 +68,8 @@ export function ShareButton({ path, card, fileName, text }: ShareButtonProps) {
   const [copied, setCopied] = useState(false);
   const [origin, setOrigin] = useState('https://afterbook.app');
   const [stamp, setStamp] = useState('');
+  const [shareText, setShareText] = useState(text);
+  const [preparing, setPreparing] = useState(false);
   const [canNativeShare, setCanNativeShare] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const theme = useTheme();
@@ -105,7 +108,35 @@ export function ShareButton({ path, card, fileName, text }: ShareButtonProps) {
   const qs = q.toString();
   const url = `${origin}${path}${qs ? `?${qs}` : ''}`;
   const imageHref = cardPath(card, { theme, s: stamp || undefined });
-  const xHref = `https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+  const xHref = `https://x.com/intent/post?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(url)}`;
+
+  // Each share freezes its numbers on the server: the sentence and the card then come from the
+  // same tape read, so a post can't say 8.0 bp over a card drawn seconds later at 2.8 bp. If that
+  // fails (no store, rate limit, slow), fall back to the on-screen sentence and a live card.
+  const prepare = async () => {
+    setStamp(Date.now().toString(36));
+    setShareText(text);
+    setPreparing(true);
+    try {
+      const res = await fetch('/api/share', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ card }),
+        signal: AbortSignal.timeout(6000),
+      });
+      if (res.ok) {
+        const snap = (await res.json()) as { id?: string; text?: string };
+        if (snap.id && snap.text) {
+          setStamp(snap.id);
+          setShareText(snap.text);
+        }
+      }
+    } catch {
+      // keep the fallback
+    } finally {
+      setPreparing(false);
+    }
+  };
 
   const copyLink = async () => {
     try {
@@ -119,7 +150,7 @@ export function ShareButton({ path, card, fileName, text }: ShareButtonProps) {
 
   const nativeShare = async () => {
     try {
-      await navigator.share({ title: 'Afterbook', text, url });
+      await navigator.share({ title: 'Afterbook', text: shareText, url });
       setOpen(false);
     } catch {
       // Cancelled by the person, or not allowed: nothing to do.
@@ -132,7 +163,7 @@ export function ShareButton({ path, card, fileName, text }: ShareButtonProps) {
         type="button"
         className="btn btn-secondary"
         onClick={() => {
-          setStamp(Date.now().toString(36));
+          if (!open) void prepare();
           setOpen((o) => !o);
         }}
         aria-expanded={open}
@@ -145,7 +176,13 @@ export function ShareButton({ path, card, fileName, text }: ShareButtonProps) {
       </button>
 
       {open && (
-        <div className="share-panel" role="dialog" aria-label="Share">
+        <div className="share-panel" role="dialog" aria-label="Share" aria-busy={preparing}>
+          {preparing ? (
+            <p className="share-item share-preparing" role="status">
+              Freezing the numbers…
+            </p>
+          ) : (
+          <>
           {canNativeShare && (
             <button type="button" className="share-item" onClick={nativeShare}>
               <ShareIcon />
@@ -164,6 +201,8 @@ export function ShareButton({ path, card, fileName, text }: ShareButtonProps) {
             <DownloadIcon />
             Download card
           </a>
+          </>
+          )}
         </div>
       )}
     </div>

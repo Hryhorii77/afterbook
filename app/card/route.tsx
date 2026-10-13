@@ -3,15 +3,28 @@ import { buildBasketOgImage, buildOgImage, buildTodayOgImage } from '@/lib/ogIma
 import { parseTheme } from '@/lib/cardUrl';
 import { getStock } from '@/lib/tokens';
 import { parseSpec } from '@/lib/customBasket';
+import { getShareSnapshot } from '@/lib/shareSnapshot';
 
 export const dynamic = 'force-dynamic';
 
 // Every share card: link previews (each page's og:image / twitter:image, see lib/cardUrl.ts)
 // and the share panel's "Download card". Query: page=home|stock|today|build, sym, spec,
-// theme=light (dark otherwise). `v` and `s` only make the URL unique for link-preview caches.
+// theme=light (dark otherwise). `s` is a share's id: when it names a stored snapshot the card is
+// drawn from those frozen numbers (the same ones the post's sentence used); otherwise from the live
+// tape. `v` only makes the URL unique for link-preview caches.
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams;
   const theme = parseTheme(q.get('theme'));
+
+  const snap = await getShareSnapshot(q.get('s') ?? '');
+  if (snap) {
+    const frozen = { tape: snap.tape, takenAt: snap.takenAt, basketCostBp: snap.basketCostBp };
+    const card = snap.card;
+    if (card.page === 'stock') return buildOgImage(card.sym, theme, frozen);
+    if (card.page === 'today') return buildTodayOgImage(card.sym, theme, frozen);
+    if (card.page === 'build') return buildBasketOgImage(card.spec, theme, frozen);
+  }
+
   const sym = q.get('sym');
   const stock = sym ? getStock(sym) : undefined;
 

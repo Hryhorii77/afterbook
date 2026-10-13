@@ -2123,6 +2123,8 @@ footer {
   cursor: pointer;
 }
 .share-item:hover { background: var(--overlay-3); }
+.share-item.share-preparing { margin: 0; color: var(--text-dim); cursor: default; }
+.share-item.share-preparing:hover { background: transparent; }
 
 /* A long address in a note (the Baskets deposit address) must wrap instead of pushing past its
    card, which on phones under ~370px made the whole page scroll sideways. */

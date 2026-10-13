@@ -13,6 +13,7 @@ import { getBuyQuoter } from '@/lib/lotQuote';
 import { getOpenSnapStats, STATS_LOOKBACK_MS, type OpenSnapStats } from '@/lib/history';
 import { shareMetadata } from '@/lib/shareMeta';
 import { firstParam } from '@/lib/cardUrl';
+import { todayShareText } from '@/lib/shareText';
 
 // Forces a fresh getTape() read (bounded by its own 20s cache) on every
 // request rather than a stale, build-time-frozen number — same reasoning as
@@ -161,7 +162,7 @@ export default async function TodayPage() {
                       path="/today"
                       card={{ page: 'today', sym: headline.symbol }}
                       fileName={`afterbook-biggest-gap-${headline.symbol}.png`}
-                      text={`${headline.symbol} is trading ${gapSizeText(headlineBp)} ${headlineBp >= 0 ? 'above' : 'below'} the cash ${marketOpen ? 'price' : 'close'} on Aerodrome.`}
+                      text={todayShareText(headline.symbol, headlineBp, marketOpen)}
                     />
                   </div>
                 )}

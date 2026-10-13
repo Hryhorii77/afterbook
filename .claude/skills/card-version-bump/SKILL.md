@@ -52,7 +52,10 @@ nothing about how the card looks.
   minute; the card once showed AAPLc under a post about METAc).
 - The theme is the sharer's (`theme=light` when they had light on), not the
   viewer's: a card is one PNG.
-- Don't strip the per-share `s` stamp: it makes each share a new URL, so its
+- `s` is a share's snapshot id (`lib/shareSnapshot.ts`): the card for that link
+  draws from the tape frozen when Share was clicked, the same numbers as the
+  post's sentence. Never take a card's numbers from the URL. Don't strip `s`:
+  it also makes each share a new URL, so its
   card is fetched at share time with live numbers.
 - New pages get their preview from `shareMetadata(...)`; a page that sets
   `openGraph` by hand without `images` loses its card.

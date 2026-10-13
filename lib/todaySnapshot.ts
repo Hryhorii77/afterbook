@@ -44,7 +44,7 @@ function pickHeadline(rows: TapeRow[], useCloseBasis: boolean): TapeRow | null {
   return best;
 }
 
-export function buildTodaySnapshot(tape: TapeResult): TodaySnapshot {
+export function buildTodaySnapshot(tape: Pick<TapeResult, 'rows' | 'session'>): TodaySnapshot {
   const marketOpen = tape.session.state === 'open';
   const { liquid, thin } = splitByLiquidity(tape.rows);
 

@@ -17,6 +17,7 @@ import { SymbolTile } from './SymbolTile';
 import { ShareButton } from './ShareButton';
 import { MiniSpark } from './MiniSpark';
 import { SessionPill } from './SessionPill';
+import { heroGapBp, heroReferenceLabel, shortName, stockShareText } from '@/lib/shareText';
 
 interface CurvePoint {
   usdcIn: number;
@@ -167,10 +168,6 @@ const MIN_TREND_DAYS = 3;
 
 // "NVIDIA Corporation" -> "NVIDIA (NVDA)". The ticker keeps names that are also plain words
 // ("Strategy") unambiguous; very long names fall back to the ticker alone.
-function shortName(row: { name: string; cashTicker: string }): string {
-  const name = row.name.replace(/(?:[, ]+(?:Inc\.?|Corporation|Corp\.?|Co\.?))+$/i, '').trim();
-  return name && name.length <= 22 ? `${name} (${row.cashTicker})` : row.cashTicker;
-}
 
 const pct = (n: number) => `${Math.abs(n).toFixed(2)}%`;
 
@@ -693,34 +690,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   // While the cash market is shut the headline gap is anchored to the actual close (same
   // basis /today uses), not a live extended-hours print, so the sentence below, the big
   // number and /today never disagree about the same instant.
-  const heroBp =
-    activeRow == null
-      ? null
-      : tape.session.state.startsWith('closed') && activeRow.closeUsd != null && activeRow.onchainMidUsd != null
-        ? ((activeRow.onchainMidUsd - activeRow.closeUsd) / activeRow.closeUsd) * 10_000
-        : activeRow.basisBp;
-  const closeWeekday =
-    cashClosedAsOfMs > 0
-      ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long' }).format(new Date(cashClosedAsOfMs))
-      : null;
+  const heroBp = heroGapBp(activeRow, tape.session);
   // Before the open and after the close the row only holds an extended-hours price when Yahoo
   // had a real print (cashPriceType). Without one, "cash" is still the last regular close, so
   // the label must say so instead of claiming a pre-market / after-hours price.
   const onExtendedPrint = activeRow?.cashPriceType === 'pre-market' || activeRow?.cashPriceType === 'after-hours';
   const usingClose = tape.session.state.startsWith('closed') || (tape.session.state !== 'open' && !onExtendedPrint);
-  const referenceLabel =
-    tape.session.state === 'open'
-      ? 'the cash price'
-      : usingClose
-        ? closeWeekday
-          ? `${closeWeekday}’s close`
-          : 'the cash close'
-        : `the cash ${extendedName} price`;
-  // The line that goes with a shared link: the hero sentence's wording, facts only.
-  const shareText =
-    activeRow && heroBp != null
-      ? `${shortName(activeRow)} is trading ${gapSizeText(heroBp)} ${heroBp >= 0 ? 'above' : 'below'} ${referenceLabel} on Aerodrome.`
-      : 'Cash close vs the Aerodrome price for Coinbase tokenized stocks on Base.';
+  const referenceLabel = heroReferenceLabel(activeRow, tape);
   const heroCashLabel = tape.session.state === 'open' ? 'Cash price' : usingClose ? 'Cash close' : `Cash ${extendedName}`;
 
   const selectSymbol = (sym: string) => {
@@ -876,7 +852,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               path={`/${activeRow.symbol}`}
               card={{ page: 'stock', sym: activeRow.symbol }}
               fileName={`afterbook-${activeRow.symbol}.png`}
-              text={shareText}
+              text={stockShareText(activeRow, tape)}
             />
             <a className="emph-link" href="https://t.me/afterbook_bot" target="_blank" rel="noopener noreferrer">
               Get alerts on Telegram ↗
