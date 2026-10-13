@@ -43,8 +43,9 @@ say so in the PR.
 
 When `package.json` or `package-lock.json` changes, also run `npm audit
 --omit=dev` and compare with the last known state in the README's
-"Security model" (as of 2026-10-13: 0 critical, 1 high and 23 moderate, all
-in the wagmi 2 / WalletConnect wallet stack). A new critical or high
+"Security model" (as of 2026-10-13: 0 critical, 0 high and 16 moderate, one
+`decode-uri-component` advisory inside WalletConnect; `ws` and `uuid` are pinned
+by `overrides` in `package.json`). A new critical or high
 outside that stack is fixed in the same PR or reported to the owner.
 
 ## 4. Commit and open the PR
