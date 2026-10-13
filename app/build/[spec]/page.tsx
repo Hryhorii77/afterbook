@@ -12,6 +12,7 @@ import { parseSpec, formatSpec, basketLabel, basketGapBp, basketReferenceLabel, 
 import { getBasketCost, MAX_COST_BP } from '@/lib/basketCost';
 import { bp, usd, usdCompact, gapSizeText, formatNextOpen } from '@/lib/format';
 import { shareMetadata } from '@/lib/shareMeta';
+import { basketShareText } from '@/lib/shareText';
 
 // Live tape and pool reads on every request (each cached 20–60s
 // underneath), same as /today and /borrow.
@@ -56,10 +57,7 @@ export default async function BuildPage({ params }: PageProps) {
     .sort((a, b) => Number(a.thin) - Number(b.thin) || b.depth - a.depth)
     .map(({ symbol, thin }) => ({ symbol, thin }));
 
-  const shareText =
-    gap != null
-      ? `My custom basket (${basketLabel(legs)}) is trading ${gapSizeText(gap)} ${gap >= 0 ? 'above' : 'below'} ${reference} on Aerodrome.`
-      : `My custom basket of Base tokenized stocks: ${basketLabel(legs)}.`;
+  const shareText = basketShareText(legs, gap, reference);
 
   return (
     <main>

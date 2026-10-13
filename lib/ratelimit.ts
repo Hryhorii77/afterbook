@@ -29,3 +29,9 @@ export const clickLimiter = redis
 export const basketLimiter = redis
   ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '1 m'), prefix: 'ratelimit:baskets' })
   : null;
+
+// Share snapshots (lib/shareSnapshot.ts) are a public write that stores ~5 KB per share for 30
+// days: generous for a person sharing, tight enough that one client can't fill the store.
+export const shareLimiter = redis
+  ? new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(20, '10 m'), prefix: 'ratelimit:share' })
+  : null;

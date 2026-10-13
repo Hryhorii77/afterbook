@@ -11,6 +11,22 @@ import { getStock } from './tokens';
 import { parseSpec, basketGapBp, basketReferenceLabel } from './customBasket';
 import { getBasketCost } from './basketCost';
 import type { CardTheme } from './cardUrl';
+import type { TapeResult } from './tape';
+import { heroGapBp } from './shareText';
+
+/** A share's frozen numbers (lib/shareSnapshot.ts). Without one a card reads the live tape. */
+export interface FrozenCard {
+  tape: Pick<TapeResult, 'rows' | 'session'>;
+  takenAt: number;
+  basketCostBp?: number | null;
+}
+
+/** "Cash market open · 09:58 ET": the session plus the moment the numbers are from. */
+function stampLabel(sessionLabel: string, atMs: number): string {
+  if (!sessionLabel) return '';
+  const t = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(atMs));
+  return `${sessionLabel} · ${t} ET`;
+}
 
 // Card colours per theme: dark is the site's dark look, light uses the light tokens in
 // app/globals.css. The person sharing picks it (whatever theme they had on), not the viewer.
@@ -83,17 +99,22 @@ const bp = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.t
  * subject instead of six, so a tweet linking a specific name shows that
  * name's actual numbers instead of a generic grid it isn't part of.
  */
-export async function buildOgImage(symbol?: string, theme: CardTheme = 'dark') {
+export async function buildOgImage(symbol?: string, theme: CardTheme = 'dark', frozen?: FrozenCard) {
   const c = PALETTES[theme];
   let rows: Awaited<ReturnType<typeof getTape>>['rows'] = [];
   let sessionLabel = '';
   let focusRow: Awaited<ReturnType<typeof getTape>>['rows'][number] | null = null;
+  let focusBp: number | null = null;
+  let focusCashUsd: number | null = null;
   try {
-    const tape = await getTape();
-    sessionLabel = tape.session.label;
+    const tape = frozen?.tape ?? (await getTape());
+    sessionLabel = stampLabel(tape.session.label, frozen?.takenAt ?? Date.now());
 
     if (symbol) {
       focusRow = tape.rows.find((r) => r.symbol.toLowerCase() === symbol.toLowerCase()) ?? null;
+      // The page's own headline number and the cash price it is measured against (lib/shareText.ts).
+      focusBp = heroGapBp(focusRow, tape.session);
+      focusCashUsd = tape.session.state.startsWith('closed') ? focusRow?.closeUsd ?? null : focusRow?.cashLastUsd ?? null;
     } else {
       // Cards render in a single row — fine for 4 stocks, illegible for 10.
       // A thin pool's basis swings hundreds of bp on noise alone, so sorting
@@ -139,14 +160,14 @@ export async function buildOgImage(symbol?: string, theme: CardTheme = 'dark') {
               fontSize: 88,
               fontWeight: 700,
               marginTop: 8,
-              color: gapColor(c, focusRow.basisBp),
+              color: gapColor(c, focusBp),
             }}
           >
-            {bp(focusRow.basisBp)}
+            {bp(focusBp)}
           </span>
 
           <div style={{ display: 'flex', gap: 32, marginTop: 12, fontSize: 28, color: c.dim }}>
-            <span>cash {usd(focusRow.cashLastUsd)}</span>
+            <span>cash {usd(focusCashUsd)}</span>
             <span>aero {usd(focusRow.onchainMidUsd)}</span>
           </div>
 
@@ -274,7 +295,7 @@ function tileColors(cashTicker: string): { background: string; color: string } {
 function CardFooter({ c }: { c: Palette }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto', fontSize: 20, color: c.footer }}>
-      No wallet connect. Execution stays on Aerodrome.
+      Trades execute on Aerodrome. Afterbook never holds your funds.
     </div>
   );
 }
@@ -312,7 +333,7 @@ function StockIcon({ icon, cashTicker }: { icon: string | null; cashTicker: stri
  *  around. A shared link pins `symbol` to the stock the page showed when it
  *  was shared: two names a few tenths of a bp apart swap the lead minute to
  *  minute, and the card used to show a different stock from the post. */
-export async function buildTodayOgImage(symbol?: string, theme: CardTheme = 'dark') {
+export async function buildTodayOgImage(symbol?: string, theme: CardTheme = 'dark', frozen?: FrozenCard) {
   const c = PALETTES[theme];
   let sessionLabel = '';
   let headline: Awaited<ReturnType<typeof getTape>>['rows'][number] | null = null;
@@ -321,8 +342,8 @@ export async function buildTodayOgImage(symbol?: string, theme: CardTheme = 'dar
   let fade: string | null = null;
   let icon: string | null = null;
   try {
-    const tape = await getTape();
-    sessionLabel = tape.session.label;
+    const tape = frozen?.tape ?? (await getTape());
+    sessionLabel = stampLabel(tape.session.label, frozen?.takenAt ?? Date.now());
     marketOpen = tape.session.state === 'open';
     const snapshot = buildTodaySnapshot(tape);
     const pinned = symbol ? tape.rows.find((r) => r.symbol.toLowerCase() === symbol.toLowerCase()) : undefined;
@@ -396,7 +417,7 @@ export async function buildTodayOgImage(symbol?: string, theme: CardTheme = 'dar
 /** A custom basket's card (app/build/[spec]): its 2–4 legs with weights, the
  *  weighted gap the page leads with, and the cost to buy $10k of it. Same
  *  numbers and wording as the page (lib/customBasket.ts, lib/basketCost.ts). */
-export async function buildBasketOgImage(spec: string, theme: CardTheme = 'dark') {
+export async function buildBasketOgImage(spec: string, theme: CardTheme = 'dark', frozen?: FrozenCard) {
   const c = PALETTES[theme];
   const legs = parseSpec(spec);
   let sessionLabel = '';
@@ -406,11 +427,13 @@ export async function buildBasketOgImage(spec: string, theme: CardTheme = 'dark'
   let icons: (string | null)[] = [];
   if (legs) {
     try {
-      const [tape, cost] = await Promise.all([getTape(), getBasketCost(legs).catch(() => null)]);
-      sessionLabel = tape.session.label;
+      const [tape, cost] = frozen
+        ? [frozen.tape, null]
+        : await Promise.all([getTape(), getBasketCost(legs).catch(() => null)]);
+      sessionLabel = stampLabel(tape.session.label, frozen?.takenAt ?? Date.now());
       gap = basketGapBp(legs, tape.rows, tape.session.state);
       reference = basketReferenceLabel(legs, tape.rows, tape.session.state);
-      costBp = cost?.points.find((p) => p.usd === 10_000)?.costBp ?? null;
+      costBp = frozen ? frozen.basketCostBp ?? null : cost?.points.find((p) => p.usd === 10_000)?.costBp ?? null;
       icons = await Promise.all(legs.map((l) => iconDataUri(getStock(l.symbol)!.cashTicker)));
     } catch {
       // fall through to legs-only card
