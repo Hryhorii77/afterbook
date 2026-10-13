@@ -1,55 +1,58 @@
 ---
 name: card-version-bump
-description: Bump the share-card version after any change to lib/ogImage.tsx, so X and Telegram stop showing the old link-preview card. Use whenever lib/ogImage.tsx (the card layout, text or fonts) changes, before committing; also run its check before opening a PR.
+description: Bump the share-card version after any change to lib/ogImage.tsx, so X and Telegram stop showing the old link-preview card. Use whenever lib/ogImage.tsx (the card layout, colours, text or fonts) changes, before committing; also run its check before opening a PR.
 ---
 
 # Share-card version bump
 
-**Why:** the link-preview image URL is `/<route>/opengraph-image?<hash>`, and
-the hash depends only on the text of that **route file**, not on
-`lib/ogImage.tsx`, where the card is actually drawn. Change the card without
-touching the route files and the URL (and its hash) stays the same, so X
-(which caches a card per URL for about 7 days) and Telegram keep showing the
-old card. Each route file therefore starts with `// Card version N.`; changing
-that number changes the hash and busts the cache.
+**How cards work (since 2026-10-13):** one route, `app/card/route.tsx`, draws
+every card: `/card?page=home|stock|today|build&sym=…&spec=…&theme=light&s=…&v=N`.
+Each page's `og:image`/`twitter:image` points at it (`lib/shareMeta.ts`), and the
+share panel's "Download card" uses the very same URL (`ShareButton.tsx`), so the
+preview, the download and the screen agree on the stock and the theme.
+`lib/cardUrl.ts` builds the URLs.
 
-There are eight such files (`app/`, `app/today/`, `app/[symbol]/`, `app/build/[spec]/`, each with an
-`opengraph-image.tsx` and a `twitter-image.tsx`). All must carry the **same**
-number, and **all** must change together.
+**Why bump:** X caches a card per URL for about 7 days, Telegram too. `v=N` is
+`CARD_VERSION` in `lib/cardUrl.ts`; change how a card looks without bumping it
+and an unstamped link (e.g. a plain `afterbook.app/NVDAc` someone pastes) keeps
+the old card.
 
 ## Do this after changing `lib/ogImage.tsx`
 
 ```bash
-.claude/skills/card-version-bump/bump.sh          # N -> N+1 in every card file
+.claude/skills/card-version-bump/bump.sh          # CARD_VERSION N -> N+1
 .claude/skills/card-version-bump/bump.sh --check  # exit 0 only if nothing is stale
 ```
 
-- `bump.sh` finds the card files itself (`git ls-files`), refuses to run if
-  one is missing the first-line comment or the numbers differ, and edits only
-  line 1 of each.
-- `--check` compares with `main`: if `lib/ogImage.tsx` differs and any card
-  file is not higher than on `main`, it prints `NOT BUMPED` and exits 1. Run it
-  before every PR that touches the card. It does nothing when the card is
-  unchanged.
-- A **new** `opengraph-image.tsx`/`twitter-image.tsx` must start with the same
-  `// Card version N.` line (copy it from an existing one); the script will
-  then include it automatically.
+`--check` compares with `main`: if `lib/ogImage.tsx` differs and `CARD_VERSION`
+is not higher than on `main`, it prints `NOT BUMPED` and exits 1. Run it before
+every PR that touches a card.
 
-## After the deploy: confirm the hash really changed
+## After the deploy: confirm
 
 ```bash
-for p in / /today /NVDAc; do printf "%-8s " "$p"; curl -s "https://afterbook.app$p" \
+for p in / /today /NVDAc '/today?s=test1&sym=NVDAc&theme=light'; do printf "%-40s " "$p"; curl -s "https://afterbook.app$p" \
   | grep -oE 'property="og:image" content="[^"]*"' | head -1 | sed 's/property="og:image" content=//'; done
 ```
 
-Each URL's trailing `?hash` must differ from the one before the change
-(note the three before you merge). Also open each image URL and look at it:
-the hash changing proves the URL changed, not that the card looks right.
+Each URL must end in the new `v=N`, and the shared one must keep `sym` and
+`theme`. Open the image URLs and look at them, in both themes: a new URL proves
+nothing about how the card looks.
 
-## What this does not fix
+## Rules that keep previews working
 
-- Cards already posted keep the old image on X until its cache expires or the
-  post is re-shared with a new URL; the Share button adds a per-share `?s=`
-  stamp for that, so new shares are fresh. Do not strip it.
-- The card text itself comes from `lib/ogImage.tsx` and the data it reads;
-  bumping the version never changes what is drawn.
+- **Shared links must stay crawlable.** X's and Telegram's preview crawlers
+  obey `robots.txt`. A `Disallow: /*?s=` there (until 2026-10-13) made every
+  shared link show on X as a bare URL. Duplicates are handled by each page's
+  canonical URL (`lib/shareMeta.ts`), never by robots.
+- The card route lives outside `/api/`, which robots.txt disallows. Keep it
+  there.
+- `/today` shares carry `sym`: the card shows the stock the page showed, not
+  the live leader (two names a few tenths of a bp apart swap the lead minute to
+  minute; the card once showed AAPLc under a post about METAc).
+- The theme is the sharer's (`theme=light` when they had light on), not the
+  viewer's: a card is one PNG.
+- Don't strip the per-share `s` stamp: it makes each share a new URL, so its
+  card is fetched at share time with live numbers.
+- New pages get their preview from `shareMetadata(...)`; a page that sets
+  `openGraph` by hand without `images` loses its card.

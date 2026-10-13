@@ -23,7 +23,7 @@ export interface TodaySnapshot {
   thinCount: number;
 }
 
-function closeBasisBp(row: TapeRow): number | null {
+export function closeBasisBp(row: TapeRow): number | null {
   return row.closeUsd != null && row.onchainMidUsd != null
     ? ((row.onchainMidUsd - row.closeUsd) / row.closeUsd) * 10_000
     : null;

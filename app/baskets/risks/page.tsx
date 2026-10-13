@@ -1,10 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { shareMetadata } from '@/lib/shareMeta';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = shareMetadata({
   title: 'Basket risks and terms — Afterbook',
   description: 'What Afterbook Basis Tilt is, how it works, and the ways you can lose money using it.',
-};
+  path: '/baskets/risks',
+  card: { page: 'home' },
+});
 
 const UPDATED = '2026-10-01';
 

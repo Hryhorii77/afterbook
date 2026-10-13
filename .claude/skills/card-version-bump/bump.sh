@@ -1,44 +1,35 @@
-#!/bin/bash
-# Share-card version helper. Every opengraph-image / twitter-image route file starts with
-# "// Card version N." The image URL's ?hash depends only on that route file's text, so after
-# lib/ogImage.tsx changes the number must change in ALL of them or X/Telegram keep the old card.
-#   bump.sh          bump every card route file to the same next version
-#   bump.sh --check  exit 1 if lib/ogImage.tsx differs from main but a card file was not bumped
-cd "$(git rev-parse --show-toplevel)" || exit 1
+#!/usr/bin/env bash
+# Share-card version: CARD_VERSION in lib/cardUrl.ts rides in every card URL (`&v=N`), and
+# X / Telegram cache a card per URL. Bump it whenever lib/ogImage.tsx changes.
+#   bump.sh          N -> N+1
+#   bump.sh --check  exit 1 if lib/ogImage.tsx differs from main but CARD_VERSION is not higher
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
 
-files=()
-while IFS= read -r f; do files+=("$f"); done < <(git ls-files | grep -E '(^|/)(opengraph|twitter)-image\.tsx$')
-[ "${#files[@]}" -gt 0 ] || { echo "no card route files found" >&2; exit 1; }
+FILE=lib/cardUrl.ts
+read_version() { grep -oE '^export const CARD_VERSION = [0-9]+;' | grep -oE '[0-9]+' || true; }
 
-ver() { sed -nE '1s|^// Card version ([0-9]+)\..*|\1|p'; }
-
-missing=0
-for f in "${files[@]}"; do
-  [ -n "$(ver < "$f")" ] || { echo "no '// Card version N.' first line in $f" >&2; missing=1; }
-done
-[ "$missing" = 0 ] || exit 1
-
-if [ "$1" = "--check" ]; then
-  if git diff --quiet main -- lib/ogImage.tsx; then
-    echo "lib/ogImage.tsx is unchanged from main: no bump needed (${#files[@]} card files)."
-    exit 0
-  fi
-  bad=0
-  for f in "${files[@]}"; do
-    now=$(ver < "$f"); then_=$(git show "main:$f" 2>/dev/null | ver)
-    if [ -z "$then_" ] || [ "$now" -gt "$then_" ]; then echo "ok      $f  ($then_ -> $now)"
-    else echo "NOT BUMPED  $f  (still $now)"; bad=1; fi
-  done
-  [ "$bad" = 0 ] && echo "lib/ogImage.tsx changed and every card file was bumped." || echo "lib/ogImage.tsx changed: run bump.sh."
-  exit "$bad"
+current=$(read_version < "$FILE")
+if [ -z "$current" ]; then
+  echo "No 'export const CARD_VERSION = N;' line in $FILE" >&2
+  exit 1
 fi
 
-current=$(ver < "${files[0]}")
-for f in "${files[@]}"; do
-  [ "$(ver < "$f")" = "$current" ] || { echo "versions differ across card files; fix by hand first" >&2; exit 1; }
-done
+if [ "${1:-}" = "--check" ]; then
+  if git diff --quiet main -- lib/ogImage.tsx; then
+    echo "lib/ogImage.tsx is unchanged from main: no bump needed (CARD_VERSION $current)."
+    exit 0
+  fi
+  base=$( (git show "main:$FILE" 2>/dev/null || true) | read_version)
+  base=${base:-0}
+  if [ "$current" -gt "$base" ]; then
+    echo "OK: lib/ogImage.tsx changed and CARD_VERSION went $base -> $current."
+    exit 0
+  fi
+  echo "NOT BUMPED: lib/ogImage.tsx changed but CARD_VERSION is still $current (main: $base). Run bump.sh." >&2
+  exit 1
+fi
+
 next=$((current + 1))
-for f in "${files[@]}"; do
-  perl -pi -e "s|^// Card version ${current}\\.|// Card version ${next}.| if \$. == 1" "$f"
-  echo "$f: $current -> $next"
-done
+sed -i.bak -E "s/^export const CARD_VERSION = [0-9]+;/export const CARD_VERSION = $next;/" "$FILE" && rm -f "$FILE.bak"
+echo "CARD_VERSION $current -> $next in $FILE"

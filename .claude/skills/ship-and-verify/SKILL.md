@@ -87,7 +87,7 @@ loop of 10-15 second sleeps, giving up after a few minutes:
   (`curl -s https://afterbook.app/<page> | grep -o '/_next/static/[^"]*\.js'`,
   then `curl -s` each and `grep -q "<unique string>"`);
 - a new route or header: `curl -s -o /dev/null -w "%{http_code}"`;
-- a changed card image: the `?hash` in the page's `og:image` tag.
+- a changed card image: the `v=N` at the end of the page's `og:image` URL (`CARD_VERSION`).
 
 A foreground command stops at about two minutes. Keep one poll loop under
 that, or run it in the background and read its output file.

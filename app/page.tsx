@@ -2,6 +2,14 @@ import { getTape } from '@/lib/tape';
 import { getGeoInfo } from '@/lib/geo';
 import { buildTodaySnapshot } from '@/lib/todaySnapshot';
 import HomeClient from './components/HomeClient';
+import { shareMetadata } from '@/lib/shareMeta';
+
+export const metadata = shareMetadata({
+  title: 'Afterbook',
+  description: "How far Coinbase's tokenized stocks on Base trade from the cash market, live, in shares, with real pool depth. Execution stays on Aerodrome.",
+  path: '/',
+  card: { page: 'home' },
+});
 
 // Fetching real data here (instead of leaving the whole page client-rendered)
 // means the server-rendered HTML already has real numbers and real geo

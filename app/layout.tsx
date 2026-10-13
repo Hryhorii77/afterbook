@@ -14,6 +14,8 @@ import { getTokenIcons } from '@/lib/coinbaseIcons';
 import { Analytics } from '@vercel/analytics/next';
 import { siteUrl } from '@/lib/siteUrl';
 import { THEME_INIT_SCRIPT } from './components/theme';
+import { cardPath } from '@/lib/cardUrl';
+import { OG_ALT, OG_SIZE } from '@/lib/ogImage';
 
 // Self-hosted at build time by next/font, so the CSP needs no extra font host.
 const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-poppins', display: 'swap' });
@@ -26,6 +28,9 @@ export const metadata: Metadata = {
   // Proves domain ownership for the base.dev app registration's
   // "Add Domain" verification step — Base checks the live page for this tag.
   other: { 'base:app_id': '6a78ca7585896ee843331757' },
+  // Fallback preview for any page without its own (each page sets one via lib/shareMeta.ts).
+  openGraph: { images: [{ url: cardPath({ page: 'home' }), ...OG_SIZE, alt: OG_ALT }] },
+  twitter: { card: 'summary_large_image', images: [{ url: cardPath({ page: 'home' }), alt: OG_ALT }] },
 };
 
 // Dark is the default and light is opt-in (saved choice, else the OS setting).
