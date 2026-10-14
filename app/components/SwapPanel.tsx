@@ -26,6 +26,24 @@ async function api<T>(path: string, init?: { body: unknown }): Promise<T> {
   return json as T;
 }
 
+// Reports a confirmed swap for the metrics; retried because the server's RPC can lag the wallet's.
+async function logSwapHash(hash: string) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await api('/api/swap/log', { body: { hash } });
+      return;
+    } catch {
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+  }
+}
+
+// KyberSwap's venue ids ("aerodrome-cl-3", "sectorone-v20") as names a trader recognises.
+const venueNames = (venues: string[]) => {
+  const named = new Set(venues.map((v) => (/aerodrome/i.test(v) ? 'Aerodrome' : /uniswap/i.test(v) ? 'Uniswap' : 'other Base pools')));
+  return [...named].sort((a, b) => (a === 'other Base pools' ? 1 : b === 'other Base pools' ? -1 : a.localeCompare(b))).join(' and ');
+};
+
 const usd = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmt = (raw: string | bigint, decimals: number, max = 4) =>
   Number(formatUnits(BigInt(raw), decimals)).toLocaleString('en-US', { maximumFractionDigits: max });
@@ -207,7 +225,7 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
       setAmount('');
       notify({ kind: 'tx', tone: 'success', title: side === 'buy' ? `Bought ${stock.symbol}` : `Sold ${stock.symbol}`, body: text });
       void refetchBalance();
-      void api('/api/swap/log', { body: { hash } }).catch(() => {});
+      void logSwapHash(hash);
     });
 
   if (!address) {
@@ -291,13 +309,13 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
             <dt>You pay</dt>
             <dd>{fmt(review.quote.amountIn, inToken.decimals)} {inToken.symbol} ({usd(review.quote.amountInUsd)})</dd>
             <dt>You get (estimate)</dt>
-            <dd>{fmt(review.quote.amountOut, outToken.decimals)} {outToken.symbol}</dd>
+            <dd>{fmt(review.quote.amountOut, outToken.decimals, outToken.decimals)} {outToken.symbol}</dd>
             <dt>Minimum you get</dt>
-            <dd>{fmt(review.minAmountOut, outToken.decimals)} {outToken.symbol} · reverts below this ({SLIPPAGE_BPS / 100}% limit)</dd>
+            <dd>{fmt(review.minAmountOut, outToken.decimals, outToken.decimals)} {outToken.symbol} · reverts below this ({SLIPPAGE_BPS / 100}% limit)</dd>
             <dt>Afterbook fee</dt>
             <dd>{feeNote(review.quote)}</dd>
             <dt>Route</dt>
-            <dd>{review.quote.venues.join(', ')} via KyberSwap</dd>
+            <dd>{venueNames(review.quote.venues)} via KyberSwap</dd>
             <dt>Contract</dt>
             <dd>
               <a href={`https://basescan.org/address/${review.to}`} target="_blank" rel="noopener noreferrer" className="emph-link">

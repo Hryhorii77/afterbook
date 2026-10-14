@@ -57,7 +57,10 @@ export async function logSwap(hash: Hex): Promise<LogResult> {
   if (existing) return { ok: true, record: existing, duplicate: true };
 
   const client = getClient();
-  const [tx, receipt] = await Promise.all([client.getTransaction({ hash }), client.getTransactionReceipt({ hash })]);
+  // The browser reports the hash as soon as its own RPC has the receipt; ours can be a few seconds
+  // behind (the first real swap got "could not read the transaction yet"), so wait for it here.
+  const receipt = await client.waitForTransactionReceipt({ hash, timeout: 20_000 });
+  const tx = await client.getTransaction({ hash });
   if (receipt.status !== 'success') return { ok: false, reason: 'transaction failed or pending' };
   if (!tx.to || getAddress(tx.to) !== KYBER_ROUTER) return { ok: false, reason: 'not a swap through the Afterbook router' };
   const suffix = BUILDER_CODE_SUFFIX.slice(2).toLowerCase();
