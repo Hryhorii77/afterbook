@@ -1858,7 +1858,8 @@ footer {
 }
 
 /* Same look as .emph-link: one link style across the app, footer included
-   (owner decision, 2026-10-12). Only the header nav stays a quiet menu. */
+   (owner decision, 2026-10-12). Only the header nav stays a quiet menu.
+   X / GitHub / README carry no underline until hovered (owner decision, 2026-10-14). */
 .footer-links a,
 .footer-onchain a {
   color: var(--accent);
@@ -1867,6 +1868,13 @@ footer {
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
   transition: filter 0.12s ease;
+}
+.footer-links a {
+  text-decoration: none;
+}
+.footer-links a:hover,
+.footer-links a:focus-visible {
+  text-decoration: underline;
 }
 
 .footer-links a:hover,

@@ -24,7 +24,7 @@ const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600'], var
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: 'Afterbook',
-  description: "How far Coinbase's tokenized stocks on Base trade from the cash market, live, in shares, with real pool depth. Execution stays on Aerodrome.",
+  description: "How far Coinbase's tokenized stocks on Base trade from the cash market, live, in shares, with real pool depth. Trade them from your own wallet.",
   // Proves domain ownership for the base.dev app registration's
   // "Add Domain" verification step — Base checks the live page for this tag.
   other: { 'base:app_id': '6a78ca7585896ee843331757' },

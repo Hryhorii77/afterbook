@@ -6,7 +6,7 @@ import { shareMetadata } from '@/lib/shareMeta';
 
 export const metadata = shareMetadata({
   title: 'Afterbook',
-  description: "How far Coinbase's tokenized stocks on Base trade from the cash market, live, in shares, with real pool depth. Execution stays on Aerodrome.",
+  description: "How far Coinbase's tokenized stocks on Base trade from the cash market, live, in shares, with real pool depth. Trade them from your own wallet.",
   path: '/',
   card: { page: 'home' },
 });

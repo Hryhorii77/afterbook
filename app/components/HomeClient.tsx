@@ -1568,7 +1568,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         <div className="footer-columns">
           <div className="footer-brand">
             <div className="footer-brand-name">Afterbook</div>
-            <p className="footer-tagline">How far tokenized stocks trade from the cash market. Execution stays on Aerodrome.</p>
+            <p className="footer-tagline">How far tokenized stocks trade from the cash market. Trade them from your own wallet.</p>
             <div className="footer-links">
               <a href="https://x.com/hryhorii77" target="_blank" rel="noopener noreferrer">X</a>
               <a href="https://github.com/Hryhorii77/afterbook" target="_blank" rel="noopener noreferrer">GitHub</a>
