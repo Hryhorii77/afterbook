@@ -1801,6 +1801,9 @@ a.btn:focus-visible, button.btn:focus-visible {
 .geo-more summary.emph-link:hover {
   color: var(--accent);
 }
+.geo-more > .actions {
+  margin-top: 12px;
+}
 
 .contract-info {
   font-family: var(--mono);
