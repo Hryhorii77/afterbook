@@ -77,6 +77,17 @@ check passes, say so in one short line; do not pad.
 - `SwapPanel.tsx` sends a rebuilt swap without a new review only if it is the
   same trade with a minimum >= the reviewed one; approvals use the reviewed
   amount and token, not the live input.
+- Basket buys (`BasketBuyPanel.tsx`, `lib/basketBuy.ts`): one approval of USDC
+  for `KYBER_ROUTER` for exactly the reviewed legs' total (never unlimited,
+  never another spender); each leg built through `/api/swap/build` (so every
+  check above applies) and re-checked client-side (router, symbol, side,
+  amount). A leg is rebuilt just before signing and sent only if its minimum
+  is >= `legFloor(reviewed min)`, which is the "at least" figure the review card
+  shows, so the wallet never signs below what was shown. A stop (decline,
+  revert, price move) halts the run, states what was bought and offers "Review
+  the rest"; an automatic retry or a loop that keeps sending is a finding. The
+  split (`splitBasketUsdc`) must sum to exactly the reviewed total; the total
+  is capped at `MAX_BASKET_USD`.
 - If the swap code changed, `.claude/skills/verify/swap-check.mts` must still
   pass (say if it was not run).
 

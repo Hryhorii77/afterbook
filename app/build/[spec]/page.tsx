@@ -13,6 +13,8 @@ import { getBasketCost, MAX_COST_BP } from '@/lib/basketCost';
 import { bp, usd, usdCompact, gapSizeText, formatNextOpen } from '@/lib/format';
 import { shareMetadata } from '@/lib/shareMeta';
 import { basketShareText } from '@/lib/shareText';
+import { getGeoInfo } from '@/lib/geo';
+import { BasketBuySection } from '@/app/components/BasketBuySection';
 
 // Live tape and pool reads on every request (each cached 20–60s
 // underneath), same as /today and /borrow.
@@ -42,7 +44,7 @@ export default async function BuildPage({ params }: PageProps) {
   if (!legs) notFound();
   const canonical = formatSpec(legs);
 
-  const [tape, cost] = await Promise.all([getTape().catch(() => null), getBasketCost(legs).catch(() => null)]);
+  const [tape, cost, geo] = await Promise.all([getTape().catch(() => null), getBasketCost(legs).catch(() => null), getGeoInfo()]);
   const state = tape?.session.state ?? 'open';
   const rows = tape?.rows ?? [];
   const gap = tape ? basketGapBp(legs, rows, state) : null;
@@ -66,7 +68,7 @@ export default async function BuildPage({ params }: PageProps) {
       </header>
       <p className="geo-note" style={{ marginTop: 0 }}>
         Pick 2 to 4 of the tokenized stocks and how much of each. See how far the basket trades from the cash market on
-        Aerodrome (the on-chain exchange), and what it would cost to buy. Read-only: nothing is bought here.
+        Aerodrome (the on-chain exchange), what it would cost to buy, and buy it from your own wallet, one swap per stock.
       </p>
 
       <section className="panel gap-hero today-hero">
@@ -116,6 +118,16 @@ export default async function BuildPage({ params }: PageProps) {
             text={shareText}
           />
         </div>
+      </section>
+
+      <section className="panel" id="buy">
+        <h2>Buy it</h2>
+        <BasketBuySection
+          key={canonical}
+          legs={legs}
+          stocks={legs.map((l) => ({ symbol: l.symbol, decimals: getStock(l.symbol)!.decimals }))}
+          geo={geo}
+        />
       </section>
 
       <section className="panel">
@@ -205,7 +217,8 @@ export default async function BuildPage({ params }: PageProps) {
             dear on-chain compared with the stock market, not whether it is a good buy.
           </li>
           <li>
-            Nothing here rebalances or holds anything. For a basket that is bought and rebalanced for you, see{' '}
+            Buying here is a one-off: each stock lands in your wallet and nothing rebalances it afterwards. For a basket that is
+            bought and rebalanced for you, see{' '}
             <Link className="emph-link" href="/baskets">
               Baskets
             </Link>

@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 // The swap transaction for the connected wallet, built fresh and checked field by field in
 // lib/swap.ts (buildSwap) before it is returned. The browser sends it as is; nothing here signs.
-// POST { symbol, side, amountIn, account }
+// POST { symbol, side, amountIn, account, source? } (source: 'basket' for a /build basket leg, for the metrics)
 export async function POST(request: NextRequest) {
   const refused = await guardSwapRequest(request);
   if (refused) return refused;
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   try {
     const account = getAddress(body.account);
     const tx = await buildSwap(req, account);
-    await rememberBuiltSwap(tx, account);
+    await rememberBuiltSwap(tx, account, body.source === 'basket' ? 'basket' : 'stock');
     return NextResponse.json(tx);
   } catch (err) {
     return NextResponse.json({ error: err instanceof SwapError ? err.message : 'could not build the swap' }, { status: err instanceof SwapError ? err.status : 502 });
