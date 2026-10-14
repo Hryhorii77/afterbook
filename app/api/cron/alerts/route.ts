@@ -5,9 +5,11 @@ import { getAllChatIds, getRules, setRules, nextBasisState, type AlertRule } fro
 import { sendTelegramMessage } from '@/lib/telegram';
 import { bp } from '@/lib/format';
 import { cronAuthorized } from '@/lib/sharedSecret';
+import { getWalletLoans } from '@/lib/loanPositions';
+import { loanAlertText, nextLoanState, worstHealth, type WalletLoan } from '@/lib/loanHealth';
 
 export const revalidate = 0;
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 // Re-evaluates every rule from current state on every tick rather than
 // tracking anything incrementally — Vercel's own guidance is that cron
@@ -27,6 +29,13 @@ export async function GET(request: NextRequest) {
 
   const chatIds = await getAllChatIds();
   let sent = 0;
+  // One read per wallet per tick, shared by every chat watching it. null = the read failed: the
+  // rule keeps its state (nextLoanState), so a flaky RPC can't fire or re-arm an alert.
+  const walletReads = new Map<string, Promise<WalletLoan[] | null>>();
+  const loansOf = (wallet: string) => {
+    if (!walletReads.has(wallet)) walletReads.set(wallet, getWalletLoans(wallet as `0x${string}`).catch(() => null));
+    return walletReads.get(wallet)!;
+  };
 
   for (const chatId of chatIds) {
     const rules = await getRules(chatId);
@@ -48,6 +57,11 @@ export async function GET(request: NextRequest) {
         if (nowActive && !rule.active) {
           message = `${rule.symbol} |basis| crossed ${rule.thresholdBp}bp — now ${bp(row!.basisBp)}.`;
         }
+      } else if (rule.type === 'loan' && rule.wallet && rule.thresholdHf != null) {
+        const loans = await loansOf(rule.wallet);
+        const worst = loans == null ? null : loans.length === 0 ? 'no-loans' : Math.min(...loans.map(worstHealth));
+        nowActive = nextLoanState(rule.active, worst, rule.thresholdHf);
+        if (nowActive && !rule.active && loans) message = loanAlertText(rule.wallet, loans, rule.thresholdHf);
       }
 
       if (message) {
