@@ -36,7 +36,7 @@ async function handler(request: NextRequest) {
       ? risk.markets.find((m) => m.marketId.toLowerCase() === marketId)
       : [...risk.markets].sort((a, b) => b.collateralUsd - a.collateralUsd)[0];
     if (marketId && !market) {
-      return NextResponse.json({ error: 'no listed Morpho USDC market with that id for this symbol' }, { status: 400 });
+      return NextResponse.json({ error: 'no Morpho or Aave USDC market with that id for this symbol' }, { status: 400 });
     }
 
     const position =
@@ -49,6 +49,7 @@ async function handler(request: NextRequest) {
               collateralShares,
               borrowUsd: borrowUsd!,
               lltv: market.lltv,
+              lif: market.liquidationIncentiveFactor,
               oraclePriceUsd: market.oraclePriceUsd,
               aeroGap: market.aeroVsOracleBp / 10_000,
               curve: risk.sellCurve,
@@ -66,7 +67,7 @@ async function handler(request: NextRequest) {
       markets: risk.markets,
       position,
       assumptions:
-        'Snapshot of the Aerodrome pool now. Position risk assumes the same liquidity per tick and the same Aero-vs-oracle gap at the liquidation price. Liquidators with another exit than Aerodrome may do better.',
+        'Snapshot of the Aerodrome pool now. Position risk assumes the same liquidity per tick and the same Aero-vs-oracle gap at the liquidation price. Liquidators with another exit than Aerodrome may do better. Aave markets (venue "aave", marketId "aave:<reserveId>") lend one shared USDC pool against every stock, so their borrowUsd is null; Aave liquidates only enough to restore health, so seizedUsd is an upper bound there.',
     });
   } catch (err) {
     return NextResponse.json({ error: 'liquidation-capacity unavailable', detail: String(err) }, { status: 502 });
@@ -88,7 +89,7 @@ export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configur
           payTo: X402_PAYOUT_ADDRESS!,
         },
         description:
-          "Liquidation capacity for a Base tokenized stock: Morpho USDC markets using it as collateral, the Aerodrome-vs-oracle gap, the largest liquidation Aerodrome can absorb at a profit, a sell-side impact curve, and optional per-position liquidation price and risk.",
+          "Liquidation capacity for a Base tokenized stock: Morpho and Aave V4 USDC markets using it as collateral, the Aerodrome-vs-oracle gap, the largest liquidation Aerodrome can absorb at a profit, a sell-side impact curve, and optional per-position liquidation price and risk.",
       },
       getX402Server(),
     )

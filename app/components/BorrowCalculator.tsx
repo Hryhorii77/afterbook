@@ -7,7 +7,10 @@ import { usd } from '@/lib/format';
 export interface CalculatorMarket {
   marketId: string;
   symbol: string;
+  venue: string;
   lltv: number;
+  /** The market's liquidation incentive (Morpho and Aave work it out differently). */
+  lif: number;
   oraclePriceUsd: number;
   aeroVsOracleBp: number;
 }
@@ -33,6 +36,7 @@ export function BorrowCalculator({ markets, curves }: Props) {
       collateralShares: Number(sharesInput),
       borrowUsd: Number(borrowInput),
       lltv: market.lltv,
+      lif: market.lif,
       oraclePriceUsd: market.oraclePriceUsd,
       aeroGap: market.aeroVsOracleBp / 10_000,
       curve: curves[market.symbol] ?? [],
@@ -51,7 +55,7 @@ export function BorrowCalculator({ markets, curves }: Props) {
           <select id="borrow-market" value={market.marketId} onChange={(e) => setMarketId(e.target.value)}>
             {markets.map((m) => (
               <option key={m.marketId} value={m.marketId}>
-                {m.symbol} · max LTV {pct(m.lltv)}
+                {m.symbol} · {m.venue} · max LTV {pct(m.lltv)}
               </option>
             ))}
           </select>
