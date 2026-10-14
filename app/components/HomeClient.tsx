@@ -1461,9 +1461,14 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         {unlocked ? (
           <SwapPanel key={activeStock.symbol} stock={activeStock} defaultUsd={quote?.usdcIn} />
         ) : (
-          <div className="actions">
-            <button className="btn" disabled>
+          // Same Buy / Sell switch the panel opens with, greyed out until eligibility is confirmed, so
+          // both directions are visible up front and nothing moves when the box is ticked.
+          <div className="carry-direction-toggle" aria-label="Buy or sell">
+            <button type="button" className="carry-direction-tab" disabled>
               Buy {activeStock.symbol}
+            </button>
+            <button type="button" className="carry-direction-tab" disabled>
+              Sell {activeStock.symbol}
             </button>
           </div>
         )}

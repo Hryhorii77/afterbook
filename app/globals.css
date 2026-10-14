@@ -2008,6 +2008,13 @@ footer {
 .carry-direction-tab:hover {
   color: var(--text);
 }
+.carry-direction-tab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.carry-direction-tab:disabled:hover {
+  color: var(--text-dim);
+}
 .carry-direction-tab-active {
   background: var(--panel-border);
   color: var(--text);
