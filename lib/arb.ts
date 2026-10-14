@@ -18,9 +18,9 @@
 //    +basisBp here, the mirror image of the buy case.
 //
 // GAS_ESTIMATE_USD is a documented flat assumption, not a live
-// simulation — this app deliberately never constructs real swap calldata
-// (see lib/quote.ts's own docs on why), so there is no real transaction
-// to eth_estimateGas against. Base L2 swap gas is well known to run a
+// simulation — the carry math runs on the local Aerodrome estimate, not on
+// a built swap (lib/swap.ts builds those only when a user clicks Review),
+// so there is no real transaction to eth_estimateGas against. Base L2 swap gas is well known to run a
 // few cents at most; treat this as a conservative, round-number stand-in
 // for "what a swap plus a token approval roughly costs," not a
 // per-trade quote.

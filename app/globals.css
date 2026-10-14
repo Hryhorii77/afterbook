@@ -436,6 +436,31 @@ h1 {
 .basket-amount { width: 180px; max-width: 100%; border-radius: 999px; padding-left: 20px; padding-right: 20px; }
 .basket-deposit { margin-top: 16px; }
 
+/* In-app swap (SwapPanel.tsx): the review is a quiet inset card listing exactly what the wallet will
+   be asked to sign; label column on the left, values wrap on a phone. */
+.swap-panel { margin: 4px 0 16px; }
+.swap-review {
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--inset);
+}
+.swap-review dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 16px;
+  margin: 0;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.swap-review dt { color: var(--text-dim); }
+.swap-review dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .swap-review dl { grid-template-columns: 1fr; gap: 2px; }
+  .swap-review dd { margin-bottom: 8px; }
+}
+
 /* An inline link inside body text that must read as a link at a glance
    (accent colour, semibold, underlined). .page-link, the end-of-page "go to"
    link, has the same look plus an arrow. */
@@ -1833,7 +1858,8 @@ footer {
 }
 
 /* Same look as .emph-link: one link style across the app, footer included
-   (owner decision, 2026-10-12). Only the header nav stays a quiet menu. */
+   (owner decision, 2026-10-12). Only the header nav stays a quiet menu.
+   X / GitHub / README carry no underline until hovered (owner decision, 2026-10-14). */
 .footer-links a,
 .footer-onchain a {
   color: var(--accent);
@@ -1842,6 +1868,13 @@ footer {
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
   transition: filter 0.12s ease;
+}
+.footer-links a {
+  text-decoration: none;
+}
+.footer-links a:hover,
+.footer-links a:focus-visible {
+  text-decoration: underline;
 }
 
 .footer-links a:hover,

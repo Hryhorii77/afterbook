@@ -32,7 +32,7 @@ const handler = createMcpHandler((server) => {
     {
       title: 'Get Quote',
       description:
-        'Estimate shares out, execution price, and price impact for sizing a USDC -> stock trade on one of the tracked pools. This is a local estimate for sizing a trade, not a firm quote — the actual fill always happens on Aerodrome\'s own app, and no wallet ever signs anything here.',
+        'Estimate shares out, execution price, and price impact for sizing a USDC -> stock trade on one of the tracked pools. This is a local estimate for sizing a trade, not a firm quote — the actual fill happens on chain, through Aerodrome\'s own app or the swap on afterbook.app, signed in the trader\'s own wallet; this tool signs nothing.',
       inputSchema: z.object({
         symbol: z.enum(SYMBOLS),
         usdcIn: z.number().positive().max(10_000_000),

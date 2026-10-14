@@ -36,9 +36,9 @@ export interface CbStock {
 // 0x5e7bb104d84c7cb9b682aac2f3d509f5f406809a). The standard Aerodrome Quoter
 // reverts on these pools. Because of that we never attempt to route or quote
 // a guaranteed swap ourselves — we read slot0()/liquidity() directly for an
-// honest *local* price/impact estimate, and hand off every actual trade to
-// Aerodrome's own app, which knows how to route through whatever infra these
-// pools actually use. Confirmed by loading Aerodrome's own "New deposit" page
+// honest *local* price/impact estimate. Actual trades go either to
+// Aerodrome's own app (the deep links below) or through KyberSwap's
+// aggregator (lib/swap.ts), which routes through these pools itself. Confirmed by loading Aerodrome's own "New deposit" page
 // for USDC/NVDAc in a browser and reading the factory param off the URL it
 // generated — it matches exactly.
 export const CL_FACTORY = '0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef' as const;
@@ -222,8 +222,8 @@ export function findStock(input: string): CbStock | undefined {
   return STOCKS.find((s) => s.symbol.toLowerCase() === q) ?? STOCKS.find((s) => s.cashTicker.toLowerCase() === q);
 }
 
-// Official Aerodrome app — every execution deep link points here. We never
-// construct our own router calldata. Both URL shapes below were verified by
+// Official Aerodrome app — every Aerodrome deep link points here (in-app swaps
+// are KyberSwap's calldata, checked in lib/swap.ts). Both URL shapes below were verified by
 // clicking through Aerodrome's own UI in a real browser and reading off the
 // exact params it generates for these pools, not guessed.
 const BASE_CHAIN_ID = '8453';

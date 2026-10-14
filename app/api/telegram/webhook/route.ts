@@ -14,7 +14,7 @@ const HELP_TEXT = `Afterbook alerts — cash close vs the Aero book, in shares.
 /list — show your active alerts
 /stop — clear all your alerts
 
-Read-only, no wallet, nothing signed — same as the site.`;
+Read-only: the bot never asks for a wallet or a signature.`;
 
 function newRuleId(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;

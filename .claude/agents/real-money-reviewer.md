@@ -1,6 +1,6 @@
 ---
 name: real-money-reviewer
-description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/BasketPanel.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
+description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/BasketPanel.tsx), in-app swaps (lib/swap.ts, lib/swapGuard.ts, lib/swapLog.ts, app/api/swap/*, app/components/SwapPanel.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -46,11 +46,39 @@ check passes, say so in one short line; do not pad.
 - Every transaction the app asks a wallet to send passes
   `dataSuffix: BUILDER_CODE_SUFFIX` (`lib/builderCode.ts`) **per call**
   (a config-level setting does not reach `useWriteContract`, wevm/wagmi
-  #5248). A new `writeContract`, `sendTransaction` or `sendCalls` without it
-  is a finding.
+  #5248), or, for `sendTransaction` (no `dataSuffix` option), has it
+  appended with `concat([data, BUILDER_CODE_SUFFIX])`. A new `writeContract`,
+  `sendTransaction` or `sendCalls` without it is a finding.
 - The transaction targets the intended contract and chain (`chainId:
   base.id`), and the UI cannot be made to sign something other than what it
   shows.
+
+**In-app swaps**
+- Every `/api/swap/*` route starts with `guardSwapRequest` (`lib/swapGuard.ts`:
+  fail-closed non-US gate, limiter that refuses when missing); `/api/swap/stats`
+  uses `cronAuthorized`.
+- `buildSwap` returns nothing the browser can send unless `checkSwapCalldata`
+  passed: router = `KYBER_ROUTER`, `transactionValue` 0, input/output token,
+  recipient = the requesting account, exact amount, minimum within
+  `SLIPPAGE_BPS` of the quote, fee = `swapFee()` (or no fee arrays when off),
+  empty permit. A removed or weakened check is a finding.
+- Approvals in `SwapPanel.tsx` name only `KYBER_ROUTER` and only the exact
+  `amountIn`; anything unlimited (`maxUint256`) or another spender is a finding.
+  The client re-checks `to`/`spender` against `KYBER_ROUTER`.
+- Tokens come only from `STOCKS` (`parseSwapRequest`); a new token source
+  (memestocks) needs its own on-chain-verified allowlist.
+- The fee is off unless `SWAP_FEE_BPS` (1-100) and a valid `SWAP_FEE_RECIPIENT`
+  are both set; anything that turns it on by default, raises the cap, or sends
+  it elsewhere is a finding (the owner keeps it at 0 until a legal check).
+- `/api/swap/log` records only a successful router call whose calldata
+  (minus the Builder Code) matches one `/api/swap/build` returned
+  (`rememberBuiltSwap`), sent by the account it was built for; fee and size
+  come from that stored build. Never the raw address in the record.
+- `SwapPanel.tsx` sends a rebuilt swap without a new review only if it is the
+  same trade with a minimum >= the reviewed one; approvals use the reviewed
+  amount and token, not the live input.
+- If the swap code changed, `.claude/skills/verify/swap-check.mts` must still
+  pass (say if it was not run).
 
 **Basket universe**
 - The basket is `BASKET_SYMBOLS` in `lib/baskets/tilt.ts`, not `STOCKS`.
