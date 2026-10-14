@@ -6,6 +6,7 @@ import { getMorphoStockMarkets } from './morpho';
 import { getAaveStockLending, type AaveHubTotals } from './aave';
 import type { StockLendingMarket } from './lendingMarket';
 import { SELL_CURVE_SIZES_USD, type SellCurvePoint } from './liquidationMath';
+import { summarizeBorrow, type BorrowSummary } from './borrowSummary';
 
 // "If this loan is liquidated, can Aerodrome actually absorb the sale?"
 // Morpho and Aave both liquidate on their oracle price; a liquidator who has
@@ -92,4 +93,10 @@ export async function getAllLiquidationRisk(): Promise<{ stocks: StockLiquidatio
   const symbols = [...new Set(markets.map((m) => m.symbol))];
   const results = await Promise.all(symbols.map((s) => getStockLiquidationRisk(s, markets).catch(() => null)));
   return { stocks: results.filter((r): r is StockLiquidationRisk => r != null && r.markets.length > 0), aaveHub };
+}
+
+/** /borrow's headline numbers (the page, its share sentence and its card). */
+export async function getBorrowSummary(): Promise<BorrowSummary> {
+  const { stocks, aaveHub } = await getAllLiquidationRisk();
+  return summarizeBorrow(stocks, aaveHub);
 }

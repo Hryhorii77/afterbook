@@ -6,7 +6,7 @@ description: Bump the share-card version after any change to lib/ogImage.tsx, so
 # Share-card version bump
 
 **How cards work (since 2026-10-13):** one route, `app/card/route.tsx`, draws
-every card: `/card?page=home|stock|today|build&sym=…&spec=…&theme=light&s=…&v=N`.
+every card: `/card?page=home|stock|today|build|borrow&sym=…&spec=…&theme=light&s=…&v=N`.
 Each page's `og:image`/`twitter:image` points at it (`lib/shareMeta.ts`), and the
 share panel's "Download card" uses the very same URL (`ShareButton.tsx`), so the
 preview, the download and the screen agree on the stock and the theme.

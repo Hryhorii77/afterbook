@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { buildBasketOgImage, buildOgImage, buildTodayOgImage } from '@/lib/ogImage';
+import { buildBasketOgImage, buildBorrowOgImage, buildOgImage, buildTodayOgImage } from '@/lib/ogImage';
 import { parseTheme } from '@/lib/cardUrl';
 import { getStock } from '@/lib/tokens';
 import { parseSpec } from '@/lib/customBasket';
@@ -8,7 +8,7 @@ import { getShareSnapshot } from '@/lib/shareSnapshot';
 export const dynamic = 'force-dynamic';
 
 // Every share card: link previews (each page's og:image / twitter:image, see lib/cardUrl.ts)
-// and the share panel's "Download card". Query: page=home|stock|today|build, sym, spec,
+// and the share panel's "Download card". Query: page=home|stock|today|build|borrow, sym, spec,
 // theme=light (dark otherwise). `s` is a share's id: when it names a stored snapshot the card is
 // drawn from those frozen numbers (the same ones the post's sentence used); otherwise from the live
 // tape. `v` only makes the URL unique for link-preview caches.
@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     if (card.page === 'stock') return buildOgImage(card.sym, theme, frozen);
     if (card.page === 'today') return buildTodayOgImage(card.sym, theme, frozen);
     if (card.page === 'build') return buildBasketOgImage(card.spec, theme, frozen);
+    if (card.page === 'borrow' && snap.borrow) return buildBorrowOgImage(theme, { ...frozen, borrow: snap.borrow });
   }
 
   const sym = q.get('sym');
@@ -40,6 +41,8 @@ export async function GET(request: NextRequest) {
       const spec = q.get('spec');
       return spec && parseSpec(spec) ? buildBasketOgImage(spec, theme) : notFound();
     }
+    case 'borrow':
+      return buildBorrowOgImage(theme);
     default:
       return notFound();
   }
