@@ -1,3 +1,4 @@
+import { fetchCoinbaseStockList } from './coinbaseStockList';
 import { getClient, TOKEN_ABI, readPoolState, poolDepth } from './quote';
 import { STOCKS, USDC, CL_FACTORY, type CbStock } from './tokens';
 
@@ -16,16 +17,14 @@ export interface PublishedStock {
 // endpoint lists 58 (including every name the app later added). Each entry
 // carries the contract address, so a candidate's identity comes from Coinbase,
 // not from a ticker match.
-const STOCK_LIST_URL = 'https://api.coinbase.com/v1/tokenized-stocks';
+// (lib/coinbaseStockList.ts reads every page; the first page alone is 100 of 145 as of 2026-10-14.)
 const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 
 export async function fetchPublishedStockList(): Promise<PublishedStock[]> {
-  const res = await fetch(STOCK_LIST_URL, { signal: AbortSignal.timeout(8000) });
-  if (!res.ok) throw new Error(`Coinbase tokenized-stocks fetch failed: ${res.status}`);
-  const json = (await res.json()) as { tokens?: { symbol?: unknown; contract_address?: unknown; name?: unknown }[] };
+  const tokens = await fetchCoinbaseStockList({ cache: 'no-store' });
 
   const found = new Map<string, PublishedStock>();
-  for (const t of json.tokens ?? []) {
+  for (const t of tokens) {
     if (typeof t.symbol !== 'string' || !/^[A-Z0-9]+c$/.test(t.symbol)) continue;
     if (typeof t.contract_address !== 'string' || !ADDRESS_RE.test(t.contract_address)) continue;
     found.set(t.symbol, {

@@ -488,7 +488,8 @@ h1 {
   color: color-mix(in srgb, var(--hue) 72%, var(--text));
   border: 1px solid color-mix(in srgb, var(--hue) 34%, transparent);
 }
-.symbol-tile-md { width: 52px; height: 38px; border-radius: 11px; font-size: 11px; }
+/* Same footprint as .symbol-icon-md, so a row whose logo is missing lines up with the others. */
+.symbol-tile-md { width: 40px; height: 40px; border-radius: 12px; font-size: 9px; letter-spacing: 0; }
 .symbol-tile-sm { width: 42px; height: 24px; border-radius: 8px; font-size: 10px; }
 
 .symbol-icon { display: inline-flex; flex-shrink: 0; overflow: hidden; border: 1px solid var(--panel-border); background: var(--panel); }
