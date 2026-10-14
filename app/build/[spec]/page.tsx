@@ -68,7 +68,7 @@ export default async function BuildPage({ params }: PageProps) {
       </header>
       <p className="geo-note" style={{ marginTop: 0 }}>
         Pick 2 to 4 of the tokenized stocks and how much of each. See how far the basket trades from the cash market on
-        Aerodrome (the on-chain exchange), what it would cost to buy, and buy it from your own wallet, one swap per stock.
+        Aerodrome (the on-chain exchange), what it would cost to buy, and buy or sell it from your own wallet, one swap per stock.
       </p>
 
       <section className="panel gap-hero today-hero">
@@ -121,11 +121,11 @@ export default async function BuildPage({ params }: PageProps) {
       </section>
 
       <section className="panel" id="buy">
-        <h2>Buy it</h2>
+        <h2>Buy or sell it</h2>
         <BasketBuySection
           key={canonical}
           legs={legs}
-          stocks={legs.map((l) => ({ symbol: l.symbol, decimals: getStock(l.symbol)!.decimals }))}
+          stocks={legs.map((l) => { const st = getStock(l.symbol)!; return { symbol: st.symbol, decimals: st.decimals, tokenAddress: st.tokenAddress }; })}
           geo={geo}
         />
       </section>
