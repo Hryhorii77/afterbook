@@ -10,6 +10,17 @@ export function liquidationIncentiveFactor(lltv: number): number {
   return Math.min(1.15, 1 / (1 - 0.3 * (1 - lltv)));
 }
 
+// Aave V4 (Spoke.sol): the bonus grows as health falls, from maxBonus x
+// liquidationBonusFactor just under health 1 to maxBonus at or below
+// healthFactorForMaxBonus, and the protocol keeps liquidationFee of the
+// bonus. This takes the smallest bonus, a loan liquidated the moment it
+// crosses the line, so the capacity built on it is not overstated.
+// Inputs in BPS as the contract stores them (maxLiquidationBonus 10550 = 5.5%).
+export function aaveV4LiquidationIncentiveFactor(maxLiquidationBonusBps: number, liquidationBonusFactorBps: number, liquidationFeeBps: number): number {
+  const bonus = ((maxLiquidationBonusBps - 10_000) / 10_000) * (liquidationBonusFactorBps / 10_000);
+  return 1 + bonus * (1 - liquidationFeeBps / 10_000);
+}
+
 /** One point of a sell-side impact curve: selling `usd` of stock (valued at
  *  mid) fills on average `discountBp` below mid, pool fee included. */
 export interface SellCurvePoint {
@@ -47,7 +58,8 @@ export interface PositionRisk {
   liquidationPriceUsd: number;
   /** How far the oracle price has to fall from now, 0–1. Negative = already liquidatable. */
   dropToLiquidation: number;
-  /** Collateral a liquidator seizes to clear the whole debt (capped at what was posted), valued at the price it is sold at. */
+  /** Collateral a liquidator seizes to clear the whole debt (capped at what was posted), valued at the price it is sold at.
+   *  Aave V4 liquidates only enough to bring health back to its target, so there this is an upper bound. */
   seizedUsd: number;
   /** Average Aero fill discount for selling that much, or null if past what we can see. */
   sellDiscountBp: number | null;
@@ -64,6 +76,8 @@ export function positionRisk(args: {
   collateralShares: number;
   borrowUsd: number;
   lltv: number;
+  /** The market's own incentive (StockLendingMarket.liquidationIncentiveFactor); defaults to Morpho's from the LLTV. */
+  lif?: number;
   oraclePriceUsd: number;
   /** (aeroMid - oracle) / oracle, as a fraction. */
   aeroGap: number;
@@ -71,7 +85,7 @@ export function positionRisk(args: {
 }): PositionRisk | null {
   const { collateralShares, borrowUsd, lltv, oraclePriceUsd, aeroGap, curve } = args;
   if (!(collateralShares > 0) || !(borrowUsd > 0) || !(lltv > 0) || !(oraclePriceUsd > 0)) return null;
-  const lif = liquidationIncentiveFactor(lltv);
+  const lif = args.lif ?? liquidationIncentiveFactor(lltv);
   const liquidationPriceUsd = borrowUsd / (collateralShares * lltv);
   // A loan already past its limit is liquidated at today's price, not at
   // its (higher) liquidation price, and can never give up more than it posted.

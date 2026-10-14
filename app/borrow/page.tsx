@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { SymbolTile } from '@/app/components/SymbolTile';
 import { BorrowCalculator, type CalculatorMarket } from '@/app/components/BorrowCalculator';
 import { getAllLiquidationRisk } from '@/lib/liquidationRisk';
-import { morphoMarketUrl } from '@/lib/morpho';
 import { liquidationIncentiveFactor } from '@/lib/liquidationMath';
+import type { LendingVenue } from '@/lib/lendingMarket';
 import { getGeoInfo } from '@/lib/geo';
 import { getStock } from '@/lib/tokens';
 import { bp, usdCompact } from '@/lib/format';
@@ -17,15 +17,18 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = shareMetadata({
   title: 'Borrow against stocks — Afterbook',
   description:
-    "Morpho's USDC loans against Base tokenized stocks, and whether Aerodrome is deep enough to absorb their liquidations.",
+    "Morpho and Aave USDC loans against Base tokenized stocks, and whether Aerodrome is deep enough to absorb their liquidations.",
   path: '/borrow',
   card: { page: 'home' },
 });
 
 const pct = (x: number, digits = 1) => `${(x * 100).toFixed(digits)}%`;
+const venueName: Record<LendingVenue, string> = { morpho: 'Morpho', aave: 'Aave' };
 
 export default async function BorrowPage() {
-  const [risks, geo] = await Promise.all([getAllLiquidationRisk().catch(() => null), getGeoInfo()]);
+  const [all, geo] = await Promise.all([getAllLiquidationRisk().catch(() => null), getGeoInfo()]);
+  const risks = all?.stocks ?? null;
+  const aaveHub = all?.aaveHub ?? null;
   const markets = (risks ?? [])
     .flatMap((r) => r.markets)
     .sort((a, b) => b.collateralUsd - a.collateralUsd || b.lltv - a.lltv);
@@ -34,12 +37,18 @@ export default async function BorrowPage() {
   const active = markets.filter((m) => m.collateralUsd >= 1);
   const empty = markets.filter((m) => m.collateralUsd < 1);
   const totalCollateral = markets.reduce((s, m) => s + m.collateralUsd, 0);
-  const totalBorrow = markets.reduce((s, m) => s + m.borrowUsd, 0);
+  // Aave lends one USDC pool against every stock together, so its borrows are counted once, from the pool.
+  const totalBorrow = markets.reduce((s, m) => s + (m.borrowUsd ?? 0), 0) + (aaveHub?.borrowUsd ?? 0);
+  const countOf = (v: LendingVenue) => markets.filter((m) => m.venue === v).length;
+  const biggest = active[0];
+  const aaveLif = markets.find((m) => m.venue === 'aave')?.liquidationIncentiveFactor;
 
   const calcMarkets: CalculatorMarket[] = markets.map((m) => ({
     marketId: m.marketId,
     symbol: m.symbol,
+    venue: venueName[m.venue],
     lltv: m.lltv,
+    lif: m.liquidationIncentiveFactor,
     oraclePriceUsd: m.oraclePriceUsd,
     aeroVsOracleBp: m.aeroVsOracleBp,
   }));
@@ -51,7 +60,7 @@ export default async function BorrowPage() {
         <h1>Borrow against stocks</h1>
       </header>
       <p className="geo-note" style={{ marginTop: 0 }}>
-        Morpho lets you borrow USDC against these stock tokens. If the price falls far enough, a liquidator repays your
+        Morpho and Aave let you borrow USDC against these stock tokens. If the price falls far enough, a liquidator repays your
         loan, takes your stock at a discount and usually sells it on Aerodrome. This page shows whether those pools are
         deep enough for that sale to happen.
       </p>
@@ -74,14 +83,31 @@ export default async function BorrowPage() {
               </div>
               <div className="stat-card">
                 <div className="stat-value">{markets.length}</div>
-                <div className="stat-label">Listed Morpho markets on Base</div>
+                <div className="stat-label">
+                  Markets on Base: {countOf('morpho')} Morpho, {countOf('aave')} Aave
+                </div>
               </div>
             </div>
           </section>
 
           <section className="panel">
             <h2>Markets</h2>
-            <p className="geo-note" style={{ marginTop: 0 }}>
+            {biggest && (
+              <p className="geo-note" style={{ marginTop: 0 }}>
+                The biggest is {biggest.symbol} on {venueName[biggest.venue]}: {usdCompact(biggest.collateralUsd)} posted, and
+                Aerodrome can absorb {biggest.capacityIsLowerBound ? 'about ' : ''}
+                {usdCompact(biggest.profitableLiquidationCapacityUsd)} of it at a profit right now.
+              </p>
+            )}
+            {aaveHub && (
+              <p className="geo-note">
+                Aave&apos;s stock loans all borrow from one USDC pool: {usdCompact(aaveHub.borrowUsd)} borrowed of{' '}
+                {usdCompact(aaveHub.supplyUsd)} ({pct(aaveHub.utilization, 0)} used) at {pct(aaveHub.borrowApr, 2)} a year
+                {aaveHub.borrowCapUsd != null && <>, capped at {usdCompact(aaveHub.borrowCapUsd)}</>}. Lenders earn about{' '}
+                {pct(aaveHub.supplyApr, 2)} before incentive programs.
+              </p>
+            )}
+            <p className="geo-note">
               &ldquo;Aero can absorb&rdquo; is the most stock a liquidator could sell on Aerodrome right now and still make
               money, after the price impact and the pool fee. The bar shows how much of that this market&apos;s collateral
               would use.
@@ -96,7 +122,9 @@ export default async function BorrowPage() {
                       <SymbolTile cashTicker={stock?.cashTicker ?? m.symbol} />
                       <div className="sym-cell-text">
                         <span className="symbol">{m.symbol}</span>
-                        <span className="symbol-name">Max LTV {pct(m.lltv)}</span>
+                        <span className="symbol-name">
+                          {venueName[m.venue]} · max LTV {pct(m.lltv)}
+                        </span>
                       </div>
                     </div>
                     <div className="weight-pct">{pct(m.borrowApy, 2)}</div>
@@ -106,12 +134,17 @@ export default async function BorrowPage() {
                     </div>
                     <div className="weight-meta">
                       <span>Collateral</span>
-                      <span>{usdCompact(m.collateralUsd)}</span>
+                      <span>
+                        {usdCompact(m.collateralUsd)}
+                        {m.collateralCapUsd != null && <> of {usdCompact(m.collateralCapUsd)} cap</>}
+                      </span>
                     </div>
                     <div className="weight-meta">
                       <span>Borrowed</span>
                       <span>
-                        {usdCompact(m.borrowUsd)} ({pct(m.utilization, 0)} used)
+                        {m.borrowUsd == null
+                          ? 'Shared Aave pool'
+                          : `${usdCompact(m.borrowUsd)} (${pct(m.utilization ?? 0, 0)} used)`}
                       </span>
                     </div>
                     <div className="weight-meta">
@@ -128,12 +161,20 @@ export default async function BorrowPage() {
                     <div className="weight-bar" aria-label={`Collateral is ${pct(Math.min(used, 1), 0)} of what Aerodrome can absorb`}>
                       <span style={{ width: `${Math.max(1, Math.min(100, used * 100))}%` }} />
                     </div>
-                    {geo.nonUs && (
+                    {m.venue === 'aave' ? (
                       <div className="weight-meta">
-                        <a className="emph-link" href={morphoMarketUrl(m.marketId)} target="_blank" rel="noopener noreferrer">
-                          Open on Morpho
+                        <a className="emph-link" href={m.url} target="_blank" rel="noopener noreferrer">
+                          Aave contract on BaseScan ↗
                         </a>
                       </div>
+                    ) : (
+                      geo.nonUs && (
+                        <div className="weight-meta">
+                          <a className="emph-link" href={m.url} target="_blank" rel="noopener noreferrer">
+                            Open on Morpho
+                          </a>
+                        </div>
+                      )
                     )}
                   </div>
                 );
@@ -146,11 +187,11 @@ export default async function BorrowPage() {
                   <span key={m.marketId}>
                     {i > 0 && ', '}
                     {geo.nonUs ? (
-                      <a className="emph-link" href={morphoMarketUrl(m.marketId)} target="_blank" rel="noopener noreferrer">
-                        {m.symbol} ({pct(m.lltv)})
+                      <a className="emph-link" href={m.url} target="_blank" rel="noopener noreferrer">
+                        {m.symbol} on {venueName[m.venue]} ({pct(m.lltv)})
                       </a>
                     ) : (
-                      `${m.symbol} (${pct(m.lltv)})`
+                      `${m.symbol} on ${venueName[m.venue]} (${pct(m.lltv)})`
                     )}
                   </span>
                 ))}
@@ -176,13 +217,26 @@ export default async function BorrowPage() {
             <h2>How this is worked out</h2>
             <ul className="geo-note">
               <li>
-                Markets, rates and totals come from Morpho&apos;s public API. Only markets Morpho lists are shown. The oracle
-                price, the one liquidations use, is read from each market&apos;s oracle on Base.
+                Morpho markets, rates and totals come from Morpho&apos;s public API. Only markets Morpho lists are shown. The
+                oracle price, the one liquidations use, is read from each market&apos;s oracle on Base.
+              </li>
+              <li>
+                Aave is read straight from its contracts on Base: the Equities Hub (the shared USDC pool) and the spoke that
+                takes the stock tokens, at the addresses in Aave&apos;s own address book. Its rate is the pool&apos;s variable
+                rate; incentive programs are not included.
               </li>
               <li>
                 A liquidator repaying a loan gets the stock at a bonus set by the market: about{' '}
                 {pct(liquidationIncentiveFactor(0.625) - 1, 1)} at a 62.5% max LTV and{' '}
-                {pct(liquidationIncentiveFactor(0.77) - 1, 1)} at 77%.
+                {pct(liquidationIncentiveFactor(0.77) - 1, 1)} at 77% on Morpho
+                {aaveLif != null && (
+                  <>
+                    , and about {pct(aaveLif - 1, 2)} on Aave (its smallest bonus, when a loan first crosses the line, after
+                    Aave&apos;s cut). Aave also liquidates only enough of a loan to make it healthy again, so a real Aave
+                    liquidation is usually smaller than the whole loan
+                  </>
+                )}
+                .
                 Selling on Aerodrome pays only if the average fill stays within that bonus, after the gap between the pool
                 and the oracle.
               </li>

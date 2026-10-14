@@ -1,4 +1,6 @@
 import { getClient } from './quote';
+import { liquidationIncentiveFactor } from './liquidationMath';
+import type { StockLendingMarket } from './lendingMarket';
 import { STOCKS, USDC, type CbStock } from './tokens';
 
 // Morpho Blue lending markets on Base where one of the tracked stocks is the
@@ -16,22 +18,8 @@ const BASE_CHAIN_ID = 8453;
 
 const ORACLE_ABI = [{ type: 'function', name: 'price', stateMutability: 'view', inputs: [], outputs: [{ name: '', type: 'uint256' }] }] as const;
 
-export interface MorphoStockMarket {
-  marketId: `0x${string}`;
-  symbol: string;
-  lltv: number;
-  oracleAddress: `0x${string}`;
-  /** USD per share from the market's oracle, read on-chain. null if the read failed. */
-  oraclePriceUsd: number | null;
-  collateralUsd: number;
-  borrowUsd: number;
-  supplyUsd: number;
-  /** USDC still available to borrow. */
-  liquidityUsd: number;
-  utilization: number;
-  borrowApy: number;
-  supplyApy: number;
-}
+/** A listed Morpho market: per-stock borrows and rates are always known. */
+export type MorphoStockMarket = StockLendingMarket & { venue: 'morpho'; borrowUsd: number; supplyUsd: number; liquidityUsd: number; utilization: number };
 
 interface ApiMarket {
   marketId: string;
@@ -96,19 +84,24 @@ async function fetchMarkets(): Promise<MorphoStockMarket[]> {
         ? (Number(r.result as bigint) / 1e36) * 10 ** (m.collateralAsset.decimals - m.loanAsset.decimals)
         : null;
     const s = m.state;
+    const lltv = Number(BigInt(m.lltv)) / 1e18;
     return {
-      marketId: m.marketId as `0x${string}`,
+      venue: 'morpho' as const,
+      marketId: m.marketId,
       symbol: stock.symbol,
-      lltv: Number(BigInt(m.lltv)) / 1e18,
+      lltv,
+      liquidationIncentiveFactor: liquidationIncentiveFactor(lltv),
       oracleAddress: m.oracle!.address as `0x${string}`,
       oraclePriceUsd,
       collateralUsd: s?.collateralAssetsUsd ?? 0,
+      collateralCapUsd: null,
       borrowUsd: s?.borrowAssetsUsd ?? 0,
       supplyUsd: s?.supplyAssetsUsd ?? 0,
       liquidityUsd: s?.liquidityAssetsUsd ?? 0,
       utilization: s?.utilization ?? 0,
       borrowApy: s?.borrowApy ?? 0,
       supplyApy: s?.supplyApy ?? 0,
+      url: morphoMarketUrl(m.marketId),
     };
   });
 }

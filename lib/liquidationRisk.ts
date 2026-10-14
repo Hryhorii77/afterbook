@@ -2,16 +2,18 @@ import { getStock } from './tokens';
 import { getCachedPoolState, midPriceUsd, MULTIPLIER_ONE } from './quote';
 import { getCachedLiquidityDistribution } from './depth';
 import { simulateSell, maxSellAtAvgPrice } from './swapSim';
-import { getMorphoStockMarkets, type MorphoStockMarket } from './morpho';
-import { liquidationIncentiveFactor, SELL_CURVE_SIZES_USD, type SellCurvePoint } from './liquidationMath';
+import { getMorphoStockMarkets } from './morpho';
+import { getAaveStockLending, type AaveHubTotals } from './aave';
+import type { StockLendingMarket } from './lendingMarket';
+import { SELL_CURVE_SIZES_USD, type SellCurvePoint } from './liquidationMath';
 
 // "If this loan is liquidated, can Aerodrome actually absorb the sale?"
-// Morpho liquidates on the oracle price; a liquidator who has to sell the
-// seized stock on Aerodrome only makes money if the average fill stays above
-// oracle / LIF. Everything here is a snapshot of the pool right now.
+// Morpho and Aave both liquidate on their oracle price; a liquidator who has
+// to sell the seized stock on Aerodrome only makes money if the average fill
+// stays above oracle / LIF (each market carries its own LIF). Everything here
+// is a snapshot of the pool right now.
 
-export interface MarketRisk extends MorphoStockMarket {
-  liquidationIncentiveFactor: number;
+export interface MarketRisk extends StockLendingMarket {
   /** Oracle price per displayed share (B20 multiplier applied). */
   oraclePriceUsd: number;
   aeroMidUsd: number;
@@ -33,10 +35,26 @@ export interface StockLiquidationRisk {
   markets: MarketRisk[];
 }
 
-export async function getStockLiquidationRisk(symbol: string, markets?: MorphoStockMarket[]): Promise<StockLiquidationRisk | null> {
+export interface StockLendingMarkets {
+  markets: StockLendingMarket[];
+  /** Aave's shared USDC pool; null when Aave could not be read. */
+  aaveHub: AaveHubTotals | null;
+}
+
+/** Morpho and Aave together. One lender failing leaves the other on the page; both failing throws. */
+export async function getStockLendingMarkets(): Promise<StockLendingMarkets> {
+  const [morpho, aave] = await Promise.allSettled([getMorphoStockMarkets(), getAaveStockLending()]);
+  if (morpho.status === 'rejected' && aave.status === 'rejected') throw morpho.reason;
+  return {
+    markets: [...(morpho.status === 'fulfilled' ? morpho.value : []), ...(aave.status === 'fulfilled' ? aave.value.markets : [])],
+    aaveHub: aave.status === 'fulfilled' ? aave.value.hub : null,
+  };
+}
+
+export async function getStockLiquidationRisk(symbol: string, markets?: StockLendingMarket[]): Promise<StockLiquidationRisk | null> {
   const stock = getStock(symbol);
   if (!stock) return null;
-  const all = markets ?? (await getMorphoStockMarkets());
+  const all = markets ?? (await getStockLendingMarkets()).markets;
   const mine = all.filter((m) => m.symbol === stock.symbol && m.oraclePriceUsd != null);
 
   const state = await getCachedPoolState(stock);
@@ -51,12 +69,11 @@ export async function getStockLiquidationRisk(symbol: string, markets?: MorphoSt
 
   const marketRisks = mine.map((m): MarketRisk => {
     const oracle = m.oraclePriceUsd! / multiplierRatio;
-    const lif = liquidationIncentiveFactor(m.lltv);
+    const lif = m.liquidationIncentiveFactor;
     const cap = maxSellAtAvgPrice(state, dist, stock, oracle / lif);
     const unwind = simulateSell(state, dist, stock, m.collateralUsd / oracle);
     return {
       ...m,
-      liquidationIncentiveFactor: lif,
       oraclePriceUsd: oracle,
       aeroMidUsd: mid,
       aeroVsOracleBp: ((mid - oracle) / oracle) * 10_000,
@@ -69,10 +86,10 @@ export async function getStockLiquidationRisk(symbol: string, markets?: MorphoSt
   return { symbol: stock.symbol, aeroMidUsd: mid, sellCurve, markets: marketRisks };
 }
 
-/** Every tracked stock that has at least one listed Morpho market, in one pass. */
-export async function getAllLiquidationRisk(): Promise<StockLiquidationRisk[]> {
-  const markets = await getMorphoStockMarkets();
+/** Every tracked stock with at least one Morpho or Aave market, in one pass. */
+export async function getAllLiquidationRisk(): Promise<{ stocks: StockLiquidationRisk[]; aaveHub: AaveHubTotals | null }> {
+  const { markets, aaveHub } = await getStockLendingMarkets();
   const symbols = [...new Set(markets.map((m) => m.symbol))];
   const results = await Promise.all(symbols.map((s) => getStockLiquidationRisk(s, markets).catch(() => null)));
-  return results.filter((r): r is StockLiquidationRisk => r != null && r.markets.length > 0);
+  return { stocks: results.filter((r): r is StockLiquidationRisk => r != null && r.markets.length > 0), aaveHub };
 }
