@@ -13,6 +13,9 @@ import { getBasketCost } from './basketCost';
 import type { CardTheme } from './cardUrl';
 import type { TapeResult } from './tape';
 import { heroGapBp } from './shareText';
+import { getBorrowSummary } from './liquidationRisk';
+import { exceedsAero, venueName, type BorrowSummary } from './borrowSummary';
+import { usdCompact } from './format';
 
 /** A share's frozen numbers (lib/shareSnapshot.ts). Without one a card reads the live tape. */
 export interface FrozenCard {
@@ -295,7 +298,7 @@ function tileColors(cashTicker: string): { background: string; color: string } {
 function CardFooter({ c }: { c: Palette }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto', fontSize: 20, color: c.footer }}>
-      Trades execute on Aerodrome. Afterbook never holds your funds.
+      Trades are signed in your own wallet. Afterbook never holds your funds.
     </div>
   );
 }
@@ -482,6 +485,72 @@ export async function buildBasketOgImage(spec: string, theme: CardTheme = 'dark'
           </div>
         ) : (
           <span style={{ fontSize: 32, color: c.dim, marginTop: 48 }}>Build a basket of Base tokenized stocks.</span>
+        )}
+
+        <CardFooter c={c} />
+      </div>
+    ),
+    { ...OG_SIZE },
+  );
+}
+
+/** /borrow: how much stock backs USDC loans, and per market whether Aerodrome could absorb its
+ *  liquidation at a profit. Frozen numbers come from a share snapshot; otherwise read live. */
+export async function buildBorrowOgImage(theme: CardTheme = 'dark', frozen?: { takenAt: number; borrow: BorrowSummary }) {
+  const c = PALETTES[theme];
+  let summary: BorrowSummary | null = frozen?.borrow ?? null;
+  if (!summary) summary = await getBorrowSummary().catch(() => null);
+  const takenAt = frozen?.takenAt ?? Date.now();
+  const time = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(takenAt));
+  const rows = summary?.rows.slice(0, 4) ?? [];
+  const rowIcons = await Promise.all(rows.map((r) => iconDataUri(getStock(r.symbol)?.cashTicker ?? r.symbol)));
+
+  return new ImageResponse(
+    (
+      <div style={frame(c)}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <Mark px={44} />
+          <span style={{ fontSize: 40, fontWeight: 700, color: c.dim, letterSpacing: '-0.02em' }}>Afterbook · Stock loans</span>
+          <span style={{ fontSize: 22, color: c.dimmer }}>{time} ET</span>
+        </div>
+
+        {summary && rows.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: 52, fontWeight: 700, color: c.text, marginTop: 26, letterSpacing: '-0.02em' }}>
+              {usdCompact(summary.collateralUsd)} of stock backs USDC loans
+            </span>
+            <span style={{ fontSize: 26, color: c.dim, marginTop: 6 }}>
+              Aave and Morpho on Base · {usdCompact(summary.borrowUsd)} borrowed · can Aerodrome absorb a liquidation?
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 22, gap: 12 }}>
+              {rows.map((r, i) => {
+                const short = exceedsAero(r);
+                const cashTicker = getStock(r.symbol)?.cashTicker ?? r.symbol;
+                const icon = rowIcons[i];
+                return (
+                  <div key={`${r.venue}-${r.symbol}`} style={{ display: 'flex', alignItems: 'center', fontSize: 28 }}>
+                    {icon ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={icon} width={44} height={44} style={{ borderRadius: 12, marginRight: 16 }} />
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 12, marginRight: 16, fontSize: 13, fontWeight: 700, ...tileColors(cashTicker) }}>
+                        {cashTicker}
+                      </div>
+                    )}
+                    <span style={{ width: 150, fontWeight: 700, color: c.text }}>{r.symbol}</span>
+                    <span style={{ width: 120, color: c.dim }}>{venueName[r.venue]}</span>
+                    <span style={{ width: 300, color: c.text }}>{usdCompact(r.collateralUsd)} pledged</span>
+                    <span style={{ color: short ? c.neg : c.pos }}>
+                      Aero absorbs {r.capacityIsLowerBound ? '≈' : ''}
+                      {usdCompact(r.capacityUsd)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <span style={{ fontSize: 32, color: c.dim, marginTop: 48 }}>Lending data unavailable right now.</span>
         )}
 
         <CardFooter c={c} />

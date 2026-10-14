@@ -7,6 +7,8 @@ import { getBasketCost } from './basketCost';
 import { buildTodaySnapshot, closeBasisBp } from './todaySnapshot';
 import { stockShareText, todayShareText, basketShareText } from './shareText';
 import type { CardSpec } from './cardUrl';
+import { getBorrowSummary } from './liquidationRisk';
+import { borrowShareText, type BorrowSummary } from './borrowSummary';
 
 // One share = one frozen moment. When someone clicks Share, the server reads the tape once, writes
 // the post's sentence from it and keeps it under the share's id (the `s` in the link) for 30 days;
@@ -24,6 +26,8 @@ export interface ShareSnapshot {
   tape: Pick<TapeResult, 'rows' | 'session' | 'fetchedAt'>;
   /** Cost in bp to buy $10k of a basket (build cards only). */
   basketCostBp?: number | null;
+  /** Lending totals and markets (borrow cards only). */
+  borrow?: BorrowSummary;
   text: string;
 }
 
@@ -41,6 +45,8 @@ export function cleanCardSpec(input: unknown): CardSpec | null {
       const legs = typeof c.spec === 'string' ? parseSpec(c.spec) : null;
       return legs ? { page: 'build', spec: formatSpec(legs) } : null;
     }
+    case 'borrow':
+      return { page: 'borrow' };
     default:
       return null;
   }
@@ -51,6 +57,7 @@ export async function createShareSnapshot(card: CardSpec): Promise<{ id: string;
   const tape = await getTape();
   let text: string;
   let basketCostBp: number | null | undefined;
+  let borrow: BorrowSummary | undefined;
   let stored: CardSpec = card;
 
   if (card.page === 'stock') {
@@ -67,6 +74,10 @@ export async function createShareSnapshot(card: CardSpec): Promise<{ id: string;
     const cost = await getBasketCost(legs).catch(() => null);
     basketCostBp = cost?.points.find((p) => p.usd === 10_000)?.costBp ?? null;
     text = basketShareText(legs, basketGapBp(legs, tape.rows, tape.session.state), basketReferenceLabel(legs, tape.rows, tape.session.state));
+  } else if (card.page === 'borrow') {
+    borrow = await getBorrowSummary();
+    if (borrow.rows.length === 0) return null;
+    text = borrowShareText(borrow);
   } else {
     return null;
   }
@@ -77,6 +88,7 @@ export async function createShareSnapshot(card: CardSpec): Promise<{ id: string;
     takenAt: Date.now(),
     tape: { rows: tape.rows, session: tape.session, fetchedAt: tape.fetchedAt },
     basketCostBp,
+    borrow,
     text,
   };
   await redis.set(key(id), snapshot, { ex: TTL_SECONDS });

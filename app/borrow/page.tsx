@@ -9,21 +9,25 @@ import { getGeoInfo } from '@/lib/geo';
 import { getStock } from '@/lib/tokens';
 import { bp, usdCompact } from '@/lib/format';
 import { shareMetadata } from '@/lib/shareMeta';
+import { ShareButton } from '@/app/components/ShareButton';
+import { borrowShareText, summarizeBorrow, venueName } from '@/lib/borrowSummary';
 
 // Live pool and oracle reads on every request (each cached 20–60s
 // underneath), same as /today.
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = shareMetadata({
-  title: 'Borrow against stocks — Afterbook',
-  description:
-    "Morpho and Aave USDC loans against Base tokenized stocks, and whether Aerodrome is deep enough to absorb their liquidations.",
-  path: '/borrow',
-  card: { page: 'home' },
-});
+export async function generateMetadata({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
+  return shareMetadata({
+    title: 'Borrow against stocks — Afterbook',
+    description:
+      "Morpho and Aave USDC loans against Base tokenized stocks, and whether Aerodrome is deep enough to absorb their liquidations.",
+    path: '/borrow',
+    card: { page: 'borrow' },
+    searchParams: await searchParams,
+  });
+}
 
 const pct = (x: number, digits = 1) => `${(x * 100).toFixed(digits)}%`;
-const venueName: Record<LendingVenue, string> = { morpho: 'Morpho', aave: 'Aave' };
 
 export default async function BorrowPage() {
   const [all, geo] = await Promise.all([getAllLiquidationRisk().catch(() => null), getGeoInfo()]);
@@ -42,6 +46,7 @@ export default async function BorrowPage() {
   const countOf = (v: LendingVenue) => markets.filter((m) => m.venue === v).length;
   const biggest = active[0];
   const aaveLif = markets.find((m) => m.venue === 'aave')?.liquidationIncentiveFactor;
+  const shareText = risks ? borrowShareText(summarizeBorrow(risks, aaveHub)) : null;
 
   const calcMarkets: CalculatorMarket[] = markets.map((m) => ({
     marketId: m.marketId,
@@ -98,6 +103,11 @@ export default async function BorrowPage() {
                 Aerodrome can absorb {biggest.capacityIsLowerBound ? 'about ' : ''}
                 {usdCompact(biggest.profitableLiquidationCapacityUsd)} of it at a profit right now.
               </p>
+            )}
+            {shareText && (
+              <div className="basket-row" style={{ marginTop: 12 }}>
+                <ShareButton path="/borrow" card={{ page: 'borrow' }} fileName="afterbook-stock-loans.png" text={shareText} />
+              </div>
             )}
             {aaveHub && (
               <p className="geo-note">
