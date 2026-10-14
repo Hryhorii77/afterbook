@@ -1801,6 +1801,9 @@ a.btn:focus-visible, button.btn:focus-visible {
 .geo-more summary.emph-link:hover {
   color: var(--accent);
 }
+.geo-more > .actions {
+  margin-top: 12px;
+}
 
 .contract-info {
   font-family: var(--mono);
@@ -2004,6 +2007,13 @@ footer {
 }
 .carry-direction-tab:hover {
   color: var(--text);
+}
+.carry-direction-tab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.carry-direction-tab:disabled:hover {
+  color: var(--text-dim);
 }
 .carry-direction-tab-active {
   background: var(--panel-border);
