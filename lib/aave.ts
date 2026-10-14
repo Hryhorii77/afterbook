@@ -62,6 +62,8 @@ export interface AaveHubTotals {
 export interface AaveStockLending {
   markets: StockLendingMarket[];
   hub: AaveHubTotals;
+  /** The spoke's USDC reserve (what every stock loan borrows). */
+  usdcReserveId: number;
 }
 
 async function read(): Promise<AaveStockLending> {
@@ -148,7 +150,7 @@ async function read(): Promise<AaveStockLending> {
       };
     }),
   );
-  return { markets: markets.filter((m): m is StockLendingMarket => m != null), hub };
+  return { markets: markets.filter((m): m is StockLendingMarket => m != null), hub, usdcReserveId: usdcIdx };
 }
 
 // Same one-minute cache as lib/morpho.ts: usage moves slowly, and it keeps

@@ -1,6 +1,6 @@
 import { redis } from './redis';
 
-export type AlertType = 'basis' | 'close';
+export type AlertType = 'basis' | 'close' | 'loan';
 
 export interface AlertRule {
   id: string;
@@ -9,6 +9,10 @@ export interface AlertRule {
   symbol?: string;
   /** Required for 'basis' rules — fires when |basisBp| crosses this. */
   thresholdBp?: number;
+  /** Required for 'loan' rules: the public address whose Aave/Morpho stock loans are watched. */
+  wallet?: string;
+  /** Required for 'loan' rules: fires when the loan's health (at the oracle or at Aerodrome's price) drops below this. */
+  thresholdHf?: number;
   /** Edge-trigger state: true = condition currently holds. Only fires a
    *  message on the false→true transition, not every tick while it holds. */
   active: boolean;
@@ -67,3 +71,6 @@ export async function getAllChatIds(): Promise<string[]> {
 export function canAddRule(rules: AlertRule[]): boolean {
   return rules.length < MAX_RULES_PER_CHAT;
 }
+
+/** Free tier: one watched wallet per chat (more is the planned paid tier, Phase 2b step 2). */
+export const MAX_LOAN_RULES_PER_CHAT = 1;
