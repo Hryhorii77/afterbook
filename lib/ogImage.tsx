@@ -298,7 +298,7 @@ function tileColors(cashTicker: string): { background: string; color: string } {
 function CardFooter({ c }: { c: Palette }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto', fontSize: 20, color: c.footer }}>
-      Trades are signed in your own wallet. Afterbook never holds your funds.
+      Afterbook never holds your funds.
     </div>
   );
 }
