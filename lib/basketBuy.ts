@@ -41,3 +41,12 @@ export function basketAmountProblem(totalRaw: bigint, legs: BasketLeg[]): string
 export function legFloor(reviewedMinOut: bigint): bigint {
   return (reviewedMinOut * BigInt(10_000 - BASKET_DRIFT_BPS)) / BigInt(10_000);
 }
+
+/** Selling a basket: this share (1-100%) of whatever the wallet holds of each stock. Legs with
+ *  nothing to sell are left out. Floors, so it never asks to sell more than is held. */
+export function basketSellAmounts(holdings: { symbol: string; balance: bigint }[], pct: number): BasketLegAmount[] {
+  if (!Number.isInteger(pct) || pct < 1 || pct > 100) return [];
+  return holdings
+    .map((h) => ({ symbol: h.symbol, amountIn: (h.balance * BigInt(pct)) / BigInt(100) }))
+    .filter((l) => l.amountIn > BigInt(0));
+}

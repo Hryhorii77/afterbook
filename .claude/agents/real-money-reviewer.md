@@ -88,6 +88,13 @@ check passes, say so in one short line; do not pad.
   the rest"; an automatic retry or a loop that keeps sending is a finding. The
   split (`splitBasketUsdc`) must sum to exactly the reviewed total; the total
   is capped at `MAX_BASKET_USD`.
+- Basket sells (`BasketSellPanel.tsx`, `basketSellAmounts`): per leg, an
+  approval of that stock's token for `KYBER_ROUTER` for exactly that leg's
+  amount (never unlimited, never another spender), then its swap; the client
+  re-checks router, symbol, side `sell`, amount and that `tokenIn` is that
+  stock's token. The same rebuild-and-`legFloor` rule, stop rules and no
+  auto-retry as buys. Amounts are a floored share of the live balance, so a
+  leg can never ask to sell more than is held.
 - If the swap code changed, `.claude/skills/verify/swap-check.mts` must still
   pass (say if it was not run).
 

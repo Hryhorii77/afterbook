@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAccount, usePublicClient, useReadContract, useSendTransaction, useSwitchChain, useWriteContract } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { concat, erc20Abi, formatUnits, getAddress, parseUnits, type Hex } from 'viem';
@@ -42,7 +42,7 @@ interface Review {
   legs: { plan: BasketLegAmount; tx: SwapTx }[];
 }
 
-export function BasketBuyPanel({ legs, stocks }: { legs: BasketLeg[]; stocks: StockInfo[] }) {
+export function BasketBuyPanel({ legs, stocks, onBusy }: { legs: BasketLeg[]; stocks: StockInfo[]; onBusy?: (busy: boolean) => void }) {
   const { address, chainId } = useAccount();
   const { notify } = useNotify();
   const publicClient = usePublicClient({ chainId: base.id });
@@ -59,6 +59,8 @@ export function BasketBuyPanel({ legs, stocks }: { legs: BasketLeg[]; stocks: St
   const [rest, setRest] = useState<BasketLegAmount[] | null>(null);
   /** This run approved the router: if it then stops before every leg is bought, say what is left approved. */
   const [approvedFor, setApprovedFor] = useState<BasketLegAmount[] | null>(null);
+  // Lets the page lock its Buy/Sell switch and eligibility box while a run is asking the wallet.
+  useEffect(() => onBusy?.(busy !== null), [busy, onBusy]);
 
   const decimalsOf = (symbol: string) => stocks.find((s) => s.symbol === symbol)?.decimals ?? 8;
 
