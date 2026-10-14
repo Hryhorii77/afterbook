@@ -2019,6 +2019,17 @@ footer {
   background: var(--panel-border);
   color: var(--text);
 }
+/* The swap's Buy / Sell switch sits in a row of 44px pills (amount, Max, Review), so it matches
+   them: 44px tall, 14px semi-bold. The Carry calculator's switch stays the quiet small one. */
+.swap-side-toggle {
+  min-height: 44px;
+  align-items: stretch;
+}
+.swap-side-toggle .carry-direction-tab {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0 20px;
+}
 
 /* Subordinate info card — deliberately quieter than the calculator above
    it (this is a link-out to third-party venues Afterbook has no

@@ -248,7 +248,7 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
 
   return (
     <div className="swap-panel">
-      <div className="carry-direction-toggle" role="tablist" aria-label="Buy or sell">
+      <div className="carry-direction-toggle swap-side-toggle" role="tablist" aria-label="Buy or sell">
         {(['buy', 'sell'] as const).map((s) => (
           <button
             key={s}
