@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { tileHue } from '@/lib/symbolStyle';
 import { useTokenIcon } from './TokenIcons';
 
@@ -11,12 +11,19 @@ import { useTokenIcon } from './TokenIcons';
 export function SymbolTile({ cashTicker, size = 'md' }: { cashTicker: string; size?: 'sm' | 'md' }) {
   const icon = useTokenIcon(cashTicker);
   const [failed, setFailed] = useState(false);
+  const img = useRef<HTMLImageElement>(null);
+  // An image that failed before React attached onError (server-rendered, then hydrated) never
+  // fires it again: catch that case on mount, or the row shows a broken image instead of the tile.
+  useEffect(() => {
+    const el = img.current;
+    if (el && el.complete && el.naturalWidth === 0) setFailed(true);
+  }, [icon]);
 
   if (icon && !failed) {
     return (
       <span className={`symbol-icon symbol-icon-${size}`} aria-hidden="true">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={icon} alt="" width={40} height={40} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
+        <img ref={img} src={icon} alt="" width={40} height={40} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
       </span>
     );
   }
