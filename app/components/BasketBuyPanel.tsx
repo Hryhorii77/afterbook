@@ -20,6 +20,12 @@ import { api, fmt, logSwapHash, usd, venueNames } from './swapClient';
 // minimum is at least the "at least" figure on the review card. Anything that stops the run stops
 // it: what was bought is stated, nothing is retried on its own.
 
+/** Pause after each confirmed leg before asking for the next. On the owner's first real basket
+ *  (2026-10-14) Rabby simulated the second swap a moment after the first confirmed and showed a false
+ *  "TRANSFER_FROM_FAILED": its simulation counted the first swap twice (pending and mined), so it saw
+ *  no allowance left. The same swap simulated fine on-chain and went through seconds later. */
+const LEG_PAUSE_MS = 4000;
+
 interface StockInfo {
   symbol: string;
   decimals: number;
@@ -166,6 +172,10 @@ export function BasketBuyPanel({ legs, stocks }: { legs: BasketLeg[]; stocks: St
           status[i] = { symbol: leg.symbol, status: 'done', hash, text: `${fmt(tx.quote.amountOut, decimalsOf(leg.symbol))} ${leg.symbol} for ${fmt(leg.amountIn, USDC.decimals, 2)} USDC` };
           setProgress([...status]);
           void logSwapHash(hash);
+          if (i < review.legs.length - 1) {
+            setBusy(`pause-${i + 1}`);
+            await new Promise((r) => setTimeout(r, LEG_PAUSE_MS));
+          }
         } catch (e) {
           status[i] = { ...status[i], status: 'stopped' };
           setProgress([...status]);
@@ -197,6 +207,7 @@ export function BasketBuyPanel({ legs, stocks }: { legs: BasketLeg[]; stocks: St
     if (busy === 'approve') return 'Approve USDC in wallet…';
     const [kind, idx] = busy.split('-');
     const sym = review?.legs[Number(idx)]?.plan.symbol ?? '';
+    if (kind === 'pause') return `Getting ${sym} ready…`;
     return kind === 'leg' ? `Confirm ${sym} in wallet (${Number(idx) + 1} of ${legCount})…` : `Confirming ${sym} onchain…`;
   })();
   const bought = progress?.filter((p) => p.status === 'done') ?? [];
