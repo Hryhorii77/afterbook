@@ -1796,6 +1796,11 @@ a.btn:focus-visible, button.btn:focus-visible {
 .geo-more .geo-note {
   margin-top: 6px;
 }
+/* A disclosure that leads somewhere (the Aerodrome links) looks like a link, so people try it. */
+.geo-more summary.emph-link,
+.geo-more summary.emph-link:hover {
+  color: var(--accent);
+}
 
 .contract-info {
   font-family: var(--mono);

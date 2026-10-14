@@ -1469,7 +1469,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         )}
         {unlocked && (
           <details className="geo-more">
-            <summary>Or trade on Aerodrome&apos;s own site</summary>
+            <summary className="emph-link">Or trade on Aerodrome&apos;s own site</summary>
             <div className="actions">
               {quote && (
                 <button type="button" className="btn btn-secondary" onClick={copyAmount}>

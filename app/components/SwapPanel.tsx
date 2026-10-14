@@ -256,7 +256,15 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
             role="tab"
             aria-selected={side === s}
             className={side === s ? 'carry-direction-tab carry-direction-tab-active' : 'carry-direction-tab'}
-            onClick={() => setSide(s)}
+            onClick={() => {
+              if (s === side) return;
+              // The amount is in the token being sold, so it means something else on the other side
+              // (0.33 USDC became 0.33 NVDAc, ~$72): start the other side empty.
+              setSide(s);
+              setAmount('');
+              setQuote(null);
+              setReview(null);
+            }}
             disabled={busy !== null}
           >
             {s === 'buy' ? `Buy ${stock.symbol}` : `Sell ${stock.symbol}`}
