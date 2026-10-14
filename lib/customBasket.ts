@@ -1,6 +1,6 @@
 import { getStock } from './tokens';
 
-// A read-only basket someone builds on /build: 2–4 tracked stocks with
+// A basket someone builds on /build: 2–4 tracked stocks with
 // whole-percent weights, carried entirely in the URL so every basket is a
 // shareable link with its own card. Nothing here touches Glider or the
 // Basis Tilt basket (lib/baskets/*). Buying one is lib/basketBuy.ts and
