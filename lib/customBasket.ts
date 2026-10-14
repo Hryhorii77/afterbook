@@ -3,7 +3,8 @@ import { getStock } from './tokens';
 // A read-only basket someone builds on /build: 2–4 tracked stocks with
 // whole-percent weights, carried entirely in the URL so every basket is a
 // shareable link with its own card. Nothing here touches Glider or the
-// Basis Tilt basket (lib/baskets/*), and nothing is bought.
+// Basis Tilt basket (lib/baskets/*). Buying one is lib/basketBuy.ts and
+// BasketBuyPanel: plain KyberSwap swaps, one per stock, from the visitor's wallet.
 //
 // URL form: /build/NVDAc-40_AAPLc-30_METAc-30, or /build/NVDAc_AAPLc_METAc
 // for equal weights. Symbols are case-insensitive; weights are normalized

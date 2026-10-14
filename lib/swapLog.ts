@@ -18,19 +18,23 @@ const KEY = (hash: string) => `swap:${hash.toLowerCase()}`;
 const BUILT = (data: Hex) => `swapbuild:${keccak256(data)}`;
 const BUILT_TTL_S = 2 * 60 * 60;
 
+/** Which panel built it: one stock's Buy/Sell, or a /build basket bought in one go. */
+export type SwapSource = 'stock' | 'basket';
+
 interface BuiltSwap {
   account: string;
   symbol: string;
   side: 'buy' | 'sell';
   feeBps: number;
   amountInUsd: number;
+  source?: SwapSource;
 }
 
 /** Called by /api/swap/build for every transaction it returns, so the log can tell our swaps from any
  *  other router call that happens to carry the (public) Builder Code. */
-export async function rememberBuiltSwap(tx: SwapTx, account: `0x${string}`): Promise<void> {
+export async function rememberBuiltSwap(tx: SwapTx, account: `0x${string}`, source: SwapSource = 'stock'): Promise<void> {
   if (!redis) return;
-  const built: BuiltSwap = { account, symbol: tx.quote.symbol, side: tx.quote.side, feeBps: tx.quote.feeBps, amountInUsd: tx.quote.amountInUsd };
+  const built: BuiltSwap = { account, symbol: tx.quote.symbol, side: tx.quote.side, feeBps: tx.quote.feeBps, amountInUsd: tx.quote.amountInUsd, source };
   await redis.set(BUILT(tx.data), built, { ex: BUILT_TTL_S });
 }
 const INDEX = 'swaps';
@@ -45,6 +49,8 @@ export interface SwapRecord {
   feeBps: number;
   feeUsd: number;
   wallet: string;
+  /** Missing on swaps logged before baskets could be bought (2026-10-14): those were all 'stock'. */
+  source?: SwapSource;
 }
 
 const walletId = (addr: string) => createHash('sha256').update(addr.toLowerCase()).digest('hex').slice(0, 16);
@@ -101,6 +107,7 @@ export async function logSwap(hash: Hex): Promise<LogResult> {
     feeBps: built.feeBps,
     feeUsd: (usd * built.feeBps) / 10_000,
     wallet: walletId(tx.from),
+    source: built.source ?? 'stock',
   };
   const created = await redis.set(KEY(hash), record, { nx: true, ex: TTL_S });
   if (created) await redis.zadd(INDEX, { score: record.at, member: record.hash });
@@ -114,6 +121,8 @@ export interface SwapStats {
   volumeUsd: number;
   feesUsd: number;
   bySymbol: Record<string, { swaps: number; volumeUsd: number }>;
+  /** Swaps from a stock's own panel vs legs of a basket bought in one go. */
+  bySource: Record<SwapSource, { swaps: number; volumeUsd: number }>;
 }
 
 export async function swapStats(days: number): Promise<SwapStats | null> {
@@ -134,5 +143,13 @@ export async function swapStats(days: number): Promise<SwapStats | null> {
     volumeUsd: records.reduce((a, r) => a + r.usd, 0),
     feesUsd: records.reduce((a, r) => a + r.feeUsd, 0),
     bySymbol,
+    bySource: (['stock', 'basket'] as const).reduce(
+      (acc, src) => {
+        const mine = records.filter((r) => (r.source ?? 'stock') === src);
+        acc[src] = { swaps: mine.length, volumeUsd: mine.reduce((a, r) => a + r.usd, 0) };
+        return acc;
+      },
+      {} as SwapStats['bySource'],
+    ),
   };
 }
