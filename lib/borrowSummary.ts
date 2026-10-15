@@ -51,7 +51,7 @@ export const exceedsAero = (r: BorrowSummaryRow) => r.collateralUsd > r.capacity
 
 /** A word for the card instead of a raw figure: could Aerodrome take this market's whole collateral
  *  if every loan were liquidated at once? Deep: twice over. Tight: just. Short: not in one go (the
- *  same line as exceedsAero). Real liquidations are usually far smaller than that worst case. */
+ *  same line as exceedsAero). Shown in neutral colours (owner decision 2026-10-15). Real liquidations are usually far smaller than that worst case. */
 export type AeroExit = 'Deep' | 'Tight' | 'Short';
 export function aeroExit(collateralUsd: number, capacityUsd: number): AeroExit {
   if (collateralUsd > capacityUsd) return 'Short';
@@ -67,7 +67,7 @@ export function borrowShareText(s: BorrowSummary): string {
       .map((v) => ({ v, syms: over.filter((r) => r.venue === v).map((r) => r.symbol) }))
       .filter((g) => g.syms.length > 0)
       .map((g) => `${list(g.syms)} on ${venueName[g.v]}`);
-    return `More ${list(byVenue)} is pledged as loan collateral than Aerodrome can absorb in a liquidation at a profit right now.`;
+    return `More ${list(byVenue)} is pledged as loan collateral than Aerodrome could absorb at a profit if every loan were liquidated at once.`;
   }
   return `${usdCompact(s.collateralUsd)} of tokenized stocks back USDC loans on Aave and Morpho on Base, and Aerodrome can absorb each market's liquidation at a profit right now.`;
 }
