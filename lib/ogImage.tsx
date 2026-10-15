@@ -14,7 +14,7 @@ import type { CardTheme } from './cardUrl';
 import type { TapeResult } from './tape';
 import { heroGapBp } from './shareText';
 import { getBorrowSummary } from './liquidationRisk';
-import { exceedsAero, venueName, type BorrowSummary } from './borrowSummary';
+import { aeroExit, venueName, type BorrowSummary } from './borrowSummary';
 import { usdCompact } from './format';
 
 /** A share's frozen numbers (lib/shareSnapshot.ts). Without one a card reads the live tape. */
@@ -494,8 +494,8 @@ export async function buildBasketOgImage(spec: string, theme: CardTheme = 'dark'
   );
 }
 
-/** /borrow: how much stock backs USDC loans, and per market whether Aerodrome could absorb its
- *  liquidation at a profit. Frozen numbers come from a share snapshot; otherwise read live. */
+/** /borrow: how much stock backs USDC loans, and per market its Aero exit (the page's word, in
+ *  neutral colours: it is a worst case, not an alarm). Frozen numbers come from a share snapshot; otherwise read live. */
 export async function buildBorrowOgImage(theme: CardTheme = 'dark', frozen?: { takenAt: number; borrow: BorrowSummary }) {
   const c = PALETTES[theme];
   let summary: BorrowSummary | null = frozen?.borrow ?? null;
@@ -524,7 +524,6 @@ export async function buildBorrowOgImage(theme: CardTheme = 'dark', frozen?: { t
             </span>
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 22, gap: 12 }}>
               {rows.map((r, i) => {
-                const short = exceedsAero(r);
                 const cashTicker = getStock(r.symbol)?.cashTicker ?? r.symbol;
                 const icon = rowIcons[i];
                 return (
@@ -540,8 +539,10 @@ export async function buildBorrowOgImage(theme: CardTheme = 'dark', frozen?: { t
                     <span style={{ width: 150, fontWeight: 700, color: c.text }}>{r.symbol}</span>
                     <span style={{ width: 120, color: c.dim }}>{venueName[r.venue]}</span>
                     <span style={{ width: 300, color: c.text }}>{usdCompact(r.collateralUsd)} pledged</span>
-                    <span style={{ color: short ? c.neg : c.pos }}>
-                      Aero absorbs {r.capacityIsLowerBound ? '≈' : ''}
+                    <span style={{ color: c.dim }}>Aero exit</span>
+                    <span style={{ fontWeight: 700, color: c.text, marginLeft: 12 }}>{aeroExit(r.collateralUsd, r.capacityUsd)}</span>
+                    <span style={{ color: c.dim, marginLeft: 10 }}>
+                      · {r.capacityIsLowerBound ? '≈' : ''}
                       {usdCompact(r.capacityUsd)}
                     </span>
                   </div>

@@ -178,7 +178,7 @@ export default async function BorrowPage() {
                     <div className="weight-meta">
                       <span>Aero exit</span>
                       <span>
-                        <strong className={exit === 'Short' ? 'basis-neg' : exit === 'Deep' ? 'basis-pos' : undefined}>{exit}</strong>
+                        <strong style={{ color: 'var(--text)' }}>{exit}</strong>
                         <span>
                           {' · '}
                           {m.capacityIsLowerBound ? '≈ ' : ''}
