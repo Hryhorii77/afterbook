@@ -49,6 +49,15 @@ export function summarizeBorrow(stocks: StockLiquidationRisk[], aaveHub: AaveHub
  *  past that are far below any liquidation bonus (4.5–15%). */
 export const exceedsAero = (r: BorrowSummaryRow) => r.collateralUsd > r.capacityUsd;
 
+/** A word for the card instead of a raw figure: could Aerodrome take this market's whole collateral
+ *  if every loan were liquidated at once? Deep: twice over. Tight: just. Short: not in one go (the
+ *  same line as exceedsAero). Real liquidations are usually far smaller than that worst case. */
+export type AeroExit = 'Deep' | 'Tight' | 'Short';
+export function aeroExit(collateralUsd: number, capacityUsd: number): AeroExit {
+  if (collateralUsd > capacityUsd) return 'Short';
+  return collateralUsd * 2 > capacityUsd ? 'Tight' : 'Deep';
+}
+
 const list = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
 
 export function borrowShareText(s: BorrowSummary): string {
