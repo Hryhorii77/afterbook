@@ -28,6 +28,8 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
 }
 
 const pct = (x: number, digits = 1) => `${(x * 100).toFixed(digits)}%`;
+/** 0.7 -> "70%", 0.625 -> "62.5%": no trailing ".0", so the card subtitle fits. */
+const ltvPct = (x: number) => `${Number((x * 100).toFixed(1))}%`;
 
 export default async function BorrowPage() {
   const [all, geo] = await Promise.all([getAllLiquidationRisk().catch(() => null), getGeoInfo()]);
@@ -128,7 +130,7 @@ export default async function BorrowPage() {
               liquidations are usually much smaller than that worst case, especially on Aave, which sells only enough to make
               a loan healthy again.
             </p>
-            <div className="weight-grid">
+            <div className="weight-grid borrow-grid">
               {active.map((m) => {
                 const stock = getStock(m.symbol);
                 const exit = aeroExit(m.collateralUsd, m.profitableLiquidationCapacityUsd);
@@ -140,14 +142,17 @@ export default async function BorrowPage() {
                       <div className="sym-cell-text">
                         <span className="symbol">{m.symbol}</span>
                         <span className="symbol-name">
-                          {venueName[m.venue]} · max LTV {pct(m.lltv)}
+                          {venueName[m.venue]} · max LTV {ltvPct(m.lltv)}
                         </span>
                       </div>
                     </div>
-                    <div className="weight-pct">{pct(m.borrowApy, 2)}</div>
-                    <div className="weight-meta" style={{ marginTop: 2 }}>
-                      <span>Borrow rate</span>
-                      <span>Lenders earn {pct(m.supplyApy, 2)}</span>
+                    <div className="borrow-rate">
+                      <span className="weight-pct">{pct(m.borrowApy, 2)}</span>
+                      <span>borrow rate</span>
+                    </div>
+                    <div className="weight-meta">
+                      <span>Lenders earn</span>
+                      <span>{pct(m.supplyApy, 2)}</span>
                     </div>
                     <div className="weight-meta">
                       <span>Collateral</span>
@@ -156,14 +161,14 @@ export default async function BorrowPage() {
                         {m.collateralCapUsd != null && <> of {usdCompact(m.collateralCapUsd)} cap</>}
                       </span>
                     </div>
-                    <div className="weight-meta">
-                      <span>Borrowed</span>
-                      <span>
-                        {m.borrowUsd == null
-                          ? 'Shared Aave pool'
-                          : `${usdCompact(m.borrowUsd)} (${pct(m.utilization ?? 0, 0)} used)`}
-                      </span>
-                    </div>
+                    {m.borrowUsd != null && (
+                      <div className="weight-meta">
+                        <span>Borrowed</span>
+                        <span>
+                          {usdCompact(m.borrowUsd)} ({pct(m.utilization ?? 0, 0)} used)
+                        </span>
+                      </div>
+                    )}
                     <div className="weight-meta">
                       <span>Free to borrow</span>
                       <span>
@@ -171,6 +176,7 @@ export default async function BorrowPage() {
                         {m.venue === 'aave' && free != null && ' shared'}
                       </span>
                     </div>
+                    <div className="borrow-card-rule" aria-hidden="true" />
                     <div className="weight-meta">
                       <span>Aero vs oracle</span>
                       <span className={m.aeroVsOracleBp >= 0 ? 'basis-pos' : 'basis-neg'}>{bp(m.aeroVsOracleBp)}</span>
@@ -179,25 +185,23 @@ export default async function BorrowPage() {
                       <span>Aero exit</span>
                       <span>
                         <strong style={{ color: 'var(--text)' }}>{exit}</strong>
-                        <span>
-                          {' · '}
-                          {m.capacityIsLowerBound ? '≈ ' : ''}
-                          {usdCompact(m.profitableLiquidationCapacityUsd)}
-                        </span>
+                        {' · '}
+                        {m.capacityIsLowerBound ? '≈ ' : ''}
+                        {usdCompact(m.profitableLiquidationCapacityUsd)}
                       </span>
                     </div>
-                    <div className="weight-meta">
+                    <div className="weight-meta borrow-card-links">
                       <a className="emph-link" href={`#check=${encodeURIComponent(m.marketId)}`}>
                         Check a loan
                       </a>
                       {m.venue === 'aave' ? (
-                        <a className="emph-link" href={m.url} target="_blank" rel="noopener noreferrer">
-                          Aave contract ↗
+                        <a className="emph-link" href={m.url} target="_blank" rel="noopener noreferrer" title="The Aave spoke contract on BaseScan">
+                          BaseScan ↗
                         </a>
                       ) : (
                         geo.nonUs && (
                           <a className="emph-link" href={m.url} target="_blank" rel="noopener noreferrer">
-                            Open on Morpho
+                            Morpho ↗
                           </a>
                         )
                       )}
@@ -214,10 +218,10 @@ export default async function BorrowPage() {
                     {i > 0 && ', '}
                     {geo.nonUs ? (
                       <a className="emph-link" href={m.url} target="_blank" rel="noopener noreferrer">
-                        {m.symbol} on {venueName[m.venue]} ({pct(m.lltv)})
+                        {m.symbol} on {venueName[m.venue]} ({ltvPct(m.lltv)})
                       </a>
                     ) : (
-                      `${m.symbol} on ${venueName[m.venue]} (${pct(m.lltv)})`
+                      `${m.symbol} on ${venueName[m.venue]} (${ltvPct(m.lltv)})`
                     )}
                   </span>
                 ))}
