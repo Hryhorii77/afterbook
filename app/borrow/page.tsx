@@ -10,7 +10,7 @@ import { getStock } from '@/lib/tokens';
 import { bp, usdCompact } from '@/lib/format';
 import { shareMetadata } from '@/lib/shareMeta';
 import { ShareButton } from '@/app/components/ShareButton';
-import { borrowShareText, summarizeBorrow, venueName } from '@/lib/borrowSummary';
+import { aeroExit, borrowShareText, summarizeBorrow, venueName } from '@/lib/borrowSummary';
 
 // Live pool and oracle reads on every request (each cached 20–60s
 // underneath), same as /today.
@@ -47,6 +47,10 @@ export default async function BorrowPage() {
   const biggest = active[0];
   const aaveLif = markets.find((m) => m.venue === 'aave')?.liquidationIncentiveFactor;
   const shareText = risks ? borrowShareText(summarizeBorrow(risks, aaveHub)) : null;
+  // USDC a new loan could still draw: Morpho per market; Aave from the one shared pool, within its borrow cap.
+  const aaveFree = aaveHub
+    ? Math.max(0, Math.min(aaveHub.liquidityUsd, aaveHub.borrowCapUsd != null ? aaveHub.borrowCapUsd - aaveHub.borrowUsd : Infinity))
+    : null;
 
   const calcMarkets: CalculatorMarket[] = markets.map((m) => ({
     marketId: m.marketId,
@@ -118,14 +122,17 @@ export default async function BorrowPage() {
               </p>
             )}
             <p className="geo-note">
-              &ldquo;Aero can absorb&rdquo; is the most stock a liquidator could sell on Aerodrome right now and still make
-              money, after the price impact and the pool fee. The bar shows how much of that this market&apos;s collateral
-              would use.
+              &ldquo;Aero exit&rdquo; asks whether Aerodrome could take a market&apos;s whole collateral if every loan in it were
+              liquidated at once: Deep (twice over), Tight (just) or Short (not in one go). The amount is the most stock a
+              liquidator could sell there right now and still make money, after the price impact and the pool fee. Real
+              liquidations are usually much smaller than that worst case, especially on Aave, which sells only enough to make
+              a loan healthy again.
             </p>
             <div className="weight-grid">
               {active.map((m) => {
                 const stock = getStock(m.symbol);
-                const used = m.profitableLiquidationCapacityUsd > 0 ? m.collateralUsd / m.profitableLiquidationCapacityUsd : 1;
+                const exit = aeroExit(m.collateralUsd, m.profitableLiquidationCapacityUsd);
+                const free = m.venue === 'aave' ? aaveFree : m.liquidityUsd;
                 return (
                   <div className="weight-card" key={m.marketId}>
                     <div className="weight-card-top">
@@ -158,34 +165,43 @@ export default async function BorrowPage() {
                       </span>
                     </div>
                     <div className="weight-meta">
+                      <span>Free to borrow</span>
+                      <span>
+                        {free == null ? '—' : usdCompact(free)}
+                        {m.venue === 'aave' && free != null && ' shared'}
+                      </span>
+                    </div>
+                    <div className="weight-meta">
                       <span>Aero vs oracle</span>
                       <span className={m.aeroVsOracleBp >= 0 ? 'basis-pos' : 'basis-neg'}>{bp(m.aeroVsOracleBp)}</span>
                     </div>
                     <div className="weight-meta">
-                      <span>Aero can absorb</span>
+                      <span>Aero exit</span>
                       <span>
-                        {m.capacityIsLowerBound ? '≈ ' : ''}
-                        {usdCompact(m.profitableLiquidationCapacityUsd)}
+                        <strong className={exit === 'Short' ? 'basis-neg' : exit === 'Deep' ? 'basis-pos' : undefined}>{exit}</strong>
+                        <span>
+                          {' · '}
+                          {m.capacityIsLowerBound ? '≈ ' : ''}
+                          {usdCompact(m.profitableLiquidationCapacityUsd)}
+                        </span>
                       </span>
                     </div>
-                    <div className="weight-bar" aria-label={`Collateral is ${pct(Math.min(used, 1), 0)} of what Aerodrome can absorb`}>
-                      <span style={{ width: `${Math.max(1, Math.min(100, used * 100))}%` }} />
-                    </div>
-                    {m.venue === 'aave' ? (
-                      <div className="weight-meta">
+                    <div className="weight-meta">
+                      <a className="emph-link" href={`#check=${encodeURIComponent(m.marketId)}`}>
+                        Check a loan
+                      </a>
+                      {m.venue === 'aave' ? (
                         <a className="emph-link" href={m.url} target="_blank" rel="noopener noreferrer">
-                          Aave contract on BaseScan ↗
+                          Aave contract ↗
                         </a>
-                      </div>
-                    ) : (
-                      geo.nonUs && (
-                        <div className="weight-meta">
+                      ) : (
+                        geo.nonUs && (
                           <a className="emph-link" href={m.url} target="_blank" rel="noopener noreferrer">
                             Open on Morpho
                           </a>
-                        </div>
-                      )
-                    )}
+                        )
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -217,7 +233,7 @@ export default async function BorrowPage() {
           </section>
 
           {calcMarkets.length > 0 && (
-            <section className="panel">
+            <section className="panel" id="check">
               <h2>Check a loan</h2>
               <BorrowCalculator markets={calcMarkets} curves={curves} />
             </section>

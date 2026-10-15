@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { positionRisk, type SellCurvePoint } from '@/lib/liquidationMath';
 import { usd } from '@/lib/format';
 
@@ -29,6 +29,26 @@ export function BorrowCalculator({ markets, curves }: Props) {
   // Default to borrowing 40% of the collateral value — well inside every
   // listed LLTV, so the first thing a visitor sees is a safe-looking loan.
   const [borrowInput, setBorrowInput] = useState(() => (market ? String(Math.round(10 * market.oraclePriceUsd * 0.4)) : '1000'));
+
+  const sharesRef = useRef(sharesInput);
+  sharesRef.current = sharesInput;
+  // A market card's "Check a loan" link (#check=<marketId>) opens this market with a fresh 40% loan.
+  useEffect(() => {
+    const pick = () => {
+      const h = window.location.hash;
+      if (!h.startsWith('#check=')) return;
+      const m = markets.find((x) => x.marketId === decodeURIComponent(h.slice('#check='.length)));
+      if (!m) return;
+      setMarketId(m.marketId);
+      setBorrowInput(String(Math.round(Number(sharesRef.current || 0) * m.oraclePriceUsd * 0.4)));
+      document.getElementById('check')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Clear the hash so the same link works again and a reload doesn't jump.
+      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+    };
+    pick();
+    window.addEventListener('hashchange', pick);
+    return () => window.removeEventListener('hashchange', pick);
+  }, [markets]);
 
   const risk = useMemo(() => {
     if (!market) return null;
