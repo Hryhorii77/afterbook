@@ -647,10 +647,18 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
   .site-header-actions .wallet-connect-btn { min-height: 40px; padding: 6px 14px; }
   .theme-toggle { width: 40px; height: 40px; }
 }
-/* Narrow phones: five links only fit if "Biggest gap" reads "Gap". */
+/* Narrow phones: five links only fit if "Biggest gap" reads "Gap". The logo, wallet and icons
+   stay on one row (owner, 2026-10-17): the wallet drops its "Base" label (the panel still says
+   it), and below 375px the logo drops its word and keeps the mark. */
 @media (max-width: 420px) {
   .nav-label-long { display: none; }
   .nav-label-short { display: inline; }
+  .site-header .wallet-chain { display: none; }
+  .site-header-actions { gap: 6px; }
+  .site-header-actions .wallet-connect-btn { padding: 6px 12px; }
+}
+@media (max-width: 374px) {
+  .site-header .site-brand-text { display: none; }
 }
 
 .wallet-connect-btn {
@@ -1826,6 +1834,8 @@ a.btn:focus-visible, button.btn:focus-visible {
 .contract-info a {
   color: var(--accent);
   text-decoration: none;
+  /* An address breaks after its "…" on a phone; keep "0xB198…5542 ↗" whole. */
+  white-space: nowrap;
 }
 
 .contract-info a:hover {

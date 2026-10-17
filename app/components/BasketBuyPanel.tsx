@@ -273,7 +273,7 @@ export function BasketBuyPanel({ legs, stocks, onBusy }: { legs: BasketLeg[]; st
             <dt>Contract</dt>
             <dd>
               <a href={`https://basescan.org/address/${KYBER_ROUTER}`} target="_blank" rel="noopener noreferrer" className="emph-link">
-                KyberSwap router {KYBER_ROUTER.slice(0, 6)}…{KYBER_ROUTER.slice(-4)} ↗
+                KyberSwap router {KYBER_ROUTER.slice(0, 6)}…{KYBER_ROUTER.slice(-4)}&nbsp;↗
               </a>
             </dd>
           </dl>
@@ -302,7 +302,7 @@ export function BasketBuyPanel({ legs, stocks, onBusy }: { legs: BasketLeg[]; st
                 <>
                   bought {p.text}{' '}
                   <a href={`https://basescan.org/tx/${p.hash as Hex}`} target="_blank" rel="noopener noreferrer" className="emph-link">
-                    View ↗
+                    View&nbsp;↗
                   </a>
                 </>
               ) : p.status === 'sending' ? (

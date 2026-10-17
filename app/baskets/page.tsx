@@ -111,7 +111,7 @@ export default async function BasketsPage() {
         <p className="geo-note">
           Trading and accounts run on{' '}
           <a href="https://glider.fi" target="_blank" rel="noopener noreferrer" className="emph-link">
-            Glider ↗
+            Glider&nbsp;↗
           </a>
           . Afterbook sets the target weights and charges no fee.
         </p>

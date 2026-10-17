@@ -193,7 +193,7 @@ export function BasketPanel() {
       setNotice(
         <>
           {formatUnits(value, USDC.decimals)} USDC sent.{' '}
-          <a href={`https://basescan.org/tx/${hash}`} target="_blank" rel="noopener noreferrer" className="emph-link">View transaction ↗</a>.
+          <a href={`https://basescan.org/tx/${hash}`} target="_blank" rel="noopener noreferrer" className="emph-link">View transaction&nbsp;↗</a>.
           It shows below as USDC in your account as soon as it confirms, and in your Balance once Glider has counted it.
         </>,
       );

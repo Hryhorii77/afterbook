@@ -196,12 +196,12 @@ export default async function BorrowPage() {
                       </a>
                       {m.venue === 'aave' ? (
                         <a className="emph-link" href={m.url} target="_blank" rel="noopener noreferrer" title="The Aave spoke contract on BaseScan">
-                          BaseScan ↗
+                          BaseScan&nbsp;↗
                         </a>
                       ) : (
                         geo.nonUs && (
                           <a className="emph-link" href={m.url} target="_blank" rel="noopener noreferrer">
-                            Morpho ↗
+                            Morpho&nbsp;↗
                           </a>
                         )
                       )}

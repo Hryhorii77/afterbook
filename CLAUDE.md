@@ -84,7 +84,10 @@ No lint script, no test suite. To verify a change actually works:
 - **Owner decisions on the look** (don't undo without asking): the
   header "Connect wallet" stays the solid primary button and its pill shape is the app-wide button shape; the scrolling
   ticker stays on every page; the wallet button opens an account panel
-  rather than disconnecting on click.
+  rather than disconnecting on click. On phones the logo, wallet button, bell and theme
+  icon share one row above the nav (owner, 2026-10-17): the wallet drops its "Base" label
+  there, and below 375px the logo keeps only its mark. A "↗" after a link is joined with
+  `&nbsp;` so it never wraps onto a line of its own.
 
 ## Working process
 

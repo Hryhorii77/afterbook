@@ -856,7 +856,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               text={stockShareText(activeRow, tape)}
             />
             <a className="emph-link" href="https://t.me/afterbook_bot" target="_blank" rel="noopener noreferrer">
-              Get alerts on Telegram ↗
+              Get alerts on Telegram&nbsp;↗
             </a>
           </div>
           <p className="hero-note">
@@ -1223,13 +1223,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                           </p>
                           <p className="geo-note">
                             Where to build one:{' '}
-                            <a href="https://docs.gelato.cloud/web3-functions/introduction/overview" target="_blank" rel="noopener noreferrer">
-                              Gelato Web3 Functions ↗
+                            <a className="emph-link" href="https://docs.gelato.cloud/web3-functions/introduction/overview" target="_blank" rel="noopener noreferrer">
+                              Gelato Web3 Functions&nbsp;↗
                             </a>{' '}
                             (general-purpose on-chain automation — watch the pool&apos;s tick, trigger a re-center
                             transaction when it exits your range) ·{' '}
-                            <a href="https://bankr.bot/" target="_blank" rel="noopener noreferrer">
-                              Bankr ↗
+                            <a className="emph-link" href="https://bankr.bot/" target="_blank" rel="noopener noreferrer">
+                              Bankr&nbsp;↗
                             </a>{' '}
                             (Base-native AI trading agent via Farcaster/X chat — its documented capabilities are
                             swaps, limit orders, and DCA, not LP range management, as of writing; check its current
@@ -1383,7 +1383,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                       rel="noopener noreferrer"
                       onClick={() => logOutboundClick('aerodrome-swap', 'sell')}
                     >
-                      Sell {activeStock.symbol} on Aerodrome ↗
+                      Sell {activeStock.symbol} on Aerodrome&nbsp;↗
                     </a>
                   )}
                   <div className="carry-hedge-note">
@@ -1399,17 +1399,17 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                     </p>
                     <p className="geo-note">
                       Where to check:{' '}
-                      <a href="https://hyperliquid.xyz/" target="_blank" rel="noopener noreferrer">
-                        Hyperliquid ↗
+                      <a className="emph-link" href="https://hyperliquid.xyz/" target="_blank" rel="noopener noreferrer">
+                        Hyperliquid&nbsp;↗
                       </a>{' '}
                       (powers Base App&apos;s own tokenized-stock perps, same non-US eligibility gate this app
                       uses) ·{' '}
-                      <a href="https://avantis.finance" target="_blank" rel="noopener noreferrer">
-                        Avantis ↗
+                      <a className="emph-link" href="https://avantis.finance" target="_blank" rel="noopener noreferrer">
+                        Avantis&nbsp;↗
                       </a>{' '}
                       (lists stocks among its markets — on Arbitrum, a different chain than these B20 pools) ·{' '}
-                      <a href="https://synthetix.io/" target="_blank" rel="noopener noreferrer">
-                        Synthetix ↗
+                      <a className="emph-link" href="https://synthetix.io/" target="_blank" rel="noopener noreferrer">
+                        Synthetix&nbsp;↗
                       </a>{' '}
                       (a real perp venue live on Base; no confirmed stock-specific market as of writing — check
                       what&apos;s actually listed).
@@ -1488,7 +1488,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                 rel="noopener noreferrer"
                 onClick={() => logOutboundClick('aerodrome-swap', 'buy')}
               >
-                Open {activeStock.symbol} on Aerodrome ↗
+                Open {activeStock.symbol} on Aerodrome&nbsp;↗
               </a>
               <a
                 className="btn btn-secondary"
@@ -1538,11 +1538,11 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         <p className="geo-note contract-info">
           Token{' '}
           <a href={`https://basescan.org/address/${activeStock.tokenAddress}`} target="_blank" rel="noopener noreferrer">
-            {truncateAddr(activeStock.tokenAddress)} ↗
+            {truncateAddr(activeStock.tokenAddress)}&nbsp;↗
           </a>
           {' · '}Pool{' '}
           <a href={`https://basescan.org/address/${activeStock.pool.address}`} target="_blank" rel="noopener noreferrer">
-            {truncateAddr(activeStock.pool.address)} ↗
+            {truncateAddr(activeStock.pool.address)}&nbsp;↗
           </a>
           {' — verified on-chain, see README for the full check.'}
         </p>
@@ -1563,8 +1563,8 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           regulated broker-custodian, ADGM-supervised, bankruptcy-remote structure) — that&apos;s the issuer&apos;s
           stated claim, not something this app can verify on-chain itself (no reserve-attestation contract exists
           for B20 tokens the way it does for some wrapped assets).{' '}
-          <a href="https://blog.base.org/tokenized-stocks" target="_blank" rel="noopener noreferrer">
-            Source ↗
+          <a className="emph-link" href="https://blog.base.org/tokenized-stocks" target="_blank" rel="noopener noreferrer">
+            Source&nbsp;↗
           </a>
         </p>
       </section>
@@ -1583,13 +1583,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           <div className="footer-onchain">
             <div className="footer-label">Onchain</div>
             <a href={`https://basescan.org/address/${activeStock.tokenAddress}`} target="_blank" rel="noopener noreferrer">
-              Token ↗
+              Token&nbsp;↗
             </a>
             <a href={`https://basescan.org/address/${activeStock.pool.address}`} target="_blank" rel="noopener noreferrer">
-              Pool ↗
+              Pool&nbsp;↗
             </a>
             <a href="https://www.base.org/stocks" target="_blank" rel="noopener noreferrer">
-              Coinbase tokenized stocks ↗
+              Coinbase tokenized stocks&nbsp;↗
             </a>
           </div>
         </div>
@@ -1602,7 +1602,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           <p>
             Baskets: trading and accounts run on{' '}
             <a href="https://glider.fi" target="_blank" rel="noopener noreferrer" className="emph-link">
-              Glider ↗
+              Glider&nbsp;↗
             </a>
             ; see the{' '}
             <a href="/baskets/risks" className="emph-link">
