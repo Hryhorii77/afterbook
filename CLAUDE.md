@@ -143,6 +143,10 @@ The "never do this on your own" rules above are also enforced as permission rule
 - Limits: these match the command text, so a different tool (`wget`, a script) is not covered. Don't use that to get around a rule; hand the step to the user.
 - **Secrets hook** (`.claude/hooks/guard-secrets.sh`, a PreToolUse hook in the same file): blocks Read/Edit/Write of any `.env*` file (except `.env.example`) and Bash that reads one with `cat`/`grep`/`sed` and the like, or prints a secret variable (`echo $…KEY|SECRET|TOKEN`, `printenv`, bare `env`). Sourcing is fine. To check a value exists, source it and test `[ -n "$NAME" ]`, printing only yes/no (use `bash -c`: `${!v}` does not work in zsh). It matches command text only, so a script that prints a secret is not caught; that is still on you. **False positive to expect:** it scans the whole Bash command, heredocs and commit/PR messages included, so text that mentions an env file next to a word like `cat` or `grep` gets blocked. Write such text with the Edit/Write tools and pass it with `git commit -F` / `gh pr create --body-file`.
 
+## Redis (Upstash) request budget
+
+Upstash bills per request, and the free plan's 500k-a-month cap was hit on 2026-10-18, which took swaps, Baskets and Share down with 500s (moved to pay-as-you-go the same day). Keep Redis off hot paths: nothing per tape build (every 20 s per warm instance) may call Redis uncached; history samples are written only by the 5-minute alerts cron (`recordTapeSamples`); rate limiters (`lib/ratelimit.ts`, `SafeLimiter`) fall back to an in-memory count when Redis errors; and bookkeeping writes (the swap log) never fail the request. A local `next dev` with `.env.local` uses the same Redis and counts too.
+
 ## Vercel project
 
 Linked project: `gregs-projects-c49a01b8/afterbook`. `vercel env ls`

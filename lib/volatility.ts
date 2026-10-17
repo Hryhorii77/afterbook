@@ -7,13 +7,17 @@ export * from './volatilityMath';
 // stream from lib/history.ts's basisBp samples (not an extension of that
 // sorted set's member format, which would mix old/new shapes across its
 // existing 30-day retention window). Piggybacks on the same real-traffic
-// sampling pattern: only written opportunistically from buildTape(), only
-// for liquid symbols, throttled the same way.
+// sampling: written every 5 minutes by the alerts cron (recordTapeSamples in
+// lib/tape.ts), throttled and trimmed the same way.
 
-const SAMPLE_INTERVAL_MS = 5 * 60_000;
+const SAMPLE_INTERVAL_MS = 4 * 60_000;
 const RETENTION_MS = 30 * 24 * 60 * 60_000;
 
 const lastSampleMs = new Map<string, number>();
+// Trimming old samples is its own command, so it runs on the first sample of each hour, not on every
+// sample (Redis usage, 2026-10-18).
+const trimDue = (now: number) => new Date(now).getUTCMinutes() < 5;
+
 
 export async function recordPriceSample(symbol: string, priceUsd: number | null, now: number): Promise<void> {
   if (!redis || priceUsd == null || priceUsd <= 0) return;
@@ -26,7 +30,7 @@ export async function recordPriceSample(symbol: string, priceUsd: number | null,
   try {
     await Promise.all([
       redis.zadd(key, { score: now, member: `${now}:${priceUsd}` }),
-      redis.zremrangebyscore(key, 0, now - RETENTION_MS),
+      trimDue(now) ? redis.zremrangebyscore(key, 0, now - RETENTION_MS) : null,
     ]);
   } catch {
     // best-effort — a dropped sample just widens the gap between points

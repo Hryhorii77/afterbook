@@ -49,11 +49,24 @@ export async function recordNextEarnings(symbol: string, isoDate: string | null,
   }
 }
 
+// The date only changes when the daily earnings-sync cron runs, but every tape build (every 20 s while
+// anyone has the site open, on every warm instance) asked Redis for it: the biggest share of the Redis
+// requests that hit the Upstash cap on 2026-10-18. Kept in memory for an hour instead.
+const EARNINGS_CACHE_MS = 60 * 60_000;
+const earningsCache = new Map<string, { value: string | null; at: number }>();
+
 export async function getNextEarnings(symbol: string): Promise<string | null> {
   if (!redis) return null;
+  const hit = earningsCache.get(symbol);
+  if (hit && Date.now() - hit.at < EARNINGS_CACHE_MS) return hit.value;
   try {
-    return await redis.get<string>(`nextEarnings:${symbol}`);
+    const value = await redis.get<string>(`nextEarnings:${symbol}`);
+    earningsCache.set(symbol, { value, at: Date.now() });
+    return value;
   } catch {
-    return null;
+    // Keep the last value (or none) for a few minutes so an outage isn't retried on every build.
+    const value = hit?.value ?? null;
+    earningsCache.set(symbol, { value, at: Date.now() - EARNINGS_CACHE_MS + 5 * 60_000 });
+    return value;
   }
 }

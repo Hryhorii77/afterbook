@@ -1,14 +1,14 @@
 import { redis } from './redis';
 import { getSessionInfo, nyDateKey, nyOpenInstant, isTradingDay } from './marketClock';
 
-// Basis-since-close history, sampled opportunistically off real traffic
-// instead of a cron job — there's no dedicated worker in this app, just
-// Vercel functions that only run when someone hits a route. Piggybacking on
-// buildTape()'s already-fetched pool state means this costs zero extra RPC
-// calls; the tradeoff is gaps during stretches with no visitors at all,
-// which is also exactly when nobody's looking at the chart.
+// Basis-since-close history, sampled every 5 minutes by the alerts cron (recordTapeSamples in
+// lib/tape.ts, called from /api/cron/alerts) off the tape it already reads, so no extra RPC calls.
+// Until 2026-10-18 every warm serverless instance sampled off real traffic on its own, which
+// multiplied the Redis writes by the number of instances and, with the rest, hit the Upstash
+// plan's monthly request cap.
 
-const SAMPLE_INTERVAL_MS = 5 * 60_000;
+// Just under the cron's 5 minutes, so a tick that fires a little early still samples.
+const SAMPLE_INTERVAL_MS = 4 * 60_000;
 // 30 days — long enough for a meaningful closed-period stat (see
 // getClosedPeriodStats below), not just "Friday close -> Monday reopen"
 // like the original sparkline needed. Storage impact is trivial: all ten
@@ -20,6 +20,10 @@ const RETENTION_MS = 30 * 24 * 60 * 60_000;
 // lib/tape.ts's cache. Only gates how often we bother writing — losing it on
 // a cold start just means the next request writes one redundant sample.
 const lastSampleMs = new Map<string, number>();
+
+// Trimming old samples is its own command, so it runs on the first sample of each hour, not on every
+// sample (Redis usage, 2026-10-18).
+const trimDue = (now: number) => new Date(now).getUTCMinutes() < 5;
 
 export interface HistorySample {
   ts: number;
@@ -37,7 +41,7 @@ export async function recordSample(symbol: string, basisBp: number | null, now: 
   try {
     await Promise.all([
       redis.zadd(key, { score: now, member: `${now}:${basisBp.toFixed(2)}` }),
-      redis.zremrangebyscore(key, 0, now - RETENTION_MS),
+      trimDue(now) ? redis.zremrangebyscore(key, 0, now - RETENTION_MS) : null,
     ]);
   } catch {
     // best-effort — a dropped sample just leaves a gap in the sparkline

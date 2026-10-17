@@ -35,7 +35,13 @@ interface BuiltSwap {
 export async function rememberBuiltSwap(tx: SwapTx, account: `0x${string}`, source: SwapSource = 'stock'): Promise<void> {
   if (!redis) return;
   const built: BuiltSwap = { account, symbol: tx.quote.symbol, side: tx.quote.side, feeBps: tx.quote.feeBps, amountInUsd: tx.quote.amountInUsd, source };
-  await redis.set(BUILT(tx.data), built, { ex: BUILT_TTL_S });
+  try {
+    await redis.set(BUILT(tx.data), built, { ex: BUILT_TTL_S });
+  } catch (err) {
+    // The log is bookkeeping, not part of the trade: a Redis outage must not stop the swap being built
+    // (it did on 2026-10-18). The swap just goes unlogged.
+    console.error('swap log: could not remember the built swap', err instanceof Error ? err.message : err);
+  }
 }
 const INDEX = 'swaps';
 const TTL_S = 400 * 24 * 60 * 60;

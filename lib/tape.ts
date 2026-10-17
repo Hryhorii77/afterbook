@@ -159,15 +159,6 @@ async function buildTape(): Promise<TapeRow[]> {
       const depth = poolState ? poolDepth(poolState, stock) : null;
       const depthUsd = depth?.totalUsd ?? null;
 
-      // Not gated on liquidity — a thin pool's basis swings more, not less,
-      // and a user deciding whether to trade it needs that history exactly
-      // as much as a liquid symbol's. Was gated on isLiquid until the $1M
-      // hero threshold moved 6 of 10 stocks into the thin tier and silently
-      // stopped recording their history entirely — same mistake the split/
-      // earnings check below already avoided.
-      void recordSample(stock.symbol, basisBp, Date.now());
-      void recordPriceSample(stock.symbol, onchainMid, Date.now());
-
       // Not gated on liquidity — a real split or dividend, and an upcoming
       // earnings date, matter for a thin pool exactly as much as a deep one.
       if (poolState) {
@@ -204,6 +195,16 @@ async function buildTape(): Promise<TapeRow[]> {
     }),
   );
   return rows;
+}
+
+/** Writes this tape's gap and Aero price history samples. Called only by the 5-minute alerts cron,
+ *  so it is one write per stock per 5 minutes however many serverless instances are warm (each
+ *  instance sampling on its own traffic used up the Upstash monthly request cap on 2026-10-18).
+ *  Not gated on liquidity: a thin pool's gap swings more, and its history matters as much. */
+export async function recordTapeSamples(rows: TapeRow[], now = Date.now()): Promise<void> {
+  await Promise.all(
+    rows.flatMap((r) => [recordSample(r.symbol, r.cashStale ? null : r.basisBp, now), recordPriceSample(r.symbol, r.onchainMidUsd, now)]),
+  );
 }
 
 export async function getTape(): Promise<TapeResult> {
