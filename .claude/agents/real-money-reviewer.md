@@ -21,6 +21,10 @@ check passes, say so in one short line; do not pad.
 - Every route under `app/api/baskets/*` starts with `guardBasketRequest`
   (`lib/baskets/guard.ts`: non-US gate that fails closed, config check, rate
   limiter that refuses when missing). A new route without it is a finding.
+- Limiters are `SafeLimiter` (`lib/ratelimit.ts`): null when Redis isn't configured (callers refuse
+  with 503), and when Redis errors at runtime they count in memory per instance (swap and basket at
+  half their normal tokens). A Redis error turning into a 500 on a money route, or a bookkeeping
+  write (swap log) failing the request, is a finding.
 - Cron routes and the maintainer-only `/api/clicks/stats` start with
   `cronAuthorized(request)`, and the Telegram webhook
   with `secretMatches` (`lib/sharedSecret.ts`: constant-time, and refuses

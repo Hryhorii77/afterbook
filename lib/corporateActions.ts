@@ -15,8 +15,9 @@ const MULTIPLIER_ONE = 1e18;
 // Multiplier essentially never changes (all ten read exactly 1.0x today) —
 // checking every single tape build (every ~20s of live traffic) would be a
 // Redis read on every request for no benefit, so this throttles the same
-// way lib/history.ts's recordSample does.
-const CHECK_INTERVAL_MS = 5 * 60_000;
+// way lib/history.ts's recordSample does. Hourly per instance (5 minutes until 2026-10-18): a
+// split or dividend reinvestment is announced days ahead, an hour's delay costs nothing.
+const CHECK_INTERVAL_MS = 60 * 60_000;
 const lastCheckMs = new Map<string, number>();
 
 export interface MultiplierChange {
