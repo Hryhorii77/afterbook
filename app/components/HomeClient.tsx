@@ -967,6 +967,11 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             Every tokenized stock on Base, with pool depth<span className="arrow">→</span>
           </Link>
         </p>
+        <p className="geo-note">
+          <Link href="/memes" className="page-link">
+            Memestocks: Base memes priced in these stocks<span className="arrow">→</span>
+          </Link>
+        </p>
       </section>
 
       {eventLog.length > 0 && (

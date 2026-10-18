@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { buildBasketOgImage, buildBorrowOgImage, buildOgImage, buildTodayOgImage } from '@/lib/ogImage';
+import { buildBasketOgImage, buildBorrowOgImage, buildMemeOgImage, buildOgImage, buildTodayOgImage } from '@/lib/ogImage';
 import { parseTheme } from '@/lib/cardUrl';
 import { getStock } from '@/lib/tokens';
 import { parseSpec } from '@/lib/customBasket';
@@ -8,7 +8,7 @@ import { getShareSnapshot } from '@/lib/shareSnapshot';
 export const dynamic = 'force-dynamic';
 
 // Every share card: link previews (each page's og:image / twitter:image, see lib/cardUrl.ts)
-// and the share panel's "Download card". Query: page=home|stock|today|build|borrow, sym, spec,
+// and the share panel's "Download card". Query: page=home|stock|today|build|borrow|meme, sym, spec, addr,
 // theme=light (dark otherwise). `s` is a share's id: when it names a stored snapshot the card is
 // drawn from those frozen numbers (the same ones the post's sentence used); otherwise from the live
 // tape. `v` only makes the URL unique for link-preview caches.
@@ -43,6 +43,11 @@ export async function GET(request: NextRequest) {
     }
     case 'borrow':
       return buildBorrowOgImage(theme);
+    case 'meme': {
+      // Only a meme on the allowlist gets a card; anything else is a 404, never a drawn guess.
+      const card = await buildMemeOgImage(q.get('addr') ?? '', theme);
+      return card ?? notFound();
+    }
     default:
       return notFound();
   }
