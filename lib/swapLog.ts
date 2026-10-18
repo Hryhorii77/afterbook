@@ -11,15 +11,15 @@ import { decodeEventLog, erc20Abi, getAddress, keccak256, type Hex } from 'viem'
 import { BUILDER_CODE_SUFFIX } from './builderCode';
 import { getClient } from './quote';
 import { redis } from './redis';
-import { decodeSwapCall, KYBER_ROUTER, MAX_SWAP_USD, type SwapTx } from './swap';
+import { decodeSwapCall, decodeSwapDesc, KYBER_ROUTER, MAX_MEME_SWAP_USD, MAX_SWAP_USD, type SwapTx } from './swap';
 import { USDC } from './tokens';
 
 const KEY = (hash: string) => `swap:${hash.toLowerCase()}`;
 const BUILT = (data: Hex) => `swapbuild:${keccak256(data)}`;
 const BUILT_TTL_S = 2 * 60 * 60;
 
-/** Which panel built it: one stock's Buy/Sell, or a /build basket bought in one go. */
-export type SwapSource = 'stock' | 'basket';
+/** Which panel built it: one stock's Buy/Sell, a /build basket bought in one go, or a meme buy on /memes. */
+export type SwapSource = 'stock' | 'basket' | 'meme';
 
 interface BuiltSwap {
   account: string;
@@ -28,6 +28,9 @@ interface BuiltSwap {
   feeBps: number;
   amountInUsd: number;
   source?: SwapSource;
+  /** Meme buys only: the exact tokens built, which the mined call must match. */
+  tokenIn?: string;
+  tokenOut?: string;
 }
 
 /** Called by /api/swap/build for every transaction it returns, so the log can tell our swaps from any
@@ -35,6 +38,10 @@ interface BuiltSwap {
 export async function rememberBuiltSwap(tx: SwapTx, account: `0x${string}`, source: SwapSource = 'stock'): Promise<void> {
   if (!redis) return;
   const built: BuiltSwap = { account, symbol: tx.quote.symbol, side: tx.quote.side, feeBps: tx.quote.feeBps, amountInUsd: tx.quote.amountInUsd, source };
+  if (source === 'meme' && tx.quote.meme) {
+    built.tokenIn = tx.tokenIn;
+    built.tokenOut = tx.quote.meme;
+  }
   try {
     await redis.set(BUILT(tx.data), built, { ex: BUILT_TTL_S });
   } catch (err) {
@@ -81,6 +88,21 @@ export async function logSwap(hash: Hex): Promise<LogResult> {
   const built = await redis.get<BuiltSwap>(BUILT(input.slice(0, input.length - suffix.length) as Hex));
   if (!built) return { ok: false, reason: 'not a swap Afterbook built' };
   if (getAddress(tx.from) !== getAddress(built.account)) return { ok: false, reason: 'sent by a different account' };
+  if (built.source === 'meme') {
+    // A meme buy: the mined call must be the tokens and recipient that were built; the size is the
+    // build's own USD value (paid in USDC or a stock token), capped like the panel. Its symbol is the
+    // launcher's choice, so it is stored as "meme:<symbol>" and can never merge into a stock's stats.
+    const desc = decodeSwapDesc(tx.input);
+    if (!desc || !built.tokenIn || !built.tokenOut || desc.recipient !== getAddress(built.account) || desc.srcToken !== getAddress(built.tokenIn) || desc.dstToken !== getAddress(built.tokenOut)) {
+      return { ok: false, reason: 'not the meme buy Afterbook built' };
+    }
+    const block = await client.getBlock({ blockNumber: receipt.blockNumber });
+    const usd = Math.min(built.amountInUsd, MAX_MEME_SWAP_USD);
+    const record: SwapRecord = { hash: hash.toLowerCase(), at: Number(block.timestamp) * 1000, symbol: `meme:${built.symbol}`, side: 'buy', usd, feeBps: 0, feeUsd: 0, wallet: walletId(tx.from), source: 'meme' };
+    const created = await redis.set(KEY(hash), record, { nx: true, ex: TTL_S });
+    if (created) await redis.zadd(INDEX, { score: record.at, member: record.hash });
+    return { ok: true, record, duplicate: !created };
+  }
   const call = decodeSwapCall(tx.input);
   if (!call || call.recipient !== getAddress(built.account)) return { ok: false, reason: 'not a tracked stock swap' };
 
@@ -149,7 +171,7 @@ export async function swapStats(days: number): Promise<SwapStats | null> {
     volumeUsd: records.reduce((a, r) => a + r.usd, 0),
     feesUsd: records.reduce((a, r) => a + r.feeUsd, 0),
     bySymbol,
-    bySource: (['stock', 'basket'] as const).reduce(
+    bySource: (['stock', 'basket', 'meme'] as const).reduce(
       (acc, src) => {
         const mine = records.filter((r) => (r.source ?? 'stock') === src);
         acc[src] = { swaps: mine.length, volumeUsd: mine.reduce((a, r) => a + r.usd, 0) };
