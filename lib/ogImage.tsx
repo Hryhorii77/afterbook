@@ -16,6 +16,8 @@ import { heroGapBp } from './shareText';
 import { getBorrowSummary } from './liquidationRisk';
 import { aeroExit, venueName, type BorrowSummary } from './borrowSummary';
 import { usdCompact } from './format';
+import { getMemeRow, venueLabel } from './memestocks';
+import { memePrice, pctMove } from './memeFormat';
 
 /** A share's frozen numbers (lib/shareSnapshot.ts). Without one a card reads the live tape. */
 export interface FrozenCard {
@@ -553,6 +555,62 @@ export async function buildBorrowOgImage(theme: CardTheme = 'dark', frozen?: { t
         ) : (
           <span style={{ fontSize: 32, color: c.dim, marginTop: 48 }}>Lending data unavailable right now.</span>
         )}
+
+        <CardFooter c={c} />
+      </div>
+    ),
+    { ...OG_SIZE },
+  );
+}
+
+/** /memes/<address>: the meme's 24h move next to its stock's, which is what that page is for. Never
+ *  says "buy"; carries the same warning line as the page. */
+export async function buildMemeOgImage(address: string, theme: CardTheme = 'dark') {
+  const c = PALETTES[theme];
+  const row = await getMemeRow(address).catch(() => null);
+  if (!row) return null;
+  const { meme, stockSymbol } = row.pool;
+  const stockTicker = getStock(stockSymbol)?.cashTicker ?? stockSymbol;
+  const stockIcon = await iconDataUri(stockTicker);
+  const moveColor = (n: number | null) => (n == null ? c.dim : n >= 0 ? c.pos : c.neg);
+
+  return new ImageResponse(
+    (
+      <div style={frame(c)}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <Mark px={44} />
+          <span style={{ fontSize: 40, fontWeight: 700, color: c.dim, letterSpacing: '-0.02em' }}>Afterbook · Memestocks</span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', marginTop: 40 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 72, height: 72, borderRadius: 18, marginRight: 22, fontSize: 20, fontWeight: 700, ...tileColors(meme.symbol) }}>
+            {meme.symbol.slice(0, 5)}
+          </div>
+          <span style={{ fontSize: 64, fontWeight: 700, color: c.text, letterSpacing: '-0.02em' }}>{meme.symbol}</span>
+          <span style={{ fontSize: 34, color: c.dim, marginLeft: 18 }}>priced in {stockSymbol}</span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'flex-end', marginTop: 34, gap: 56 }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: 26, color: c.dim }}>{meme.symbol}, 24h</span>
+            <span style={{ fontSize: 88, fontWeight: 700, color: moveColor(row.move.h24), letterSpacing: '-0.03em' }}>{pctMove(row.move.h24)}</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: 26, color: c.dim }}>{stockSymbol}, 24h</span>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              {stockIcon && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={stockIcon} width={56} height={56} style={{ borderRadius: 14, marginRight: 16 }} />
+              )}
+              <span style={{ fontSize: 64, fontWeight: 700, color: moveColor(row.stockMove.h24) }}>{pctMove(row.stockMove.h24)}</span>
+            </div>
+          </div>
+        </div>
+
+        <span style={{ fontSize: 26, color: c.dim, marginTop: 26 }}>
+          {memePrice(row.priceUsd)} · {usdCompact(row.volume24Usd)} traded in 24h · {usdCompact(row.liquidityUsd)} liquidity on {venueLabel(row.pool.venue)}
+        </span>
+        <span style={{ fontSize: 22, color: c.dimmer, marginTop: 10 }}>Most memecoins go to zero. The stock in the pool does not make the meme safer.</span>
 
         <CardFooter c={c} />
       </div>

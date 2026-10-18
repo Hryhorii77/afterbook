@@ -66,6 +66,11 @@ export default async function StocksPage() {
       )}
 
       <p className="geo-note">
+        <Link href="/memes" className="page-link">
+          Memes traded against these stocks<span className="arrow">→</span>
+        </Link>
+      </p>
+      <p className="geo-note">
         <Link href="/" className="page-link">
           Open the Tape<span className="arrow">→</span>
         </Link>
