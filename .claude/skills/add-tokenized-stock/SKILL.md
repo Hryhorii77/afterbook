@@ -8,7 +8,7 @@ description: Verify and add a new Coinbase tokenized-stock symbol (B20 token + A
 `lib/tokens.ts`'s `STOCKS` array is the **single source of truth** for
 what the tape tracks — the tape, Lot Lab, My Lots, the ticker strip, the
 trend charts, the earnings/fee-snapshot crons, and the MCP route all
-derive from it (including the per-stock pages in `sitemap.xml`). Nothing else needs separate registration. The
+derive from it (including the per-stock pages in `sitemap.xml`, and the token's row on `/stocks` turning to Tracked, matched by contract address). Nothing else needs separate registration. The
 liquid-vs-thin split is automatic (driven by live depth, not a hardcoded
 list) — a new addition doesn't need to be sorted into a bucket by hand.
 A pool under `LIQUID_DEPTH_THRESHOLD_USD` ($1M, `lib/liquidity.ts`) lands
@@ -36,7 +36,9 @@ ready-to-paste snippet for any pool over $250k. `?dry=1` (with the
 `CRON_SECRET` bearer) returns the digest without sending or storing
 anything — use it to see what it would report. A token is reported once
 when it first has a pool and once more when that pool first becomes
-liquid.
+liquid. Each real run also saves every untracked token's pool and depth
+(`saveDirectoryPools`), which is what `/stocks` shows; `/stocks` with the
+Small pool filter is the quickest way to see how close a candidate is.
 
 Most listed tokens have no pool or an empty one (~$0–1 depth), and a pool
 can be initialised at a nonsense price that reads as astronomically deep

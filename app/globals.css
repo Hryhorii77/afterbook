@@ -2212,3 +2212,102 @@ footer {
 /* A long address in a note (the Baskets deposit address) must wrap instead of pushing past its
    card, which on phones under ~370px made the whole page scroll sideways. */
 .geo-note code { overflow-wrap: anywhere; }
+
+/* /stocks: every Coinbase tokenized stock. One row per token: icon and name, pool status, contract.
+   On phones the contract drops under the name so nothing is squeezed. */
+.directory-controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.directory-controls input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.directory-controls select {
+  flex: 0 1 auto;
+}
+.directory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.directory-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--panel-border);
+}
+.directory-row:first-child {
+  border-top: none;
+}
+.directory-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+a.directory-main:hover .directory-symbol {
+  color: var(--accent);
+}
+.directory-row .symbol-icon-sm,
+.directory-row .symbol-tile-sm {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 9.5px;
+}
+.directory-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.directory-symbol {
+  font-weight: 600;
+  font-size: 14px;
+}
+.directory-company {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.directory-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.directory-status-tracked {
+  color: var(--text);
+  font-weight: 600;
+}
+.directory-depth {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-dimmer);
+}
+.directory-contract {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .directory-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .directory-contract {
+    grid-column: 1 / -1;
+    padding-left: 48px;
+  }
+}

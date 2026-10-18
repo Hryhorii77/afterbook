@@ -4,6 +4,7 @@ import { sendTelegramMessage } from '@/lib/telegram';
 import { fetchPublishedStockList, diffAgainstTracked, verifyCandidate, type CandidateResult } from '@/lib/discovery';
 import { usdCompact } from '@/lib/format';
 import { cronAuthorized } from '@/lib/sharedSecret';
+import { saveDirectoryPools } from '@/lib/stockDirectory';
 
 export const revalidate = 0;
 export const maxDuration = 30;
@@ -53,6 +54,15 @@ export async function GET(request: NextRequest) {
     t,
     r: await verifyCandidate(t.symbol, t.tokenAddress, t.name).catch((): CandidateResult | null => null),
   }));
+
+  // The /stocks page's pool column: every untracked token's pool and depth from this run (one write a day).
+  // A failed check is left out, so the page shows it as not checked rather than as having no pool.
+  if (!dry) {
+    await saveDirectoryPools({
+      checkedAt: Date.now(),
+      pools: Object.fromEntries(checked.filter((c) => c.r).map((c) => [c.t.symbol, { pool: c.r!.poolAddress, depthUsd: c.r!.depthUsd }])),
+    });
+  }
 
   const withPool = checked.filter((c) => c.r?.snippet);
   const noPool = checked.length - withPool.length;
