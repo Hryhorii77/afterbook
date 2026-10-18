@@ -5,7 +5,7 @@ import { STOCKS } from './tokens';
 // issuer-served icon for that token. We read it on the server (cached by
 // Next's fetch cache for six hours, served stale while revalidating) and pass
 // plain URLs to the browser, so rows never call the API themselves.
-const ICON_HOST = 'https://metadata.coinbase.com/equity_icons/';
+export const ICON_HOST = 'https://metadata.coinbase.com/equity_icons/';
 
 /** Icon URL by underlying cash ticker (e.g. "AAPL"), only for tokens Afterbook tracks.
  *  An entry is used only if its contract address matches the one in lib/tokens.ts

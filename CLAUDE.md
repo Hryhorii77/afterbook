@@ -145,7 +145,7 @@ The "never do this on your own" rules above are also enforced as permission rule
 
 ## Redis (Upstash) request budget
 
-Upstash bills per request, and the free plan's 500k-a-month cap was hit on 2026-10-18, which took swaps, Baskets and Share down with 500s (moved to pay-as-you-go the same day). Keep Redis off hot paths: nothing per tape build (every 20 s per warm instance) may call Redis uncached; history samples are written only by the 5-minute alerts cron (`recordTapeSamples`); rate limiters (`lib/ratelimit.ts`, `SafeLimiter`) fall back to an in-memory count when Redis errors; and bookkeeping writes (the swap log) never fail the request. A local `next dev` with `.env.local` uses the same Redis and counts too.
+Upstash bills per request, and the free plan's 500k-a-month cap was hit on 2026-10-18, which took swaps, Baskets and Share down with 500s (moved to pay-as-you-go the same day). Keep Redis off hot paths: nothing per tape build (every 20 s per warm instance) may call Redis uncached; history samples are written only by the 5-minute alerts cron (`recordTapeSamples`); rate limiters (`lib/ratelimit.ts`, `SafeLimiter`) fall back to an in-memory count when Redis errors; and bookkeeping writes (the swap log) never fail the request. A page that reads Redis wraps the read in Next's data cache (`unstable_cache`, as `/stocks` does), so views don't each cost a request. A local `next dev` with `.env.local` uses the same Redis and counts too.
 
 ## Vercel project
 

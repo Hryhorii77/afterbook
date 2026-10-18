@@ -8,8 +8,10 @@ import { useTokenIcon } from './TokenIcons';
 // fails to load) the ticker on a tinted rounded tile. Tint and text colour are
 // mixed from the hue and the theme's own variables, so the fallback reads in
 // both themes.
-export function SymbolTile({ cashTicker, size = 'md' }: { cashTicker: string; size?: 'sm' | 'md' }) {
-  const icon = useTokenIcon(cashTicker);
+// `iconUrl` overrides the tracked-token lookup (the /stocks directory passes Coinbase's icon for untracked tokens).
+export function SymbolTile({ cashTicker, size = 'md', iconUrl }: { cashTicker: string; size?: 'sm' | 'md'; iconUrl?: string | null }) {
+  const tracked = useTokenIcon(cashTicker);
+  const icon = iconUrl === undefined ? tracked : iconUrl;
   const [failed, setFailed] = useState(false);
   const img = useRef<HTMLImageElement>(null);
   // An image that failed before React attached onError (server-rendered, then hydrated) never

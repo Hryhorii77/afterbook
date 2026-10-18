@@ -76,6 +76,8 @@ export interface CandidateResult {
    *  no pool or its price state looks broken (an empty pool initialised at a
    *  garbage price reads as astronomically large, so that is rejected). */
   depthUsd: number | null;
+  /** The Aerodrome USDC pool at the known tick spacing, or null if there is none (or the token didn't read). */
+  poolAddress: `0x${string}` | null;
   /** null if no Aerodrome pool exists yet through CL_FACTORY at the known
    *  tick spacing — still worth flagging, just not actionable yet. */
   snippet: string | null;
@@ -99,13 +101,13 @@ export async function verifyCandidate(symbol: string, tokenAddress: `0x${string}
   });
 
   if (decimalsResult.status !== 'success') {
-    return { symbol, tokenAddress, depthUsd: null, snippet: null };
+    return { symbol, tokenAddress, depthUsd: null, poolAddress: null, snippet: null };
   }
   const decimals = decimalsResult.result as number;
 
   const poolAddress = poolResult.status === 'success' ? (poolResult.result as `0x${string}`) : null;
   if (!poolAddress || poolAddress === '0x0000000000000000000000000000000000000000') {
-    return { symbol, tokenAddress, depthUsd: null, snippet: null };
+    return { symbol, tokenAddress, depthUsd: null, poolAddress: null, snippet: null };
   }
 
   const [token0Result, feeResult, multiplierResult] = await client.multicall({
@@ -122,7 +124,7 @@ export async function verifyCandidate(symbol: string, tokenAddress: `0x${string}
   const hasMultiplier = multiplierResult.status === 'success';
 
   if (!token0 || feePpm == null) {
-    return { symbol, tokenAddress, depthUsd: null, snippet: null };
+    return { symbol, tokenAddress, depthUsd: null, poolAddress, snippet: null };
   }
 
   const token0Side: CbStock['pool']['token0'] = token0.toLowerCase() === USDC.address.toLowerCase() ? 'USDC' : 'stock';
@@ -159,5 +161,5 @@ export async function verifyCandidate(symbol: string, tokenAddress: `0x${string}
     // Depth is context for the digest, not a gate: a failed read just omits it.
   }
 
-  return { symbol, tokenAddress, depthUsd, snippet };
+  return { symbol, tokenAddress, depthUsd, poolAddress, snippet };
 }

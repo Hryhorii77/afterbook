@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
 import { SwapPanel } from './SwapPanel';
 import type { TapeResult, TapeRow } from '@/lib/tape';
@@ -961,6 +962,11 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             )}
           </div>
         )}
+        <p className="geo-note">
+          <Link href="/stocks" className="page-link">
+            Every tokenized stock on Base, with pool depth<span className="arrow">→</span>
+          </Link>
+        </p>
       </section>
 
       {eventLog.length > 0 && (
