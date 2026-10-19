@@ -302,7 +302,7 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
             </dd>
           </dl>
           <p className="meme-warning" style={{ margin: '12px 0' }}>
-            <strong>Most memecoins go to zero.</strong> You may not be able to sell {meme.symbol} later for anything like what you paid. Only
+            <strong>Any memecoin can go to zero.</strong> You may not be able to sell {meme.symbol} later for anything like what you paid. Only
             buy what you can lose.
           </p>
           <p className="geo-note">

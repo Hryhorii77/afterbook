@@ -76,8 +76,8 @@ export default async function MemePage({ params }: Params) {
         </p>
       )}
       <p className="meme-warning">
-        <strong>Most memecoins go to zero.</strong> The {stockSymbol} in this pool does not make {meme.symbol} safer: it is only what{' '}
-        {meme.symbol} is priced in. If {meme.symbol} falls, you lose that money whatever {stockSymbol} does. Afterbook does not recommend it.
+        <strong>Any memecoin can go to zero.</strong> The {stockSymbol} in this pool does not make {meme.symbol} safer: it is only what{' '}
+        {meme.symbol} is priced in. If {meme.symbol} falls, you lose that money whatever {stockSymbol} does.
       </p>
 
       <section className="panel">
