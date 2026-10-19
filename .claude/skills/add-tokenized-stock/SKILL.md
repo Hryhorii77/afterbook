@@ -32,7 +32,7 @@ listed only ten tokens and is stale — don't use it.
 The daily `discover-tokens` cron (`app/api/cron/discover-tokens/route.ts`)
 diffs that list against `STOCKS` and sends **one Telegram digest** of new
 Aerodrome USDC pools with real depth, deepest first, plus a
-ready-to-paste snippet for any pool over $250k. A pool over the line is judged
+ready-to-paste snippet for any pool over $250k. A pool over $50k on one read is judged
 by the lowest its depth has been in the last three hours
 (`lowestRecentDepthUsd` in `lib/discovery.ts`, from the pool's Mint/Burn
 logs): on 2026-10-19 a bot moving ~$200k in and out of the LLYc pool made one
