@@ -2474,8 +2474,14 @@ a.directory-main:hover .directory-symbol {
   font-size: 13px;
   color: var(--text-dim);
 }
-.stock-pager button:disabled {
-  opacity: 0.4;
+/* The page arrows are the main way through the list, so full text colour and a firmer ring than
+   the header icons; the one that can't be used stays visible but faded. */
+.stock-pager .theme-toggle {
+  color: var(--text);
+  border-color: var(--secondary-border-hover);
+}
+.stock-pager .theme-toggle:disabled {
+  opacity: 0.35;
   cursor: default;
 }
 @media (max-width: 900px) {
