@@ -837,7 +837,7 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
   /* inline-block (inside a plain inline link, not a flex one, where it would
      be blockified) so the underline skips the arrow. */
   display: inline-block;
-  margin-left: 6px;
+  margin-left: 10px;
   transition: transform 0.15s ease;
 }
 .page-link:hover, .page-link:focus-visible {
@@ -848,7 +848,9 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
   transform: translateX(4px);
 }
 /* A leading "←": space on the other side, and it doesn't nudge on hover. */
-.page-link .arrow-back { margin-left: 0; margin-right: 6px; }
+.page-link .arrow-back { margin-left: 0; margin-right: 10px; }
+/* The "↗" after an outside link: a non-breaking space keeps it on the text's line, this adds air. */
+.ext-arrow { margin-left: 3px; }
 .page-link:hover .arrow-back, .page-link:focus-visible .arrow-back { transform: none; }
 
 .dot {
@@ -1761,11 +1763,11 @@ a.btn:focus-visible, button.btn:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+/* No width cap: notes fill their panel at every width, as on a phone (owner, 2026-10-19). */
 .geo-note {
   font-size: 13px;
   color: var(--text-dimmer);
   line-height: 1.5;
-  max-width: 70ch;
   margin-top: 8px;
 }
 
@@ -1779,7 +1781,6 @@ a.btn:focus-visible, button.btn:focus-visible {
   font-size: 13px;
   color: var(--text-dim);
   line-height: 1.5;
-  max-width: 60ch;
 }
 .paste-checklist li {
   margin-bottom: 4px;
@@ -2469,7 +2470,7 @@ a.directory-main:hover .directory-symbol {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 24px;
   margin-top: 16px;
   font-size: 13px;
   color: var(--text-dim);

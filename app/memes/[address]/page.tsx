@@ -144,13 +144,13 @@ export default async function MemePage({ params }: Params) {
           <li>
             {venueLabel(row.pool.venue)} pool {meme.symbol}/{stockSymbol}:{' '}
             <a href={poolUrl(row.pool)} target="_blank" rel="noopener noreferrer" className="emph-link">
-              {row.pool.id.slice(0, 8)}…{row.pool.id.slice(-6)} on Dexscreener&nbsp;↗
+              {row.pool.id.slice(0, 8)}…{row.pool.id.slice(-6)} on Dexscreener&nbsp;<span className="ext-arrow">↗</span>
             </a>
           </li>
           <li>
             {meme.symbol} contract:{' '}
             <a href={`https://basescan.org/token/${meme.address}`} target="_blank" rel="noopener noreferrer" className="emph-link">
-              {meme.address.slice(0, 6)}…{meme.address.slice(-4)} on BaseScan&nbsp;↗
+              {meme.address.slice(0, 6)}…{meme.address.slice(-4)} on BaseScan&nbsp;<span className="ext-arrow">↗</span>
             </a>{' '}
             (other tokens may use the same name; this address is the one listed here)
           </li>
