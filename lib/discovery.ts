@@ -1,5 +1,6 @@
 import { fetchCoinbaseStockList } from './coinbaseStockList';
-import { getClient, TOKEN_ABI, readPoolState, poolDepth } from './quote';
+import { parseAbi } from 'viem';
+import { getClient, TOKEN_ABI, readPoolState, poolDepth, midPriceUsd, MULTIPLIER_ONE } from './quote';
 import { STOCKS, USDC, CL_FACTORY, type CbStock } from './tokens';
 
 const DECIMALS_ABI = [
@@ -81,6 +82,58 @@ export interface CandidateResult {
   /** null if no Aerodrome pool exists yet through CL_FACTORY at the known
    *  tick spacing — still worth flagging, just not actionable yet. */
   snippet: string | null;
+  /** The pool as a CbStock, for re-reading its depth (`readDepthUsd`); null without a usable pool. */
+  stock: CbStock | null;
+}
+
+/** One depth read, the tape's calculation; null if the state looks broken (an empty pool
+ *  initialised at a garbage price reads as astronomically large). */
+export async function readDepthUsd(stock: CbStock, client = getClient()): Promise<number | null> {
+  const total = poolDepth(await readPoolState(stock, client), stock).totalUsd;
+  return Number.isFinite(total) && total >= 0 && total < 1e10 ? total : null;
+}
+
+const POOL_LIQUIDITY_EVENTS = parseAbi([
+  'event Mint(address sender, address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)',
+  'event Burn(address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)',
+]);
+const BASE_BLOCKS_PER_HOUR = 1800n;
+const LOG_CHUNK = 500n;
+
+/**
+ * The lowest the pool's depth has been over the last `hours`, valued at today's price: today's
+ * depth, walked back through every deposit (Mint) and withdrawal (Burn) in the window. One read
+ * can catch liquidity that keeps leaving: on 2026-10-19 a bot moved ~$200k in and out of the LLYc
+ * pool for minutes at a time (in half of three hours, out for up to 45 minutes), and a single read
+ * reported $254k for a pool that held $49k. Throws if the logs can't be read.
+ */
+export async function lowestRecentDepthUsd(stock: CbStock, hours = 3, client = getClient()): Promise<number> {
+  const state = await readPoolState(stock, client);
+  const now = poolDepth(state, stock).totalUsd;
+  const stockUsdPerRaw = (midPriceUsd(state, stock) * (Number(state.multiplier) / MULTIPLIER_ONE)) / 10 ** stock.decimals;
+  const usdcUsdPerRaw = 1 / 10 ** USDC.decimals;
+  const [usdPerRaw0, usdPerRaw1] = stock.pool.token0 === 'USDC' ? [usdcUsdPerRaw, stockUsdPerRaw] : [stockUsdPerRaw, usdcUsdPerRaw];
+
+  const head = await client.getBlockNumber();
+  const start = head - BigInt(hours) * BASE_BLOCKS_PER_HOUR;
+  const moves: { block: bigint; index: number; usd: number }[] = [];
+  for (let from = start; from <= head; from += LOG_CHUNK) {
+    const to = from + LOG_CHUNK - 1n > head ? head : from + LOG_CHUNK - 1n;
+    const logs = await client.getLogs({ address: stock.pool.address as `0x${string}`, events: POOL_LIQUIDITY_EVENTS, fromBlock: from, toBlock: to });
+    for (const l of logs) {
+      const usd = Number(l.args.amount0 ?? 0n) * usdPerRaw0 + Number(l.args.amount1 ?? 0n) * usdPerRaw1;
+      moves.push({ block: l.blockNumber, index: l.logIndex, usd: l.eventName === 'Mint' ? usd : -usd });
+    }
+  }
+  // Newest first: the depth before each move is the depth after it, minus what it added.
+  moves.sort((a, b) => (a.block === b.block ? b.index - a.index : a.block > b.block ? -1 : 1));
+  let depth = now;
+  let lowest = now;
+  for (const m of moves) {
+    depth -= m.usd;
+    lowest = Math.min(lowest, depth);
+  }
+  return Math.max(0, lowest);
 }
 
 /**
@@ -101,13 +154,13 @@ export async function verifyCandidate(symbol: string, tokenAddress: `0x${string}
   });
 
   if (decimalsResult.status !== 'success') {
-    return { symbol, tokenAddress, depthUsd: null, poolAddress: null, snippet: null };
+    return { symbol, tokenAddress, depthUsd: null, poolAddress: null, snippet: null, stock: null };
   }
   const decimals = decimalsResult.result as number;
 
   const poolAddress = poolResult.status === 'success' ? (poolResult.result as `0x${string}`) : null;
   if (!poolAddress || poolAddress === '0x0000000000000000000000000000000000000000') {
-    return { symbol, tokenAddress, depthUsd: null, poolAddress: null, snippet: null };
+    return { symbol, tokenAddress, depthUsd: null, poolAddress: null, snippet: null, stock: null };
   }
 
   const [token0Result, feeResult, multiplierResult] = await client.multicall({
@@ -124,7 +177,7 @@ export async function verifyCandidate(symbol: string, tokenAddress: `0x${string}
   const hasMultiplier = multiplierResult.status === 'success';
 
   if (!token0 || feePpm == null) {
-    return { symbol, tokenAddress, depthUsd: null, poolAddress, snippet: null };
+    return { symbol, tokenAddress, depthUsd: null, poolAddress, snippet: null, stock: null };
   }
 
   const token0Side: CbStock['pool']['token0'] = token0.toLowerCase() === USDC.address.toLowerCase() ? 'USDC' : 'stock';
@@ -145,21 +198,16 @@ export async function verifyCandidate(symbol: string, tokenAddress: `0x${string}
   },
 },`;
 
-  let depthUsd: number | null = null;
-  try {
-    const stock: CbStock = {
-      symbol,
-      cashTicker: symbol.replace(/c$/, ''),
-      name,
-      tokenAddress,
-      decimals,
-      pool: { address: poolAddress, token0: token0Side, tickSpacing: KNOWN_TICK_SPACING, feePpm },
-    };
-    const total = poolDepth(await readPoolState(stock, client), stock).totalUsd;
-    depthUsd = Number.isFinite(total) && total >= 0 && total < 1e10 ? total : null;
-  } catch {
-    // Depth is context for the digest, not a gate: a failed read just omits it.
-  }
+  const stock: CbStock = {
+    symbol,
+    cashTicker: symbol.replace(/c$/, ''),
+    name,
+    tokenAddress,
+    decimals,
+    pool: { address: poolAddress, token0: token0Side, tickSpacing: KNOWN_TICK_SPACING, feePpm },
+  };
+  // Depth is context for the digest, not a gate: a failed read just omits it.
+  const depthUsd = await readDepthUsd(stock, client).catch(() => null);
 
-  return { symbol, tokenAddress, depthUsd, poolAddress, snippet };
+  return { symbol, tokenAddress, depthUsd, poolAddress, snippet, stock };
 }
