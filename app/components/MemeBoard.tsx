@@ -16,7 +16,7 @@ function Rows({ rows }: { rows: MemeRow[] }) {
       {rows.map((r) => (
         <li key={r.pool.meme.address} className="directory-row meme-row">
           <Link href={`/memes/${r.pool.meme.address}`} className="directory-main">
-            <SymbolTile cashTicker={r.pool.meme.symbol.slice(0, 5)} size="sm" iconUrl={null} />
+            <SymbolTile cashTicker={r.pool.meme.symbol.slice(0, 5)} size="sm" iconUrl={r.imageUrl} />
             <span className="directory-name">
               <span className="directory-symbol">{r.pool.meme.symbol}</span>
               <span className="directory-company">on {r.pool.stockSymbol}</span>
@@ -38,7 +38,10 @@ function Rows({ rows }: { rows: MemeRow[] }) {
   );
 }
 
-export function MemeBoard({ rows }: { rows: MemeRow[] }) {
+export function MemeBoard({ rows: all, initialStock }: { rows: MemeRow[]; initialStock?: string }) {
+  const stocks = useMemo(() => [...new Set(all.map((r) => r.pool.stockSymbol))].sort(), [all]);
+  const [stock, setStock] = useState(initialStock && stocks.includes(initialStock) ? initialStock : 'all');
+  const rows = useMemo(() => (stock === 'all' ? all : all.filter((r) => r.pool.stockSymbol === stock)), [all, stock]);
   const [sort, setSort] = useState<Sort>('volume');
   const [showThin, setShowThin] = useState(false);
 
@@ -55,6 +58,14 @@ export function MemeBoard({ rows }: { rows: MemeRow[] }) {
         <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Sort by">
           <option value="volume">Most traded in 24h</option>
           <option value="move">Biggest 24h move</option>
+        </select>
+        <select value={stock} onChange={(e) => setStock(e.target.value)} aria-label="Priced in">
+          <option value="all">Every stock</option>
+          {stocks.map((s) => (
+            <option key={s} value={s}>
+              Priced in {s}
+            </option>
+          ))}
         </select>
       </div>
       <Rows rows={liquid} />

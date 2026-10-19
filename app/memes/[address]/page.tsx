@@ -48,7 +48,7 @@ export default async function MemePage({ params }: Params) {
     <main>
       <header className="top">
         <h1 style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <SymbolTile cashTicker={meme.symbol.slice(0, 5)} iconUrl={null} />
+          <SymbolTile cashTicker={meme.symbol.slice(0, 5)} iconUrl={row.imageUrl} />
           {meme.symbol} <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>on {stockSymbol}</span>
         </h1>
       </header>

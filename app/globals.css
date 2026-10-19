@@ -2406,3 +2406,113 @@ a.directory-main:hover .directory-symbol {
     font-size: 22px;
   }
 }
+
+/* /stocks as a table: one grid shared by the header row and every row; on phones each row becomes a
+   card (name on top, the numbers in a labelled two-column grid). */
+.stock-table-head,
+.stock-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) 0.8fr 0.6fr 0.8fr 0.8fr 1fr minmax(120px, 1fr);
+  align-items: center;
+  gap: 8px 14px;
+}
+.stock-table-head {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 0 0 8px;
+}
+.stock-table-head span:not(:first-child),
+.stock-cell {
+  text-align: right;
+  justify-self: end;
+}
+.stock-cell {
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+.stock-price {
+  font-weight: 600;
+}
+.directory-dim {
+  color: var(--text-dimmer);
+}
+.stock-memes {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  color: var(--text-dim);
+}
+.stock-memes .symbol-icon-sm,
+.stock-memes .symbol-tile-sm {
+  width: 24px;
+  height: 24px;
+  font-size: 7px;
+  border-radius: 7px;
+  margin-left: -6px;
+  box-shadow: 0 0 0 2px var(--panel);
+}
+.stock-memes > :first-child {
+  margin-left: 0;
+}
+.stock-memes-more {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.stock-memes:hover .stock-memes-more {
+  color: var(--accent);
+}
+.stock-row .directory-contract {
+  font-size: 11px;
+}
+.stock-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.stock-pager button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+@media (max-width: 900px) {
+  .stock-table-head {
+    display: none;
+  }
+  .stock-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .stock-row .directory-main {
+    grid-column: 1 / -1;
+  }
+  .stock-cell {
+    justify-self: stretch;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .stock-cell::before {
+    content: attr(data-label);
+    color: var(--text-dimmer);
+    font-weight: 400;
+  }
+  .stock-row .directory-status {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 4px 10px;
+    padding: 0;
+  }
+  .stock-row .directory-status::before {
+    content: none;
+  }
+  .stock-row .directory-contract {
+    padding-left: 0;
+    margin-left: auto;
+  }
+}

@@ -90,6 +90,7 @@ interface DexPair {
   liquidity?: { usd?: number; base?: number; quote?: number };
   pairCreatedAt?: number | null;
   marketCap?: number | null;
+  info?: { imageUrl?: string } | null;
   baseToken: { address: string; name: string; symbol: string };
   quoteToken: { address: string; name: string; symbol: string };
 }
@@ -333,6 +334,15 @@ export interface MemeRow {
   move: MemeMove;
   stockMove: MemeMove;
   thin: boolean;
+  /** The meme's logo as Dexscreener shows it, or null (then the letter tile). */
+  imageUrl: string | null;
+}
+
+/** Only an https image on Dexscreener's CDN (the one image host the CSP allows for memes). */
+function dexImage(url: unknown): string | null {
+  if (typeof url !== 'string' || !url.startsWith('https://cdn.dexscreener.com/') || url.length > 400) return null;
+  // Dexscreener serves 800 px; a 40 px tile needs far less. Only some sizes exist (96 is a 422; 128 works).
+  return url.replace(/width=\d+&height=\d+/, 'width=128&height=128');
 }
 
 const num = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : null);
@@ -355,6 +365,8 @@ function rowFrom(pool: MemePool, pair: DexPair | undefined, stockPair: DexPair |
     move: memeIsBase ? { h1: num(pair?.priceChange?.h1), h6: num(pair?.priceChange?.h6), h24: num(pair?.priceChange?.h24) } : { h1: null, h6: null, h24: null },
     stockMove: { h1: num(stockPair?.priceChange?.h1), h6: num(stockPair?.priceChange?.h6), h24: num(stockPair?.priceChange?.h24) },
     thin: (liquidityUsd ?? 0) < MEME_MIN_LIQUIDITY_USD,
+    // The pair's image is the base token's: only use it when the meme is the base.
+    imageUrl: memeIsBase ? dexImage(pair?.info?.imageUrl) : null,
   };
 }
 

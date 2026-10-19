@@ -58,8 +58,13 @@ export default async function StocksPage() {
             <p className="geo-note">
               Depth is the real value held in the stock&apos;s Aerodrome USDC pool: live for tracked stocks (under{' '}
               {usdCompact(LIQUID_DEPTH_THRESHOLD_USD)} shows as a thin book on the tape), checked once a day for the rest
-              {checked && <> (last {checked})</>}. Pools on other exchanges are not counted. Coinbase&apos;s stock tokens are not
-              available to people in the United States.
+              {checked && <> (last {checked})</>}. Price, 24h move and volume are from each token&apos;s deepest pool on Base (any
+              exchange, via Dexscreener, refreshed every few minutes); &ldquo;On Base&rdquo; is that price times the tokens in
+              circulation on Base, not the company&apos;s market cap. Memes are the verified ones on{' '}
+              <Link href="/memes" className="emph-link">
+                Memestocks
+              </Link>
+              . Coinbase&apos;s stock tokens are not available to people in the United States.
             </p>
           </section>
         </>
