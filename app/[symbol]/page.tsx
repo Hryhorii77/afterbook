@@ -18,7 +18,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
 
   return shareMetadata({
     title: `${stock.symbol} — Afterbook`,
-    description: `${stock.name} (${stock.symbol}): cash close vs the Aero book, in shares.`,
+    description: `${stock.name} (${stock.symbol}): cash price vs the onchain price on Aerodrome, in shares.`,
     path: `/${stock.symbol}`,
     card: { page: 'stock', sym: stock.symbol },
     searchParams: await searchParams,

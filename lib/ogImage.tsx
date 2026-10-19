@@ -367,7 +367,7 @@ export async function buildTodayOgImage(symbol?: string, theme: CardTheme = 'dar
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <Mark px={44} />
           <span style={{ fontSize: 40, fontWeight: 700, color: c.dim, letterSpacing: '-0.02em' }}>
-            Afterbook · Biggest gap
+            Afterbook · Today's gap
           </span>
           {sessionLabel && <span style={{ fontSize: 22, color: c.dimmer }}>{sessionLabel}</span>}
         </div>
@@ -481,7 +481,7 @@ export async function buildBasketOgImage(spec: string, theme: CardTheme = 'dark'
               {bp(gap)}
             </span>
             <span style={{ fontSize: 28, color: c.dim, marginTop: 4 }}>
-              {gap == null ? 'No reading yet' : `Aero vs ${reference.replace(/^the /, '')}`}
+              {gap == null ? 'No reading yet' : `Onchain vs ${reference.replace(/^the /, '')}`}
               {costBp != null ? ` · ${costBp.toFixed(1)} bp to buy $10k` : ''}
             </span>
           </div>

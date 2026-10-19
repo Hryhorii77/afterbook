@@ -79,7 +79,7 @@ No lint script, no test suite. To verify a change actually works:
 - **Labels come from data, not the clock:** never label a price "pre-market"/"after-hours" from the session state alone; use each row's `cashPriceType` (the hero, the card and the tape header/note all do). Two labels for one price was a real contradiction.
 - **First screen:** the hero must say the gap as one plain sentence a
   stranger can repeat (name, bp, versus what, when cash reopens), define
-  "Aero" and "100 bp = 1%" once, and carry one primary button. Don't
+  "Onchain price" and "100 basis points (bp) = 1%" once, and carry one primary button. Don't
   repeat the same numbers in several blocks above the fold. The home page
   opens on the day's biggest liquid gap (same pick as `/today`).
 - **Owner decisions on the look** (don't undo without asking): the
@@ -87,7 +87,7 @@ No lint script, no test suite. To verify a change actually works:
   ticker stays on every page; the wallet button opens an account panel
   rather than disconnecting on click. On phones and tablets (980px and narrower) the logo, wallet button, bell, theme
   icon and a menu button share one row, and the page links (plus Stocks and Memestocks) live in the menu panel (`SiteHeader.tsx`; owner, 2026-10-19; one row since 2026-10-17): the wallet drops its "Base" label
-  there, and below 421px the logo keeps only its mark. Desktop keeps the five-link nav. A "↗" after a link is joined with
+  there, and below 421px the logo keeps only its mark. Desktop shows the same seven links in its nav (Stocks and Memestocks since 2026-10-19, replacing the two links under the tape). A "↗" after a link is joined with
   `&nbsp;` and wrapped in `<span className="ext-arrow">` (a little extra space), so it never wraps onto a line of its own: `&nbsp;<span className="ext-arrow">↗</span>`. Notes (`.geo-note`) have no width cap and fill their panel at every width (owner, 2026-10-19).
 
 ## Working process

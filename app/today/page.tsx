@@ -28,7 +28,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   const sp = await searchParams;
   const sym = getStock(firstParam(sp.sym) ?? '')?.symbol;
   return shareMetadata({
-    title: 'Biggest gap — Afterbook',
+    title: "Today's gap — Afterbook",
     description: "The single biggest cash-vs-chain gap across Base's tokenized stocks right now, and how deep the book behind it is.",
     path: '/today',
     card: { page: 'today', sym },
@@ -105,7 +105,7 @@ export default async function TodayPage() {
   return (
     <main>
       <header className="top">
-        <h1>Biggest gap</h1>
+        <h1>Today&apos;s gap</h1>
       </header>
 
       <section className="panel gap-hero today-hero">
@@ -135,14 +135,13 @@ export default async function TodayPage() {
 
                 <div className="today-stats">
                   <div className="stat-card stat-card-hero">
-                    <div className="stat-label" style={{ marginTop: 0 }}>Gap, Aero vs cash</div>
+                    <div className="stat-label" style={{ marginTop: 0 }}>Onchain price vs cash price</div>
                     <div className={`today-stat-value ${headlineBp != null && headlineBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>
                       {bp(headlineBp)}
                     </div>
                     {headlineBp != null && (
                       <div className="stat-label">
-                        Aero is {Math.abs(headlineBp).toFixed(1)} bp {headlineBp >= 0 ? 'above' : 'below'} the cash{' '}
-                        {marketOpen ? 'price' : 'close'}
+                        {`The onchain price is ${Math.abs(headlineBp).toFixed(1)} bp ${headlineBp >= 0 ? 'above' : 'below'} the cash ${marketOpen ? 'price' : 'close'}`}
                       </div>
                     )}
                   </div>
@@ -150,9 +149,10 @@ export default async function TodayPage() {
                     <div className="stat-value">{usd(marketOpen ? headline.cashLastUsd : headline.closeUsd)}</div>
                     <div className="stat-label">{marketOpen ? 'Cash price' : 'Cash close'}</div>
                   </div>
-                  <div className="stat-card">
+                  <div className="stat-card stat-card-onchain">
                     <div className="stat-value">{usd(headline.onchainMidUsd)}</div>
-                    <div className="stat-label">Aero price</div>
+                    <div className="stat-label">Onchain price</div>
+                    {headline.depthUsd != null && <div className="stat-sub">Pool liquidity {usdCompact(headline.depthUsd)}</div>}
                   </div>
                 </div>
 

@@ -65,7 +65,7 @@ export function detectEvents(prev: AlertSnapshot | null, tape: TapeLite): { even
       events.push({
         id: `session-${isOpen ? 'open' : 'close'}`,
         title: isOpen ? 'Cash market opened' : 'Cash market closed',
-        body: biggest ? `Biggest gap: ${biggest.symbol} ${bp(biggest.basisBp)}` : 'Aerodrome keeps trading.',
+        body: biggest ? `Today's gap: ${biggest.symbol} ${bp(biggest.basisBp)}` : 'Aerodrome keeps trading.',
         href: '/today',
       });
     }

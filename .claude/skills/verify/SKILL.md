@@ -43,7 +43,7 @@ lsof -i :3000 -sTCP:LISTEN   # a next-server process may already be running
   fetched (`useEffect`), so `curl` on `/` won't show them — screenshot
   the actual browser after `find`-ing the section heading and
   `scroll_to`.
-- **Lot Lab is tabbed** (Trade / LP / Carry — `HomeClient.tsx`'s
+- **Lot Lab (headed "Trade calculator" on the page since 2026-10-19) is tabbed** (Trade / LP / Carry — `HomeClient.tsx`'s
   `lotLabTab` state, defaults to Trade). Each tab's content is
   conditionally rendered (`{lotLabTab === 'lp' && (...)}`), not just
   CSS-hidden — a tool not currently on that tab is absent from the DOM,
