@@ -79,7 +79,7 @@ No lint script, no test suite. To verify a change actually works:
 - **Labels come from data, not the clock:** never label a price "pre-market"/"after-hours" from the session state alone; use each row's `cashPriceType` (the hero, the card and the tape header/note all do). Two labels for one price was a real contradiction.
 - **First screen:** the hero must say the gap as one plain sentence a
   stranger can repeat (name, bp, versus what, when cash reopens), define
-  "Aero" and "100 bp = 1%" once, and carry one primary button. Don't
+  "Onchain price" and "100 basis points (bp) = 1%" once, and carry one primary button. Don't
   repeat the same numbers in several blocks above the fold. The home page
   opens on the day's biggest liquid gap (same pick as `/today`).
 - **Owner decisions on the look** (don't undo without asking): the

@@ -141,7 +141,7 @@ function formatLogTime(ts: number): string {
 const SORT_COLUMNS: { key: SortKey; label: (cashColumnLabel: string) => string }[] = [
   { key: 'symbol', label: () => 'Symbol' },
   { key: 'cashLastUsd', label: (cashColumnLabel) => cashColumnLabel },
-  { key: 'onchainMidUsd', label: () => 'Aero mid' },
+  { key: 'onchainMidUsd', label: () => 'Onchain price' },
   { key: 'basisBp', label: () => 'Basis' },
   { key: 'depthUsd', label: () => 'Depth' },
 ];
@@ -266,7 +266,7 @@ function TapeRows({
               // Too little history for a meaningful line (it would be a few pixels wide): say so.
               <span className="mini-spark-new">New · {Math.max(1, Math.round(trend.spanDays[row.symbol] ?? 0))}d</span>
             ) : (
-              <MiniSpark values={trend?.series[row.symbol]} label={`Aero price, past ${trend?.days ?? ''} days`} />
+              <MiniSpark values={trend?.series[row.symbol]} label={`Onchain price, past ${trend?.days ?? ''} days`} />
             )}
           </td>
         </tr>
@@ -316,7 +316,7 @@ function TapeCards({
             )}
           </div>
           <div className="tape-card-prices">
-            {usd(row.cashLastUsd)} cash{row.cashStale && <span className="stale-tag">STALE</span>} → {usd(row.onchainMidUsd)} aero
+            {usd(row.cashLastUsd)} cash{row.cashStale && <span className="stale-tag">STALE</span>} → {usd(row.onchainMidUsd)} onchain
           </div>
           <div className="tape-card-depth">
             {usdCompact(row.depthUsd)} · {sharesCompact(row.depthShares)}
@@ -420,7 +420,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         const nowClosed = json.session.state !== 'open';
         if (wasOpen && nowClosed) {
           const { liquid } = splitByLiquidity(json.rows);
-          const parts = liquid.map((r) => `${r.cashTicker} Aero ${bp(r.basisBp)}`).join(' ');
+          const parts = liquid.map((r) => `${r.cashTicker} ${bp(r.basisBp)}`).join(' ');
           setEventLog((log) => [{ ts: Date.now(), text: `Cash closed. ${parts}` }, ...log].slice(0, 20));
         }
         prevSessionStateRef.current = json.session.state;
@@ -825,7 +825,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
           <div className="today-stats">
             <div className="stat-card stat-card-hero">
-              <div className="stat-label" style={{ marginTop: 0 }}>Gap, Aero vs cash</div>
+              <div className="stat-label" style={{ marginTop: 0 }}>Onchain price vs cash price</div>
               <div className={`today-stat-value ${heroBp != null ? (heroBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
                 {bp(heroBp)}
               </div>
@@ -844,9 +844,12 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               <div className="stat-value">{usd(activeRow.cashLastUsd)}</div>
               <div className="stat-label">{heroCashLabel}</div>
             </div>
-            <div className="stat-card">
+            {/* The price you can actually trade at, so it carries more weight than the reference
+                cash price beside it; its pool's liquidity says how much it can take. */}
+            <div className="stat-card stat-card-onchain">
               <div className="stat-value">{usd(activeRow.onchainMidUsd)}</div>
-              <div className="stat-label">Aero price</div>
+              <div className="stat-label">Onchain price</div>
+              {activeRow.depthUsd != null && <div className="stat-sub">Pool liquidity {usdCompact(activeRow.depthUsd)}</div>}
             </div>
           </div>
 
@@ -865,7 +868,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             </a>
           </div>
           <p className="hero-note">
-            Aero is Aerodrome, the Base exchange where these stock tokens trade around the clock. 100 bp = 1%.
+            Onchain price is what the stock token trades for on Aerodrome, the Base exchange that is open around the clock. 100 basis points (bp) = 1%.
           </p>
         </section>
       )}
@@ -885,7 +888,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             </span>
             {' → '}
             <span className="gap-price-pair">
-              <span className="gap-detail-label">aero</span> {usd(activeRow.onchainMidUsd)}
+              <span className="gap-detail-label">onchain</span> {usd(activeRow.onchainMidUsd)}
             </span>
           </div>
         )}
@@ -994,7 +997,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
       <MyLots />
 
       <section className="panel" id="lot-lab">
-        <h2>Lot Lab</h2>
+        <h2>Trade calculator</h2>
         <div className="lot-lab-form">
           <div className="field">
             <label htmlFor="symbol-select">Stock</label>

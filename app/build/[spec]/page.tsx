@@ -83,7 +83,7 @@ export default async function BuildPage({ params }: PageProps) {
         <div className="today-stats">
           <div className="stat-card stat-card-hero">
             <div className="stat-label" style={{ marginTop: 0 }}>
-              Gap, Aero vs cash
+              Onchain price vs cash price
             </div>
             <div className={`today-stat-value ${gap != null && gap >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(gap)}</div>
             <div className="stat-label">
@@ -167,7 +167,7 @@ export default async function BuildPage({ params }: PageProps) {
                   <span>{legGap == null ? '—' : bp((legGap * leg.weightPct) / 100)}</span>
                 </div>
                 <div className="weight-meta">
-                  <span>Aero price</span>
+                  <span>Onchain price</span>
                   <span>{usd(row?.onchainMidUsd ?? null)}</span>
                 </div>
                 {legCost && (
@@ -178,7 +178,7 @@ export default async function BuildPage({ params }: PageProps) {
                 )}
                 <div className="weight-meta">
                   <Link className="emph-link" href={`/${stock.symbol}#lot-lab`}>
-                    Size it in Lot Lab
+                    Size it in the trade calculator
                   </Link>
                 </div>
               </div>

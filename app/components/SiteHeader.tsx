@@ -14,14 +14,14 @@ import { getStock } from '@/lib/tokens';
 // (owner, 2026-10-19: the second row of links pushed the hero down about 44px).
 const LINKS: { href: string; label: string }[] = [
   { href: '/', label: 'Tape' },
-  { href: '/today', label: 'Biggest gap' },
+  { href: '/today', label: "Today's gap" },
   { href: '/borrow', label: 'Borrow' },
   { href: '/build', label: 'Build' },
   { href: '/baskets', label: 'Baskets' },
 ];
 const MENU_LINKS: { href: string; label: string; note: string }[] = [
-  { href: '/', label: 'Tape', note: 'Every tracked stock: token price vs cash price' },
-  { href: '/today', label: 'Biggest gap', note: "Today's widest gap, in one card" },
+  { href: '/', label: 'Tape', note: 'Every tracked stock: onchain price vs cash price' },
+  { href: '/today', label: "Today's gap", note: 'The widest gap right now, in one card' },
   { href: '/borrow', label: 'Borrow', note: 'Loans against stock tokens on Aave and Morpho' },
   { href: '/build', label: 'Build', note: 'Make your own basket of stock tokens' },
   { href: '/baskets', label: 'Baskets', note: 'A managed basket, run on Glider' },
