@@ -31,7 +31,7 @@ export default async function MemesPage({ searchParams }: { searchParams: Promis
         AAPLc. Each row shows how the meme moved in the last 24 hours next to its stock.
       </p>
       <p className="meme-warning">
-        <strong>Most memecoins go to zero.</strong> The stock token in a meme&apos;s pool does not make the meme safer: it is only
+        <strong>Any memecoin can go to zero.</strong> The stock token in a meme&apos;s pool does not make the meme safer: it is only
         what the meme is priced in. Afterbook does not pick or recommend any of these; the list is sorted by trading, not by us.
       </p>
 

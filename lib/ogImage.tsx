@@ -639,7 +639,7 @@ export async function buildMemeOgImage(address: string, theme: CardTheme = 'dark
         <span style={{ fontSize: 26, color: c.dim, marginTop: 26 }}>
           {memePrice(row.priceUsd)} · {usdCompact(row.volume24Usd)} traded in 24h · {usdCompact(row.liquidityUsd)} liquidity on {venueLabel(row.pool.venue)}
         </span>
-        <span style={{ fontSize: 22, color: c.dimmer, marginTop: 10 }}>Most memecoins go to zero. The stock in the pool does not make the meme safer.</span>
+        <span style={{ fontSize: 22, color: c.dimmer, marginTop: 10 }}>Any memecoin can go to zero. The stock in the pool does not make the meme safer.</span>
 
         <CardFooter c={c} />
       </div>
