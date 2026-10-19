@@ -172,6 +172,41 @@ const MIN_TREND_DAYS = 3;
 
 const pct = (n: number) => `${Math.abs(n).toFixed(2)}%`;
 
+/** How old the numbers are. Delayed when the tape is over 90 s old (the page refreshes it every
+ *  20 s), when the server says it is serving last known values, or when the last refresh from this
+ *  page failed. Only the state word is a live region, so a screen reader hears "Delayed" once
+ *  rather than every tick of the clock. */
+const TAPE_DELAYED_AFTER_MS = 90_000;
+
+function ageText(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 10) return 'just now';
+  if (s < 60) return `${Math.floor(s / 5) * 5}s ago`;
+  const m = Math.floor(s / 60);
+  return m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ago`;
+}
+
+function TapeFreshness({ tape, refreshFailed }: { tape: TapeResult; refreshFailed: boolean }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 5_000);
+    return () => clearInterval(id);
+  }, []);
+  const age = now - tape.fetchedAt;
+  const delayed = refreshFailed || Boolean(tape.error) || age > TAPE_DELAYED_AFTER_MS;
+  const staleCash = tape.rows.filter((r) => r.cashStale).map((r) => r.symbol);
+  return (
+    <p className={`tape-freshness${delayed ? ' tape-freshness-delayed' : ''}`}>
+      <span className="tape-freshness-dot" aria-hidden="true" />
+      <span aria-live="polite">{delayed ? 'Delayed' : 'Live'}</span>
+      {delayed ? ` · last updated ${ageText(age)}` : ` · updated ${ageText(age)} · refreshes every 20s`}
+      {refreshFailed && ' · this page could not refresh, retrying'}
+      {staleCash.length > 0 &&
+        ` · cash price delayed for ${staleCash.length > 4 ? `${staleCash.length} stocks` : staleCash.join(', ')} (last good value shown)`}
+    </p>
+  );
+}
+
 function TapeColGroup() {
   return (
     <colgroup>
@@ -339,6 +374,7 @@ interface HomeClientProps {
 
 export default function HomeClient({ initialTape, initialGeo, initialSymbol }: HomeClientProps) {
   const [tape, setTape] = useState<TapeResult>(initialTape);
+  const [refreshFailed, setRefreshFailed] = useState(false);
   // On-chain price trend per symbol (up to 30 days) and the 24h change, for the
   // tape's chart and 24h columns. Loaded once and refreshed every 5 min; cells
   // show a dash until it arrives.
@@ -408,9 +444,11 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
     const fetchTape = async () => {
       try {
         const res = await fetch('/api/tape');
+        if (!res.ok) throw new Error(`tape ${res.status}`);
         const json: TapeResult = await res.json();
         if (cancelled) return;
         setTape(json);
+        setRefreshFailed(false);
 
         // Precursor to real alerts (Phase 2) — a client-only, session-local
         // log of the one event we can detect for free: the cash market just
@@ -424,7 +462,8 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         }
         prevSessionStateRef.current = json.session.state;
       } catch {
-        // keep showing last good tape
+        // keep showing last good tape, and say so
+        if (!cancelled) setRefreshFailed(true);
       }
     };
     const id = setInterval(fetchTape, 20_000);
@@ -922,6 +961,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
       <section className="panel" id="tape">
         <h2>Tape</h2>
+        <TapeFreshness tape={tape} refreshFailed={refreshFailed} />
         {extendedState && (
           <p className="geo-note" style={{ marginTop: 0 }}>
             {rowsOnPrint === 0
