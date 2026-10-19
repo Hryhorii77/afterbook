@@ -154,7 +154,7 @@ export function WalletButtonView({
 
   if (!address) {
     return (
-      <button type="button" className="wallet-connect-btn" onClick={onConnect} disabled={!onConnect}>
+      <button type="button" className="wallet-connect-btn" onClick={onConnect} disabled={!onConnect} title="Wallet optional: connect to see your lots or trade">
         Connect wallet
       </button>
     );

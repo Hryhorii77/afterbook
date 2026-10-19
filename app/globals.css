@@ -16,12 +16,14 @@
   --panel: #171719;
   --panel-border: #2a2a2e;
   --text: #ffffff;
-  --text-dim: #9a9aa3;
-  --text-dimmer: #8a8a94;
+  --text-dim: #a9a9b2;
+  --text-dimmer: #9d9da7;
   --green: #3dd68c;
   --red: #ff5d6c;
   --amber: #e2b15a;
   --blue-gray: #6b7f99;
+  /* Explanations and system states (notices, info chips): neither market movement nor a link. */
+  --info: #a3adbd;
   --accent: #9cd6ff;
   /* Primary CTA is an ice-blue fill with near-black ink (o1-style). Hover and
      press shift the fill; the ink stays dark for contrast on the pale blue. */
@@ -58,12 +60,13 @@
   --panel: #ffffff;
   --panel-border: #e4e4e1;
   --text: #111318;
-  --text-dim: #4d5361;
-  --text-dimmer: #646b79;
+  --text-dim: #474d5a;
+  --text-dimmer: #5a6170;
   --green: #15803d;
   --red: #dc2626;
   --amber: #b45309;
   --blue-gray: #64748b;
+  --info: #5b6576;
   --accent: #1f4fe0;
   --primary-bg: #1f4fe0;
   --primary-bg-hover: #1a43c4;
@@ -378,7 +381,7 @@ h1 {
   box-shadow: var(--shadow-pill);
   animation: toast-in 0.22s ease-out;
 }
-.toast-dot { flex-shrink: 0; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--accent); }
+.toast-dot { flex-shrink: 0; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--info); }
 .toast-success .toast-dot { background: var(--green); }
 .toast-error .toast-dot { background: var(--red); }
 .toast-text { flex: 1; min-width: 0; }
@@ -580,7 +583,7 @@ h1 {
 #tape tbody td:last-child { border-right: 1px solid var(--panel-border); border-radius: 0 14px 14px 0; padding-right: 14px; }
 #tape .tape-row-clickable:hover td { background: var(--surface-hover); }
 #tape .tape-row-active { box-shadow: none; background: transparent; }
-#tape .tape-row-active td { background: var(--surface-hover); border-top-color: var(--accent); border-bottom-color: var(--accent); }
+#tape .tape-row-active td { background: color-mix(in srgb, var(--accent) 7%, var(--panel)); border-top-color: var(--accent); border-bottom-color: var(--accent); }
 #tape .tape-row-active td:first-child { border-left-color: var(--accent); }
 #tape .tape-row-active td:last-child { border-right-color: var(--accent); }
 #tape .thin-table tbody td { padding: 8px 8px; }
@@ -624,7 +627,10 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .stat-label { margin-top: 8px; font-size: 13px; color: var(--text-dim); }
 /* The hero's onchain price: what you can trade at, so a firmer edge and a heavier number than the
    cash price beside it (existing tokens only). */
-.stat-card-onchain { border-color: var(--secondary-border-hover); }
+.stat-card-onchain {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--panel-border));
+  background: color-mix(in srgb, var(--accent) 6%, var(--inset));
+}
 .stat-card-onchain .stat-value { font-weight: 700; }
 .stat-sub { margin-top: 4px; font-size: 12.5px; color: var(--text-dimmer); }
 
@@ -689,6 +695,7 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
   .site-menu a[aria-current='page'] { background: var(--inset); }
   .site-menu-label { font-size: 15px; font-weight: 600; }
   .site-menu-note { font-size: 12.5px; color: var(--text-dim); }
+  .site-menu-foot { margin: 4px 12px 8px; padding-top: 8px; border-top: 1px solid var(--panel-border); font-size: 12.5px; color: var(--info); }
 }
 /* Narrow phones: the logo, wallet and icons stay on one row (owner, 2026-10-17): the wallet drops
    its "Base" label (the panel still says it) and the logo keeps only its mark. That was below
@@ -722,6 +729,17 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .wallet-connect-btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+/* The header's Connect wallet is quiet (outlined): browsing needs no wallet. The solid call to
+   action stays inside the trade, basket and My Lots panels, where a wallet is needed. */
+.site-header .wallet-connect-btn:not(.wallet-connect-btn-connected) {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--secondary-border-hover);
+}
+.site-header .wallet-connect-btn:not(.wallet-connect-btn-connected):hover:not(:disabled) {
+  background: var(--overlay-2);
+  border-color: var(--text-dim);
 }
 .wallet-connect-btn-connected {
   background: var(--panel);
@@ -1113,7 +1131,7 @@ section.panel h2 {
   cursor: pointer;
 }
 .tape-card-active {
-  background: var(--surface-hover);
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel));
   box-shadow: inset 3px 0 0 var(--accent);
 }
 .tape-card-top {
