@@ -7,7 +7,7 @@ import { MemeBuySection } from '@/app/components/MemeBuySection';
 import { getGeoInfo } from '@/lib/geo';
 import { getMemeRow, MEME_MIN_LIQUIDITY_USD, poolUrl, venueLabel, type MemeRow } from '@/lib/memestocks';
 import { usdCompact } from '@/lib/format';
-import { ageText, memePrice, memeShareText, moveSentence, pctMove, usdOrDash } from '@/lib/memeFormat';
+import { ageText, memePrice, memePriceZeros, memeShareText, moveSentence, pctMove, usdOrDash } from '@/lib/memeFormat';
 import { getStock } from '@/lib/tokens';
 import { shareMetadata } from '@/lib/shareMeta';
 
@@ -27,6 +27,18 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
     card: { page: 'meme', addr: m.address },
     searchParams: await searchParams,
   });
+}
+
+/** "$0.0₆1554" for a tiny price (the full number in the tooltip and for screen readers). */
+function PriceText({ n }: { n: number | null }) {
+  const z = memePriceZeros(n);
+  if (!z) return <>{memePrice(n)}</>;
+  return (
+    <span title={memePrice(n)} aria-label={memePrice(n)}>
+      $0.0<sub className="price-zeros">{z.zeros}</sub>
+      {z.digits}
+    </span>
+  );
 }
 
 const moveClass = (n: number | null) => (n == null ? '' : n >= 0 ? 'meme-up' : 'meme-down');
@@ -58,7 +70,9 @@ export default async function MemePage({ params }: Params) {
       {meme.name && meme.name !== meme.symbol && (
         <p className="geo-note" style={{ marginTop: 0 }}>
           &ldquo;{meme.name}&rdquo;, a meme token on Base priced in {stock?.name ?? stockSymbol}&apos;s stock token. The name is the
-          launcher&apos;s, not the company&apos;s: it has nothing to do with {stock?.name ?? stockSymbol}.
+          launcher&apos;s, not the company&apos;s: it has nothing to do with {stock?.name ?? stockSymbol}
+          {/* "Meta Platforms Inc." already ends the sentence. */}
+          {(stock?.name ?? stockSymbol).endsWith('.') ? '' : '.'}
         </p>
       )}
       <p className="meme-warning">
@@ -94,7 +108,7 @@ export default async function MemePage({ params }: Params) {
         </table>
         <div className="stat-grid meme-stat-grid">
           <div className="stat-card">
-            <div className="stat-value">{memePrice(row.priceUsd)}</div>
+            <div className="stat-value"><PriceText n={row.priceUsd} /></div>
             <div className="stat-label">Price</div>
           </div>
           <div className="stat-card">
