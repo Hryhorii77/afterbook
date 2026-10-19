@@ -69,8 +69,15 @@ check passes, say so in one short line; do not pad.
 - Approvals in `SwapPanel.tsx` name only `KYBER_ROUTER` and only the exact
   `amountIn`; anything unlimited (`maxUint256`) or another spender is a finding.
   The client re-checks `to`/`spender` against `KYBER_ROUTER`.
-- Tokens come only from `STOCKS` (`parseSwapRequest`); a new token source
-  (memestocks) needs its own on-chain-verified allowlist.
+- Tokens come only from `STOCKS` (`parseSwapRequest`), or for a meme buy from
+  `parseMemeSwapRequest` (`lib/memeSwap.ts`): the meme must be on the verified
+  `memes:pools` allowlist with live liquidity >= `MEME_MIN_LIQUIDITY_USD`, paid
+  with USDC or that meme's own stock token only, side `buy` only, capped at
+  `MAX_MEME_SWAP_USD`, and `feeFor` must return no fee for it. Loosening any of
+  these, or a meme reaching `STOCKS`/`BASKET_SYMBOLS`, is a finding.
+  `MemeBuyPanel.tsx` follows the SwapPanel rules below (exact approval of the
+  router only, Builder Code, rebuild-and-compare) and re-checks the built
+  meme, pay token and side.
 - The fee is off unless `SWAP_FEE_BPS` (1-100) and a valid `SWAP_FEE_RECIPIENT`
   are both set; anything that turns it on by default, raises the cap, or sends
   it elsewhere is a finding (the owner keeps it at 0 until a legal check).

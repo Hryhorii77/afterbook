@@ -390,10 +390,23 @@ async function loadBoard(): Promise<{ rows: MemeRow[]; checkedAt: number } | nul
   return { rows: [...best.values()].sort((a, b) => (b.volume24Usd ?? 0) - (a.volume24Usd ?? 0)), checkedAt: list.checkedAt };
 }
 
+// Two minutes in Next's data cache, so pages, cards and the swap routes (which check a meme's live
+// liquidity on every quote) share one Dexscreener read instead of each making their own. A failure throws
+// inside, so it is not cached.
+const cachedBoard = unstable_cache(
+  async () => {
+    const board = await loadBoard();
+    if (!board) throw new Error('meme allowlist unavailable');
+    return board;
+  },
+  ['memes-board'],
+  { revalidate: 120 },
+);
+
 /** Every listed meme, busiest first (never "recommended"). Null when the allowlist or Dexscreener is unavailable. */
 export async function getMemeBoard(): Promise<{ rows: MemeRow[]; checkedAt: number } | null> {
   try {
-    return await loadBoard();
+    return await cachedBoard();
   } catch (err) {
     console.error('[memes] could not build the board', err);
     return null;

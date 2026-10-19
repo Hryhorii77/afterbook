@@ -8,6 +8,7 @@
 // (so there is no new secret), takes no protocol fee on swaps, and supports an integrator fee.
 import { decodeFunctionData, getAddress, isAddress, parseAbi, type Hex } from 'viem';
 import { STOCKS, USDC, type CbStock } from './tokens';
+import type { MemePool } from './memestocks';
 
 /** KyberSwap MetaAggregationRouterV2 on Base (verified source on Sourcify). The only contract a swap
  *  transaction may target and the only spender a swap approval may name. */
@@ -18,6 +19,8 @@ const CLIENT_ID = 'afterbook';
 export const SLIPPAGE_BPS = 50;
 /** Largest single swap the panel builds, in USD. A UX guard, not a security control. */
 export const MAX_SWAP_USD = 25_000;
+/** Memes are thin and most go to zero: a much smaller cap per buy. */
+export const MAX_MEME_SWAP_USD = 1_000;
 
 const routerAbi = parseAbi([
   'struct SwapDescriptionV2 { address srcToken; address dstToken; address[] srcReceivers; uint256[] srcAmounts; address[] feeReceivers; uint256[] feeAmounts; address dstReceiver; uint256 amount; uint256 minReturnAmount; uint256 flags; bytes permit; }',
@@ -47,6 +50,9 @@ export interface SwapRequest {
   side: SwapSide;
   /** Raw units of the token being sold (USDC for a buy, the stock token for a sell). */
   amountIn: bigint;
+  /** A meme buy (lib/memeSwap.ts): the allowlisted meme is the output, paid with USDC or `stock`
+   *  (the stock token its pool is priced in). Always side 'buy', never with Afterbook's fee. */
+  meme?: { pool: MemePool; payWith: 'USDC' | 'stock' };
 }
 
 const AMOUNT_RE = /^[0-9]{1,30}$/;
@@ -66,7 +72,13 @@ function tokensFor(req: SwapRequest): { tokenIn: `0x${string}`; tokenOut: `0x${s
   // Checksummed, so every comparison below is against getAddress() output (lib/tokens.ts mixes cases).
   const usdc = getAddress(USDC.address);
   const stock = getAddress(req.stock.tokenAddress);
+  if (req.meme) return { tokenIn: req.meme.payWith === 'USDC' ? usdc : stock, tokenOut: getAddress(req.meme.pool.meme.address) };
   return req.side === 'buy' ? { tokenIn: usdc, tokenOut: stock } : { tokenIn: stock, tokenOut: usdc };
+}
+
+/** Afterbook's fee for this request: never on a meme buy (the owner has not decided one), else swapFee(). */
+function feeFor(req: SwapRequest): SwapFee | null {
+  return req.meme ? null : swapFee();
 }
 
 /** A refusal or upstream failure whose message is safe to show; `status` is the HTTP status to answer. */
@@ -103,7 +115,10 @@ interface RouteSummary {
 }
 
 export interface SwapQuote {
+  /** The stock's symbol, or the meme's for a meme buy. */
   symbol: string;
+  /** The meme's address on a meme buy (symbols are not unique among memes). */
+  meme?: `0x${string}`;
   side: SwapSide;
   amountIn: string;
   /** Expected output after Afterbook's fee, raw units. */
@@ -133,11 +148,13 @@ async function getRoute(req: SwapRequest, fee: SwapFee | null): Promise<{ summar
     throw new SwapError('route does not match the request');
   }
   const usdIn = Number(summary.amountInUsd);
-  if (!(usdIn > 0) || usdIn > MAX_SWAP_USD) throw new SwapError(`swaps are limited to $${MAX_SWAP_USD.toLocaleString('en-US')} each`, 400);
+  const cap = req.meme ? MAX_MEME_SWAP_USD : MAX_SWAP_USD;
+  if (!(usdIn > 0) || usdIn > cap) throw new SwapError(`${req.meme ? 'meme buys' : 'swaps'} are limited to $${cap.toLocaleString('en-US')} each`, 400);
   return {
     summary,
     quote: {
-      symbol: req.stock.symbol,
+      symbol: req.meme ? req.meme.pool.meme.symbol : req.stock.symbol,
+      ...(req.meme ? { meme: getAddress(req.meme.pool.meme.address) } : {}),
       side: req.side,
       amountIn: summary.amountIn,
       amountOut: summary.amountOut,
@@ -151,7 +168,7 @@ async function getRoute(req: SwapRequest, fee: SwapFee | null): Promise<{ summar
 }
 
 export async function quoteSwap(req: SwapRequest): Promise<SwapQuote> {
-  return (await getRoute(req, swapFee())).quote;
+  return (await getRoute(req, feeFor(req))).quote;
 }
 
 export interface SwapTx {
@@ -169,7 +186,7 @@ export interface SwapTx {
  *  what was asked for: router, function, tokens, recipient, amount, a floor within our slippage of the
  *  quote, Afterbook's fee (or none) and no permit. The browser only ever sees a transaction that passed. */
 export async function buildSwap(req: SwapRequest, account: `0x${string}`): Promise<SwapTx> {
-  const fee = swapFee();
+  const fee = feeFor(req);
   const { summary, quote } = await getRoute(req, fee);
   const built = await kyber<{ amountIn: string; amountOut: string; data: Hex; routerAddress: string; transactionValue: string }>(
     '/route/build',
@@ -215,6 +232,18 @@ export function checkSwapCalldata(req: SwapRequest, account: `0x${string}`, fee:
   const failed = checks.filter(([ok]) => !ok).map(([, what]) => what);
   if (failed.length) throw new SwapError(`refused: the transaction's ${failed.join(', ')} did not match the request`);
   return desc.minReturnAmount;
+}
+
+/** The router call's swap description (tokens, recipient, amount), or null if it is not a router swap.
+ *  Used by the swap log for meme buys, whose tokens are checked against the stored build. */
+export function decodeSwapDesc(data: Hex): { srcToken: `0x${string}`; dstToken: `0x${string}`; recipient: `0x${string}`; amountIn: bigint; feeReceivers: number } | null {
+  try {
+    const decoded = decodeFunctionData({ abi: routerAbi, data });
+    const desc = decoded.functionName === 'swap' ? decoded.args[0].desc : decoded.args[1];
+    return { srcToken: getAddress(desc.srcToken), dstToken: getAddress(desc.dstToken), recipient: getAddress(desc.dstReceiver), amountIn: desc.amount, feeReceivers: desc.feeReceivers.length };
+  } catch {
+    return null;
+  }
 }
 
 /** Decodes a mined router call for the swap log. Null when it is not a swap between USDC and a

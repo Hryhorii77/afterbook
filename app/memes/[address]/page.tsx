@@ -3,7 +3,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { SymbolTile } from '@/app/components/SymbolTile';
 import { ShareButton } from '@/app/components/ShareButton';
-import { getMemeRow, poolUrl, venueLabel, type MemeRow } from '@/lib/memestocks';
+import { MemeBuySection } from '@/app/components/MemeBuySection';
+import { getGeoInfo } from '@/lib/geo';
+import { getMemeRow, MEME_MIN_LIQUIDITY_USD, poolUrl, venueLabel, type MemeRow } from '@/lib/memestocks';
+import { usdCompact } from '@/lib/format';
 import { ageText, memePrice, moveSentence, pctMove, usdOrDash } from '@/lib/memeFormat';
 import { getStock } from '@/lib/tokens';
 import { shareMetadata } from '@/lib/shareMeta';
@@ -38,7 +41,7 @@ function verificationText(row: MemeRow): string {
 
 export default async function MemePage({ params }: Params) {
   const { address } = await params;
-  const row = await getMemeRow(address);
+  const [row, geo] = await Promise.all([getMemeRow(address), getGeoInfo()]);
   if (!row) notFound();
   const { meme, stockSymbol } = row.pool;
   const stock = getStock(stockSymbol);
@@ -121,6 +124,17 @@ export default async function MemePage({ params }: Params) {
           <div className="basket-row" style={{ marginTop: 16 }}>
             <ShareButton path={`/memes/${meme.address}`} card={{ page: 'meme', addr: meme.address }} fileName={`afterbook-${meme.symbol.toLowerCase()}.png`} text={`${sentence}. Base memes priced in stock tokens, on Afterbook:`} />
           </div>
+        )}
+      </section>
+
+      <section className="panel" id="buy">
+        <h2>Buy {meme.symbol}</h2>
+        {row.thin || !stock ? (
+          <p className="geo-note" style={{ marginTop: 0 }}>
+            Buying here is off: this pool holds under {usdCompact(MEME_MIN_LIQUIDITY_USD)} of liquidity, so a small trade moves the price a lot.
+          </p>
+        ) : (
+          <MemeBuySection meme={{ address: meme.address, symbol: meme.symbol, decimals: meme.decimals }} stock={stock} geo={geo} />
         )}
       </section>
 
