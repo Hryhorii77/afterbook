@@ -146,7 +146,7 @@ export function StockDirectory({ rows }: { rows: DirectoryRow[] }) {
                       <span className="directory-depth">{r.depthUsd != null ? `${usdCompact(r.depthUsd)} deep` : 'depth unreadable'}</span>
                     )}
                     <a className="directory-contract" href={`https://basescan.org/token/${r.tokenAddress}`} target="_blank" rel="noopener noreferrer">
-                      {short(r.tokenAddress)}&nbsp;↗
+                      {short(r.tokenAddress)}&nbsp;<span className="ext-arrow">↗</span>
                     </a>
                   </span>
                 </li>

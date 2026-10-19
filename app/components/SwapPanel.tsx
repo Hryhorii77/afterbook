@@ -295,7 +295,7 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
             <dt>Contract</dt>
             <dd>
               <a href={`https://basescan.org/address/${review.to}`} target="_blank" rel="noopener noreferrer" className="emph-link">
-                KyberSwap router {review.to.slice(0, 6)}…{review.to.slice(-4)}&nbsp;↗
+                KyberSwap router {review.to.slice(0, 6)}…{review.to.slice(-4)}&nbsp;<span className="ext-arrow">↗</span>
               </a>
             </dd>
           </dl>
@@ -320,7 +320,7 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
         <p className="geo-note">
           {done.text}{' '}
           <a href={`https://basescan.org/tx/${done.hash as Hex}`} target="_blank" rel="noopener noreferrer" className="emph-link">
-            View transaction&nbsp;↗
+            View transaction&nbsp;<span className="ext-arrow">↗</span>
           </a>
         </p>
       )}

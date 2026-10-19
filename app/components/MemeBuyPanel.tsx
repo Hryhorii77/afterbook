@@ -289,7 +289,7 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
             <dt>Token</dt>
             <dd>
               <a href={`https://basescan.org/token/${meme.address}`} target="_blank" rel="noopener noreferrer" className="emph-link">
-                {meme.symbol} {meme.address.slice(0, 6)}…{meme.address.slice(-4)}&nbsp;↗
+                {meme.symbol} {meme.address.slice(0, 6)}…{meme.address.slice(-4)}&nbsp;<span className="ext-arrow">↗</span>
               </a>
             </dd>
             <dt>Route</dt>
@@ -297,7 +297,7 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
             <dt>Contract</dt>
             <dd>
               <a href={`https://basescan.org/address/${review.to}`} target="_blank" rel="noopener noreferrer" className="emph-link">
-                KyberSwap router {review.to.slice(0, 6)}…{review.to.slice(-4)}&nbsp;↗
+                KyberSwap router {review.to.slice(0, 6)}…{review.to.slice(-4)}&nbsp;<span className="ext-arrow">↗</span>
               </a>
             </dd>
           </dl>
@@ -326,7 +326,7 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
         <p className="geo-note">
           {done.text}{' '}
           <a href={`https://basescan.org/tx/${done.hash as Hex}`} target="_blank" rel="noopener noreferrer" className="emph-link">
-            View transaction&nbsp;↗
+            View transaction&nbsp;<span className="ext-arrow">↗</span>
           </a>
         </p>
       )}
