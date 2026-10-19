@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
     if (card.page === 'today') return buildTodayOgImage(card.sym, theme, frozen);
     if (card.page === 'build') return buildBasketOgImage(card.spec, theme, frozen);
     if (card.page === 'borrow' && snap.borrow) return buildBorrowOgImage(theme, { ...frozen, borrow: snap.borrow });
+    if (card.page === 'meme' && snap.meme) return (await buildMemeOgImage(card.addr, theme, snap.meme)) ?? notFound();
   }
 
   const sym = q.get('sym');

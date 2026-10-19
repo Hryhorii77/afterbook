@@ -7,7 +7,7 @@ import { MemeBuySection } from '@/app/components/MemeBuySection';
 import { getGeoInfo } from '@/lib/geo';
 import { getMemeRow, MEME_MIN_LIQUIDITY_USD, poolUrl, venueLabel, type MemeRow } from '@/lib/memestocks';
 import { usdCompact } from '@/lib/format';
-import { ageText, memePrice, moveSentence, pctMove, usdOrDash } from '@/lib/memeFormat';
+import { ageText, memePrice, memeShareText, moveSentence, pctMove, usdOrDash } from '@/lib/memeFormat';
 import { getStock } from '@/lib/tokens';
 import { shareMetadata } from '@/lib/shareMeta';
 
@@ -122,7 +122,7 @@ export default async function MemePage({ params }: Params) {
         </div>
         {sentence && (
           <div className="basket-row" style={{ marginTop: 16 }}>
-            <ShareButton path={`/memes/${meme.address}`} card={{ page: 'meme', addr: meme.address }} fileName={`afterbook-${meme.symbol.toLowerCase()}.png`} text={`${sentence}. Base memes priced in stock tokens, on Afterbook:`} />
+            <ShareButton path={`/memes/${meme.address}`} card={{ page: 'meme', addr: meme.address }} fileName={`afterbook-${meme.symbol.toLowerCase()}.png`} text={memeShareText(meme.symbol, row.move.h24, stockSymbol, row.stockMove.h24)} />
           </div>
         )}
       </section>

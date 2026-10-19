@@ -25,4 +25,10 @@ export function moveSentence(meme: string, memeMove: number | null, stock: strin
   return `${meme} ${pctMove(memeMove)} while ${stock} ${pctMove(stockMove)} in 24 hours`;
 }
 
+/** The post's sentence for a shared meme page (and the snapshot's, so the card matches it). */
+export function memeShareText(meme: string, memeMove: number | null, stock: string, stockMove: number | null): string {
+  const sentence = moveSentence(meme, memeMove, stock, stockMove);
+  return `${sentence ?? `${meme}, a Base meme priced in ${stock}`}. Base memes priced in stock tokens, on Afterbook:`;
+}
+
 export const usdOrDash = (n: number | null) => (n == null ? '—' : usdCompact(n));
