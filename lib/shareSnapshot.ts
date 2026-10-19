@@ -9,6 +9,8 @@ import { stockShareText, todayShareText, basketShareText } from './shareText';
 import type { CardSpec } from './cardUrl';
 import { getBorrowSummary } from './liquidationRisk';
 import { borrowShareText, type BorrowSummary } from './borrowSummary';
+import { getMemeRow, type MemeRow } from './memestocks';
+import { memeShareText } from './memeFormat';
 
 // One share = one frozen moment. When someone clicks Share, the server reads the tape once, writes
 // the post's sentence from it and keeps it under the share's id (the `s` in the link) for 30 days;
@@ -28,6 +30,8 @@ export interface ShareSnapshot {
   basketCostBp?: number | null;
   /** Lending totals and markets (borrow cards only). */
   borrow?: BorrowSummary;
+  /** The meme's row as it was at share time (meme cards only). */
+  meme?: MemeRow;
   text: string;
 }
 
@@ -47,6 +51,9 @@ export function cleanCardSpec(input: unknown): CardSpec | null {
     }
     case 'borrow':
       return { page: 'borrow' };
+    case 'meme':
+      // Shape only; createShareSnapshot then needs the meme on the verified allowlist.
+      return typeof c.addr === 'string' && /^0x[a-fA-F0-9]{40}$/.test(c.addr) ? { page: 'meme', addr: c.addr } : null;
     default:
       return null;
   }
@@ -58,6 +65,7 @@ export async function createShareSnapshot(card: CardSpec): Promise<{ id: string;
   let text: string;
   let basketCostBp: number | null | undefined;
   let borrow: BorrowSummary | undefined;
+  let meme: MemeRow | undefined;
   let stored: CardSpec = card;
 
   if (card.page === 'stock') {
@@ -78,6 +86,12 @@ export async function createShareSnapshot(card: CardSpec): Promise<{ id: string;
     borrow = await getBorrowSummary();
     if (borrow.rows.length === 0) return null;
     text = borrowShareText(borrow);
+  } else if (card.page === 'meme') {
+    const row = await getMemeRow(card.addr);
+    if (!row) return null;
+    meme = row;
+    stored = { page: 'meme', addr: row.pool.meme.address };
+    text = memeShareText(row.pool.meme.symbol, row.move.h24, row.pool.stockSymbol, row.stockMove.h24);
   } else {
     return null;
   }
@@ -89,6 +103,7 @@ export async function createShareSnapshot(card: CardSpec): Promise<{ id: string;
     tape: { rows: tape.rows, session: tape.session, fetchedAt: tape.fetchedAt },
     basketCostBp,
     borrow,
+    meme,
     text,
   };
   await redis.set(key(id), snapshot, { ex: TTL_SECONDS });

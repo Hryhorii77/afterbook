@@ -16,7 +16,7 @@ import { heroGapBp } from './shareText';
 import { getBorrowSummary } from './liquidationRisk';
 import { aeroExit, venueName, type BorrowSummary } from './borrowSummary';
 import { usdCompact } from './format';
-import { getMemeRow, venueLabel } from './memestocks';
+import { getMemeRow, venueLabel, type MemeRow } from './memestocks';
 import { memePrice, pctMove } from './memeFormat';
 
 /** A share's frozen numbers (lib/shareSnapshot.ts). Without one a card reads the live tape. */
@@ -565,13 +565,34 @@ export async function buildBorrowOgImage(theme: CardTheme = 'dark', frozen?: { t
 
 /** /memes/<address>: the meme's 24h move next to its stock's, which is what that page is for. Never
  *  says "buy"; carries the same warning line as the page. */
-export async function buildMemeOgImage(address: string, theme: CardTheme = 'dark') {
+/** A meme's logo from Dexscreener's CDN (the only host MemeRow.imageUrl allows) as a data URI, or
+ *  null for the letter tile. PNG or JPEG only (what the card renderer draws), small, and quick. */
+async function memeIconDataUri(url: string | null): Promise<string | null> {
+  if (!url || !url.startsWith('https://cdn.dexscreener.com/')) return null;
+  const work = (async () => {
+    const res = await fetch(url.replace('format=auto', 'format=png'), { next: { revalidate: 6 * 60 * 60 }, signal: AbortSignal.timeout(2500) });
+    if (!res.ok) return null;
+    const bytes = Buffer.from(await res.arrayBuffer());
+    const isPng = bytes.length > 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
+    const isJpeg = bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    if (!(isPng || isJpeg) || bytes.length > 300_000) return null;
+    return `data:image/${isPng ? 'png' : 'jpeg'};base64,${bytes.toString('base64')}`;
+  })();
+  try {
+    return await Promise.race([work, new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))]);
+  } catch {
+    return null;
+  }
+}
+
+/** `frozen` is the row stored with a share (lib/shareSnapshot.ts), so the card says what the post says. */
+export async function buildMemeOgImage(address: string, theme: CardTheme = 'dark', frozen?: MemeRow) {
   const c = PALETTES[theme];
-  const row = await getMemeRow(address).catch(() => null);
+  const row = frozen ?? (await getMemeRow(address).catch(() => null));
   if (!row) return null;
   const { meme, stockSymbol } = row.pool;
   const stockTicker = getStock(stockSymbol)?.cashTicker ?? stockSymbol;
-  const stockIcon = await iconDataUri(stockTicker);
+  const [stockIcon, memeIcon] = await Promise.all([iconDataUri(stockTicker), memeIconDataUri(row.imageUrl)]);
   const moveColor = (n: number | null) => (n == null ? c.dim : n >= 0 ? c.pos : c.neg);
 
   return new ImageResponse(
@@ -583,21 +604,29 @@ export async function buildMemeOgImage(address: string, theme: CardTheme = 'dark
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', marginTop: 40 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 72, height: 72, borderRadius: 18, marginRight: 22, fontSize: 20, fontWeight: 700, ...tileColors(meme.symbol) }}>
-            {meme.symbol.slice(0, 5)}
-          </div>
+          {memeIcon ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={memeIcon} width={72} height={72} style={{ borderRadius: 18, marginRight: 22 }} />
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 72, height: 72, borderRadius: 18, marginRight: 22, fontSize: 20, fontWeight: 700, ...tileColors(meme.symbol) }}>
+              {meme.symbol.slice(0, 5)}
+            </div>
+          )}
           <span style={{ fontSize: 64, fontWeight: 700, color: c.text, letterSpacing: '-0.02em' }}>{meme.symbol}</span>
           <span style={{ fontSize: 34, color: c.dim, marginLeft: 18 }}>priced in {stockSymbol}</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'flex-end', marginTop: 34, gap: 56 }}>
+        {/* Both labels on one line, both numbers centred in one band of the same height. */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', marginTop: 34, gap: 72 }}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: 26, color: c.dim }}>{meme.symbol}, 24h</span>
-            <span style={{ fontSize: 88, fontWeight: 700, color: moveColor(row.move.h24), letterSpacing: '-0.03em' }}>{pctMove(row.move.h24)}</span>
+            <div style={{ display: 'flex', alignItems: 'center', height: 104 }}>
+              <span style={{ fontSize: 88, fontWeight: 700, color: moveColor(row.move.h24), letterSpacing: '-0.03em' }}>{pctMove(row.move.h24)}</span>
+            </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: 26, color: c.dim }}>{stockSymbol}, 24h</span>
-            <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', height: 104 }}>
               {stockIcon && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={stockIcon} width={56} height={56} style={{ borderRadius: 14, marginRight: 16 }} />
