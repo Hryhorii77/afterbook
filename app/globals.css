@@ -592,7 +592,6 @@ td.spark-cell { text-align: right; }
 .mini-spark-up { color: var(--green); }
 .mini-spark-down { color: var(--red); }
 /* On phone cards the 24h change sits at the end of the depth line. */
-.tape-card-24h { margin-left: 10px; font-weight: 600; }
 td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .mini-spark-empty { color: var(--text-dimmer); }
 .mini-spark-new { display: inline-block; padding: 3px 10px; border: 1px solid var(--panel-border); border-radius: 999px; font-size: 12px; color: var(--text-dimmer); }
@@ -1139,15 +1138,61 @@ section.panel h2 {
 }
 
 .tape-card {
-  display: block;
-  width: 100%;
-  text-align: left;
-  font-family: inherit;
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 8px;
-  padding: 12px;
+}
+/* The card's main part selects the stock; Details is its own button below it. */
+.tape-card-main {
+  display: block;
+  width: 100%;
+  padding: 12px 12px 8px;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 8px 8px 0 0;
   cursor: pointer;
+}
+.tape-card-more {
+  display: block;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 12px 10px;
+  text-align: left;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.tape-card-more:hover { color: var(--text); }
+.tape-card-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  margin: 0;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--panel-border);
+}
+.tape-card-details dt { font-size: 11.5px; color: var(--text-dimmer); }
+.tape-card-details dd { margin: 2px 0 0; font-size: 14px; font-weight: 600; }
+.tape-card-details-wide { grid-column: 1 / -1; }
+.tape-card-details-wide dd { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+.tape-card-details .mini-spark { width: 120px; height: 36px; }
+.tape-card-spark-text { font-size: 13px; color: var(--text-dim); }
+/* "What the columns mean" above the tape. */
+.tape-legend { margin: 0 0 12px; font-size: 12.5px; color: var(--text-dim); }
+.tape-legend summary { cursor: pointer; width: fit-content; color: var(--info); }
+.tape-legend dl { display: grid; gap: 6px; margin: 8px 0 0; }
+.tape-legend dl > div { display: flex; gap: 8px; }
+.tape-legend dt { flex: 0 0 110px; font-weight: 600; color: var(--text); }
+.tape-legend dd { margin: 0; }
+@media (max-width: 520px) {
+  .tape-legend dl > div { flex-direction: column; gap: 0; }
+  .tape-legend dt { flex: none; }
 }
 .tape-card-active {
   background: color-mix(in srgb, var(--accent) 7%, var(--panel));
@@ -1222,21 +1267,35 @@ th {
 }
 
 .sortable-th {
-  cursor: pointer;
-  user-select: none;
   white-space: nowrap;
 }
-
-.sortable-th:hover {
-  color: var(--text);
+/* The sort control is a real button (keyboard, screen readers), drawn as a small pill so it
+   reads as clickable. */
+.sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: -4px -8px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  user-select: none;
 }
+.sort-btn:hover { color: var(--text); background: var(--overlay-2); border-color: var(--panel-border); }
+.sort-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sortable-th[aria-sort='ascending'] .sort-btn, .sortable-th[aria-sort='descending'] .sort-btn { color: var(--text); }
+#tape .tape-row-clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .sort-indicator {
   color: var(--text-dimmer);
   font-size: 10px;
 }
 
-.sortable-th:hover .sort-indicator {
+.sort-btn:hover .sort-indicator {
   color: var(--text-dim);
 }
 
@@ -1245,7 +1304,7 @@ th {
   font-size: inherit;
 }
 
-.sortable-th:hover .sort-indicator-active {
+.sort-btn:hover .sort-indicator-active {
   color: var(--accent);
 }
 

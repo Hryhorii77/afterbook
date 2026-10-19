@@ -16,7 +16,7 @@ import { Sparkline } from './Sparkline';
 import { MyLots } from './MyLots';
 import { SymbolTile } from './SymbolTile';
 import { ShareButton } from './ShareButton';
-import { MiniSpark } from './MiniSpark';
+import { MiniSpark, sparkSummary } from './MiniSpark';
 import { SessionPill } from './SessionPill';
 import { heroGapBp, heroReferenceLabel, shortName, stockShareText } from '@/lib/shareText';
 
@@ -141,8 +141,8 @@ const SORT_COLUMNS: { key: SortKey; label: (cashColumnLabel: string) => string }
   { key: 'symbol', label: () => 'Symbol' },
   { key: 'cashLastUsd', label: (cashColumnLabel) => cashColumnLabel },
   { key: 'onchainMidUsd', label: () => 'Onchain price' },
-  { key: 'basisBp', label: () => 'Basis' },
-  { key: 'depthUsd', label: () => 'Depth' },
+  { key: 'basisBp', label: () => 'Gap' },
+  { key: 'depthUsd', label: () => 'Pool liquidity' },
 ];
 
 // The tape and thin-books tables are two separate <table> elements, so
@@ -231,14 +231,25 @@ function TapeHead({
   return (
     <thead>
       <tr>
-        {SORT_COLUMNS.map((col) => (
-          <th key={col.key} className="sortable-th" onClick={() => onSort(col.key)}>
-            {col.label(cashColumnLabel)}
-            <span className={sort?.key === col.key ? 'sort-indicator sort-indicator-active' : 'sort-indicator'}>
-              {sort?.key === col.key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
-            </span>
-          </th>
-        ))}
+        {SORT_COLUMNS.map((col) => {
+          const on = sort?.key === col.key;
+          const label = col.label(cashColumnLabel);
+          return (
+            <th key={col.key} className="sortable-th" aria-sort={on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+              <button
+                type="button"
+                className="sort-btn"
+                onClick={() => onSort(col.key)}
+                aria-label={`Sort by ${label}${on ? `, now ${sort.dir === 'asc' ? 'lowest' : 'highest'} first` : ''}`}
+              >
+                {label}
+                <span className={on ? 'sort-indicator sort-indicator-active' : 'sort-indicator'} aria-hidden="true">
+                  {on ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
+                </span>
+              </button>
+            </th>
+          );
+        })}
         <th>24h</th>
         <th>{trendDays ? `Past ${trendDays}d` : 'Trend'}</th>
       </tr>
@@ -264,6 +275,13 @@ function TapeRows({
           key={row.symbol}
           className={`tape-row-clickable${row.symbol === activeSymbol ? ' tape-row-active' : ''}`}
           onClick={() => onSelect(row.symbol)}
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onSelect(row.symbol);
+            }
+          }}
         >
           <td>
             <div className="sym-cell">
@@ -325,43 +343,77 @@ function TapeCards({
   onSelect: (symbol: string) => void;
   trend: TrendData | null;
 }) {
+  // Phones show what to compare (gap, the two prices, pool liquidity); the rest opens under
+  // Details, one card at a time. Nothing is remembered between visits.
+  const [open, setOpen] = useState<string | null>(null);
   return (
     <div className="tape-cards">
-      {rows.map((row) => (
-        <button
-          key={row.symbol}
-          type="button"
-          className={`tape-card${row.symbol === activeSymbol ? ' tape-card-active' : ''}`}
-          onClick={() => onSelect(row.symbol)}
-        >
-          <div className="tape-card-top">
-            <span className="tape-card-id">
-              <SymbolTile cashTicker={row.cashTicker} size="sm" />
-              <span className="symbol">{row.symbol}</span>
-            </span>
-            <span className={`tape-card-basis ${row.basisBp != null ? (row.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
-              {bp(row.basisBp)}
-            </span>
-          </div>
-          <div className="tape-card-name">
-            {row.name}
-            {row.nextEarningsDate != null && daysUntil(row.nextEarningsDate) <= EARNINGS_CAVEAT_WINDOW_DAYS && daysUntil(row.nextEarningsDate) >= 0 && (
-              <span className="earnings-tag">Earnings in {daysUntil(row.nextEarningsDate)}d</span>
+      {rows.map((row) => {
+        const change = trend?.change24h[row.symbol];
+        const earningsSoon =
+          row.nextEarningsDate != null && daysUntil(row.nextEarningsDate) <= EARNINGS_CAVEAT_WINDOW_DAYS && daysUntil(row.nextEarningsDate) >= 0;
+        const detailsId = `tape-card-details-${row.symbol}`;
+        const isOpen = open === row.symbol;
+        return (
+          <div key={row.symbol} className={`tape-card${row.symbol === activeSymbol ? ' tape-card-active' : ''}`}>
+            <button type="button" className="tape-card-main" onClick={() => onSelect(row.symbol)} aria-pressed={row.symbol === activeSymbol}>
+              <div className="tape-card-top">
+                <span className="tape-card-id">
+                  <SymbolTile cashTicker={row.cashTicker} size="sm" />
+                  <span className="symbol">{row.symbol}</span>
+                </span>
+                <span className={`tape-card-basis ${row.basisBp != null ? (row.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
+                  {bp(row.basisBp)}
+                </span>
+              </div>
+              <div className="tape-card-name">
+                {row.name}
+                {earningsSoon && <span className="earnings-tag">Earnings in {daysUntil(row.nextEarningsDate!)}d</span>}
+              </div>
+              <div className="tape-card-prices">
+                {usd(row.cashLastUsd)} cash{row.cashStale && <span className="stale-tag">STALE</span>} → {usd(row.onchainMidUsd)} onchain
+              </div>
+              <div className="tape-card-depth">{usdCompact(row.depthUsd)} pool liquidity</div>
+            </button>
+            <button
+              type="button"
+              className="tape-card-more"
+              aria-expanded={isOpen}
+              aria-controls={detailsId}
+              onClick={() => setOpen(isOpen ? null : row.symbol)}
+            >
+              {isOpen ? '▾' : '▸'} Details
+            </button>
+            {isOpen && (
+              <dl id={detailsId} className="tape-card-details">
+                <div>
+                  <dt>24h, onchain price</dt>
+                  <dd className={change != null ? (change >= 0 ? 'basis-pos' : 'basis-neg') : ''}>
+                    {change != null ? `${change >= 0 ? '▲' : '▼'} ${pct(change)}` : '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Shares in the pool</dt>
+                  <dd>{sharesCompact(row.depthShares)}</dd>
+                </div>
+                <div className="tape-card-details-wide">
+                  <dt>{trend?.days ? `Past ${trend.days} days` : 'Trend'}</dt>
+                  <dd>
+                    {trend && (trend.spanDays[row.symbol] ?? 0) < MIN_TREND_DAYS ? (
+                      <span className="mini-spark-new">New · {Math.max(1, Math.round(trend.spanDays[row.symbol] ?? 0))}d</span>
+                    ) : (
+                      <>
+                        <MiniSpark values={trend?.series[row.symbol]} label={`Onchain price, past ${trend?.days ?? ''} days`} />
+                        <span className="tape-card-spark-text">{sparkSummary(trend?.series[row.symbol])}</span>
+                      </>
+                    )}
+                  </dd>
+                </div>
+              </dl>
             )}
           </div>
-          <div className="tape-card-prices">
-            {usd(row.cashLastUsd)} cash{row.cashStale && <span className="stale-tag">STALE</span>} → {usd(row.onchainMidUsd)} onchain
-          </div>
-          <div className="tape-card-depth">
-            {usdCompact(row.depthUsd)} · {sharesCompact(row.depthShares)}
-            {trend?.change24h[row.symbol] != null && (
-              <span className={`tape-card-24h ${(trend.change24h[row.symbol] as number) >= 0 ? 'basis-pos' : 'basis-neg'}`}>
-                24h {(trend.change24h[row.symbol] as number) >= 0 ? '▲' : '▼'} {pct(trend.change24h[row.symbol] as number)}
-              </span>
-            )}
-          </div>
-        </button>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -965,12 +1017,22 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         {extendedState && (
           <p className="geo-note" style={{ marginTop: 0 }}>
             {rowsOnPrint === 0
-              ? `No ${extendedName} trades yet, so the basis is measured against the last regular-session close.`
+              ? `No ${extendedName} trades yet, so the gap is measured against the last regular-session close.`
               : rowsOnPrint === tape.rows.length
-                ? `Basis is against a live ${extendedName} print, not the regular-session close — extended-hours trading is thinner, so this can move more than the regular-session number would.`
-                : `Basis is against a live ${extendedName} print where there is one and the last regular-session close otherwise — extended-hours trading is thinner, so this can move more than the regular-session number would.`}
+                ? `The gap is against a live ${extendedName} print, not the regular-session close — extended-hours trading is thinner, so this can move more than the regular-session number would.`
+                : `The gap is against a live ${extendedName} print where there is one and the last regular-session close otherwise — extended-hours trading is thinner, so this can move more than the regular-session number would.`}
           </p>
         )}
+        <details className="tape-legend">
+          <summary>What the columns mean</summary>
+          <dl>
+            <div><dt>Gap</dt><dd>Onchain price minus cash price, in basis points: 100 bp = 1%. Green: the token costs more than the stock; red: less.</dd></div>
+            <div><dt>Onchain price</dt><dd>What the stock token trades for on Aerodrome, the Base exchange that never closes.</dd></div>
+            <div><dt>Pool liquidity</dt><dd>Dollars and shares in the token&apos;s Aerodrome pool: how big a trade it takes before the price moves much.</dd></div>
+            <div><dt>24h</dt><dd>How the onchain price moved over the last 24 hours.</dd></div>
+            <div><dt>Trend</dt><dd>The onchain price over the past days; hover or tap for the change in words.</dd></div>
+          </dl>
+        </details>
         <div className="table-scroll tape-table-desktop">
           <table>
             <TapeColGroup />
