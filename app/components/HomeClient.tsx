@@ -960,6 +960,35 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           <p className="hero-note">
             Onchain price is what the stock token trades for on Aerodrome, the Base exchange that is open around the clock. 100 basis points (bp) = 1%. No wallet needed to browse; connect one only to see your lots or trade.
           </p>
+          {/* First-visit help that never blocks: closed by default, nothing remembered between visits. */}
+          <details className="explain hero-intro">
+            <summary>New here? How Afterbook works</summary>
+            <dl>
+              <div>
+                <dt>Tokenized stocks</dt>
+                <dd>
+                  Tokens on Base that track a real stock, issued by Coinbase: {activeRow.symbol} tracks {activeRow.name}.
+                </dd>
+              </div>
+              <div>
+                <dt>Cash price</dt>
+                <dd>The stock&apos;s price on the real stock market (Nasdaq or NYSE). It stops moving when that market closes.</dd>
+              </div>
+              <div>
+                <dt>Onchain price</dt>
+                <dd>What the token trades for on Aerodrome, which never closes, so it keeps moving at night and over the weekend.</dd>
+              </div>
+              <div>
+                <dt>The gap (bp)</dt>
+                <dd>How far apart the two prices are, in basis points: 100 bp = 1%. Green: the token costs more than the stock; red: less.</dd>
+              </div>
+              <div>
+                <dt>Wallet</dt>
+                <dd>Not needed to look around. Connect one only to see your holdings or to trade.</dd>
+              </div>
+            </dl>
+            <p className="explain-foot">Coinbase&apos;s stock tokens are not available to people in the United States.</p>
+          </details>
         </section>
       )}
 
