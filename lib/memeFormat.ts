@@ -4,17 +4,29 @@ import { usdCompact } from './format';
 /** +40.2% / −3.1% / — */
 export const pctMove = (n: number | null) => (n == null ? '—' : `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toFixed(1)}%`);
 
-/** A price that can be $0.0000004: keep four significant digits. */
+/** A price that can be $0.0000004: four significant digits, always written out (toPrecision gave
+ *  "$1.554e-7", which most people can't read). */
 export function memePrice(n: number | null): string {
-  if (n == null) return '—';
+  if (n == null || !Number.isFinite(n) || n < 0) return '—';
   if (n >= 1) return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  return `$${n.toPrecision(4).replace(/0+$/, '')}`;
+  if (n === 0) return '$0';
+  const decimals = Math.min(20, Math.max(2, Math.ceil(-Math.log10(n)) + 3));
+  return `$${n.toFixed(decimals).replace(/0+$/, '').replace(/\.$/, '')}`;
+}
+
+/** A tiny price split for "$0.0₆1554" (six zeros after the point, then the digits), the way
+ *  Dexscreener writes it; null when the price has fewer than three zeros and reads fine as is. */
+export function memePriceZeros(n: number | null): { zeros: number; digits: string } | null {
+  if (n == null || !Number.isFinite(n) || n <= 0 || n >= 0.001) return null;
+  const [, frac = ''] = memePrice(n).slice(1).split('.');
+  const zeros = frac.match(/^0*/)![0].length;
+  return { zeros, digits: frac.slice(zeros) };
 }
 
 export function ageText(createdAt: number | null, now = Date.now()): string {
-  if (!createdAt) return 'unknown';
+  if (!createdAt) return '—';
   const days = Math.floor((now - createdAt) / 86_400_000);
-  if (days < 1) return 'under a day';
+  if (days < 1) return '< 1 day';
   if (days < 60) return `${days} day${days === 1 ? '' : 's'}`;
   return `${Math.round(days / 30)} months`;
 }

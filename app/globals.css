@@ -2393,8 +2393,25 @@ a.directory-main:hover .directory-symbol {
   letter-spacing: -0.02em;
   line-height: 1.3;
 }
+/* Three across (two rows): six across left about 160px a card, and "$0.0008519" broke onto a second line. */
 .meme-stat-grid {
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+/* A meme price can be "$0.0000001554": the values shrink with the window and may break rather than
+   run past the card's edge. */
+.meme-stat-grid .stat-card {
+  min-width: 0;
+}
+.meme-stat-grid .stat-value {
+  font-size: clamp(22px, 2vw, 30px);
+  overflow-wrap: anywhere;
+}
+/* The zero count in "$0.0₆1554". */
+.price-zeros {
+  font-size: 0.6em;
+  vertical-align: -0.15em;
+  line-height: 0;
+  margin: 0 0.04em;
 }
 @media (max-width: 520px) {
   .meme-stat-grid {
