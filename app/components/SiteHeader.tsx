@@ -1,7 +1,7 @@
 'use client';
 
 import { BrandMark } from './BrandMark';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { WalletConnectButton } from './WalletConnectButton';
@@ -9,15 +9,24 @@ import { ThemeToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
 import { getStock } from '@/lib/tokens';
 
-// `short` is the label on narrow phones (max-width 420px): five links only fit
-// in the phone nav down to 320px if "Biggest gap" reads "Gap" there (owner
-// decision, 2026-10-12). Desktop keeps the full label.
-const LINKS: { href: string; label: string; short?: string }[] = [
+// The desktop nav row. Phones and tablets (980px and narrower) get one header row instead (logo,
+// wallet, bell, theme, menu) and these links, plus the two discovery pages, in the menu panel
+// (owner, 2026-10-19: the second row of links pushed the hero down about 44px).
+const LINKS: { href: string; label: string }[] = [
   { href: '/', label: 'Tape' },
-  { href: '/today', label: 'Biggest gap', short: 'Gap' },
+  { href: '/today', label: 'Biggest gap' },
   { href: '/borrow', label: 'Borrow' },
   { href: '/build', label: 'Build' },
   { href: '/baskets', label: 'Baskets' },
+];
+const MENU_LINKS: { href: string; label: string; note: string }[] = [
+  { href: '/', label: 'Tape', note: 'Every tracked stock: token price vs cash price' },
+  { href: '/today', label: 'Biggest gap', note: "Today's widest gap, in one card" },
+  { href: '/borrow', label: 'Borrow', note: 'Loans against stock tokens on Aave and Morpho' },
+  { href: '/build', label: 'Build', note: 'Make your own basket of stock tokens' },
+  { href: '/baskets', label: 'Baskets', note: 'A managed basket, run on Glider' },
+  { href: '/stocks', label: 'Stocks', note: 'All of Coinbase’s tokenized stocks on Base' },
+  { href: '/memes', label: 'Memestocks', note: 'Base memes priced in stock tokens' },
 ];
 
 export function SiteHeader() {
@@ -39,6 +48,33 @@ export function SiteHeader() {
       cancelAnimationFrame(frame);
     };
   }, []);
+
+  // The phone menu: closes on a link, Esc (focus back on the button) and a tap outside.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => setMenuOpen(false), [pathname]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    menuRef.current?.querySelector('a')?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMenuOpen(false);
+        buttonRef.current?.focus();
+      }
+    };
+    const onPointer = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (!menuRef.current?.contains(t) && !buttonRef.current?.contains(t)) setMenuOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('pointerdown', onPointer);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('pointerdown', onPointer);
+    };
+  }, [menuOpen]);
+
   // Symbol pages (/NVDAc etc.) are the tape for one name, so they count as Tape. Any other
   // page that isn't in the nav highlights nothing.
   const active = (href: string) => (href === '/' ? pathname === '/' || getStock(pathname.slice(1)) != null : pathname.startsWith(href));
@@ -51,17 +87,8 @@ export function SiteHeader() {
         </Link>
         <nav className="site-nav" aria-label="Main">
           {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} aria-current={active(l.href) ? 'page' : undefined} aria-label={l.short ? l.label : undefined}>
-              {l.short ? (
-                <>
-                  <span className="nav-label-long">{l.label}</span>
-                  <span className="nav-label-short" aria-hidden="true">
-                    {l.short}
-                  </span>
-                </>
-              ) : (
-                l.label
-              )}
+            <Link key={l.href} href={l.href} aria-current={active(l.href) ? 'page' : undefined}>
+              {l.label}
             </Link>
           ))}
         </nav>
@@ -69,7 +96,30 @@ export function SiteHeader() {
           <WalletConnectButton />
           <NotificationBell />
           <ThemeToggle />
+          <button
+            ref={buttonRef}
+            type="button"
+            className="theme-toggle site-menu-btn"
+            aria-expanded={menuOpen}
+            aria-controls="site-menu"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            onClick={() => setMenuOpen((o) => !o)}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              {menuOpen ? <path d="M6 6l12 12M18 6L6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
+            </svg>
+          </button>
         </div>
+      </div>
+      <div ref={menuRef} id="site-menu" className="site-menu" hidden={!menuOpen}>
+        <nav aria-label="Menu">
+          {MENU_LINKS.map((l) => (
+            <Link key={l.href} href={l.href} aria-current={active(l.href) ? 'page' : undefined} onClick={() => setMenuOpen(false)}>
+              <span className="site-menu-label">{l.label}</span>
+              <span className="site-menu-note">{l.note}</span>
+            </Link>
+          ))}
+        </nav>
       </div>
     </header>
   );
