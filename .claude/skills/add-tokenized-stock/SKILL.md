@@ -32,7 +32,12 @@ listed only ten tokens and is stale — don't use it.
 The daily `discover-tokens` cron (`app/api/cron/discover-tokens/route.ts`)
 diffs that list against `STOCKS` and sends **one Telegram digest** of new
 Aerodrome USDC pools with real depth, deepest first, plus a
-ready-to-paste snippet for any pool over $250k. `?dry=1` (with the
+ready-to-paste snippet for any pool over $250k. A pool over the line is judged
+by the lowest its depth has been in the last three hours
+(`lowestRecentDepthUsd` in `lib/discovery.ts`, from the pool's Mint/Burn
+logs): on 2026-10-19 a bot moving ~$200k in and out of the LLYc pool made one
+read say $254k for a pool whose three-hour low was $39k. When you verify a
+candidate, use that function too, not a single `poolDepth` read. `?dry=1` (with the
 `CRON_SECRET` bearer) returns the digest without sending or storing
 anything — use it to see what it would report. A token is reported once
 when it first has a pool and once more when that pool first becomes
@@ -68,8 +73,10 @@ Tick spacing has been `10` for every stock so far — confirm it still is.
 `getClient()` from `lib/quote.ts` in a `tsx` script.)
 
 Measure real depth the way the app does: build a `CbStock`, then
-`poolDepth(await readPoolState(stock), stock).totalUsd` (`lib/quote.ts`).
-Don't trust Dexscreener's liquidity number alone.
+`poolDepth(await readPoolState(stock), stock).totalUsd` (`lib/quote.ts`), and
+`lowestRecentDepthUsd(stock, 3)` (`lib/discovery.ts`) for the three-hour low;
+the low is the number that must clear the line. Don't trust Dexscreener's
+liquidity number alone.
 
 ## 3. Manual checks the automation doesn't do
 
