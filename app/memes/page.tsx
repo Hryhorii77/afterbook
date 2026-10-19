@@ -16,8 +16,9 @@ export const metadata: Metadata = shareMetadata({
   card: { page: 'home' },
 });
 
-export default async function MemesPage() {
-  const board = await getMemeBoard();
+export default async function MemesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const [board, sp] = await Promise.all([getMemeBoard(), searchParams]);
+  const stock = typeof sp.stock === 'string' ? sp.stock : undefined;
   const checked = board ? new Date(board.checkedAt).toISOString().slice(0, 10) : null;
 
   return (
@@ -40,7 +41,7 @@ export default async function MemesPage() {
         ) : board.rows.length === 0 ? (
           <p className="geo-note">No verified meme pools right now.</p>
         ) : (
-          <MemeBoard rows={board.rows} />
+          <MemeBoard rows={board.rows} initialStock={stock} />
         )}
         <p className="geo-note">
           Listed: pools on Aerodrome and Uniswap where one side is a stock token Afterbook tracks, with at least{' '}
