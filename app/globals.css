@@ -204,6 +204,15 @@ h1 {
   transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
 }
 .site-nav a:hover { color: var(--text); background: var(--overlay-2); }
+/* Narrow desktops: seven links fit beside the wallet only with tighter padding. */
+@media (max-width: 1239px) {
+  .site-nav a { padding: 7px 9px; }
+}
+/* ...and below 1100px only beside the logo's mark, as in the scrolled pill. */
+@media (min-width: 981px) and (max-width: 1099px) {
+  .site-header .site-brand-text { max-width: 0; margin-left: 0; opacity: 0; }
+  .site-nav { margin-left: 12px; }
+}
 /* The phone menu (SiteHeader): its button and panel exist only at 980px and narrower. (Scoped so
    it beats .theme-toggle's display, which comes later.) */
 .site-header .site-menu-btn, .site-menu { display: none; }
@@ -246,9 +255,9 @@ h1 {
   }
   .site-header[data-scrolled='true'] .site-header-inner {
     pointer-events: auto;
-    /* Five nav links need about 425px; at 700px the nav got 383px and
-       "Baskets" was clipped to "Bask" (2026-10-12). */
-    max-width: 780px;
+    /* Seven nav links (Stocks and Memestocks since 2026-10-19) need about 600px beside the
+       wallet and icons; at 780px the last two were cut off. Never wider than the window. */
+    max-width: min(1000px, calc(100% - 16px));
     height: 48px;
     margin: 8px auto 0;
     padding: 0 6px 0 14px;
@@ -258,7 +267,7 @@ h1 {
     box-shadow: var(--shadow-pill);
   }
   .site-header[data-scrolled='true'] .site-brand-text { max-width: 0; margin-left: 0; opacity: 0; }
-  .site-header[data-scrolled='true'] .site-nav { margin-left: 12px; }
+  .site-header[data-scrolled='true'] .site-nav { margin-left: 8px; }
   .site-header[data-scrolled='true'] .wallet-connect-btn { min-height: 36px; padding: 4px 14px; }
   .site-header[data-scrolled='true'] .theme-toggle { width: 36px; height: 36px; }
 }

@@ -9,15 +9,18 @@ import { ThemeToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
 import { getStock } from '@/lib/tokens';
 
-// The desktop nav row. Phones and tablets (980px and narrower) get one header row instead (logo,
-// wallet, bell, theme, menu) and these links, plus the two discovery pages, in the menu panel
-// (owner, 2026-10-19: the second row of links pushed the hero down about 44px).
+// The desktop nav row: the same seven pages as the phone menu (owner, 2026-10-19: Stocks and
+// Memestocks joined the nav, replacing the two links under the tape). Phones and tablets (980px and
+// narrower) get one header row instead (logo, wallet, bell, theme, menu) and these links in the
+// menu panel (the second row of links pushed the hero down about 44px).
 const LINKS: { href: string; label: string }[] = [
   { href: '/', label: 'Tape' },
   { href: '/today', label: "Today's gap" },
   { href: '/borrow', label: 'Borrow' },
   { href: '/build', label: 'Build' },
   { href: '/baskets', label: 'Baskets' },
+  { href: '/stocks', label: 'Stocks' },
+  { href: '/memes', label: 'Memestocks' },
 ];
 const MENU_LINKS: { href: string; label: string; note: string }[] = [
   { href: '/', label: 'Tape', note: 'Every tracked stock: onchain price vs cash price' },
