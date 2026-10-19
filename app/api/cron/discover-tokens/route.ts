@@ -18,7 +18,10 @@ const LIQUID_NOTIFIED_KEY = 'discover:liquid';
 const SNIPPET_MIN_DEPTH_USD = 250_000;
 const MAX_SNIPPETS_PER_RUN = 4;
 const CONCURRENCY = 8;
-/** A pool over the line is judged by its lowest depth over this many hours, not by one read. */
+/** A pool that reads over this on one read is judged by its lowest depth over STEADY_HOURS instead.
+ *  Well under the snippet line on purpose: on 2026-10-20 LLYc read $229k (under $250k, so it was not
+ *  re-checked) and /stocks showed that, while its three-hour low was $29k. */
+const STEADY_CHECK_FROM_USD = 50_000;
 const STEADY_HOURS = 3;
 
 async function inChunks<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
@@ -57,13 +60,13 @@ export async function GET(request: NextRequest) {
     r: await verifyCandidate(t.symbol, t.tokenAddress, t.name).catch((): CandidateResult | null => null),
   }));
 
-  // A pool over the line on one read is judged by the lowest it has been in the last few hours
+  // A pool over STEADY_CHECK_FROM_USD on one read is judged by the lowest it has been in the last few hours
   // (lowestRecentDepthUsd), so liquidity that comes and goes can't make it look liquid. Few pools
   // are over the line, so this is a handful of log reads a day. If the history can't be read the
   // pool keeps its one read but gets no snippet.
   const unsteady = new Set<string>();
   for (const c of checked) {
-    if (!c.r?.stock || (c.r.depthUsd ?? 0) < SNIPPET_MIN_DEPTH_USD) continue;
+    if (!c.r?.stock || (c.r.depthUsd ?? 0) < STEADY_CHECK_FROM_USD) continue;
     try {
       c.r.depthUsd = Math.min(c.r.depthUsd ?? Infinity, await lowestRecentDepthUsd(c.r.stock, STEADY_HOURS));
     } catch (err) {
@@ -100,7 +103,7 @@ export async function GET(request: NextRequest) {
   const digest =
     `Coinbase lists ${published.length} tokenized stocks; ${untracked.length} aren't tracked here. ` +
     `New Aerodrome USDC pools since last check (${reportable.length}), deepest first:\n\n${lines.join('\n')}\n\n` +
-    `${noPool} others have no pool yet (checked again daily). Depth over ${usdCompact(SNIPPET_MIN_DEPTH_USD)} is the lowest it has been in the last ${STEADY_HOURS} hours. Liquid ones get a snippet below; follow the add-tokenized-stock steps before adding.`;
+    `${noPool} others have no pool yet (checked again daily). Depth over ${usdCompact(STEADY_CHECK_FROM_USD)} is the lowest it has been in the last ${STEADY_HOURS} hours. Liquid ones get a snippet below; follow the add-tokenized-stock steps before adding.`;
 
   const snippets = reportable.filter(liquid).slice(0, MAX_SNIPPETS_PER_RUN);
 
