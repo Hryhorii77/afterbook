@@ -61,7 +61,7 @@ No lint script, no test suite. To verify a change actually works:
 
 - Tokens, not hard-coded colours: dark values on `:root`, light on
   `:root[data-theme='light']` in `app/globals.css`. New surfaces use the
-  existing variables so both themes work. New inline links that must
+  existing variables so both themes work. Colour roles (owner, 2026-10-19): green and red only for market movement and financial status; `--info` (neutral) for explanations and system states such as notices; the accent for links, the primary button and what is selected (the selected tape row and card get a 7% accent tint, the hero's Onchain price card an accent edge). New inline links that must
   look like links use `.emph-link`, and end-of-page "go to" links use `.page-link`, which looks the same plus an arrow (one link style, owner decision 2026-10-12). The footer links (Token, Pool…) use the same look, and X, GitHub, README the same minus the underline until hovered (owner decision 2026-10-14); only the header nav stays a quiet menu (owner decision, same day); buttons in a row use `.basket-row`
   style gaps, never `<br>`/inline spaces.
 - **One button system** (owner decision, 2026-10-05): every action is a pill, 44px tall, 14px semi-bold: solid `.btn` (primary) or outline `.btn btn-secondary`. That includes "Size a trade", Share, the Copy buttons, Execute, Baskets, and the header/panel "Connect wallet" (`.wallet-connect-btn`) and wallet panel buttons, which match it. Don't add a new button class or a different radius/size; reuse `.btn`. Inputs, selects and the size chips are data controls and keep their 12px corners, except the Baskets amount box, which sits in a row of pills and is a pill too; icon buttons are 44px circles. The swap panel's Buy / Sell switch (`.swap-side-toggle`) is a segmented pill sized to match (44px, 14px semi-bold); the Carry calculator's switch stays the small quiet one. To check "aligned", compare computed height, font and radius across pages, not how they look.
@@ -83,7 +83,7 @@ No lint script, no test suite. To verify a change actually works:
   repeat the same numbers in several blocks above the fold. The home page
   opens on the day's biggest liquid gap (same pick as `/today`).
 - **Owner decisions on the look** (don't undo without asking): the
-  header "Connect wallet" stays the solid primary button and its pill shape is the app-wide button shape; the scrolling
+  header "Connect wallet" is outlined (owner, 2026-10-19; solid until then: browsing needs no wallet, and its tooltip, the phone menu and the hero note say "Wallet optional") while the Connect wallet buttons inside the trade, basket and My Lots panels stay solid; its pill shape is the app-wide button shape; the scrolling
   ticker stays on every page; the wallet button opens an account panel
   rather than disconnecting on click. On phones and tablets (980px and narrower) the logo, wallet button, bell, theme
   icon and a menu button share one row, and the page links (plus Stocks and Memestocks) live in the menu panel (`SiteHeader.tsx`; owner, 2026-10-19; one row since 2026-10-17): the wallet drops its "Base" label

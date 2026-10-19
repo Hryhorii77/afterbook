@@ -867,7 +867,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             </a>
           </div>
           <p className="hero-note">
-            Onchain price is what the stock token trades for on Aerodrome, the Base exchange that is open around the clock. 100 basis points (bp) = 1%.
+            Onchain price is what the stock token trades for on Aerodrome, the Base exchange that is open around the clock. 100 basis points (bp) = 1%. No wallet needed to browse; connect one only to see your lots or trade.
           </p>
         </section>
       )}

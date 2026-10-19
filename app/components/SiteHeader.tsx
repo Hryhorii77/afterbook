@@ -123,6 +123,7 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
+        <p className="site-menu-foot">Wallet optional: connect one only to see your lots or trade.</p>
       </div>
     </header>
   );
