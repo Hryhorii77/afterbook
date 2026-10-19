@@ -204,7 +204,9 @@ h1 {
   transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
 }
 .site-nav a:hover { color: var(--text); background: var(--overlay-2); }
-.nav-label-short { display: none; }
+/* The phone menu (SiteHeader): its button and panel exist only at 980px and narrower. (Scoped so
+   it beats .theme-toggle's display, which comes later.) */
+.site-header .site-menu-btn, .site-menu { display: none; }
 .site-nav a[aria-current='page'] {
   color: var(--text);
   border-color: var(--secondary-border);
@@ -631,35 +633,59 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .stat-card-hero .stat-label { margin-top: 8px; }
 @media (max-width: 760px) { .today-stats { grid-template-columns: 1fr; } .stat-card-hero .today-stat-value { font-size: 44px; } }
 
-/* Phones and tablets: two rows (brand + wallet + theme, then the page links)
-   so no link is hidden off-screen, and the bar scrolls away rather than eating
-   a tall strip of every screen. The sticky symbol bar then pins to the very
-   top. This was 640px until 2026-10-12, which left the one-row nav cut off
-   between about 641 and 900px (at 641px only half of it was visible). */
+/* Phones and tablets: one row (logo, wallet, bell, theme, menu button) and the page links in the
+   menu panel under it (owner, 2026-10-19; until then a second row of links sat under the logo and
+   pushed the hero down about 44px). The bar scrolls away rather than eating a strip of every
+   screen, and the sticky symbol bar then pins to the very top. */
 @media (max-width: 980px) {
   :root { --site-header-h: 0px; }
-  .site-header { position: static; height: auto; }
-  .site-header-inner { flex-wrap: wrap; padding: 8px 12px 6px; gap: 6px 8px; }
-  .site-brand { order: 1; margin-right: auto; }
-  .site-header-actions { order: 2; }
-  .site-nav { order: 3; width: 100%; margin: 0; justify-content: space-between; overflow-x: visible; }
-  .site-nav a { flex: 1; text-align: center; padding: 8px 6px; font-size: 14px; }
+  .site-header { position: relative; height: auto; }
+  .site-header-inner { padding: 8px 12px; gap: 8px; }
+  .site-brand { margin-right: auto; }
+  .site-nav { display: none; }
   .site-header-actions .wallet-connect-btn { min-height: 40px; padding: 6px 14px; }
   .theme-toggle { width: 40px; height: 40px; }
+  .site-header .site-menu-btn { display: inline-flex; }
+  .site-menu:not([hidden]) {
+    display: block;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 12px;
+    right: 12px;
+    z-index: 50;
+    padding: 6px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  }
+  .site-menu nav { display: flex; flex-direction: column; }
+  .site-menu a {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 48px;
+    justify-content: center;
+    padding: 8px 12px;
+    border-radius: 10px;
+    color: var(--text);
+    text-decoration: none;
+  }
+  .site-menu a:hover, .site-menu a:focus-visible { background: var(--overlay-2); }
+  .site-menu a[aria-current='page'] { background: var(--inset); }
+  .site-menu-label { font-size: 15px; font-weight: 600; }
+  .site-menu-note { font-size: 12.5px; color: var(--text-dim); }
 }
-/* Narrow phones: five links only fit if "Biggest gap" reads "Gap". The logo, wallet and icons
-   stay on one row (owner, 2026-10-17): the wallet drops its "Base" label (the panel still says
-   it), and below 375px the logo drops its word and keeps the mark. */
+/* Narrow phones: the logo, wallet and icons stay on one row (owner, 2026-10-17): the wallet drops
+   its "Base" label (the panel still says it) and the logo keeps only its mark. That was below
+   375px until the menu button joined the row (2026-10-19); the word no longer fits under 421px. */
 @media (max-width: 420px) {
-  .nav-label-long { display: none; }
-  .nav-label-short { display: inline; }
   .site-header .wallet-chain { display: none; }
+  .site-header .site-brand-text { display: none; }
   .site-header-actions { gap: 6px; }
   .site-header-actions .wallet-connect-btn { padding: 6px 12px; }
 }
-@media (max-width: 374px) {
-  .site-header .site-brand-text { display: none; }
-}
+
 
 .wallet-connect-btn {
   display: inline-flex;
