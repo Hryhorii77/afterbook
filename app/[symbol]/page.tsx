@@ -1,8 +1,8 @@
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getTape } from '@/lib/tape';
 import { getGeoInfo } from '@/lib/geo';
-import { getStock, poolVenue } from '@/lib/tokens';
+import { findStock, getStock, poolVenue } from '@/lib/tokens';
 import HomeClient from '../components/HomeClient';
 import { shareMetadata } from '@/lib/shareMeta';
 
@@ -31,7 +31,12 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
 export default async function SymbolPage({ params }: PageProps) {
   const { symbol } = await params;
   const stock = getStock(symbol);
-  if (!stock) notFound();
+  if (!stock) {
+    // People type the plain ticker (/AAPL, /nvda): send them to the token's page (/AAPLc).
+    const byTicker = findStock(symbol);
+    if (byTicker) permanentRedirect(`/${byTicker.symbol}`);
+    notFound();
+  }
 
   const [tape, geo] = await Promise.all([getTape(), getGeoInfo()]);
   return <HomeClient initialTape={tape} initialGeo={geo} initialSymbol={stock.symbol} />;

@@ -26,6 +26,8 @@ export async function GET(request: Request) {
     const curve = quoter.curve();
     return NextResponse.json({ symbol: stock.symbol, ...estimate, curve });
   } catch (err) {
-    return NextResponse.json({ error: 'quote unavailable', detail: String(err) }, { status: 502 });
+    // The cause goes to the server log, not the response (it can name RPC hosts, contract errors).
+    console.error('[/api/quote]', err);
+    return NextResponse.json({ error: 'quote unavailable' }, { status: 502 });
   }
 }

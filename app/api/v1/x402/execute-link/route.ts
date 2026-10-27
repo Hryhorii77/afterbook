@@ -63,7 +63,9 @@ async function handler(request: NextRequest) {
       swapUrl,
     });
   } catch (err) {
-    return NextResponse.json({ error: 'execute-link unavailable', detail: String(err) }, { status: 502 });
+    // The cause goes to the server log, not the response (it can name RPC hosts, contract errors).
+    console.error('[/api/v1/x402/execute-link]', err);
+    return NextResponse.json({ error: 'execute-link unavailable' }, { status: 502 });
   }
 }
 

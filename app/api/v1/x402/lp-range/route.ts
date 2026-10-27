@@ -88,7 +88,9 @@ async function handler(request: NextRequest) {
       divergenceLossAtBoundary: divergenceLoss,
     });
   } catch (err) {
-    return NextResponse.json({ error: 'lp-range unavailable', detail: String(err) }, { status: 502 });
+    // The cause goes to the server log, not the response (it can name RPC hosts, contract errors).
+    console.error('[/api/v1/x402/lp-range]', err);
+    return NextResponse.json({ error: 'lp-range unavailable' }, { status: 502 });
   }
 }
 

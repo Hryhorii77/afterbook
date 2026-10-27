@@ -43,6 +43,8 @@ export async function GET(request: Request) {
       totalSupplyShares,
     });
   } catch (err) {
-    return NextResponse.json({ error: 'depth unavailable', detail: String(err) }, { status: 502 });
+    // The cause goes to the server log, not the response (it can name RPC hosts, contract errors).
+    console.error('[/api/depth]', err);
+    return NextResponse.json({ error: 'depth unavailable' }, { status: 502 });
   }
 }

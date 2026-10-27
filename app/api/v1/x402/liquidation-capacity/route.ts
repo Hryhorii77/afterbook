@@ -70,7 +70,9 @@ async function handler(request: NextRequest) {
         'Snapshot of the Aero pool now. Position risk assumes the same liquidity per tick and the same Aero-vs-oracle gap at the liquidation price. Liquidators with another exit than Aero may do better. Aave markets (venue "aave", marketId "aave:<reserveId>") lend one shared USDC pool against every stock, so their borrowUsd is null; Aave liquidates only enough to restore health, so seizedUsd is an upper bound there.',
     });
   } catch (err) {
-    return NextResponse.json({ error: 'liquidation-capacity unavailable', detail: String(err) }, { status: 502 });
+    // The cause goes to the server log, not the response (it can name RPC hosts, contract errors).
+    console.error('[/api/v1/x402/liquidation-capacity]', err);
+    return NextResponse.json({ error: 'liquidation-capacity unavailable' }, { status: 502 });
   }
 }
 

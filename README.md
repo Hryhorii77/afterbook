@@ -219,7 +219,9 @@ Needs Node 20.9 or newer (Next.js 16).
 ```bash
 npm install
 npm run dev          # http://localhost:3000
-npm run build        # the only automated check: typecheck + production build
+npm test             # Vitest unit tests for the swap path (offline, mocked)
+npm run typecheck    # tsc --noEmit
+npm run build        # production build; CI runs all three on every PR
 ```
 
 No environment variables required to run it — the app works fully without them. `.env.example` lists every variable the code reads, empty; copy it to `.env.local` and fill only what you need. (`vercel env pull` would bring the project's real values, production keys included: read `CLAUDE.md` first.) Optionally:
