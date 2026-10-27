@@ -32,7 +32,7 @@ async function inChunks<T, R>(items: T[], size: number, fn: (item: T) => Promise
 
 // Daily: compares Coinbase's published tokenized-stock list against lib/tokens.ts
 // and tells the maintainer (one digest message, not one per token) about names
-// that now have an Aerodrome USDC pool, with real depth. Never edits tokens.ts.
+// that now have a USDC pool (Aero or the older Aerodrome factory), with real depth. Never edits tokens.ts.
 // ?dry=1 returns the digest without sending anything or touching Redis.
 export async function GET(request: NextRequest) {
   if (!cronAuthorized(request)) {
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
     .map((c) => `${c.t.symbol} — ${c.t.name || 'unnamed'} — ${c.r?.depthUsd != null ? `${usdCompact(c.r.depthUsd)} depth` : 'depth unreadable'}${unsteady.has(c.t.symbol) ? ' (one read; its history could not be checked)' : ''}`);
   const digest =
     `Coinbase lists ${published.length} tokenized stocks; ${untracked.length} aren't tracked here. ` +
-    `New Aerodrome USDC pools since last check (${reportable.length}), deepest first:\n\n${lines.join('\n')}\n\n` +
+    `New Aero or Aerodrome USDC pools since last check (${reportable.length}), deepest first:\n\n${lines.join('\n')}\n\n` +
     `${noPool} others have no pool yet (checked again daily). Depth over ${usdCompact(STEADY_CHECK_FROM_USD)} is the lowest it has been in the last ${STEADY_HOURS} hours. Liquid ones get a snippet below; follow the add-tokenized-stock steps before adding.`;
 
   const snippets = reportable.filter(liquid).slice(0, MAX_SNIPPETS_PER_RUN);

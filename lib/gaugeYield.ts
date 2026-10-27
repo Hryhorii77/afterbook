@@ -1,7 +1,12 @@
 import { getClient, midPriceUsd, MULTIPLIER_ONE, type PoolState } from './quote';
 import { fullRangeAprPct } from './lpRange';
 import type { CbStock } from './tokens';
-import { USDC } from './tokens';
+import { AERO_CL_FACTORY, USDC } from './tokens';
+
+// Aero pools (2026-10-22 on) pay emissions in Aero's new token through new gauges; the pool's
+// rewardRate() reverts and Rewards Sugar does not know them. Rather than price new-token emissions
+// with the old AERO price, both readings below return null for them (My Lots shows its dash).
+const onAero = (stock: CbStock) => stock.pool.factory === AERO_CL_FACTORY;
 
 // Every address below was read live from Aerodrome/Velodrome's own official
 // deployment manifest (velodrome-finance/sugar's deployments/base.env) or
@@ -98,6 +103,7 @@ export interface GaugeYield {
  * math it was compared against.
  */
 export async function getGaugeYield(stock: CbStock, state: PoolState): Promise<GaugeYield | null> {
+  if (onAero(stock)) return null;
   const client = getClient();
   const [stakedLiqResult, rewardRateResult, aeroPrice] = await Promise.all([
     client.readContract({ address: stock.pool.address, abi: POOL_GAUGE_ABI, functionName: 'stakedLiquidity' }).catch(() => null),
@@ -163,6 +169,7 @@ export interface VotingIncentiveFlag {
  * volume, i.e. less likely to persist once the incentive campaign ends.
  */
 export async function getVotingIncentiveFlag(stock: CbStock, currentPriceUsd: number): Promise<VotingIncentiveFlag | null> {
+  if (onAero(stock)) return null;
   const client = getClient();
   const [aeroPrice, epochs] = await Promise.all([
     getAeroUsdPrice(),

@@ -85,7 +85,7 @@ x402-gated logic without configuring payment locally.
   `state.liquidity` — this is a hard invariant, not an approximation.
 - `tickForPriceUsd` (lib/quote.ts) round-trips `midPriceUsd` to within
   one `tickSpacing` of the pool's actual current tick.
-- All `lib/tokens.ts` pools share `tickSpacing: 10` (twelve tracked as of 2026-10-01).
+- `lib/tokens.ts` pools are on two CL factories (`pool.factory`): Aero's at `tickSpacing: 10` and the older Aerodrome one at 1 (38 tracked as of 2026-10-27). `getCachedLiquidityDistribution` must use each pool's own spacing; a tick-spacing-1 pool scans ten times as many bitmap words.
 
 ## Testing the depth chart's drag interaction
 

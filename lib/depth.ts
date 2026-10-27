@@ -95,12 +95,12 @@ const distributionCache = new Map<string, DistributionCacheEntry>();
  */
 export async function getCachedLiquidityDistribution(stock: CbStock, state: PoolState): Promise<LiquidityDistribution> {
   const now = Date.now();
-  const cached = distributionCache.get(stock.symbol);
+  const cached = distributionCache.get(stock.pool.address);
   if (cached && now - cached.fetchedAt < DISTRIBUTION_CACHE_TTL_MS) {
     return cached.distribution;
   }
   const distribution = await getLiquidityDistribution(stock, state);
-  distributionCache.set(stock.symbol, { distribution, fetchedAt: now });
+  distributionCache.set(stock.pool.address, { distribution, fetchedAt: now });
   return distribution;
 }
 

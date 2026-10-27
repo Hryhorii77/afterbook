@@ -1,6 +1,6 @@
 ---
 name: add-tokenized-stock
-description: Verify and add a new Coinbase tokenized-stock symbol (B20 token + Aerodrome Slipstream USDC pool) to lib/tokens.ts. Use when the discover-tokens cron sends a Telegram digest naming a candidate, or the user asks to add a new stock symbol to Afterbook. Coinbase lists far more tokens than Afterbook tracks (92 vs 12 on 2026-10-07; 58 on 2026-10-01); adding one never changes the Basis Tilt basket.
+description: Verify and add a new Coinbase tokenized-stock symbol (B20 token + Aero or Aerodrome Slipstream USDC pool) to lib/tokens.ts. Use when the discover-tokens cron sends a Telegram digest naming a candidate, or the user asks to add a new stock symbol to Afterbook. Coinbase lists far more tokens than Afterbook tracks (218 vs 38 on 2026-10-27; 92 vs 12 on 2026-10-07); adding one never changes the Basis Tilt basket.
 ---
 
 # Add a new tokenized stock
@@ -21,7 +21,7 @@ Glider/users) — don't do it as part of this skill.
 
 ## 1. Find and rank candidates
 
-*State on 2026-10-07:* of the 80 untracked tokens none had a liquid Aerodrome pool (best on Aerodrome ~$5k; best anywhere ~$25k on Uniswap), so nothing was added. Re-check only when the daily digest names a candidate.
+*State on 2026-10-27:* 38 tracked (12 moved to their Aero pools, 26 added the day Base announced them; README "Contract addresses"). The other ~180 listed tokens all had under $15k of USDC depth on either factory. Re-check only when the daily digest names a candidate.
 
 Coinbase's own public list is the source of truth for *which tokens
 exist*: `GET https://api.coinbase.com/v1/tokenized-stocks` (keyless; each
@@ -31,7 +31,7 @@ listed only ten tokens and is stale — don't use it.
 
 The daily `discover-tokens` cron (`app/api/cron/discover-tokens/route.ts`)
 diffs that list against `STOCKS` and sends **one Telegram digest** of new
-Aerodrome USDC pools with real depth, deepest first, plus a
+USDC pools with real depth (Aero's factory or the older Aerodrome one, any tick spacing; each token reported on its deepest pool), deepest first, plus a
 ready-to-paste snippet for any pool over $250k. A pool over $50k on one read is judged
 by the lowest its depth has been in the last three hours
 (`lowestRecentDepthUsd` in `lib/discovery.ts`, from the pool's Mint/Burn
@@ -61,14 +61,17 @@ From scratch (same checks `verifyCandidate` in `lib/discovery.ts` does):
 
 ```bash
 cast call <tokenAddress> "decimals()(uint8)" --rpc-url base
-cast call <CL_FACTORY> "getPool(address,address,int24)(address)" <tokenAddress> <USDC> 10 --rpc-url base
+cast call <AERO_CL_FACTORY or CL_FACTORY> "getPool(address,address,int24)(address)" <tokenAddress> <USDC> <tickSpacing> --rpc-url base
 cast call <poolAddress> "token0()(address)" --rpc-url base
 cast call <poolAddress> "fee()(uint24)" --rpc-url base
 cast call <tokenAddress> "multiplier()(uint256)" --rpc-url base   # confirm it exists; note if missing
 ```
 
-(`CL_FACTORY` and `USDC` are the constants at the top of `lib/tokens.ts`.
-Tick spacing has been `10` for every stock so far — confirm it still is.
+(`AERO_CL_FACTORY`, `CL_FACTORY` and `USDC` are the constants at the top of `lib/tokens.ts`.
+Check both factories at tick spacings 1, 10, 50, 100 and 200 and take the deepest pool: on
+2026-10-27 Aero pools used 10 and the older factory's new pools used 1. Set `pool.factory` to
+the factory constant; for an Aero pool `feePpm` is 500, its ceiling, because the live fee is
+dynamic and read per quote.)
 `cast` may not be installed; the same reads work with viem via
 `getClient()` from `lib/quote.ts` in a `tsx` script.)
 

@@ -1,5 +1,5 @@
 import { USDC, type CbStock } from './tokens';
-import { MULTIPLIER_ONE, midPriceUsd, type PoolState } from './quote';
+import { MULTIPLIER_ONE, midPriceUsd, poolFeePpm, type PoolState } from './quote';
 import type { LiquidityDistribution } from './depth';
 
 // Pure, no RPC: simulates swaps against the real tick liquidity — selling
@@ -38,7 +38,7 @@ export function simulateSell(state: PoolState, dist: LiquidityDistribution, stoc
   const mid = midPriceUsd(state, stock);
   const multiplierRatio = Number(state.multiplier) / MULTIPLIER_ONE;
   const rawIn = (sharesIn / multiplierRatio) * 10 ** stock.decimals;
-  const rawInAfterFee = rawIn * (1 - stock.pool.feePpm / 1_000_000);
+  const rawInAfterFee = rawIn * (1 - poolFeePpm(state, stock) / 1_000_000);
   let remaining = rawInAfterFee;
 
   let s = Number(state.sqrtPriceX96) / 2 ** 96;
@@ -154,7 +154,7 @@ export interface BuyResult {
 export function simulateBuy(state: PoolState, dist: LiquidityDistribution, stock: CbStock, usdcIn: number): BuyResult {
   const mid = midPriceUsd(state, stock);
   const multiplierRatio = Number(state.multiplier) / MULTIPLIER_ONE;
-  const usdcInAfterFeeRaw = usdcIn * 10 ** USDC.decimals * (1 - stock.pool.feePpm / 1_000_000);
+  const usdcInAfterFeeRaw = usdcIn * 10 ** USDC.decimals * (1 - poolFeePpm(state, stock) / 1_000_000);
   let remaining = usdcInAfterFeeRaw;
 
   let s = Number(state.sqrtPriceX96) / 2 ** 96;

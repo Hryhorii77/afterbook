@@ -35,6 +35,7 @@ interface LpHolding {
   gaugeAprPct: number | null;
   stakedRatioPct: number | null;
   isStaked: boolean;
+  oldPool: boolean;
   votingIncentiveFlag: {
     bribesUsd: number;
     hasUnpricedBribes: boolean;
@@ -170,8 +171,11 @@ export function MyLotsContent({
               </p>
               <div className="weight-grid lp-grid" style={{ marginTop: 8 }}>
                 {lots.lp.map((h) => (
-                  <div className="weight-card" key={h.symbol}>
+                  <div className="weight-card" key={`${h.symbol}:${h.tickLower}:${h.tickUpper}:${h.oldPool}`}>
                     <Identity symbol={h.symbol} />
+                    {h.oldPool && (
+                      <div className="geo-note">In the older Aerodrome pool. Afterbook now reads {h.symbol} from its deeper Aero pool.</div>
+                    )}
                     <div className="weight-pct">{usd(h.usdValue)}</div>
                     <div className="weight-meta" style={{ marginTop: 6 }}>
                       <span>

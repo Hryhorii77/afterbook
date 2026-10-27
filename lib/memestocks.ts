@@ -5,8 +5,10 @@
 // Dexscreener (cached two minutes); a page view never reads the chain.
 //
 // What "verified" means, per venue (checked 2026-10-18; most of this market is on Uniswap v4):
-//  - Aerodrome Slipstream: the pool's factory() is CL_FACTORY (the one our stock pools use) and
+//  - Aerodrome Slipstream: the pool's factory() is CL_FACTORY (the older Aerodrome one) and
 //    CL_FACTORY.getPool(token0, token1, tickSpacing) returns this pool.
+//  - Aero Slipstream (Dexscreener's dexId 'aero', since 2026-10-22): the same check against
+//    AERO_CL_FACTORY, where most of our stocks' own liquidity now is.
 //  - Uniswap v3: factory() is Uniswap's v3 factory on Base and getPool(token0, token1, fee) returns it.
 //  - Uniswap v4 ('proven'): Uniswap's PositionManager has the pool key, and keccak256 of that key is the
 //    pool id, so the two currencies are certain. Pools created outside PositionManager (launchpads with
@@ -20,7 +22,7 @@ import { encodeAbiParameters, getAddress, keccak256, parseAbi } from 'viem';
 import { fetchCoinbaseStockList } from './coinbaseStockList';
 import { getClient } from './quote';
 import { redis } from './redis';
-import { CL_FACTORY, STOCKS, USDC, type CbStock } from './tokens';
+import { AERO_CL_FACTORY, CL_FACTORY, STOCKS, USDC, type CbStock } from './tokens';
 
 export const UNISWAP_V3_FACTORY = '0x33128a8fC17869897dcE68Ed026d694621f6FDfD' as const;
 export const UNISWAP_V4_POSITION_MANAGER = '0x7C5f5A4bBd8fD63184577525326123B519429bDc' as const;
@@ -52,7 +54,7 @@ const NOT_MEMES = new Set(
 /** Stablecoins we have not listed by address still read as money, not memes ("frxUSD", "EURC"). */
 const STABLE_SYMBOL = /USD|EUR/i;
 
-export type MemeVenue = 'aerodrome' | 'uniswap-v3' | 'uniswap-v4';
+export type MemeVenue = 'aerodrome' | 'aero' | 'uniswap-v3' | 'uniswap-v4';
 export type MemeVerification = 'proven' | 'price-matched';
 
 export interface MemePool {
@@ -152,18 +154,19 @@ async function tokenMeta(address: `0x${string}`) {
   return { decimals: Number(decimals), symbol: cleanSymbol, name: cleanName };
 }
 
-/** Aerodrome Slipstream or Uniswap v3: the factory must know this exact pool for these two tokens. */
-async function verifyContractPool(pool: `0x${string}`, venue: 'aerodrome' | 'uniswap-v3', stock: CbStock, meme: `0x${string}`): Promise<boolean> {
+/** Aerodrome or Aero Slipstream, or Uniswap v3: the factory must know this exact pool for these two tokens. */
+async function verifyContractPool(pool: `0x${string}`, venue: 'aerodrome' | 'aero' | 'uniswap-v3', stock: CbStock, meme: `0x${string}`): Promise<boolean> {
   const client = getClient();
   const [factory, token0, token1] = await Promise.all(
     (['factory', 'token0', 'token1'] as const).map((fn) => client.readContract({ address: pool, abi: POOL_ABI, functionName: fn })),
   );
   const pair = [token0, token1].map((t) => t.toLowerCase()).sort().join();
   if (pair !== [stock.tokenAddress, meme].map((t) => t.toLowerCase()).sort().join()) return false;
-  if (venue === 'aerodrome') {
-    if (!same(factory, CL_FACTORY)) return false;
+  if (venue === 'aerodrome' || venue === 'aero') {
+    const clFactory = venue === 'aero' ? AERO_CL_FACTORY : CL_FACTORY;
+    if (!same(factory, clFactory)) return false;
     const spacing = await client.readContract({ address: pool, abi: POOL_ABI, functionName: 'tickSpacing' });
-    return same(await client.readContract({ address: CL_FACTORY, abi: CL_FACTORY_ABI, functionName: 'getPool', args: [token0, token1, spacing] }), pool);
+    return same(await client.readContract({ address: clFactory, abi: CL_FACTORY_ABI, functionName: 'getPool', args: [token0, token1, spacing] }), pool);
   }
   if (!same(factory, UNISWAP_V3_FACTORY)) return false;
   const fee = await client.readContract({ address: pool, abi: POOL_ABI, functionName: 'fee' });
@@ -253,7 +256,7 @@ export async function discoverMemePools(): Promise<{ allowlist: MemeAllowlist; r
     seen.add(id);
     const label = (pair.labels ?? []).join(',');
     const venue: MemeVenue | null =
-      pair.dexId === 'aerodrome' && id.length === 42 ? 'aerodrome' : pair.dexId === 'uniswap' && id.length === 66 ? 'uniswap-v4' : pair.dexId === 'uniswap' && id.length === 42 && label.includes('v3') ? 'uniswap-v3' : null;
+      pair.dexId === 'aerodrome' && id.length === 42 ? 'aerodrome' : pair.dexId === 'aero' && id.length === 42 ? 'aero' : pair.dexId === 'uniswap' && id.length === 66 ? 'uniswap-v4' : pair.dexId === 'uniswap' && id.length === 42 && label.includes('v3') ? 'uniswap-v3' : null;
     const reject = (reason: string) => rejected.push({ id, symbol: clean(same(pair.baseToken.address, meme) ? pair.baseToken.symbol : pair.quoteToken.symbol, 20), reason });
     if (!venue) {
       reject(`unsupported venue ${pair.dexId}${label ? ` (${label})` : ''}`);
@@ -427,7 +430,7 @@ export async function findListedMeme(address: string): Promise<MemePool | null> 
 }
 
 export function venueLabel(v: MemeVenue): string {
-  return v === 'aerodrome' ? 'Aerodrome' : v === 'uniswap-v3' ? 'Uniswap v3' : 'Uniswap v4';
+  return v === 'aerodrome' ? 'Aerodrome' : v === 'aero' ? 'Aero' : v === 'uniswap-v3' ? 'Uniswap v3' : 'Uniswap v4';
 }
 
 /** Where to see the pool itself. */

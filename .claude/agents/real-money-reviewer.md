@@ -34,9 +34,14 @@ check passes, say so in one short line; do not pad.
 - Nothing publishes a strategy version, triggers a rebalance, or submits a
   withdrawal without an explicit user action in that request. Any new path
   that can do so on its own (a cron, a retry, a default) is a finding.
-- `BASKET_AUTOPUBLISH` stays opt-in (off unless the env says so) and
+- `BASKET_AUTOPUBLISH` stays opt-in in code (off unless the env says so; ON in Production since 2026-10-07) and
   `MIN_TURNOVER` is not lowered without the replay evidence recorded in the
   `basis-tilt-ops` skill.
+- Anything that changes the tilt's inputs for a `BASKET_SYMBOLS` name (moving
+  it to another pool, changing how depth or basis is read) changes what the
+  nightly job may publish. That needs the owner's sign-off on a read-only
+  comparison of the plan before and after (as done for the Aero move,
+  2026-10-27); without one it is a finding.
 
 **Inputs and recipients**
 - Addresses, asset ids and amounts are validated with the shared patterns
@@ -113,6 +118,12 @@ check passes, say so in one short line; do not pad.
 - The basket is `BASKET_SYMBOLS` in `lib/baskets/tilt.ts`, not `STOCKS`.
   Adding a tracked token must not change what enrolled users hold. Widening
   the basket is a separate decision and a new strategy version.
+- A new `STOCKS` entry widens three things at once: the stock swap allowlist,
+  the `/build` basket legs and the tokens a meme can be paid with. Each entry
+  carries `pool.factory` (`AERO_CL_FACTORY` or `CL_FACTORY`) and was verified
+  on-chain (`factory()`, token0/1, `tickSpacing`, the factory's `getPool`) and
+  against Dexscreener; a meme pool with venue `aero` is proven against
+  `AERO_CL_FACTORY`, `aerodrome` against `CL_FACTORY`.
 
 **Secrets**
 - No `GLIDER_API_KEY`, `CRON_SECRET`, bot token, Redis token or private key
