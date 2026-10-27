@@ -14,6 +14,13 @@ import { fullRangeAprPct } from './lpRange';
 // snapshot window, not an estimate from volume. The tradeoff is a cold
 // start: the first useful number needs two daily snapshots ~a day apart.
 
+// One series per pool, not per symbol: the counters are pool-local, so a stock that moves to another
+// pool (every tracked stock moved to Aero on 2026-10-27) starts a new series instead of diffing two
+// pools' counters. The old `feeSnap:<symbol>` series are no longer read.
+function snapshotKey(stock: CbStock): string {
+  return `feeSnap:${stock.symbol}:${stock.pool.address.toLowerCase()}`;
+}
+
 const SNAPSHOT_RETENTION_MS = 10 * 24 * 60 * 60_000;
 const LOOKBACK_MS = 8 * 24 * 60 * 60_000;
 const MIN_WINDOW_MS = 18 * 60 * 60_000;
@@ -30,7 +37,7 @@ interface FeeSnapshot {
 }
 
 export async function recordFeeSnapshot(
-  symbol: string,
+  stock: CbStock,
   feeGrowth0: bigint,
   feeGrowth1: bigint,
   liquidity: bigint,
@@ -38,7 +45,7 @@ export async function recordFeeSnapshot(
   now: number,
 ): Promise<void> {
   if (!redis) return;
-  const key = `feeSnap:${symbol}`;
+  const key = snapshotKey(stock);
   const member = `${now}:${feeGrowth0}:${feeGrowth1}:${liquidity}:${tvlUsd.toFixed(2)}`;
   try {
     await Promise.all([
@@ -50,10 +57,10 @@ export async function recordFeeSnapshot(
   }
 }
 
-async function getFeeSnapshots(symbol: string, sinceMs: number): Promise<FeeSnapshot[]> {
+async function getFeeSnapshots(stock: CbStock, sinceMs: number): Promise<FeeSnapshot[]> {
   if (!redis) return [];
   try {
-    const raw = await redis.zrange<string[]>(`feeSnap:${symbol}`, sinceMs, Date.now(), { byScore: true });
+    const raw = await redis.zrange<string[]>(snapshotKey(stock), sinceMs, Date.now(), { byScore: true });
     return raw
       .map((entry) => {
         const parts = entry.split(':');
@@ -109,7 +116,7 @@ export async function computeFeeApr(
   currentPriceUsd: number,
   multiplier: bigint,
 ): Promise<FeeAprResult | null> {
-  const snapshots = await getFeeSnapshots(symbol, Date.now() - LOOKBACK_MS);
+  const snapshots = await getFeeSnapshots(stock, Date.now() - LOOKBACK_MS);
   if (snapshots.length < 2) return null;
 
   const oldest = snapshots[0];
@@ -159,6 +166,7 @@ const SWAP_EVENT = {
 const LOG_RANGE_BLOCKS = 1900n;
 
 const UNSTAKED_FEE_ABI = [{ type: 'function', name: 'unstakedFee', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint24' }] }] as const;
+const FEE_ABI = [{ type: 'function', name: 'fee', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint24' }] }] as const;
 
 export async function estimateFeeAprFromRecentSwaps(stock: CbStock, currentPriceUsd: number, multiplier: bigint): Promise<FeeAprResult | null> {
   const client = getClient();
@@ -166,11 +174,13 @@ export async function estimateFeeAprFromRecentSwaps(stock: CbStock, currentPrice
     const toBlock = await client.getBlockNumber();
     const fromBlock = toBlock > LOG_RANGE_BLOCKS ? toBlock - LOG_RANGE_BLOCKS : 0n;
 
-    const [logs, fromBlockInfo, toBlockInfo, unstakedFeePpm] = await Promise.all([
+    const [logs, fromBlockInfo, toBlockInfo, unstakedFeePpm, liveFeePpm] = await Promise.all([
       client.getLogs({ address: stock.pool.address as `0x${string}`, event: SWAP_EVENT, fromBlock, toBlock }),
       client.getBlock({ blockNumber: fromBlock }),
       client.getBlock({ blockNumber: toBlock }),
       client.readContract({ address: stock.pool.address, abi: UNSTAKED_FEE_ABI, functionName: 'unstakedFee' }),
+      // Aero's fee moves with the market; today's is the best single figure for the window.
+      client.readContract({ address: stock.pool.address, abi: FEE_ABI, functionName: 'fee' }).catch(() => stock.pool.feePpm),
     ]);
     if (logs.length === 0) return null;
 
@@ -194,7 +204,7 @@ export async function estimateFeeAprFromRecentSwaps(stock: CbStock, currentPrice
       const stockIn = isToken0Usdc ? amount1 : amount0;
       const inUsd =
         usdcIn > 0n ? Number(usdcIn) / 1e6 : stockIn > 0n ? (Number(stockIn) / 10 ** stock.decimals) * multiplierRatio * currentPriceUsd : 0;
-      usdPerL += (inUsd * (stock.pool.feePpm / 1_000_000) * keep) / liquidity;
+      usdPerL += (inUsd * (Number(liveFeePpm) / 1_000_000) * keep) / liquidity;
     }
 
     const windowDays = windowMs / 86_400_000;

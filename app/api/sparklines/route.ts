@@ -35,7 +35,9 @@ function bucket(samples: Point[], start: number, end: number, n: number): (numbe
 
 // One request for every row: a time-bucketed price series over the stored
 // window (up to 30 days) and the 24h change, both from the on-chain price
-// samples already collected for the volatility maths. Cached for 2 minutes.
+// samples already collected for the volatility maths. Cached for 5 minutes, the cadence those
+// samples are written at (the alerts cron), so nothing newer is missed; at 38 stocks a 2-minute
+// cache cost ~800k Redis reads a month.
 const getAll = unstable_cache(
   async () => {
     const now = Date.now();
@@ -70,7 +72,7 @@ const getAll = unstable_cache(
     return { series, change24h, days, spanDays };
   },
   ['trend-30d-v2'],
-  { revalidate: 120 },
+  { revalidate: 300 },
 );
 
 export async function GET() {

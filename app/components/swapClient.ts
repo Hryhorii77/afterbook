@@ -27,7 +27,7 @@ export async function logSwapHash(hash: string) {
 
 // KyberSwap's venue ids ("aerodrome-cl-3", "sectorone-v20") as names a trader recognises.
 export const venueNames = (venues: string[]) => {
-  const named = new Set(venues.map((v) => (/aerodrome/i.test(v) ? 'Aerodrome' : /uniswap/i.test(v) ? 'Uniswap' : 'other Base pools')));
+  const named = new Set(venues.map((v) => (/aerodrome/i.test(v) ? 'Aerodrome' : /^aero/i.test(v) ? 'Aero' : /uniswap/i.test(v) ? 'Uniswap' : 'other Base pools')));
   return [...named].sort((a, b) => (a === 'other Base pools' ? 1 : b === 'other Base pools' ? -1 : a.localeCompare(b))).join(' and ');
 };
 

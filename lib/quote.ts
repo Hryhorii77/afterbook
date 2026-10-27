@@ -26,6 +26,13 @@ const POOL_ABI = [
   },
   {
     type: 'function',
+    name: 'fee',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint24' }],
+  },
+  {
+    type: 'function',
     name: 'feeGrowthGlobal0X128',
     stateMutability: 'view',
     inputs: [],
@@ -115,10 +122,18 @@ export interface PoolState {
    *  anywhere in the live quote/tape path itself. */
   feeGrowthGlobal0X128: bigint;
   feeGrowthGlobal1X128: bigint;
+  /** The pool's swap fee right now, hundredths of a bip. Aero pools set it dynamically (0.015-0.05%
+   *  on 2026-10-27), so quotes use this rather than the configured stock.pool.feePpm. */
+  feePpm: number;
+}
+
+/** The fee a trade pays now: the live one when the pool reported it, else the configured one. */
+export function poolFeePpm(state: Pick<PoolState, 'feePpm'> | null | undefined, stock: CbStock): number {
+  return state && Number.isFinite(state.feePpm) && state.feePpm > 0 ? state.feePpm : stock.pool.feePpm;
 }
 
 export async function readPoolState(stock: CbStock, publicClient: PublicClient = getClient()): Promise<PoolState> {
-  const [slot0, liquidity, multiplierResult, usdcReserve, stockReserve, feeGrowth0, feeGrowth1] = await publicClient.multicall({
+  const [slot0, liquidity, multiplierResult, usdcReserve, stockReserve, feeGrowth0, feeGrowth1, fee] = await publicClient.multicall({
     contracts: [
       { address: stock.pool.address, abi: POOL_ABI, functionName: 'slot0' },
       { address: stock.pool.address, abi: POOL_ABI, functionName: 'liquidity' },
@@ -127,6 +142,7 @@ export async function readPoolState(stock: CbStock, publicClient: PublicClient =
       { address: stock.tokenAddress, abi: ERC20_ABI, functionName: 'balanceOf', args: [stock.pool.address] },
       { address: stock.pool.address, abi: POOL_ABI, functionName: 'feeGrowthGlobal0X128' },
       { address: stock.pool.address, abi: POOL_ABI, functionName: 'feeGrowthGlobal1X128' },
+      { address: stock.pool.address, abi: POOL_ABI, functionName: 'fee' },
     ],
     allowFailure: true,
   });
@@ -146,6 +162,7 @@ export async function readPoolState(stock: CbStock, publicClient: PublicClient =
     stockReserveRaw: stockReserve.status === 'success' ? (stockReserve.result as bigint) : 0n,
     feeGrowthGlobal0X128: feeGrowth0.result as bigint,
     feeGrowthGlobal1X128: feeGrowth1.result as bigint,
+    feePpm: fee.status === 'success' ? Number(fee.result) : stock.pool.feePpm,
   };
 }
 
@@ -160,12 +177,13 @@ const stateCache = new Map<string, StateCacheEntry>();
 // cache instead of each independently hammering slot0()/liquidity().
 export async function getCachedPoolState(stock: CbStock): Promise<PoolState> {
   const now = Date.now();
-  const cached = stateCache.get(stock.symbol);
+  // Keyed by pool, not symbol: My Lots also reads a stock's old pool (lib/lots.ts LEGACY_POOLS).
+  const cached = stateCache.get(stock.pool.address);
   if (cached && now - cached.fetchedAt < STATE_CACHE_TTL_MS) {
     return cached.state;
   }
   const state = await readPoolState(stock);
-  stateCache.set(stock.symbol, { state, fetchedAt: now });
+  stateCache.set(stock.pool.address, { state, fetchedAt: now });
   return state;
 }
 
@@ -259,9 +277,10 @@ export function estimateLot(state: PoolState, stock: CbStock, usdcIn: number): L
   const virtualReserve0Raw = L / sqrtP; // USDC raw units (6dp)
   const virtualReserve1Raw = L * sqrtP; // stock raw units (8dp)
 
-  const feeBp = (stock.pool.feePpm / 1_000_000) * 10_000; // ppm -> bp
+  const feePpm = poolFeePpm(state, stock);
+  const feeBp = (feePpm / 1_000_000) * 10_000; // ppm -> bp
   const usdcInRaw = usdcIn * 10 ** USDC.decimals;
-  const usdcInRawAfterFee = usdcInRaw * (1 - stock.pool.feePpm / 1_000_000);
+  const usdcInRawAfterFee = usdcInRaw * (1 - feePpm / 1_000_000);
 
   const sharesOutRaw = (virtualReserve1Raw * usdcInRawAfterFee) / (virtualReserve0Raw + usdcInRawAfterFee);
   const multiplierRatio = Number(state.multiplier) / MULTIPLIER_ONE;

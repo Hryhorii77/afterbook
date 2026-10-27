@@ -68,7 +68,7 @@ export default async function BuildPage({ params }: PageProps) {
       </header>
       <p className="geo-note" style={{ marginTop: 0 }}>
         Pick 2 to 4 of the tokenized stocks and how much of each. See how far the basket trades from the cash market on
-        Aerodrome (the on-chain exchange), what it would cost to buy, and buy or sell it from your own wallet, one swap per stock.
+        Base (onchain), what it would cost to buy, and buy or sell it from your own wallet, one swap per stock.
       </p>
 
       <section className="panel gap-hero today-hero">
@@ -202,7 +202,7 @@ export default async function BuildPage({ params }: PageProps) {
             ))}
           </div>
           <p className="geo-note">
-            The cost is how far your average price would sit above the Aerodrome price, including the 0.05% pool fee,
+            The cost is how far your average price would sit above the onchain price, including each pool&apos;s fee (0.01–0.05%),
             with each stock&apos;s share of the money walked through that pool&apos;s real liquidity right now. It does not
             include network gas, and prices move between now and when you trade.
           </p>

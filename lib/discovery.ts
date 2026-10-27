@@ -1,7 +1,7 @@
 import { fetchCoinbaseStockList } from './coinbaseStockList';
 import { parseAbi } from 'viem';
 import { getClient, TOKEN_ABI, readPoolState, poolDepth, midPriceUsd, MULTIPLIER_ONE } from './quote';
-import { STOCKS, USDC, CL_FACTORY, type CbStock } from './tokens';
+import { STOCKS, USDC, CL_FACTORY, AERO_CL_FACTORY, type CbStock } from './tokens';
 
 const DECIMALS_ABI = [
   { type: 'function', name: 'decimals', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint8' }] },
@@ -65,10 +65,13 @@ const POOL_META_ABI = [
   { type: 'function', name: 'fee', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint24' }] },
 ] as const;
 
-// All ten existing pools share this tickSpacing (README-documented, verified
-// on-chain per stock) — candidates are checked against the same one rather
-// than iterating every possible tick spacing.
-const KNOWN_TICK_SPACING = 10;
+// Where a stock's USDC pool can be: either CL factory (Aero's, where most stock liquidity moved in
+// October 2026, or the older Aerodrome one) at any of these tick spacings. The tracked pools use 10
+// on Aero and 1 or 10 on the older factory; a candidate is measured on every pool that exists and
+// reported on its deepest, the one the tape would read.
+const FACTORIES = [AERO_CL_FACTORY, CL_FACTORY] as const;
+const TICK_SPACINGS = [1, 10, 50, 100, 200] as const;
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 export interface CandidateResult {
   symbol: string;
@@ -77,10 +80,9 @@ export interface CandidateResult {
    *  no pool or its price state looks broken (an empty pool initialised at a
    *  garbage price reads as astronomically large, so that is rejected). */
   depthUsd: number | null;
-  /** The Aerodrome USDC pool at the known tick spacing, or null if there is none (or the token didn't read). */
+  /** The deepest USDC pool on either factory, or null if there is none (or the token didn't read). */
   poolAddress: `0x${string}` | null;
-  /** null if no Aerodrome pool exists yet through CL_FACTORY at the known
-   *  tick spacing — still worth flagging, just not actionable yet. */
+  /** null if no USDC pool exists yet on either factory — still worth flagging, just not actionable yet. */
   snippet: string | null;
   /** The pool as a CbStock, for re-reading its depth (`readDepthUsd`); null without a usable pool. */
   stock: CbStock | null;
@@ -145,69 +147,90 @@ export async function lowestRecentDepthUsd(stock: CbStock, hours = 3, client = g
 export async function verifyCandidate(symbol: string, tokenAddress: `0x${string}`, name = ''): Promise<CandidateResult> {
   const client = getClient();
 
-  const [decimalsResult, poolResult] = await client.multicall({
-    contracts: [
-      { address: tokenAddress, abi: DECIMALS_ABI, functionName: 'decimals' },
-      { address: CL_FACTORY, abi: CL_FACTORY_ABI, functionName: 'getPool', args: [tokenAddress, USDC.address, KNOWN_TICK_SPACING] },
-    ],
-    allowFailure: true,
-  });
+  const lookups = FACTORIES.flatMap((factory) => TICK_SPACINGS.map((tickSpacing) => ({ factory, tickSpacing })));
+  const [decimalsResult, poolResults] = await Promise.all([
+    client.readContract({ address: tokenAddress, abi: DECIMALS_ABI, functionName: 'decimals' }).then(
+      (value) => ({ ok: true as const, value: Number(value) }),
+      () => ({ ok: false as const }),
+    ),
+    client.multicall({
+      contracts: lookups.map(({ factory, tickSpacing }) => ({
+        address: factory,
+        abi: CL_FACTORY_ABI,
+        functionName: 'getPool' as const,
+        args: [tokenAddress, USDC.address, tickSpacing] as const,
+      })),
+      allowFailure: true,
+    }),
+  ]);
 
-  if (decimalsResult.status !== 'success') {
+  if (!decimalsResult.ok) {
     return { symbol, tokenAddress, depthUsd: null, poolAddress: null, snippet: null, stock: null };
   }
-  const decimals = decimalsResult.result as number;
+  const decimals = decimalsResult.value;
 
-  const poolAddress = poolResult.status === 'success' ? (poolResult.result as `0x${string}`) : null;
-  if (!poolAddress || poolAddress === '0x0000000000000000000000000000000000000000') {
+  const found = lookups.flatMap((lookup, i) => {
+    const r = poolResults[i];
+    const pool = r.status === 'success' ? (r.result as `0x${string}`) : null;
+    return pool && pool !== ZERO_ADDRESS ? [{ ...lookup, pool }] : [];
+  });
+  if (found.length === 0) {
     return { symbol, tokenAddress, depthUsd: null, poolAddress: null, snippet: null, stock: null };
   }
 
-  const [token0Result, feeResult, multiplierResult] = await client.multicall({
-    contracts: [
-      { address: poolAddress, abi: POOL_META_ABI, functionName: 'token0' },
-      { address: poolAddress, abi: POOL_META_ABI, functionName: 'fee' },
-      { address: tokenAddress, abi: TOKEN_ABI, functionName: 'multiplier' },
-    ],
-    allowFailure: true,
-  });
-
-  const token0 = token0Result.status === 'success' ? (token0Result.result as `0x${string}`) : null;
-  const feePpm = feeResult.status === 'success' ? Number(feeResult.result) : null;
-  const hasMultiplier = multiplierResult.status === 'success';
-
-  if (!token0 || feePpm == null) {
-    return { symbol, tokenAddress, depthUsd: null, poolAddress, snippet: null, stock: null };
+  const multiplierResult = await client.readContract({ address: tokenAddress, abi: TOKEN_ABI, functionName: 'multiplier' }).then(
+    () => true,
+    () => false,
+  );
+  const measured = await Promise.all(
+    found.map(async ({ factory, tickSpacing, pool }) => {
+      const [token0Result, feeResult] = await client.multicall({
+        contracts: [
+          { address: pool, abi: POOL_META_ABI, functionName: 'token0' },
+          { address: pool, abi: POOL_META_ABI, functionName: 'fee' },
+        ],
+        allowFailure: true,
+      });
+      if (token0Result.status !== 'success' || feeResult.status !== 'success') return null;
+      const token0Side: CbStock['pool']['token0'] = (token0Result.result as string).toLowerCase() === USDC.address.toLowerCase() ? 'USDC' : 'stock';
+      const stock: CbStock = {
+        symbol,
+        cashTicker: symbol.replace(/c$/, ''),
+        name,
+        tokenAddress,
+        decimals,
+        // Aero's fee is dynamic: the configured value is its 0.05% ceiling, the live one is read per quote.
+        pool: { address: pool, factory, token0: token0Side, tickSpacing, feePpm: factory === AERO_CL_FACTORY ? 500 : Number(feeResult.result) },
+      };
+      // Depth is context for the digest, not a gate: a failed read just counts as unknown.
+      const depthUsd = await readDepthUsd(stock, client).catch(() => null);
+      return { stock, depthUsd };
+    }),
+  );
+  const usable = measured.filter((m): m is NonNullable<typeof m> => m !== null);
+  if (usable.length === 0) {
+    return { symbol, tokenAddress, depthUsd: null, poolAddress: found[0].pool, snippet: null, stock: null };
   }
-
-  const token0Side: CbStock['pool']['token0'] = token0.toLowerCase() === USDC.address.toLowerCase() ? 'USDC' : 'stock';
+  const best = usable.reduce((a, b) => ((b.depthUsd ?? -1) > (a.depthUsd ?? -1) ? b : a));
+  const { stock, depthUsd } = best;
+  const poolAddress = stock.pool.address;
 
   const snippet = `{
   // TODO: confirm cashTicker against Yahoo Finance before adding (name is
-  // Coinbase's own). Also run the Dexscreener cross-check. multiplier() ${hasMultiplier ? 'present' : 'MISSING — verify before adding'}.
+  // Coinbase's own). Also run the Dexscreener cross-check. multiplier() ${multiplierResult ? 'present' : 'MISSING — verify before adding'}.
   symbol: '${symbol}',
-  cashTicker: '${symbol.replace(/c$/, '')}',
+  cashTicker: '${stock.cashTicker}',
   name: '${name.replace(/'/g, "\\'")}',
   tokenAddress: '${tokenAddress}',
   decimals: ${decimals},
   pool: {
     address: '${poolAddress}',
-    token0: '${token0Side}',
-    tickSpacing: ${KNOWN_TICK_SPACING},
-    feePpm: ${feePpm},
+    factory: ${stock.pool.factory === AERO_CL_FACTORY ? 'AERO_CL_FACTORY' : 'CL_FACTORY'},
+    token0: '${stock.pool.token0}',
+    tickSpacing: ${stock.pool.tickSpacing},
+    feePpm: ${stock.pool.feePpm},
   },
 },`;
-
-  const stock: CbStock = {
-    symbol,
-    cashTicker: symbol.replace(/c$/, ''),
-    name,
-    tokenAddress,
-    decimals,
-    pool: { address: poolAddress, token0: token0Side, tickSpacing: KNOWN_TICK_SPACING, feePpm },
-  };
-  // Depth is context for the digest, not a gate: a failed read just omits it.
-  const depthUsd = await readDepthUsd(stock, client).catch(() => null);
 
   return { symbol, tokenAddress, depthUsd, poolAddress, snippet, stock };
 }

@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       try {
         const state = await readPoolState(stock);
         const depth = poolDepth(state, stock);
-        await recordFeeSnapshot(stock.symbol, state.feeGrowthGlobal0X128, state.feeGrowthGlobal1X128, state.liquidity, depth.totalUsd, now);
+        await recordFeeSnapshot(stock, state.feeGrowthGlobal0X128, state.feeGrowthGlobal1X128, state.liquidity, depth.totalUsd, now);
         snapped += 1;
       } catch {
         // best-effort — a missed snapshot just widens the next APR window

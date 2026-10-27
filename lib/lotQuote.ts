@@ -1,5 +1,5 @@
 import type { CbStock } from './tokens';
-import { getCachedPoolState, estimateLot, midPriceUsd, CURVE_SIZES_USDC, type LotEstimate, type CurvePoint, type PoolState } from './quote';
+import { getCachedPoolState, estimateLot, midPriceUsd, poolFeePpm, CURVE_SIZES_USDC, type LotEstimate, type CurvePoint, type PoolState } from './quote';
 import { getCachedLiquidityDistribution, type LiquidityDistribution } from './depth';
 import { simulateBuy, simulateSell } from './swapSim';
 
@@ -28,7 +28,7 @@ function walked(state: PoolState, dist: LiquidityDistribution, stock: CbStock, u
     midPriceUsd: r.midPriceUsd,
     execPriceUsd: r.avgPriceUsd,
     impactBp: r.costBp,
-    feeBp: (stock.pool.feePpm / 1_000_000) * 10_000,
+    feeBp: (poolFeePpm(state, stock) / 1_000_000) * 10_000,
     largeTradeCaveat: r.exhaustedWindow,
   };
 }
