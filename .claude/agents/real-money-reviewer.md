@@ -74,6 +74,7 @@ check passes, say so in one short line; do not pad.
 - Approvals in `SwapPanel.tsx` name only `KYBER_ROUTER` and only the exact
   `amountIn`; anything unlimited (`maxUint256`) or another spender is a finding.
   The client re-checks `to`/`spender` against `KYBER_ROUTER`.
+- A stock buy is refused above the lower of `MAX_SWAP_USD` and `MAX_BUY_DEPTH_SHARE` of its live pool depth (`poolDepthUsd` checked in `getRoute`, so quote, build and basket legs all hit it; it refuses when the depth can't be read). Raising or removing it is a finding.
 - Tokens come only from `STOCKS` (`parseSwapRequest`), or for a meme buy from
   `parseMemeSwapRequest` (`lib/memeSwap.ts`): the meme must be on the verified
   `memes:pools` allowlist with live liquidity >= `MEME_MIN_LIQUIDITY_USD`, paid

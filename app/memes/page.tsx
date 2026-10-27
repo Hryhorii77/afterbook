@@ -44,7 +44,7 @@ export default async function MemesPage({ searchParams }: { searchParams: Promis
           <MemeBoard rows={board.rows} initialStock={stock} />
         )}
         <p className="geo-note">
-          Listed: pools on Aerodrome and Uniswap where one side is a stock token Afterbook tracks, with at least{' '}
+          Listed: pools on Aero, Aerodrome and Uniswap where one side is a stock token Afterbook tracks, with at least{' '}
           {usdCompact(MEME_MIN_LIQUIDITY_USD)} of liquidity (smaller ones are under &ldquo;thin&rdquo;). Each pool is checked on the
           chain once a day{checked && <> (last {checked})</>}, and a meme must have a route back to USDC. Prices, volume and moves come
           from Dexscreener and refresh every few minutes. Token names are chosen by whoever launched them.

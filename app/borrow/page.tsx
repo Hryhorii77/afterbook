@@ -20,7 +20,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   return shareMetadata({
     title: 'Borrow against stocks — Afterbook',
     description:
-      "Morpho and Aave USDC loans against Base tokenized stocks, and whether Aerodrome is deep enough to absorb their liquidations.",
+      "Morpho and Aave USDC loans against Base tokenized stocks, and whether Aero is deep enough to absorb their liquidations.",
     path: '/borrow',
     card: { page: 'borrow' },
     searchParams: await searchParams,
@@ -72,7 +72,7 @@ export default async function BorrowPage() {
       </header>
       <p className="geo-note" style={{ marginTop: 0 }}>
         Morpho and Aave let you borrow USDC against these stock tokens. If the price falls far enough, a liquidator repays your
-        loan, takes your stock at a discount and usually sells it on Aerodrome. This page shows whether those pools are
+        loan, takes your stock at a discount and usually sells it on Aero (formerly Aerodrome). This page shows whether those pools are
         deep enough for that sale to happen.
       </p>
 
@@ -106,7 +106,7 @@ export default async function BorrowPage() {
             {biggest && (
               <p className="geo-note" style={{ marginTop: 0 }}>
                 The biggest is {biggest.symbol} on {venueName[biggest.venue]}: {usdCompact(biggest.collateralUsd)} posted, and
-                Aerodrome can absorb {biggest.capacityIsLowerBound ? 'about ' : ''}
+                Aero can absorb {biggest.capacityIsLowerBound ? 'about ' : ''}
                 {usdCompact(biggest.profitableLiquidationCapacityUsd)} of it at a profit right now.
               </p>
             )}
@@ -124,7 +124,7 @@ export default async function BorrowPage() {
               </p>
             )}
             <p className="geo-note">
-              &ldquo;Aero exit&rdquo; asks whether Aerodrome could take a market&apos;s whole collateral if every loan in it were
+              &ldquo;Aero exit&rdquo; asks whether Aero could take a market&apos;s whole collateral if every loan in it were
               liquidated at once: Deep (twice over), Tight (just) or Short (not in one go). The amount is the most stock a
               liquidator could sell there right now and still make money, after the price impact and the pool fee. Real
               liquidations are usually much smaller than that worst case, especially on Aave, which sells only enough to make
@@ -267,7 +267,7 @@ export default async function BorrowPage() {
                   </>
                 )}
                 .
-                Selling on Aerodrome pays only if the average fill stays within that bonus, after the gap between the pool
+                Selling on Aero pays only if the average fill stays within that bonus, after the gap between the pool
                 and the oracle.
               </li>
               <li>

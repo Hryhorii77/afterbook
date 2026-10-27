@@ -591,6 +591,12 @@ export const STOCKS: CbStock[] = [
   },
 ];
 
+/** The exchange a stock's pool is on, for copy: "Aero" (Aerodrome's successor, most stocks since
+ *  2026-10-27) or "Aerodrome" (a pool on the older factory). General copy says "Aero". */
+export function poolVenue(stock: Pick<CbStock, 'pool'> | undefined): 'Aero' | 'Aerodrome' {
+  return stock?.pool.factory === CL_FACTORY ? 'Aerodrome' : 'Aero';
+}
+
 export function getStock(symbol: string): CbStock | undefined {
   return STOCKS.find((s) => s.symbol.toLowerCase() === symbol.toLowerCase());
 }

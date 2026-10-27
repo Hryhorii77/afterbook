@@ -3,12 +3,13 @@
 // before the browser may show it to a wallet. Afterbook never holds funds, never signs, and the only
 // contract a user is ever asked to call or approve is KYBER_ROUTER below.
 //
-// Why KyberSwap (spike, 2026-10-13, in the product plan): it routes all 12 tracked tokens (Aerodrome
+// Why KyberSwap (spike, 2026-10-13, in the product plan): it routed all 12 then-tracked tokens (Aerodrome
 // plus prop AMMs, within about -5 to +8 bp of our Aerodrome-only quote), needs no account or API key
 // (so there is no new secret), takes no protocol fee on swaps, and supports an integrator fee.
 import { decodeFunctionData, getAddress, isAddress, parseAbi, type Hex } from 'viem';
 import { STOCKS, USDC, type CbStock } from './tokens';
 import type { MemePool } from './memestocks';
+import { getCachedPoolState, poolDepth } from './quote';
 
 /** KyberSwap MetaAggregationRouterV2 on Base (verified source on Sourcify). The only contract a swap
  *  transaction may target and the only spender a swap approval may name. */
@@ -19,6 +20,10 @@ const CLIENT_ID = 'afterbook';
 export const SLIPPAGE_BPS = 50;
 /** Largest single swap the panel builds, in USD. A UX guard, not a security control. */
 export const MAX_SWAP_USD = 25_000;
+/** A stock buy is also capped at this share of the stock's live pool depth (owner, 2026-10-27): the
+ *  18 stocks added that day sit in pools of about $51k, where a $25k buy would move the price a long
+ *  way. Pools over $250k are unaffected (the $25k cap is lower). A UX guard like MAX_SWAP_USD. */
+export const MAX_BUY_DEPTH_SHARE = 0.1;
 /** Memes are thin and most go to zero: a much smaller cap per buy. */
 export const MAX_MEME_SWAP_USD = 1_000;
 
@@ -131,6 +136,17 @@ export interface SwapQuote {
   venues: string[];
 }
 
+const usdWhole = (n: number) => `$${Math.floor(n).toLocaleString('en-US')}`;
+
+/** The pool's real depth in USD (the tape's number, from a pool-state read cached 20 s), for the buy
+ *  cap. Refuses rather than guessing if the pool can't be read. */
+async function poolDepthUsd(stock: CbStock): Promise<number> {
+  const state = await getCachedPoolState(stock).catch(() => null);
+  const depth = state ? poolDepth(state, stock).totalUsd : NaN;
+  if (!Number.isFinite(depth) || depth <= 0) throw new SwapError(`could not read ${stock.symbol}'s pool depth; try again in a moment`, 503);
+  return depth;
+}
+
 async function getRoute(req: SwapRequest, fee: SwapFee | null): Promise<{ summary: RouteSummary; quote: SwapQuote }> {
   const { tokenIn, tokenOut } = tokensFor(req);
   const params = new URLSearchParams({ tokenIn, tokenOut, amountIn: req.amountIn.toString() });
@@ -150,6 +166,16 @@ async function getRoute(req: SwapRequest, fee: SwapFee | null): Promise<{ summar
   const usdIn = Number(summary.amountInUsd);
   const cap = req.meme ? MAX_MEME_SWAP_USD : MAX_SWAP_USD;
   if (!(usdIn > 0) || usdIn > cap) throw new SwapError(`${req.meme ? 'meme buys' : 'swaps'} are limited to $${cap.toLocaleString('en-US')} each`, 400);
+  if (!req.meme && req.side === 'buy') {
+    const depth = await poolDepthUsd(req.stock);
+    const depthCap = depth * MAX_BUY_DEPTH_SHARE;
+    if (usdIn > depthCap) {
+      throw new SwapError(
+        `${req.stock.symbol} buys are limited to ${usdWhole(depthCap)} here: ${MAX_BUY_DEPTH_SHARE * 100}% of its pool's ${usdWhole(depth)} liquidity`,
+        400,
+      );
+    }
+  }
   return {
     summary,
     quote: {

@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = shareMetadata({
   title: 'Every tokenized stock on Base — Afterbook',
   description:
-    "Every tokenized stock Coinbase issues on Base, with its contract and how deep its Aerodrome pool is. Afterbook tracks the ones deep enough for a real price gap.",
+    "Every tokenized stock Coinbase issues on Base, with its contract and how deep its onchain pool is. Afterbook tracks the ones deep enough for a real price gap.",
   path: '/stocks',
   card: { page: 'home' },
 });
@@ -43,7 +43,7 @@ export default async function StocksPage() {
       ) : (
         <>
           <p className="geo-note" style={{ marginTop: 0 }}>
-            Coinbase issues {dir.rows.length} tokenized stocks on Base. Afterbook tracks the {tracked} with an Aerodrome USDC pool
+            Coinbase issues {dir.rows.length} tokenized stocks on Base. Afterbook tracks the {tracked} with a USDC pool on Aero
             deep enough for the gap to the stock market to mean something
             {deepestOther?.depthUsd != null && (
               <>
@@ -56,7 +56,7 @@ export default async function StocksPage() {
           <section className="panel">
             <StockDirectory rows={dir.rows} />
             <p className="geo-note">
-              Depth is the real value held in the stock&apos;s Aerodrome USDC pool: live for tracked stocks (under{' '}
+              Depth is the real value held in the stock&apos;s USDC pool (Aero or Aerodrome): live for tracked stocks (under{' '}
               {usdCompact(LIQUID_DEPTH_THRESHOLD_USD)} shows as a thin book on the tape), checked once a day for the rest
               {checked && <> (last {checked})</>}. Price, 24h move and volume are from each token&apos;s deepest pool on Base (any
               exchange, via Dexscreener, refreshed every few minutes); &ldquo;On Base&rdquo; is that price times the tokens in

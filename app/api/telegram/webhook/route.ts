@@ -13,7 +13,7 @@ const HELP_TEXT = `Afterbook alerts — cash close vs the Aero book, in shares.
 
 /alert STOCK BP — ping when |basis| crosses that many bp, e.g. "/alert NVDA 50" (NVDAc works too). After an alert it re-arms once the gap falls back to 80% of the level or lower, so one stretch near the line is one message.
 /close — ping once when the cash market closes, with every liquid name's basis
-/watch 0xADDRESS [HEALTH] — warn when that wallet's Aave or Morpho stock loan on Base drops below that health (default 1.2; liquidation is below 1.00). It also checks health at Aerodrome's price, which can move before the lending oracle does while the cash market is shut. One wallet per chat.
+/watch 0xADDRESS [HEALTH] — warn when that wallet's Aave or Morpho stock loan on Base drops below that health (default 1.2; liquidation is below 1.00). It also checks health at Aero's price, which can move before the lending oracle does while the cash market is shut. One wallet per chat.
 /loans — show the watched wallet's loans and health now
 /list — show your active alerts
 /stop — clear all your alerts

@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { getTape } from '@/lib/tape';
 import { getGeoInfo } from '@/lib/geo';
-import { getStock } from '@/lib/tokens';
+import { getStock, poolVenue } from '@/lib/tokens';
 import HomeClient from '../components/HomeClient';
 import { shareMetadata } from '@/lib/shareMeta';
 
@@ -18,7 +18,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
 
   return shareMetadata({
     title: `${stock.symbol} — Afterbook`,
-    description: `${stock.name} (${stock.symbol}): cash price vs the onchain price on Aerodrome, in shares.`,
+    description: `${stock.name} (${stock.symbol}): cash price vs the onchain price on ${poolVenue(stock)}, in shares.`,
     path: `/${stock.symbol}`,
     card: { page: 'stock', sym: stock.symbol },
     searchParams: await searchParams,
