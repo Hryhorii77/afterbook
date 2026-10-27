@@ -15,6 +15,8 @@ import type { MemePool } from '../../../lib/memestocks';
 
 const stock = getStock('NVDAc')!;
 const HOLDER = stock.pool.address as Hex;
+/** A public wallet holding NVDAc (a market maker, ~$44k on 2026-10-27), for sells and NVDAc-paid buys. */
+const STOCK_HOLDER = '0x72c4481f42d914cD53905017364aC3D1bC017Ba4' as Hex;
 const EVIL = '0x2222222222222222222222222222222222222222' as const;
 const OTHER_MEME = '0xca18A528Ea897040f715edC92e6e4572780c5ca1'; // KAI, also on NVDAc
 const pool: MemePool = {
@@ -66,15 +68,18 @@ async function tamper() {
 }
 
 async function simulate(payWith: 'USDC' | 'stock', amountIn: string) {
+  // NVDAc is spent from a market maker's wallet, not the pool's own address: since the Aero move
+  // (2026-10-27) KyberSwap may route through that pool, and a pool paying itself mid-swap reverts.
+  const holder = (payWith === 'USDC') ? HOLDER : STOCK_HOLDER;
   const r = req(payWith, amountIn);
-  const tx = await buildSwap(r, HOLDER);
+  const tx = await buildSwap(r, holder);
   const inToken = payWith === 'USDC' ? USDC.address : stock.tokenAddress;
-  const bal = (token: Hex, who: Hex) => ({ from: HOLDER, to: token, data: encodeFunctionData({ abi: erc20Abi, functionName: 'balanceOf', args: [who] }) });
+  const bal = (token: Hex, who: Hex) => ({ from: holder, to: token, data: encodeFunctionData({ abi: erc20Abi, functionName: 'balanceOf', args: [who] }) });
   const calls = [
-    bal(pool.meme.address, HOLDER),
-    { from: HOLDER, to: inToken, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [KYBER_ROUTER, BigInt(amountIn)] }) },
-    { from: HOLDER, to: tx.to, data: concat([tx.data, BUILDER_CODE_SUFFIX]) },
-    bal(pool.meme.address, HOLDER),
+    bal(pool.meme.address, holder),
+    { from: holder, to: inToken, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [KYBER_ROUTER, BigInt(amountIn)] }) },
+    { from: holder, to: tx.to, data: concat([tx.data, BUILDER_CODE_SUFFIX]) },
+    bal(pool.meme.address, holder),
   ];
   const res = await fetch('https://mainnet.base.org', {
     method: 'POST',
