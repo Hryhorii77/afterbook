@@ -35,7 +35,7 @@ if it changes the tracked list, grep for stale counts (see
 
 ## 3. Build gate
 
-`npm run build` must pass before any commit. It is the only automated check
+`npm test` and `npm run build` must pass before any commit (CI runs both, plus `npm run typecheck`, on the PR). The build is the broad check
 (typecheck plus Next.js build), and it is **not** a correctness test: for UI,
 load it in a real browser (both themes, a real 390px phone viewport; see the
 `verify` skill). A change that is only docs or config may skip the build, but

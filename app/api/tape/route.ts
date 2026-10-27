@@ -8,6 +8,8 @@ export async function GET() {
     const tape = await getTape();
     return NextResponse.json(tape);
   } catch (err) {
-    return NextResponse.json({ error: 'tape unavailable', detail: String(err) }, { status: 502 });
+    // The cause goes to the server log, not the response (it can name RPC hosts, contract errors).
+    console.error('[/api/tape]', err);
+    return NextResponse.json({ error: 'tape unavailable' }, { status: 502 });
   }
 }

@@ -36,7 +36,9 @@ async function handler(request: NextRequest) {
       tickDistribution: distribution,
     });
   } catch (err) {
-    return NextResponse.json({ error: 'history unavailable', detail: String(err) }, { status: 502 });
+    // The cause goes to the server log, not the response (it can name RPC hosts, contract errors).
+    console.error('[/api/v1/x402/history]', err);
+    return NextResponse.json({ error: 'history unavailable' }, { status: 502 });
   }
 }
 

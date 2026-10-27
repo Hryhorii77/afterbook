@@ -6,9 +6,9 @@ why; that file is the product/architecture reference, not this one.
 
 ## Verifying changes
 
-No lint script, no test suite. To verify a change actually works:
-- `npm run build` — this repo's only automated check (typecheck +
-  Next.js build). Not a correctness test.
+No lint script yet. CI (`.github/workflows/ci.yml`) runs `npm run typecheck`, `npm test` and `npm run build` on every PR and push to `main`, with no secrets. To verify a change actually works:
+- `npm test` — Vitest unit tests in `tests/` for the swap money path (`checkSwapCalldata` tamper cases, `parseSwapRequest`, `swapFee`, the $25k and pool-depth caps, `guardSwapRequest`). Offline: KyberSwap, the chain, Redis and the region lookup are mocked, so tests never touch production Redis. A change to `lib/swap.ts` or `lib/swapGuard.ts` keeps or extends them.
+- `npm run build` — typecheck + Next.js build. Not a correctness test.
 - For API routes (especially `app/api/v1/x402/*`), hit them for real:
   `curl -s -i https://afterbook.app/api/<route>` and read the response —
   a 402 response's `payment-required` header is base64 — decode it

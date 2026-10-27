@@ -9,6 +9,19 @@ export const THEME_KEY = 'afterbook-theme';
 // the wrong theme: saved choice first, else the OS setting, else dark.
 export const THEME_INIT_SCRIPT = `try{var t=localStorage.getItem('${THEME_KEY}');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='dark'}`;
 
+/** Applies the init script's choice if it never ran: Next 16 serves a 404 (and an error page) as a
+ *  bare shell without our <head>, so the inline script is missing there and the page stayed dark. */
+function ensureTheme() {
+  if (document.documentElement.dataset.theme) return;
+  let t: string | null = null;
+  try {
+    t = localStorage.getItem(THEME_KEY);
+  } catch {
+    // blocked storage: fall through to the OS setting
+  }
+  document.documentElement.dataset.theme = t === 'light' || t === 'dark' ? t : matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
 function readTheme(): Theme {
   return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
 }
@@ -19,6 +32,7 @@ export function useTheme(): Theme {
   // the effect then reads what the init script actually set.
   const [theme, setTheme] = useState<Theme>('dark');
   useEffect(() => {
+    ensureTheme();
     setTheme(readTheme());
     const observer = new MutationObserver(() => setTheme(readTheme()));
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
