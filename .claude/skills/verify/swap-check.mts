@@ -2,7 +2,7 @@
 //   SWAP_FEE_BPS=20 SWAP_FEE_RECIPIENT=0x9b3F205E43dc9FcC1cc2Fe6d9dCD0357769A6Bae npx tsx .claude/skills/verify/swap-check.mts
 // 1. Tamper: real KyberSwap calldata with one field changed at a time; checkSwapCalldata must refuse each.
 // 2. Simulate (eth_simulateV1 on mainnet.base.org): approve + the server-built swap with the Builder Code
-//    appended, from a real holder (the NVDAc/USDC pool), for a buy and a sell; prints what the trader
+//    appended, from real holders (the NVDAc/USDC pool for USDC, a market maker for NVDAc), for a buy and a sell; prints what the trader
 //    received and what reached the fee recipient. Unset the fee variables to check that nothing does.
 import { concat, decodeFunctionData, decodeFunctionResult, encodeFunctionData, erc20Abi, parseAbi, type Hex } from 'viem';
 import { buildSwap, checkSwapCalldata, KYBER_ROUTER, parseSwapRequest, quoteSwap, swapFee } from '../../../lib/swap';
@@ -11,6 +11,8 @@ import { getStock, USDC } from '../../../lib/tokens';
 
 const stock = getStock('NVDAc')!;
 const HOLDER = stock.pool.address as Hex;
+/** A public wallet holding NVDAc (a market maker, ~$44k on 2026-10-27), for sells and NVDAc-paid buys. */
+const STOCK_HOLDER = '0x72c4481f42d914cD53905017364aC3D1bC017Ba4' as Hex;
 const EVIL = '0x2222222222222222222222222222222222222222' as const;
 const fee = swapFee();
 const watch = (fee?.recipient ?? EVIL) as Hex;
@@ -54,18 +56,21 @@ async function tamper() {
 }
 
 async function simulate(side: 'buy' | 'sell', amountIn: string) {
+  // NVDAc is spent from a market maker's wallet, not the pool's own address: since the Aero move
+  // (2026-10-27) KyberSwap may route through that pool, and a pool paying itself mid-swap reverts.
+  const holder = (side === 'buy') ? HOLDER : STOCK_HOLDER;
   const req = parseSwapRequest({ symbol: 'NVDAc', side, amountIn });
   if (typeof req === 'string') throw new Error(req);
-  const tx = await buildSwap(req, HOLDER);
+  const tx = await buildSwap(req, holder);
   const [inToken, outToken, outDecimals] = side === 'buy' ? [USDC.address, stock.tokenAddress, stock.decimals] : [stock.tokenAddress, USDC.address, USDC.decimals];
-  const bal = (token: Hex, who: Hex) => ({ from: HOLDER, to: token, data: encodeFunctionData({ abi: erc20Abi, functionName: 'balanceOf', args: [who] }) });
+  const bal = (token: Hex, who: Hex) => ({ from: holder, to: token, data: encodeFunctionData({ abi: erc20Abi, functionName: 'balanceOf', args: [who] }) });
   const calls = [
     bal(USDC.address, watch),
-    bal(outToken as Hex, HOLDER),
-    { from: HOLDER, to: inToken, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [KYBER_ROUTER, BigInt(amountIn)] }) },
-    { from: HOLDER, to: tx.to, data: concat([tx.data, BUILDER_CODE_SUFFIX]) },
+    bal(outToken as Hex, holder),
+    { from: holder, to: inToken, data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [KYBER_ROUTER, BigInt(amountIn)] }) },
+    { from: holder, to: tx.to, data: concat([tx.data, BUILDER_CODE_SUFFIX]) },
     bal(USDC.address, watch),
-    bal(outToken as Hex, HOLDER),
+    bal(outToken as Hex, holder),
   ];
   const res = await fetch('https://mainnet.base.org', {
     method: 'POST',
