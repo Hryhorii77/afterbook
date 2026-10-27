@@ -1,5 +1,6 @@
 # Typecheck, unit tests and a production build on every PR and push to main. No secrets: the tests mock
 # KyberSwap, the chain and Redis, and the build needs no env (checked 2026-10-27 in a clean clone).
+# Node 24 for npm 11: the lock file is written by npm 11, and npm 10 (Node 22) reads it as out of sync.
 name: CI
 
 on:
@@ -22,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run typecheck
