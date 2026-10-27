@@ -112,7 +112,7 @@ export function StockDirectory({ rows }: { rows: DirectoryRow[] }) {
             <span>Traded 24h</span>
             <span>On Base</span>
             <span>Memes</span>
-            <span>Aerodrome pool</span>
+            <span>Pool</span>
           </div>
           <ul className="directory-list">
             {slice.map((r) => {

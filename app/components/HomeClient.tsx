@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl } from '@/lib/tokens';
+import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl, poolVenue } from '@/lib/tokens';
 import { SwapPanel } from './SwapPanel';
 import type { TapeResult, TapeRow } from '@/lib/tape';
 import { splitByLiquidity, isLiquid, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
@@ -925,7 +925,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                       accessibility tools, which drop the lone spaces between them. */}
                   {`${shortName(activeRow)} is trading ${gapSizeText(heroBp)} ${heroBp >= 0 ? 'above' : 'below'} `}
                   <span className="nowrap">{referenceLabel}</span>
-                  {' on Aerodrome.'}
+                  {` on ${poolVenue(activeStock)}.`}
                   {tape.session.state.startsWith('closed') && ` Cash reopens ${formatNextOpen(tape.session.nextOpenIso)}.`}
                 </div>
               )}
@@ -958,7 +958,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             </a>
           </div>
           <p className="hero-note">
-            Onchain price is what the stock token trades for on Aerodrome, the Base exchange that is open around the clock. 100 basis points (bp) = 1%. No wallet needed to browse; connect one only to see your lots or trade.
+            Onchain price is what the stock token trades for on Aero (formerly Aerodrome), the Base exchange that is open around the clock. 100 basis points (bp) = 1%. No wallet needed to browse; connect one only to see your lots or trade.
           </p>
           {/* First-visit help that never blocks: closed by default, nothing remembered between visits. */}
           <details className="explain hero-intro">
@@ -976,7 +976,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
               </div>
               <div>
                 <dt>Onchain price</dt>
-                <dd>What the token trades for on Aerodrome, which never closes, so it keeps moving at night and over the weekend.</dd>
+                <dd>What the token trades for on Aero (formerly Aerodrome), which never closes, so it keeps moving at night and over the weekend.</dd>
               </div>
               <div>
                 <dt>The gap (bp)</dt>
@@ -1056,8 +1056,8 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           <summary>What the columns mean</summary>
           <dl>
             <div><dt>Gap</dt><dd>Onchain price minus cash price, in basis points: 100 bp = 1%. Green: the token costs more than the stock; red: less.</dd></div>
-            <div><dt>Onchain price</dt><dd>What the stock token trades for on Aerodrome, the Base exchange that never closes.</dd></div>
-            <div><dt>Pool liquidity</dt><dd>Dollars and shares in the token&apos;s Aerodrome pool: how big a trade it takes before the price moves much.</dd></div>
+            <div><dt>Onchain price</dt><dd>What the stock token trades for on Aero (formerly Aerodrome), the Base exchange that never closes.</dd></div>
+            <div><dt>Pool liquidity</dt><dd>Dollars and shares in the token&apos;s pool on Aero: how big a trade it takes before the price moves much.</dd></div>
             <div><dt>24h</dt><dd>How the onchain price moved over the last 24 hours.</dd></div>
             <div><dt>Trend</dt><dd>The onchain price over the past days; hover or tap for the change in words.</dd></div>
           </dl>
@@ -1229,7 +1229,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                 {quote.largeTradeCaveat && (
                   <p className="geo-note">
                     This trade runs past the liquidity Afterbook reads (25% from the current price), so the real
-                    fill on Aerodrome would be worse than this estimate.
+                    fill on {poolVenue(activeStock)} would be worse than this estimate.
                   </p>
                 )}
                 <details className="geo-more">
@@ -1260,7 +1260,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                 </div>
                 <p className="geo-note">
                   Full-range, ~50/50 by value at the current price — a full-range concentrated-liquidity position is
-                  mathematically equivalent to a classic 50/50 pool. Aerodrome defaults new deposits to a narrower
+                  mathematically equivalent to a classic 50/50 pool. Aero and Aerodrome default new deposits to a narrower
                   range, which would change this split; check the actual range before depositing.
                 </p>
 
@@ -1356,7 +1356,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                             run this: any automation that does it for you needs to construct and submit that
                             withdraw/swap/redeploy calldata autonomously — the same problem the{' '}
                             <code>execute-link</code> agent endpoint hit (this app has no confirmed-working router
-                            for these specific pools outside Aerodrome&apos;s own frontend), which any real
+                            for these specific pools outside the exchange&apos;s own site), which any real
                             automation would have to solve for itself before it could safely trigger anything.
                           </p>
                           <p className="geo-note">
@@ -1668,7 +1668,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
             This is a best-effort geofence based on IP country, not a compliance control — it does not stop a
             VPN.{geo.country === 'US' && ' Execution stays locked regardless of the checkbox above.'} Buying and
             selling here sends a swap from your own wallet through KyberSwap&apos;s router (it splits the trade across
-            Aerodrome and other Base pools). KyberSwap builds the transaction; Afterbook checks the
+            Aero, Aerodrome and other Base pools). KyberSwap builds the transaction; Afterbook checks the
             fields that decide what you pay, who receives, the minimum, the fee and the permit before your wallet sees it,
             and never holds funds; approvals are for the exact amount only.
           </p>

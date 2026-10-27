@@ -60,21 +60,21 @@ async function handler(request: NextRequest) {
     return NextResponse.json({
       symbol: risk.symbol,
       aeroMidUsd: risk.aeroMidUsd,
-      // Selling `usd` of the stock on Aerodrome right now fills on average
+      // Selling `usd` of the stock on Aero right now fills on average
       // `discountBp` below mid, pool fee included; exhaustedWindow means the
       // sell ran past the liquidity Afterbook scans (25% below mid).
       sellCurve: risk.sellCurve,
       markets: risk.markets,
       position,
       assumptions:
-        'Snapshot of the Aerodrome pool now. Position risk assumes the same liquidity per tick and the same Aero-vs-oracle gap at the liquidation price. Liquidators with another exit than Aerodrome may do better. Aave markets (venue "aave", marketId "aave:<reserveId>") lend one shared USDC pool against every stock, so their borrowUsd is null; Aave liquidates only enough to restore health, so seizedUsd is an upper bound there.',
+        'Snapshot of the Aero pool now. Position risk assumes the same liquidity per tick and the same Aero-vs-oracle gap at the liquidation price. Liquidators with another exit than Aero may do better. Aave markets (venue "aave", marketId "aave:<reserveId>") lend one shared USDC pool against every stock, so their borrowUsd is null; Aave liquidates only enough to restore health, so seizedUsd is an upper bound there.',
     });
   } catch (err) {
     return NextResponse.json({ error: 'liquidation-capacity unavailable', detail: String(err) }, { status: 502 });
   }
 }
 
-// For lenders, liquidation bots and agents: can Aerodrome absorb a
+// For lenders, liquidation bots and agents: can Aero absorb a
 // liquidation of this stock at a profit, how far is the pool from the
 // lending oracle, and (optionally) where would a given position be
 // liquidated and could that sale be absorbed.
@@ -89,7 +89,7 @@ export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configur
           payTo: X402_PAYOUT_ADDRESS!,
         },
         description:
-          "Liquidation capacity for a Base tokenized stock: Morpho and Aave V4 USDC markets using it as collateral, the Aerodrome-vs-oracle gap, the largest liquidation Aerodrome can absorb at a profit, a sell-side impact curve, and optional per-position liquidation price and risk.",
+          "Liquidation capacity for a Base tokenized stock: Morpho and Aave V4 USDC markets using it as collateral, the Aero-vs-oracle gap, the largest liquidation Aero can absorb at a profit, a sell-side impact curve, and optional per-position liquidation price and risk.",
       },
       getX402Server(),
     )

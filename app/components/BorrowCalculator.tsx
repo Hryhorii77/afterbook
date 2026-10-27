@@ -117,15 +117,15 @@ export function BorrowCalculator({ markets, curves }: Props) {
             {risk.dropToLiquidation <= 0 ? 'A' : 'At that price a'} liquidator would take about {usd(risk.seizedUsd, 0)}{' '}
             of your {market.symbol} to clear the loan.{' '}
             {risk.sellDiscountBp == null ? (
-              <>That is close to or more than all the USDC the Aerodrome pool holds near the price today, so it may not sell there in one go.</>
+              <>That is close to or more than all the USDC the stock&apos;s pool holds near the price today, so it may not sell there in one go.</>
             ) : risk.aeroLiquidationProfitable ? (
               <>
-                Selling that on Aerodrome would fill about {risk.sellDiscountBp.toFixed(0)} bp below the pool price, which
+                Selling that on Aero would fill about {risk.sellDiscountBp.toFixed(0)} bp below the pool price, which
                 still pays the liquidator, so the pool could absorb it today.
               </>
             ) : (
               <>
-                Selling that on Aerodrome would fill about {risk.sellDiscountBp.toFixed(0)} bp below the pool price, which
+                Selling that on Aero would fill about {risk.sellDiscountBp.toFixed(0)} bp below the pool price, which
                 would not pay a liquidator who has to sell there. The liquidation could come late, and lenders could be
                 left short.
               </>

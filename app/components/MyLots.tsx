@@ -113,7 +113,7 @@ export function MyLotsContent({
           {error && <p className="geo-note">{error}</p>}
 
           {lots && lots.spot.length === 0 && lots.lp.length === 0 && !error && (
-            <p className="geo-note">No holdings found across the tracked stocks or their Aerodrome pools.</p>
+            <p className="geo-note">No holdings found across the tracked stocks or their pools.</p>
           )}
 
           {lots && (lots.spot.length > 0 || lots.lp.length > 0) && (
@@ -131,7 +131,7 @@ export function MyLotsContent({
               {lots.lp.length > 0 && (
                 <div className="stat-card">
                   <div className="stat-value">{usd(lpUsd)}</div>
-                  <div className="stat-label">In Aerodrome LP</div>
+                  <div className="stat-label">In LP</div>
                 </div>
               )}
             </div>
@@ -163,7 +163,7 @@ export function MyLotsContent({
 
           {lots && lots.lp.length > 0 && (
             <>
-              <p className="geo-note">Aerodrome LP</p>
+              <p className="geo-note">LP positions</p>
               <p className="geo-note" style={{ marginTop: 0 }}>
                 Fee APR and in-range odds below are estimates from on-chain fee-growth snapshots and recent price
                 volatility — not guarantees. Both need a day or two of collected data after a pool starts being

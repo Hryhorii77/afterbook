@@ -67,7 +67,7 @@ export function borrowShareText(s: BorrowSummary): string {
       .map((v) => ({ v, syms: over.filter((r) => r.venue === v).map((r) => r.symbol) }))
       .filter((g) => g.syms.length > 0)
       .map((g) => `${list(g.syms)} on ${venueName[g.v]}`);
-    return `More ${list(byVenue)} is pledged as loan collateral than Aerodrome could absorb at a profit if every loan were liquidated at once.`;
+    return `More ${list(byVenue)} is pledged as loan collateral than Aero could absorb at a profit if every loan were liquidated at once.`;
   }
-  return `${usdCompact(s.collateralUsd)} of tokenized stocks back USDC loans on Aave and Morpho on Base, and Aerodrome can absorb each market's liquidation at a profit right now.`;
+  return `${usdCompact(s.collateralUsd)} of tokenized stocks back USDC loans on Aave and Morpho on Base, and Aero can absorb each market's liquidation at a profit right now.`;
 }

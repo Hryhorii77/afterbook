@@ -73,7 +73,7 @@ const usd = (n: number) => `$${n >= 1000 ? Math.round(n).toLocaleString('en-US')
 export function describeLoan(loan: WalletLoan): string {
   const what = loan.collateral.map((c) => c.symbol).join(' + ');
   const aero = healthAtAero(loan);
-  const aeroPart = aero == null ? '' : `, ${hf(aero)} at Aerodrome's price`;
+  const aeroPart = aero == null ? '' : `, ${hf(aero)} at Aero's price`;
   const fall = Math.round(dropToLiquidation(loan.healthFactor) * 100);
   const stocks = loan.collateral.length > 1 ? 'its stocks fall' : `${what} falls`;
   return `${venueLabel[loan.venue]} ${what}: ${usd(loan.debtUsd)} borrowed, health ${hf(loan.healthFactor)}${aeroPart}. Liquidated below 1.00, if ${stocks} about ${fall}%${loan.collateral.length > 1 ? ' together' : ''}.`;
@@ -89,7 +89,7 @@ export function loanAlertText(wallet: string, loans: WalletLoan[], threshold: nu
   // Only Aerodrome's price is below the line: the oracle still looks fine, which is the early warning.
   const byAero = loans.every((l) => l.healthFactor >= threshold);
   const why = byAero
-    ? `Health at Aerodrome's price is below ${hf(threshold)}: the lending oracle may follow when the cash market moves.`
+    ? `Health at Aero's price is below ${hf(threshold)}: the lending oracle may follow when the cash market moves.`
     : `Health is below ${hf(threshold)}.`;
   return [`Loan warning for ${short(wallet)} (lowest ${hf(worst)}). ${why}`, ...loans.map((l) => `• ${describeLoan(l)}`), 'Not advice. Afterbook never touches your funds.'].join('\n');
 }

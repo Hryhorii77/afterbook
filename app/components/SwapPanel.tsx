@@ -314,7 +314,14 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
         </div>
       )}
 
-      {quoteError && !review && <p className="geo-note">Price check failed: {quoteError}. Retrying every 15 s.</p>}
+      {quoteError && !review && (
+        // A size limit (the $25k cap, or a buy over 10% of a thin pool) is an answer, not an outage.
+        /limited to/.test(quoteError) ? (
+          <p className="geo-note geo-note-blocked">{quoteError}. Lower the amount.</p>
+        ) : (
+          <p className="geo-note">Price check failed: {quoteError}. Retrying every 15 s.</p>
+        )
+      )}
       {error && <p className="geo-note geo-note-blocked">{error}</p>}
       {done && (
         <p className="geo-note">

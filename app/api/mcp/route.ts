@@ -18,7 +18,7 @@ const handler = createMcpHandler((server) => {
     {
       title: 'Get Tape',
       description:
-        "Cash-market close price vs Aerodrome's on-chain price for the Coinbase tokenized stocks Afterbook tracks on Base — basis in bp and real pool depth. Read-only; no wallet is ever involved.",
+        "Cash-market close price vs the on-chain price on Aero (formerly Aerodrome) for the Coinbase tokenized stocks Afterbook tracks on Base — basis in bp and real pool depth. Read-only; no wallet is ever involved.",
       inputSchema: z.object({}),
     },
     async () => {

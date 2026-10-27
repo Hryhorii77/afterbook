@@ -522,7 +522,7 @@ export async function buildBorrowOgImage(theme: CardTheme = 'dark', frozen?: { t
               {usdCompact(summary.collateralUsd)} of stock backs USDC loans
             </span>
             <span style={{ fontSize: 26, color: c.dim, marginTop: 6 }}>
-              Aave and Morpho on Base · {usdCompact(summary.borrowUsd)} borrowed · can Aerodrome absorb a liquidation?
+              Aave and Morpho on Base · {usdCompact(summary.borrowUsd)} borrowed · can Aero absorb a liquidation?
             </span>
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 22, gap: 12 }}>
               {rows.map((r, i) => {

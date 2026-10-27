@@ -31,7 +31,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   const spec = formatSpec(legs);
   return shareMetadata({
     title: `${basketLabel(legs)} — Afterbook basket`,
-    description: `How far this basket of Base tokenized stocks (${basketLabel(legs)}) trades from the cash market, and what it costs to buy on Aerodrome.`,
+    description: `How far this basket of Base tokenized stocks (${basketLabel(legs)}) trades from the cash market, and what it costs to buy onchain.`,
     path: `/build/${spec}`,
     card: { page: 'build', spec },
     searchParams: await searchParams,
@@ -89,7 +89,7 @@ export default async function BuildPage({ params }: PageProps) {
             <div className="stat-label">
               {gap == null
                 ? 'One of these stocks has no reading yet.'
-                : `On Aerodrome this basket is ${gapSizeText(gap)} ${gap >= 0 ? 'above' : 'below'} ${reference}.`}
+                : `Onchain this basket is ${gapSizeText(gap)} ${gap >= 0 ? 'above' : 'below'} ${reference}.`}
               {!marketOpen && tape ? ` Cash reopens ${formatNextOpen(tape.session.nextOpenIso)}.` : ''} 100 bp = 1%.
             </div>
           </div>

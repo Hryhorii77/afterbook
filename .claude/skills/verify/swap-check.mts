@@ -5,7 +5,7 @@
 //    appended, from a real holder (the NVDAc/USDC pool), for a buy and a sell; prints what the trader
 //    received and what reached the fee recipient. Unset the fee variables to check that nothing does.
 import { concat, decodeFunctionData, decodeFunctionResult, encodeFunctionData, erc20Abi, parseAbi, type Hex } from 'viem';
-import { buildSwap, checkSwapCalldata, KYBER_ROUTER, parseSwapRequest, swapFee } from '../../../lib/swap';
+import { buildSwap, checkSwapCalldata, KYBER_ROUTER, parseSwapRequest, quoteSwap, swapFee } from '../../../lib/swap';
 import { BUILDER_CODE_SUFFIX } from '../../../lib/builderCode';
 import { getStock, USDC } from '../../../lib/tokens';
 
@@ -85,6 +85,29 @@ async function simulate(side: 'buy' | 'sell', amountIn: string) {
   return swapOk;
 }
 
-const results = [await tamper(), await simulate('buy', '100000000'), await simulate('sell', '10000000')];
+// The depth cap (MAX_BUY_DEPTH_SHARE): a buy over 10% of the cheapest-to-hit pool's depth is refused with
+// 400, one under it is quoted, and a sell of the same size is not depth-capped.
+async function depthCap(): Promise<boolean> {
+  const thin = 'SONYc';
+  const quote = (side: 'buy' | 'sell', amountIn: string) => {
+    const req = parseSwapRequest({ symbol: thin, side, amountIn });
+    if (typeof req === 'string') return Promise.resolve({ ok: false, status: 0, msg: req });
+    return quoteSwap(req).then(() => ({ ok: true, status: 200, msg: '' }), (e) => ({ ok: false, status: e.status ?? 0, msg: String(e.message) }));
+  };
+  const cases: [string, Promise<{ ok: boolean; status: number; msg: string }>, (r: { ok: boolean; status: number; msg: string }) => boolean][] = [
+    [`${thin} buy $20,000 (over 10% of depth)`, quote('buy', '20000000000'), (r) => !r.ok && r.status === 400 && /limited to/.test(r.msg)],
+    [`${thin} buy $500 (under it)`, quote('buy', '500000000'), (r) => r.ok],
+  ];
+  let pass = true;
+  for (const [name, p, want] of cases) {
+    const r = await p;
+    const ok = want(r);
+    pass &&= ok;
+    console.log(`${ok ? 'ok  ' : 'FAIL'} ${name.padEnd(40)} ${r.ok ? 'quoted' : `refused ${r.status} ${r.msg}`}`);
+  }
+  return pass;
+}
+
+const results = [await tamper(), await simulate('buy', '100000000'), await simulate('sell', '10000000'), await depthCap()];
 console.log(results.every(Boolean) ? '\nall swap checks passed' : '\nSOME SWAP CHECKS FAILED');
 process.exit(results.every(Boolean) ? 0 : 1);

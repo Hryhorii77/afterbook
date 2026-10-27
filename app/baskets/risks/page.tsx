@@ -48,7 +48,7 @@ export default function BasketRisksPage() {
         <h2>Trading costs</h2>
         <ul className="geo-note">
           <li>
-            Deposits are swapped into the stocks, and withdrawals as USDC are swapped back out. Swaps run through Aerodrome
+            Deposits are swapped into the stocks, and withdrawals as USDC are swapped back out. Swaps run through Aero, Aerodrome and other Base pools
             using LI.FI, and these pools are small. In our own test, buying and selling about $5 across three liquid names
             cost roughly 0.9% in total. Thinner names in the full basket can cost more, and a larger deposit moves the price
             more.
@@ -106,7 +106,7 @@ export default function BasketRisksPage() {
         <h2>Software risk</h2>
         <p className="geo-note" style={{ marginTop: 0 }}>
           Afterbook is new software built by one person and has not had an independent security audit. A bug in Afterbook,
-          Glider, LI.FI, Aerodrome or the tokens themselves could cost you money or stop a withdrawal. Start with an amount
+          Glider, LI.FI, Aero or the tokens themselves could cost you money or stop a withdrawal. Start with an amount
           you can afford to lose.
         </p>
       </section>
@@ -125,7 +125,7 @@ export default function BasketRisksPage() {
             standing behind it.
           </li>
           <li>
-            Afterbook currently charges no fee for baskets. Glider, LI.FI, Aerodrome and the network may charge their own
+            Afterbook currently charges no fee for baskets. Glider, LI.FI, Aero and the network may charge their own
             fees. Any change to ours will be shown on this page.
           </li>
         </ul>
