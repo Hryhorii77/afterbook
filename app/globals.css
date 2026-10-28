@@ -96,6 +96,7 @@ body {
   -webkit-font-smoothing: antialiased;
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* Form controls don't inherit the page font by default (they fall back to the
@@ -305,6 +306,7 @@ h1 {
   z-index: 60;
   width: min(360px, calc(100vw - 24px));
   max-height: calc(100vh - 88px);
+  max-height: calc(100dvh - 88px);
   overflow-y: auto;
   padding: 18px 18px 0;
   background: var(--panel);
@@ -681,8 +683,8 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
   .site-header-inner { padding: 8px 12px; gap: 8px; }
   .site-brand { margin-right: auto; }
   .site-nav { display: none; }
-  .site-header-actions .wallet-connect-btn { min-height: 40px; padding: 6px 14px; }
-  .theme-toggle { width: 40px; height: 40px; }
+  .site-header-actions .wallet-connect-btn { min-height: 44px; padding: 6px 14px; }
+  .theme-toggle { width: 44px; height: 44px; }
   .site-header .site-menu-btn { display: inline-flex; }
   .site-menu:not([hidden]) {
     display: block;
@@ -2677,4 +2679,50 @@ a.directory-main:hover .directory-symbol {
     padding-left: 0;
     margin-left: auto;
   }
+}
+
+/* ---- Touch and mobile (external review, 2026-10-27) ---------------------------------------------
+   Jump links (Size a trade, #tape, #execute) land below the fixed desktop header and the pinned
+   symbol bar instead of under them. */
+section[id],
+[id].panel {
+  scroll-margin-top: calc(var(--site-header-h) + 84px);
+}
+/* iOS Safari zooms the page when a field under 16px gets focus. */
+@media (max-width: 980px) {
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  /* At 16px the fields' intrinsic width wrapped the calculator's Stock and USDC onto two rows: let
+     them share the row instead. */
+  .lot-lab-form .field { flex: 1 1 120px; min-width: 0; }
+  .lot-lab-form .field input,
+  .lot-lab-form .field select { width: 100%; }
+}
+/* Fingers need 44px targets (WCAG 2.5.5); a mouse keeps the compact look. Inline links in running
+   text are exempt and unchanged. */
+@media (pointer: coarse) {
+  .toast-close { width: 44px; height: 44px; }
+  .ticker-item { height: 44px; }
+  .site-brand { min-width: 44px; min-height: 44px; }
+  .hero-symbol-select { min-height: 44px; }
+  .lot-lab-tab { min-height: 44px; min-width: 44px; padding-left: 10px; padding-right: 10px; margin-right: 8px; }
+  .preset-btn { min-height: 44px; }
+  .thin-toggle,
+  main summary,
+  main label:has(input[type='checkbox']) {
+    padding-top: 13px;
+    padding-bottom: 13px;
+  }
+  main input[type='checkbox'] { width: 22px; height: 22px; }
+  .stock-memes { min-height: 44px; display: inline-flex; align-items: center; }
+}
+/* Below 360px (the smallest phones) five 44px items don't fit one header row: keep the compact
+   40px icons and no extra hit area around the logo mark there. */
+@media (max-width: 359px) {
+  .theme-toggle { width: 40px; height: 40px; }
+  .site-header-actions .wallet-connect-btn { min-height: 40px; }
+  .site-brand { min-width: 0; }
 }
