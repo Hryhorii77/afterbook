@@ -6,7 +6,7 @@ import { getTokenIcons } from './coinbaseIcons';
 import { tileHue } from './symbolStyle';
 import { getTape } from './tape';
 import { splitByLiquidity } from './liquidity';
-import { buildTodaySnapshot, closeBasisBp } from './todaySnapshot';
+import { buildTodaySnapshot, closeBasisBp, todayReference } from './todaySnapshot';
 import { getStock } from './tokens';
 import { parseSpec, basketGapBp, basketReferenceLabel } from './customBasket';
 import { getBasketCost } from './basketCost';
@@ -343,17 +343,20 @@ export async function buildTodayOgImage(symbol?: string, theme: CardTheme = 'dar
   let sessionLabel = '';
   let headline: Awaited<ReturnType<typeof getTape>>['rows'][number] | null = null;
   let headlineBp: number | null = null;
-  let marketOpen = false;
+  let headlineCashUsd: number | null = null;
   let fade: string | null = null;
   let icon: string | null = null;
   try {
     const tape = frozen?.tape ?? (await getTape());
     sessionLabel = stampLabel(tape.session.label, frozen?.takenAt ?? Date.now());
-    marketOpen = tape.session.state === 'open';
     const snapshot = buildTodaySnapshot(tape);
     const pinned = symbol ? tape.rows.find((r) => r.symbol.toLowerCase() === symbol.toLowerCase()) : undefined;
     headline = pinned ?? snapshot.headline;
-    headlineBp = headline ? (marketOpen ? headline.basisBp : closeBasisBp(headline)) : null;
+    if (headline) {
+      const ref = todayReference(headline, tape.session);
+      headlineBp = ref.bp;
+      headlineCashUsd = ref.cashUsd;
+    }
     if (headline) [fade, icon] = await Promise.all([openFadeLine(headline.symbol), iconDataUri(headline.cashTicker)]);
   } catch {
     // fall through to a branding-only card below
@@ -397,7 +400,7 @@ export async function buildTodayOgImage(symbol?: string, theme: CardTheme = 'dar
             </span>
 
             <div style={{ display: 'flex', gap: 32, marginTop: 12, fontSize: 28, color: c.dim }}>
-              <span>cash {usd(marketOpen ? headline.cashLastUsd : headline.closeUsd)}</span>
+              <span>cash {usd(headlineCashUsd)}</span>
               <span>aero {usd(headline.onchainMidUsd)}</span>
             </div>
 

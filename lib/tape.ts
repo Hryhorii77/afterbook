@@ -93,10 +93,34 @@ function numOrNull(x: unknown): number | null {
   return typeof x === 'number' ? x : null;
 }
 
-async function fetchCashPrice(ticker: string): Promise<CashPrice | null> {
+/** The newest trade after `afterSec` in Yahoo's minute bars (extended hours included), or null.
+ *  Only trades from the last 4 hours count: an after-hours session lasts 4 hours, and 8 hours separate
+ *  it from the next pre-market, so early pre-market never relabels last night's trade as today's. */
+const EXTENDED_BAR_MAX_AGE_SEC = 4 * 60 * 60;
+export function lastBarAfter(result: unknown, afterSec: number, nowSec = Date.now() / 1000): { price: number; asOfMs: number } | null {
+  afterSec = Math.max(afterSec, nowSec - EXTENDED_BAR_MAX_AGE_SEC);
+  const r = result as { timestamp?: unknown; indicators?: { quote?: { close?: unknown }[] } } | undefined;
+  const ts = Array.isArray(r?.timestamp) ? (r.timestamp as unknown[]) : [];
+  const closes = Array.isArray(r?.indicators?.quote?.[0]?.close) ? (r.indicators.quote[0].close as unknown[]) : [];
+  for (let i = Math.min(ts.length, closes.length) - 1; i >= 0; i--) {
+    const t = ts[i];
+    const c = closes[i];
+    if (typeof t !== 'number' || t <= afterSec) return null;
+    if (typeof c === 'number' && c > 0) return { price: c, asOfMs: t * 1000 };
+  }
+  return null;
+}
+
+// `extended` (pre-market or after-hours by the app's own clock): ask for today's minute bars with
+// extended hours too. Since about October 2026 Yahoo's chart meta no longer carries
+// preMarketPrice/postMarketPrice, so the tape compared after-hours onchain prices with the 4pm close
+// and showed an earnings move as a gap (GOOGL 2026-10-28: -1,025 bp against $324.89 while it traded
+// $288 after hours). The newest bar after the regular close is the live extended-hours print.
+async function fetchCashPrice(ticker: string, extended = false): Promise<CashPrice | null> {
+  const query = extended ? 'interval=1m&range=1d&includePrePost=true' : 'interval=1d&range=1d';
   for (const host of YAHOO_HOSTS) {
     try {
-      const res = await fetch(`${host}/v8/finance/chart/${ticker}?interval=1d&range=1d`, {
+      const res = await fetch(`${host}/v8/finance/chart/${ticker}?${query}`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AfterbookTape/1.0)' },
         signal: AbortSignal.timeout(5000),
       });
@@ -106,10 +130,15 @@ async function fetchCashPrice(ticker: string): Promise<CashPrice | null> {
       const price = meta?.regularMarketPrice;
       const asOf = meta?.regularMarketTime;
       if (typeof price === 'number' && typeof asOf === 'number') {
-        const preMarketPrice = numOrNull(meta?.preMarketPrice);
-        const preMarketTime = numOrNull(meta?.preMarketTime);
-        const postMarketPrice = numOrNull(meta?.postMarketPrice);
-        const postMarketTime = numOrNull(meta?.postMarketTime);
+        let preMarketPrice = numOrNull(meta?.preMarketPrice);
+        let preMarketTime = numOrNull(meta?.preMarketTime);
+        let postMarketPrice = numOrNull(meta?.postMarketPrice);
+        let postMarketTime = numOrNull(meta?.postMarketTime);
+        // Meta fields first (if Yahoo brings them back); else the newest bar after the last close.
+        // Which of the two it is (pre or post) is decided by buildTape from the session clock.
+        const bar = extended ? lastBarAfter(json?.chart?.result?.[0], asOf) : null;
+        if (bar && preMarketPrice == null) [preMarketPrice, preMarketTime] = [bar.price, bar.asOfMs / 1000];
+        if (bar && postMarketPrice == null) [postMarketPrice, postMarketTime] = [bar.price, bar.asOfMs / 1000];
         return {
           price,
           asOfMs: asOf * 1000,
@@ -136,7 +165,7 @@ async function buildTape(): Promise<TapeRow[]> {
   const rows = await Promise.all(
     STOCKS.map(async (stock): Promise<TapeRow> => {
       const [cash, poolState] = await Promise.all([
-        fetchCashPrice(stock.cashTicker),
+        fetchCashPrice(stock.cashTicker, sessionState === 'pre-market' || sessionState === 'after-hours'),
         readPoolState(stock).catch(() => null),
       ]);
 
