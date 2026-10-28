@@ -1,0 +1,17 @@
+# Weekly dependency PRs, grouped so they don't flood the repo. Each one runs CI (typecheck, tests,
+# build); merge only after the usual checks, and the wallet/x402/Next majors need a real-browser pass
+# (verify skill) before merging.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
