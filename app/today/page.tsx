@@ -6,7 +6,7 @@ import { ShareButton } from '@/app/components/ShareButton';
 import { unstable_cache } from 'next/cache';
 import { getTape } from '@/lib/tape';
 import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
-import { buildTodaySnapshot } from '@/lib/todaySnapshot';
+import { buildTodaySnapshot, todayReference } from '@/lib/todaySnapshot';
 import { bp, usd, usdCompact, formatDuration, formatNextOpen, gapSizeText } from '@/lib/format';
 import { STOCKS, getStock } from '@/lib/tokens';
 import { getBuyQuoter } from '@/lib/lotQuote';
@@ -95,7 +95,9 @@ export default async function TodayPage() {
   const snapshot = tape ? buildTodaySnapshot(tape) : null;
   const headline = snapshot?.headline ?? null;
   const marketOpen = tape?.session.state === 'open';
-  const headlineBp = headline ? (marketOpen ? headline.basisBp : snapshot?.headlineCloseBasisBp ?? headline.basisBp) : null;
+  // One rule with the home page's hero (todayReference): live cash, a live extended-hours trade, or the close.
+  const ref = headline && tape ? todayReference(headline, tape.session) : null;
+  const headlineBp = ref?.bp ?? null;
 
   const [sizing, leaderboard] = await Promise.all([
     headline ? getSizingInfo(headline.symbol) : Promise.resolve(null),
@@ -141,13 +143,13 @@ export default async function TodayPage() {
                     </div>
                     {headlineBp != null && (
                       <div className="stat-label">
-                        {`The onchain price is ${Math.abs(headlineBp).toFixed(1)} bp ${headlineBp >= 0 ? 'above' : 'below'} the cash ${marketOpen ? 'price' : 'close'}`}
+                        {`The onchain price is ${Math.abs(headlineBp).toFixed(1)} bp ${headlineBp >= 0 ? 'above' : 'below'} the cash ${ref?.word ?? 'close'}`}
                       </div>
                     )}
                   </div>
                   <div className="stat-card">
-                    <div className="stat-value">{usd(marketOpen ? headline.cashLastUsd : headline.closeUsd)}</div>
-                    <div className="stat-label">{marketOpen ? 'Cash price' : 'Cash close'}</div>
+                    <div className="stat-value">{usd(ref?.cashUsd ?? null)}</div>
+                    <div className="stat-label">{ref?.cardLabel ?? 'Cash close'}</div>
                   </div>
                   <div className="stat-card stat-card-onchain">
                     <div className="stat-value">{usd(headline.onchainMidUsd)}</div>
@@ -165,7 +167,7 @@ export default async function TodayPage() {
                       path="/today"
                       card={{ page: 'today', sym: headline.symbol }}
                       fileName={`afterbook-biggest-gap-${headline.symbol}.png`}
-                      text={todayShareText(headline.symbol, headlineBp, marketOpen)}
+                      text={todayShareText(headline.symbol, headlineBp, ref?.word ?? 'close')}
                     />
                   </div>
                 )}

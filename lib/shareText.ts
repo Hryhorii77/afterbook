@@ -46,8 +46,9 @@ export function stockShareText(row: TapeRow | null | undefined, tape: Pick<TapeR
     : 'Cash close vs the onchain price on Aero for Coinbase tokenized stocks on Base.';
 }
 
-export function todayShareText(symbol: string, gapBp: number, marketOpen: boolean): string {
-  return `${symbol} is trading ${gapSizeText(gapBp)} ${gapBp >= 0 ? 'above' : 'below'} the cash ${marketOpen ? 'price' : 'close'} on ${poolVenue(getStock(symbol))}.`;
+/** `reference` ends "the cash …": "price", "close", "after-hours price" (todayReference's word). */
+export function todayShareText(symbol: string, gapBp: number, reference: string): string {
+  return `${symbol} is trading ${gapSizeText(gapBp)} ${gapBp >= 0 ? 'above' : 'below'} the cash ${reference} on ${poolVenue(getStock(symbol))}.`;
 }
 
 export function basketShareText(legs: BasketLeg[], gapBp: number | null, reference: string): string {

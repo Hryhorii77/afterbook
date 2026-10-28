@@ -4,7 +4,7 @@ import { getTape, type TapeResult } from './tape';
 import { getStock } from './tokens';
 import { parseSpec, formatSpec, basketGapBp, basketReferenceLabel } from './customBasket';
 import { getBasketCost } from './basketCost';
-import { buildTodaySnapshot, closeBasisBp } from './todaySnapshot';
+import { buildTodaySnapshot, todayReference } from './todaySnapshot';
 import { stockShareText, todayShareText, basketShareText } from './shareText';
 import type { CardSpec } from './cardUrl';
 import { getBorrowSummary } from './liquidationRisk';
@@ -71,12 +71,11 @@ export async function createShareSnapshot(card: CardSpec): Promise<{ id: string;
   if (card.page === 'stock') {
     text = stockShareText(tape.rows.find((r) => r.symbol === card.sym), tape);
   } else if (card.page === 'today') {
-    const marketOpen = tape.session.state === 'open';
     const row = (card.sym && tape.rows.find((r) => r.symbol === card.sym)) || buildTodaySnapshot(tape).headline;
-    const gap = row ? (marketOpen ? row.basisBp : closeBasisBp(row)) : null;
-    if (!row || gap == null) return null;
+    const ref = row ? todayReference(row, tape.session) : null;
+    if (!row || !ref || ref.bp == null) return null;
     stored = { page: 'today', sym: row.symbol };
-    text = todayShareText(row.symbol, gap, marketOpen);
+    text = todayShareText(row.symbol, ref.bp, ref.word);
   } else if (card.page === 'build') {
     const legs = parseSpec(card.spec)!;
     const cost = await getBasketCost(legs).catch(() => null);
