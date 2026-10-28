@@ -16,8 +16,8 @@
   --panel: #171719;
   --panel-border: #2a2a2e;
   --text: #ffffff;
-  --text-dim: #a9a9b2;
-  --text-dimmer: #9d9da7;
+  --text-dim: #b8b8c0;
+  --text-dimmer: #ababb4;
   --green: #3dd68c;
   --red: #ff5d6c;
   --amber: #e2b15a;
@@ -60,8 +60,8 @@
   --panel: #ffffff;
   --panel-border: #e4e4e1;
   --text: #111318;
-  --text-dim: #474d5a;
-  --text-dimmer: #5a6170;
+  --text-dim: #3e4451;
+  --text-dimmer: #4b5261;
   --green: #15803d;
   --red: #dc2626;
   --amber: #b45309;
@@ -1185,7 +1185,7 @@ section.panel h2 {
 .tape-card-details-wide dd { display: flex; align-items: center; gap: 10px; font-weight: 500; }
 .tape-card-details .mini-spark { width: 120px; height: 36px; }
 .tape-card-spark-text { font-size: 13px; color: var(--text-dim); }
-/* Closed-by-default explainers: "What the columns mean" above the tape, "New here?" in the hero. */
+/* Closed-by-default explainers: "What the columns mean" above the tape, "What the words mean" in the hero. */
 .tape-legend, .explain { margin: 0 0 12px; font-size: 12.5px; color: var(--text-dim); }
 .tape-legend summary, .explain summary { cursor: pointer; width: fit-content; color: var(--info); }
 .tape-legend dl, .explain dl { display: grid; gap: 6px; margin: 8px 0 0; }
@@ -2725,4 +2725,43 @@ section[id],
   .theme-toggle { width: 40px; height: 40px; }
   .site-header-actions .wallet-connect-btn { min-height: 40px; }
   .site-brand { min-width: 0; }
+}
+
+/* ---- Newcomer layer (external review, owner OK 2026-10-28) --------------------------------------- */
+.home-intro { margin: 8px 0 18px; }
+.home-intro h1 { margin: 0; font-size: clamp(24px, 4.2vw, 34px); line-height: 1.2; letter-spacing: -0.02em; font-weight: 600; }
+.home-intro p { margin: 8px 0 0; font-size: 16px; line-height: 1.5; color: var(--text-dim); max-width: 44em; }
+/* The percent leads; bp, the trader's unit, sits beside it smaller. */
+.today-stat-bp { margin-left: 12px; font-size: 0.34em; font-weight: 500; letter-spacing: 0; color: var(--text-dim); white-space: nowrap; }
+.how-steps { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.how-steps li { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--panel-border); border-radius: 12px; background: var(--inset); font-size: 14px; line-height: 1.45; color: var(--text-dim); }
+.how-steps strong { color: var(--text); font-weight: 600; }
+.how-step-n { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 999px; background: var(--accent); color: var(--bg); font-size: 13px; font-weight: 600; }
+@media (max-width: 760px) {
+  .how-steps { grid-template-columns: 1fr; }
+}
+/* Reading text at 14px (it was 12.5-13px). Labels, table headers, the ticker and chips stay compact:
+   they are data, and larger type would crowd the tables. */
+.geo-note,
+.lp-grid .weight-card .geo-note,
+.hero-note,
+.tape-legend,
+.explain,
+.caveat,
+.paste-checklist,
+.toast-body,
+.bell-row-body,
+.bell-foot,
+.site-menu-note,
+.site-menu-foot,
+.wallet-warn,
+.wallet-disconnect-note,
+.footer-tagline,
+.footer-legal p,
+.stat-sub,
+.tape-freshness,
+.gap-hero-sub,
+.how-step p,
+.event-log {
+  font-size: 14px;
 }

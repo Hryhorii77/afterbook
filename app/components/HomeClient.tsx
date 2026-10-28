@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { STOCKS, aerodromeSwapUrl, aerodromeDepositUrl, poolVenue } from '@/lib/tokens';
 import { SwapPanel } from './SwapPanel';
 import type { TapeResult, TapeRow } from '@/lib/tape';
-import { splitByLiquidity, isLiquid, LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
+import { splitByLiquidity, isLiquid, TAPE_MAIN_DEPTH_USD } from '@/lib/liquidity';
 import type { GeoInfo } from '@/lib/geo';
-import { bp, formatWindow, usd, usdCompact, formatNextOpen, gapSizeText } from '@/lib/format';
+import { bp, bpPct, formatWindow, usd, usdCompact, formatNextOpen, gapSizeText } from '@/lib/format';
 import { ImpactCurve } from './ImpactCurve';
 import { DepthChart } from './DepthChart';
 import { computeCashAndCarryEdge, GAS_ESTIMATE_USD } from '@/lib/arb';
@@ -869,7 +869,11 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   // Real, deep pools vs freshly-listed thin ones don't belong at the same
   // visual rank — a $10k pool's basis swings hundreds of bp on noise alone
   // and reads as "the tape is broken" next to NVDAc's single-digit bp.
-  const { liquid: liquidRows, thin: thinRows } = useMemo(() => splitByLiquidity(tape.rows), [tape.rows]);
+  // The tape's two lists: main (pool at least TAPE_MAIN_DEPTH_USD) and smaller pools behind a toggle.
+  const { liquidRows, thinRows } = useMemo(() => {
+    const main = tape.rows.filter((r) => (r.depthUsd ?? 0) >= TAPE_MAIN_DEPTH_USD);
+    return { liquidRows: main, thinRows: tape.rows.filter((r) => !main.includes(r)) };
+  }, [tape.rows]);
   const sortedLiquidRows = useMemo(() => sortRows(liquidRows, sort), [liquidRows, sort]);
   const sortedThinRows = useMemo(() => sortRows(thinRows, sort), [thinRows, sort]);
 
@@ -896,7 +900,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
 
   return (
     <main>
-      <h1 className="sr-only">Afterbook: how far tokenized stocks on Base trade from the cash market</h1>
+      <header className="home-intro">
+        <h1>Stock prices on Base, 24/7, next to the real market</h1>
+        <p>
+          Coinbase&apos;s stock tokens trade around the clock on Aero. See how far each one is from its real stock price
+          and how much is really in its pool, then trade from your own wallet.
+        </p>
+      </header>
 
       {activeRow && (
         <section className="panel today-hero tape-hero" ref={heroRef}>
@@ -916,8 +926,10 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           <div className="today-stats">
             <div className="stat-card stat-card-hero">
               <div className="stat-label" style={{ marginTop: 0 }}>Onchain price vs cash price</div>
+              {/* The percent is the headline (everyone reads %); bp, the trader's unit, sits beside it. */}
               <div className={`today-stat-value ${heroBp != null ? (heroBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
-                {bp(heroBp)}
+                {bpPct(heroBp)}
+                {heroBp != null && <span className="today-stat-bp">{bp(heroBp)}</span>}
               </div>
               {heroBp != null && (
                 <div className="hero-sentence">
@@ -960,9 +972,23 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           <p className="hero-note">
             Onchain price is what the stock token trades for on Aero (formerly Aerodrome), the Base exchange that is open around the clock. 100 basis points (bp) = 1%. No wallet needed to browse; connect one only to see your lots or trade.
           </p>
-          {/* First-visit help that never blocks: closed by default, nothing remembered between visits. */}
+          <ol className="how-steps" aria-label="How Afterbook works">
+            <li>
+              <span className="how-step-n">1</span>
+              <span><strong>See the gap.</strong> The big number: how far the token&apos;s price is from the stock&apos;s.</span>
+            </li>
+            <li>
+              <span className="how-step-n">2</span>
+              <span><strong>Check the pool.</strong> Pool liquidity says how big a trade the price can take.</span>
+            </li>
+            <li>
+              <span className="how-step-n">3</span>
+              <span><strong>Trade from your wallet.</strong> Size it below, then buy or sell. No sign-up.</span>
+            </li>
+          </ol>
+          {/* The words, for whoever wants them: closed by default, nothing remembered between visits. */}
           <details className="explain hero-intro">
-            <summary>New here? How Afterbook works</summary>
+            <summary>What the words mean</summary>
             <dl>
               <div>
                 <dt>Tokenized stocks</dt>
@@ -1018,13 +1044,11 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         <div className="thin-chip">thin book · {usdCompact(activeRow.depthUsd)} depth</div>
       )}
 
+      {/* Hidden until there is something to draw: an empty "not enough history" panel read as broken. */}
+      {(history.length >= 2 || basisStats || openSnap) && (
       <section className="panel">
         <h2>Basis since close · {activeStock.symbol}</h2>
-        {history.length >= 2 ? (
-          <Sparkline samples={history} />
-        ) : (
-          <p className="geo-note">Not enough history yet — this fills in as the app keeps running.</p>
-        )}
+        {history.length >= 2 && <Sparkline samples={history} />}
         {basisStats && (
           <p className="geo-note">
             Last 30 days (market closed): avg {bp(basisStats.meanBp)}, max {bp(basisStats.maxAbsBp)}, {basisStats.count}{' '}
@@ -1039,6 +1063,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           </p>
         )}
       </section>
+      )}
 
       <section className="panel" id="tape">
         <h2>Tape</h2>
@@ -1077,13 +1102,13 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         {thinRows.length > 0 && (
           <div className="thin-books">
             <button className="thin-toggle" onClick={() => setShowThin((v) => !v)}>
-              {showThin ? '▾' : '▸'} {showThin ? 'Hide' : 'Show'} {thinRows.length} thin book{thinRows.length === 1 ? '' : 's'}
+              {showThin ? '▾' : '▸'} {showThin ? 'Hide' : 'Show'} {thinRows.length} smaller pool{thinRows.length === 1 ? '' : 's'}
             </button>
             {showThin && (
               <>
                 <p className="geo-note">
-                  Under {usdCompact(LIQUID_DEPTH_THRESHOLD_USD)} depth — basis here can swing hundreds of bp on thin
-                  trading, not signal.
+                  Under {usdCompact(TAPE_MAIN_DEPTH_USD)} in the pool: the gap here can swing hundreds of bp on small
+                  trades, so it says little.
                 </p>
                 <div className="table-scroll tape-table-desktop">
                   <table className="thin-table">
@@ -1658,10 +1683,18 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           </details>
         )}
         {!eligibleChecked && geo.nonUs && <p className="geo-note">Confirm eligibility to trade.</p>}
-        <p className={`geo-note${geo.country === 'US' ? ' geo-note-blocked' : ''}`} style={{ marginBottom: 2 }}>
-          {geo.country === 'US' ? 'Not available in the US.' : geo.country ? `Detected region: ${geo.country}.` : 'Region could not be detected.'}{' '}
-          Trades are signed in your own wallet; Afterbook never holds your funds.
-        </p>
+        {geo.nonUs !== true ? (
+          // Said plainly and up front: the greyed-out buttons alone read as broken.
+          <p className="geo-note geo-note-blocked" style={{ marginBottom: 2 }}>
+            {geo.country === 'US'
+              ? "Trading is off in the United States: Coinbase's stock tokens aren't offered there. Everything else on Afterbook works."
+              : "Trading is off because we couldn't tell which country you're in (a VPN or privacy setting can hide it). Everything else on Afterbook works."}
+          </p>
+        ) : (
+          <p className="geo-note" style={{ marginBottom: 2 }}>
+            Detected region: {geo.country}. Trades are signed in your own wallet; Afterbook never holds your funds.
+          </p>
+        )}
         <details className="geo-more">
           <summary>More</summary>
           <p className="geo-note">

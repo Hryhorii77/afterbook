@@ -16,6 +16,11 @@
 // screaming "broken" in the hero next to single-digit-bp names. $1M is where
 // today's ten pools actually split into a calm tier and a still-noisy one.
 export const LIQUID_DEPTH_THRESHOLD_USD = 1_000_000;
+/** The tape's main list shows every stock with at least this much pool depth (owner, 2026-10-28);
+ *  smaller pools sit behind "Show N smaller pools". Display only: "liquid" (the $1M line above)
+ *  still decides /today's pick, the thin chip and everything else. With every pool under $1M after
+ *  the Aero move, the $1M line alone left the tape showing one stock of 38. */
+export const TAPE_MAIN_DEPTH_USD = 250_000;
 
 interface HasDepth {
   depthUsd: number | null;

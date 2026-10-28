@@ -81,7 +81,7 @@ No lint script yet. CI (`.github/workflows/ci.yml`) runs `npm run typecheck`, `n
 - **Labels come from data, not the clock:** never label a price "pre-market"/"after-hours" from the session state alone; use each row's `cashPriceType` (the hero, the card and the tape header/note all do). Two labels for one price was a real contradiction.
 - **First screen:** the hero must say the gap as one plain sentence a
   stranger can repeat (name, bp, versus what, when cash reopens), define
-  "Onchain price" and "100 basis points (bp) = 1%" once, and carry one primary button. Don't
+  "Onchain price" and "100 basis points (bp) = 1%" once, and carry one primary button. Above it, a visible heading and one plain sentence say what the site is; the gap's big figure is the percent, with bp beside it smaller; and a visible three-step strip (see the gap, check the pool, trade from your wallet) sits under the hero note, with the word definitions in a closed "What the words mean" (owner OK 2026-10-28, from an external review). The tape's main list shows every pool of at least $250k (`TAPE_MAIN_DEPTH_USD`, display only; the $1M liquid line still decides everything else). Reading text (notes, explanations, toasts, footer prose) is 14px; labels, table headers, the ticker and chips stay compact; the secondary greys were darkened the same day. Don't
   repeat the same numbers in several blocks above the fold. The home page
   opens on the day's biggest liquid gap (same pick as `/today`).
 - **Owner decisions on the look** (don't undo without asking): the
