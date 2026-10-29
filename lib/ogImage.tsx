@@ -7,7 +7,7 @@ import { tileHue } from './symbolStyle';
 import { getTape } from './tape';
 import { splitByLiquidity } from './liquidity';
 import { buildTodaySnapshot, closeBasisBp, todayReference } from './todaySnapshot';
-import { getStock } from './tokens';
+import { getStock, poolVenue } from './tokens';
 import { parseSpec, basketGapBp, basketReferenceLabel } from './customBasket';
 import { getBasketCost } from './basketCost';
 import type { CardTheme } from './cardUrl';
@@ -15,7 +15,7 @@ import type { TapeResult } from './tape';
 import { heroGapBp } from './shareText';
 import { getBorrowSummary } from './liquidationRisk';
 import { aeroExit, venueName, type BorrowSummary } from './borrowSummary';
-import { usdCompact } from './format';
+import { bp as bpSpaced, bpPct, usdCompact } from './format';
 import { getMemeRow, venueLabel, type MemeRow } from './memestocks';
 import { memePrice, pctMove } from './memeFormat';
 
@@ -93,7 +93,8 @@ function Mark({ px }: { px: number }) {
 export const OG_ALT = 'Afterbook: how far tokenized stocks on Base trade from the cash market';
 export const OG_SIZE = { width: 1200, height: 630 };
 
-const usd = (n: number | null) => (n == null ? '—' : `$${n.toFixed(2)}`);
+const usd = (n: number | null) =>
+  n == null ? '—' : `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const bp = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(1)}bp`);
 
 // Drawn by app/card/route.tsx, the one route behind every link preview and "Download card".
@@ -160,20 +161,11 @@ export async function buildOgImage(symbol?: string, theme: CardTheme = 'dark', f
             </div>
           </div>
 
-          <span
-            style={{
-              fontSize: 88,
-              fontWeight: 700,
-              marginTop: 8,
-              color: gapColor(c, focusBp),
-            }}
-          >
-            {bp(focusBp)}
-          </span>
+          <GapFigure c={c} gapBp={focusBp} marginTop={8} />
 
           <div style={{ display: 'flex', gap: 32, marginTop: 12, fontSize: 28, color: c.dim }}>
-            <span>cash {usd(focusCashUsd)}</span>
-            <span>aero {usd(focusRow.onchainMidUsd)}</span>
+            <span>Cash {usd(focusCashUsd)}</span>
+            <span>{poolVenue(getStock(focusRow.symbol))} {usd(focusRow.onchainMidUsd)}</span>
           </div>
 
           {fade && (
@@ -232,10 +224,10 @@ export async function buildOgImage(symbol?: string, theme: CardTheme = 'dark', f
                     color: gapColor(c, row.basisBp),
                   }}
                 >
-                  {bp(row.basisBp)}
+                  {bpPct(row.basisBp)}
                 </span>
-                <span style={{ fontSize: 14, color: c.dim, marginTop: 8 }}>cash {usd(row.cashLastUsd)}</span>
-                <span style={{ fontSize: 14, color: c.dim }}>aero {usd(row.onchainMidUsd)}</span>
+                <span style={{ fontSize: 14, color: c.dim, marginTop: 8 }}>Cash {usd(row.cashLastUsd)}</span>
+                <span style={{ fontSize: 14, color: c.dim }}>{poolVenue(getStock(row.symbol))} {usd(row.onchainMidUsd)}</span>
               </div>
             ))}
           </div>
@@ -297,6 +289,16 @@ function tileColors(cashTicker: string): { background: string; color: string } {
 
 /** The line at the bottom of every card. It sits at the bottom RIGHT on purpose: X draws the image's
  *  alt text as a label in the bottom-left corner of a card, which used to cover this line. */
+/** The big gap figure: the percent, with bp beside it smaller (same as the home page hero). */
+function GapFigure({ c, gapBp, marginTop }: { c: Palette; gapBp: number | null; marginTop: number }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', marginTop, color: gapColor(c, gapBp) }}>
+      <span style={{ fontSize: 88, fontWeight: 700 }}>{bpPct(gapBp)}</span>
+      {gapBp != null && <span style={{ fontSize: 32, fontWeight: 500, color: c.dim, marginLeft: 18, marginBottom: 20 }}>{bpSpaced(gapBp)}</span>}
+    </div>
+  );
+}
+
 function CardFooter({ c }: { c: Palette }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'auto', fontSize: 20, color: c.footer }}>
@@ -388,20 +390,11 @@ export async function buildTodayOgImage(symbol?: string, theme: CardTheme = 'dar
               <span style={{ fontSize: 64, fontWeight: 700, color: c.text, letterSpacing: '-0.02em' }}>{headline.symbol}</span>
             </div>
 
-            <span
-              style={{
-                fontSize: 88,
-                fontWeight: 700,
-                marginTop: 8,
-                color: gapColor(c, headlineBp),
-              }}
-            >
-              {bp(headlineBp)}
-            </span>
+            <GapFigure c={c} gapBp={headlineBp} marginTop={8} />
 
             <div style={{ display: 'flex', gap: 32, marginTop: 12, fontSize: 28, color: c.dim }}>
-              <span>cash {usd(headlineCashUsd)}</span>
-              <span>aero {usd(headline.onchainMidUsd)}</span>
+              <span>Cash {usd(headlineCashUsd)}</span>
+              <span>{poolVenue(getStock(headline.symbol))} {usd(headline.onchainMidUsd)}</span>
             </div>
 
             {fade && (

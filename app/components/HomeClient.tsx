@@ -634,9 +634,9 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
                 <div className="hero-sentence">
                   {/* One string per sentence: separate text pieces read as "4.1 bpbelowthe" to some
                       accessibility tools, which drop the lone spaces between them. */}
-                  {`${shortName(activeRow)} is trading ${gapSizeText(heroBp)} ${heroBp >= 0 ? 'above' : 'below'} `}
+                  {`On ${poolVenue(activeStock)}, ${shortName(activeRow)} is trading ${gapSizeText(heroBp)} ${heroBp >= 0 ? 'above' : 'below'} `}
                   <span className="nowrap">{referenceLabel}</span>
-                  {` on ${poolVenue(activeStock)}.`}
+                  {'.'}
                   {tape.session.state.startsWith('closed') && ` Cash reopens ${formatNextOpen(tape.session.nextOpenIso)}.`}
                 </div>
               )}
