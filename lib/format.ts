@@ -3,7 +3,11 @@
 // so server routes can import it without pulling in client-component
 // context.
 /** A gap in bp as a percent, for the headline figure: -1103 -> "-11.03%", 6.3 -> "+0.06%" (an ASCII minus, like bp()). */
-export const bpPct = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : '-'}${Math.abs(n / 100).toFixed(2)}%`);
+export const bpPct = (n: number | null) => {
+  if (n == null) return '—';
+  const pct = Math.abs(n / 100).toFixed(2);
+  return pct === '0.00' ? '0.00%' : `${n >= 0 ? '+' : '-'}${pct}%`; // never "-0.00%"
+};
 export const bp = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(1)} bp`);
 
 // Fee-APR window durations range from a fraction of an hour (the getLogs
