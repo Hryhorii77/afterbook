@@ -600,7 +600,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
   return (
     <main>
       <header className="home-intro">
-        <h1>Stock prices on Base, 24/7, next to the real market</h1>
+        <h1>Stock prices on Base 24/7 next to the real market</h1>
         <p>
           Coinbase&apos;s stock tokens trade around the clock on Aero. See how far each one is from its real stock price
           and how much is really in its pool, then trade from your own wallet.
