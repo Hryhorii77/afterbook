@@ -49,6 +49,13 @@ const NOT_MEMES = new Set(
     '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf', // cbBTC
     '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb', // DAI
     '0xe5020A6d073a794B6E7f05678707dE47986Fb0b6', // frxUSD
+    // Staked ETH and DeFi majors (checked on-chain 2026-10-31): rETH/TSLAc passed every check and was about to be listed as a meme.
+    '0xB6fe221Fe9EeF5aBa221c348bA20A1Bf5e73624c', // rETH
+    '0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452', // wstETH
+    '0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22', // cbETH
+    '0x04C0599Ae5A44757c0af6F9eC3b93da8976c150A', // weETH
+    '0x63706e401c06ac8513145b7687A14804d17f814b', // AAVE
+    '0x940181a94A35A4569E4529A3CDfB74e38FD98631', // AERO (Aerodrome's token)
   ].map((a) => a.toLowerCase()),
 );
 /** Stablecoins we have not listed by address still read as money, not memes ("frxUSD", "EURC"). */
@@ -67,6 +74,8 @@ export interface MemePool {
   /** Uniswap v4 hook contract when known and not empty (launchpads attach their own). */
   hooks: string | null;
   createdAt: number | null;
+  /** When the daily job last proved this pool (on-chain and sell route); missing on lists saved before 2026-10-31. */
+  verifiedAt?: number;
 }
 
 export interface MemeAllowlist {
@@ -226,7 +235,46 @@ export interface DiscoveryReport {
   candidates: number;
   listed: number;
   rejected: { id: string; symbol: string; reason: string }[];
+  /** Stocks whose Dexscreener lookup failed even after retries; their pools were not re-checked. */
+  failedStocks: string[];
 }
+
+/** One stock's pairs from Dexscreener, retried twice; null if every try failed. */
+async function stockPairs(stock: CbStock): Promise<DexPair[] | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
+    try {
+      return await dex<DexPair[]>(`/token-pairs/v1/base/${stock.tokenAddress}`, 'no-store');
+    } catch (err) {
+      console.warn(`[memes] Dexscreener pairs for ${stock.symbol} failed (try ${attempt + 1})`, err);
+    }
+  }
+  return null;
+}
+
+/**
+ * The new allowlist, keeping the previous run's pools for any stock whose lookup failed this time.
+ * Before 2026-10-31 a failed lookup counted as "no memes": the live list held only the first five
+ * stocks' memes while pools on MSTRc, SPCXc, TSLAc and MUc passed every check.
+ */
+export function carryOverFailed(next: MemeAllowlist, previous: MemeAllowlist | null, failedStocks: string[], now = Date.now()): MemeAllowlist {
+  if (!previous || failedStocks.length === 0) return next;
+  const failed = new Set(failedStocks);
+  const have = new Set(next.pools.map((p) => p.id));
+  const kept = previous.pools.filter(
+    (p) =>
+      failed.has(p.stockSymbol) &&
+      !have.has(p.id) &&
+      // A carried pool is not re-proved, so it expires, and the not-a-meme filters still apply to it.
+      now - (p.verifiedAt ?? previous.checkedAt) <= MEME_CARRY_MAX_AGE_MS &&
+      !NOT_MEMES.has(p.meme.address.toLowerCase()) &&
+      !STABLE_SYMBOL.test(p.meme.symbol),
+  );
+  return { ...next, pools: [...next.pools, ...kept] };
+}
+
+/** A pool kept from an earlier run (its stock's lookup failed) is dropped once its last proof is this old. */
+export const MEME_CARRY_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 
 /** Finds and verifies every meme pool on a tracked stock. Reads only; the caller saves the result. */
 export async function discoverMemePools(): Promise<{ allowlist: MemeAllowlist; report: DiscoveryReport }> {
@@ -234,8 +282,13 @@ export async function discoverMemePools(): Promise<{ allowlist: MemeAllowlist; r
   const coinbase = new Set((await fetchCoinbaseStockList({ cache: 'no-store' })).map((t) => String(t.contract_address ?? '').toLowerCase()));
 
   const candidates: { pair: DexPair; stock: CbStock; meme: `0x${string}` }[] = [];
+  const failedStocks: string[] = [];
   for (const stock of STOCKS) {
-    const pairs = await dex<DexPair[]>(`/token-pairs/v1/base/${stock.tokenAddress}`, 'no-store').catch(() => []);
+    const pairs = await stockPairs(stock);
+    if (pairs === null) {
+      failedStocks.push(stock.symbol);
+      continue;
+    }
     for (const pair of pairs) {
       const stockIsBase = same(pair.baseToken.address, stock.tokenAddress);
       if (!stockIsBase && !same(pair.quoteToken.address, stock.tokenAddress)) continue;
@@ -285,12 +338,17 @@ export async function discoverMemePools(): Promise<{ allowlist: MemeAllowlist; r
         reject('no route back to USDC');
         continue;
       }
-      pools.push({ id, venue, stockSymbol: stock.symbol, meme: { address: meme, ...meta }, verification, hooks, createdAt: pair.pairCreatedAt ?? null });
+      pools.push({ id, venue, stockSymbol: stock.symbol, meme: { address: meme, ...meta }, verification, hooks, createdAt: pair.pairCreatedAt ?? null, verifiedAt: Date.now() });
     } catch {
       reject('on-chain read failed');
     }
   }
-  return { allowlist: { checkedAt: Date.now(), pools }, report: { candidates: candidates.length, listed: pools.length, rejected } };
+  return { allowlist: { checkedAt: Date.now(), pools }, report: { candidates: candidates.length, listed: pools.length, rejected, failedStocks } };
+}
+
+/** The saved allowlist straight from Redis (no cache), for the daily job's carry-over. */
+export async function readSavedMemeAllowlist(): Promise<MemeAllowlist | null> {
+  return fetchAllowlist();
 }
 
 export async function saveMemeAllowlist(list: MemeAllowlist): Promise<void> {
