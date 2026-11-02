@@ -43,10 +43,11 @@ say so in the PR.
 
 When `package.json` or `package-lock.json` changes, also run `npm audit
 --omit=dev` and compare with the last known state in the README's
-"Security model" (as of 2026-10-13: 0 critical, 0 high and 16 moderate, one
-`decode-uri-component` advisory inside WalletConnect; `ws` and `uuid` are pinned
-by `overrides` in `package.json`). A new critical or high
-outside that stack is fixed in the same PR or reported to the owner.
+"Security model" (as of 2026-11-03: 0 critical, 21 high, 3 low, all zod 3, `decode-uri-component`
+and `deepmerge` inside `@coinbase/x402`/`cdp-sdk` and the WalletConnect/Reown/RainbowKit stack, none
+reachable by a caller on our server; `ws`, `uuid`, `postcss` and `follow-redirects` are pinned by
+`overrides` in `package.json`). A new critical, or a high outside that stack, is fixed in the same PR
+or reported to the owner.
 
 ## 4. Commit and open the PR
 
