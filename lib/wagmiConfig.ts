@@ -8,6 +8,7 @@ import {
   okxWallet,
   zerionWallet,
   walletConnectWallet,
+  base as baseAccountWallet,
 } from '@rainbow-me/rainbowkit/wallets';
 import { fallback, http } from 'viem';
 import { base } from 'viem/chains';
@@ -20,16 +21,12 @@ import { base } from 'viem/chains';
 // not through this transport directly.
 const transport = fallback([http('https://mainnet.base.org'), http('https://base-rpc.publicnode.com')]);
 
-// A custom wallet list rather than RainbowKit's built-in default: its
-// default list includes a "Base" entry backed by wagmi/connectors'
-// baseAccount connector, which pulls in @base-org/account -> @coinbase/
-// cdp-sdk -> a dynamic import of @x402/svm/exact/client (Solana) that
-// isn't installed here (this app is EVM/Base-only, and already has its own
-// unrelated @x402/* deps for the x402 payment routes) — Turbopack's SSR
-// bundling of that chain fails the build outright. Confirmed via each
-// connector's own source that only that one entry touches cdp-sdk;
-// coinbaseWallet below is the classic Coinbase Wallet SDK connector and is
-// unaffected. injectedWallet is the generic catch-all so any installed
+// A custom wallet list rather than RainbowKit's built-in default. Base Account (RainbowKit's `base`
+// wallet: sign in with a passkey, no seed phrase) comes first (owner, 2026-11-03). It pulls in
+// @base-org/account -> @coinbase/cdp-sdk, whose Solana path imports @x402/svm, which isn't
+// installed; `serverExternalPackages` in next.config.js keeps the build from bundling into it, and
+// that path is never called here (it was left out until 2026-11-03 for that build error).
+// coinbaseWallet below is the classic Coinbase Wallet SDK connector. injectedWallet is the generic catch-all so any installed
 // extension RainbowKit doesn't have a named definition for (beyond the
 // EIP-6963-autodetected ones already in this list) still shows up under
 // "Installed" instead of being invisible.
@@ -73,20 +70,21 @@ const onPhone = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.
 const hasInjectedProvider = typeof window !== 'undefined' && Boolean((window as { ethereum?: unknown }).ethereum);
 const extensionWalletsUseless = onPhone && !hasInjectedProvider;
 
-const wallets = [
-  {
-    groupName: 'Popular',
-    wallets: [
-      ...(extensionWalletsUseless ? [] : [injectedWallet]),
-      coinbaseWallet,
-      ...(extensionWalletsUseless ? [] : [rabbyWallet]),
-      ...(hasWalletConnectProjectId ? [rainbowWallet] : []),
-    ],
-  },
-  ...(hasWalletConnectProjectId
-    ? [{ groupName: 'More', wallets: [trustWallet, okxWallet, zerionWallet, walletConnectWallet] }]
-    : []),
-];
+// On a phone with no injected provider (a normal phone browser) the list is just Base Account and
+// WalletConnect: Base Account signs in with a passkey in a Coinbase web window, and WalletConnect
+// opens its own All Wallets window (MetaMask, Rabby, Trust...), which is what Connect opened directly
+// on phones until 2026-11-03. RainbowKit's per-wallet entries (Rainbow, Trust...) are left out there.
+const wallets = extensionWalletsUseless
+  ? [{ groupName: 'Popular', wallets: [baseAccountWallet, ...(hasWalletConnectProjectId ? [walletConnectWallet] : [])] }]
+  : [
+      {
+        groupName: 'Popular',
+        wallets: [baseAccountWallet, injectedWallet, coinbaseWallet, rabbyWallet, ...(hasWalletConnectProjectId ? [rainbowWallet] : [])],
+      },
+      ...(hasWalletConnectProjectId
+        ? [{ groupName: 'More', wallets: [trustWallet, okxWallet, zerionWallet, walletConnectWallet] }]
+        : []),
+    ];
 
 export const wagmiConfig = getDefaultConfig({
   appName: 'Afterbook',
@@ -95,7 +93,7 @@ export const wagmiConfig = getDefaultConfig({
   chains: [base],
   transports: { [base.id]: transport },
   ssr: true,
-  // WalletConnect's own wallet window (opened directly on phones, see WalletConnectButton) lists
+  // WalletConnect's own wallet window (the WalletConnect entry; on phones the second of two) lists
   // these first, in this order, before the search over hundreds of others. Ids come from
   // WalletConnect's registry (api.web3modal.org/getWallets?search=<name>).
   walletConnectParameters: {

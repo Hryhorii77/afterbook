@@ -1,24 +1,21 @@
 import { getTape } from '@/lib/tape';
 import { getGeoInfo } from '@/lib/geo';
 import { buildTodaySnapshot } from '@/lib/todaySnapshot';
-import HomeClient from './components/HomeClient';
+import TradeHome from './components/TradeHome';
 import { shareMetadata } from '@/lib/shareMeta';
 
 export const metadata = shareMetadata({
   title: 'Afterbook',
-  description: "How far Coinbase's tokenized stocks on Base trade from the cash market, live, in shares, with real pool depth. Trade them from your own wallet.",
+  description: 'Buy, borrow and earn with tokenized stocks on Base, 24/7, priced next to the real stock market. Trade from your own wallet.',
   path: '/',
   card: { page: 'home' },
 });
 
-// Fetching real data here (instead of leaving the whole page client-rendered)
-// means the server-rendered HTML already has real numbers and real geo
-// detection in it — curling the URL, or a crawler/judge viewing source,
-// doesn't see empty dashes and "region could not be detected" that only
-// resolve after client JS hydrates.
+// Real data in the server HTML (prices, the market's state, the region check), so a crawler or a
+// slow phone sees numbers rather than dashes. The tape page this used to be is /markets.
 export default async function Page() {
   const [tape, geo] = await Promise.all([getTape(), getGeoInfo()]);
-  // Lead with the biggest liquid gap (the pick /today uses), not whichever stock is listed first.
+  // The card opens on the day's biggest liquid gap (the pick /today uses).
   const initialSymbol = buildTodaySnapshot(tape).headline?.symbol;
-  return <HomeClient initialTape={tape} initialGeo={geo} initialSymbol={initialSymbol} />;
+  return <TradeHome initialTape={tape} initialGeo={geo} initialSymbol={initialSymbol} />;
 }
