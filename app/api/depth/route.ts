@@ -3,8 +3,11 @@ import { getStock } from '@/lib/tokens';
 import { getCachedPoolState, getClient, ERC20_ABI, MULTIPLIER_ONE } from '@/lib/quote';
 import { getCachedLiquidityDistribution } from '@/lib/depth';
 import { computeFeeAprWithFallback } from '@/lib/feeApr';
+import { limitRead } from '@/lib/readGuard';
 
 export async function GET(request: Request) {
+  const limited = limitRead(request, 'depth');
+  if (limited) return limited;
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get('symbol') ?? '';
 
