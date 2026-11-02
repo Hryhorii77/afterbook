@@ -135,6 +135,7 @@ await p.setExtraHTTPHeaders({ 'x-vercel-ip-country': 'DE' });                   
 await p.goto('http://localhost:3000/baskets', { waitUntil: 'networkidle2' });
 ```
 
+- **Check phones in WebKit too, not only Chrome.** On 2026-11-03 the home page's top-stocks table looked fine in headless Chrome at 390px, while on the owner's iPhone Safari drew the stock names under the prices. Install Playwright in the scratchpad (`npm install playwright && npx playwright install webkit`), load the page with `webkit.launch()` and `devices['iPhone 15']`, `devices['iPhone SE']` (320px) and `devices['iPhone 15 Pro Max']`, and compare text boxes (`document.createRange().selectNodeContents(el).getBoundingClientRect()`) for overlaps, besides the overflow check. Reproduce a reported bug on the live site first, so you know the check can catch it.
 - Run against a **production build** (`npm run build && npx next start
   -p <port>`), not `next dev` (see the wallet-modal CPU gotcha below).
   Run it with `.env.local` loaded if the page needs Redis/Glider
