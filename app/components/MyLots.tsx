@@ -253,7 +253,7 @@ export function MyLotsContent({
   );
 }
 
-export function MyLots() {
+export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
   // wagmi/RainbowKit own the actual connection (which wallet, which
   // account, the picker modal, reconnect-on-reload) — this component just
   // reacts to the resulting address, same as it reacted to its own local
@@ -324,7 +324,7 @@ export function MyLots() {
 
   return (
     <section className="panel">
-      <h2>My Lots</h2>
+      <h2>{title}</h2>
 
       {!address ? (
         <>

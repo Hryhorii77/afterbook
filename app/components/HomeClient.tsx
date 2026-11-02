@@ -13,7 +13,6 @@ import { computeCashAndCarryEdge, GAS_ESTIMATE_USD } from '@/lib/arb';
 import { computeInRangeProbabilityPct, IN_RANGE_HORIZON_DAYS, solveImpliedHorizonDays } from '@/lib/volatilityMath';
 import { capitalEfficiencyMultiplier, computeDivergenceLossAtBoundary, computeLiquidityConcentrationRange, rangeAprPct } from '@/lib/lpRange';
 import { Sparkline } from './Sparkline';
-import { MyLots } from './MyLots';
 import { SymbolTile } from './SymbolTile';
 import { ShareButton } from './ShareButton';
 import { SessionPill } from './SessionPill';
@@ -837,8 +836,6 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
           </ul>
         </section>
       )}
-
-      <MyLots />
 
       <section className="panel" id="lot-lab">
         <h2>Trade calculator</h2>

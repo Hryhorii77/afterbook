@@ -76,7 +76,7 @@ export default async function StocksPage() {
         </Link>
       </p>
       <p className="geo-note">
-        <Link href="/" className="page-link">
+        <Link href="/markets" className="page-link">
           Open the Tape<span className="arrow">→</span>
         </Link>
       </p>
