@@ -7,22 +7,46 @@ interface LimitResult {
   reset: number;
 }
 
+/** A fixed-window count kept in this server instance's memory: no Redis request, so it can sit on
+ *  routes every open tab polls (CLAUDE.md, Redis budget). Each warm instance counts on its own, so it
+ *  is a brake on one client hammering a route, not an exact limit. */
+export class MemoryLimiter {
+  private readonly windows = new Map<string, { start: number; count: number }>();
+  constructor(
+    private readonly tokens: number,
+    private readonly windowMs: number,
+  ) {}
+  limit(key: string, now = Date.now()): LimitResult {
+    const w = this.windows.get(key);
+    if (!w || now - w.start >= this.windowMs) {
+      if (this.windows.size > 10_000) {
+        for (const [k, v] of this.windows) if (now - v.start >= this.windowMs) this.windows.delete(k);
+      }
+      this.windows.set(key, { start: now, count: 1 });
+      return { success: true, reset: now + this.windowMs };
+    }
+    w.count += 1;
+    return { success: w.count <= this.tokens, reset: w.start + this.windowMs };
+  }
+}
+
 /** An Upstash limiter that keeps working when Redis doesn't. On 2026-10-18 the Upstash plan hit its
  *  monthly request cap and every `.limit()` threw, which took swaps, Baskets and Share down with a
  *  500. Now a Redis error falls back to a per-instance count with the same rate: looser (each
  *  serverless instance counts on its own), but the routes stay up. */
 class SafeLimiter {
   private readonly upstash: Ratelimit;
-  private readonly local = new Map<string, { start: number; count: number }>();
+  private readonly local: MemoryLimiter;
   constructor(
     prefix: string,
-    private readonly tokens: number,
+    tokens: number,
     window: Duration,
-    private readonly windowMs: number,
+    windowMs: number,
     /** Tokens per window for the in-memory count. Lower than `tokens` where the limit guards a shared
      *  outside budget (KyberSwap, Glider): every warm instance counts on its own. */
-    private readonly fallbackTokens = tokens,
+    fallbackTokens = tokens,
   ) {
+    this.local = new MemoryLimiter(fallbackTokens, windowMs);
     this.upstash = new Ratelimit({ redis: redis!, limiter: Ratelimit.slidingWindow(tokens, window), prefix });
   }
   async limit(key: string): Promise<LimitResult> {
@@ -31,21 +55,8 @@ class SafeLimiter {
       return { success, reset };
     } catch (err) {
       console.error('rate limiter: Redis unavailable, counting in memory', err instanceof Error ? err.message : err);
-      return this.limitLocally(key);
+      return this.local.limit(key);
     }
-  }
-  private limitLocally(key: string): LimitResult {
-    const now = Date.now();
-    const w = this.local.get(key);
-    if (!w || now - w.start >= this.windowMs) {
-      if (this.local.size > 10_000) {
-        for (const [k, v] of this.local) if (now - v.start >= this.windowMs) this.local.delete(k);
-      }
-      this.local.set(key, { start: now, count: 1 });
-      return { success: true, reset: now + this.windowMs };
-    }
-    w.count += 1;
-    return { success: w.count <= this.fallbackTokens, reset: w.start + this.windowMs };
   }
 }
 
@@ -80,3 +91,12 @@ export const shareLimiter = redis ? new SafeLimiter('ratelimit:share', 20, '10 m
 // /api/swap/* calls KyberSwap's public API (3 requests/s shared by every visitor, from our server's IP),
 // so one visitor's open swap panel (a quote every 15 s plus builds) must not use it up for everyone.
 export const swapLimiter = redis ? new SafeLimiter('ratelimit:swap', 30, '1 m', MINUTE, 15) : null;
+
+// Public read routes that cost chain reads (and, for history, a Redis read) per call. In memory, not
+// Redis: these are polled by every open tab. Generous next to what the app itself sends (My Lots reads
+// /api/lots once per wallet; the tape page polls the others once a minute and on a stock change).
+export const readLimiters = {
+  lots: new MemoryLimiter(10, MINUTE),
+  basename: new MemoryLimiter(20, MINUTE),
+  read: new MemoryLimiter(60, MINUTE),
+};

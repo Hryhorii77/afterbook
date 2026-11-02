@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPriceHistory } from '@/lib/volatility';
+import { limitRead } from '@/lib/readGuard';
 
 export const revalidate = 0;
 
@@ -10,6 +11,8 @@ const LOOKBACK_MS = 30 * 24 * 60 * 60_000;
 // of the Lot Lab range selector — hitting a route per pixel of movement
 // isn't viable, so this ships the samples once per symbol instead.
 export async function GET(request: NextRequest) {
+  const limited = limitRead(request, 'price-history');
+  if (limited) return limited;
   const symbol = request.nextUrl.searchParams.get('symbol');
   if (!symbol) {
     return NextResponse.json({ error: 'symbol required' }, { status: 400 });

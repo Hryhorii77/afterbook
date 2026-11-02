@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getHistory } from '@/lib/history';
+import { limitRead } from '@/lib/readGuard';
 
 export const revalidate = 0;
 
 const DEFAULT_LOOKBACK_MS = 24 * 60 * 60_000;
 
 export async function GET(request: NextRequest) {
+  const limited = limitRead(request, 'history');
+  if (limited) return limited;
   const symbol = request.nextUrl.searchParams.get('symbol');
   if (!symbol) {
     return NextResponse.json({ error: 'symbol required' }, { status: 400 });

@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isAddress } from 'viem';
 import { getTape } from '@/lib/tape';
 import { getMyLots } from '@/lib/lots';
+import { limitRead } from '@/lib/readGuard';
 
 export const revalidate = 0;
 
 export async function GET(request: NextRequest) {
+  const limited = limitRead(request, 'lots', 'lots');
+  if (limited) return limited;
   const address = request.nextUrl.searchParams.get('address');
   if (!address || !isAddress(address)) {
     return NextResponse.json({ error: 'valid address required' }, { status: 400 });

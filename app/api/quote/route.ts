@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getStock } from '@/lib/tokens';
 import { getBuyQuoter } from '@/lib/lotQuote';
+import { limitRead } from '@/lib/readGuard';
 
 export async function GET(request: Request) {
+  const limited = limitRead(request, 'quote');
+  if (limited) return limited;
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get('symbol') ?? '';
   const usdcInRaw = searchParams.get('usdcIn') ?? '';
