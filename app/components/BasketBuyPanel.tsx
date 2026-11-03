@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { formatUnits, type Hex } from 'viem';
 import { KYBER_ROUTER, type SwapTx } from '@/lib/swap';
 import { USDC } from '@/lib/tokens';
@@ -261,15 +262,15 @@ export function BasketBuyPanel({ legs, stocks, onBusy }: { legs: BasketLeg[]; st
       {approvedFor && !rest && !review && !busy && (
         <p className="geo-note">
           The router may still be approved to spend {fmt(approvedFor.reduce((s, l) => s + l.amountIn, BigInt(0)), USDC.decimals, 2)} USDC from your wallet.
-          Reviewing this basket again uses it, or you can set the approval back to zero in your wallet.
+          Reviewing this basket again uses it, or you can revoke it on <Link href="/portfolio#approvals" className="emph-link">Portfolio</Link>.
         </p>
       )}
       {rest && rest.length > 0 && !review && (
         <>
           <p className="geo-note">
             {bought.length > 0 ? `You hold what was bought above. ` : ''}Not bought: {rest.map((l) => `${l.symbol} (${fmt(l.amountIn, USDC.decimals, 2)} USDC)`).join(', ')}. The
-            router may still be approved to spend that USDC from your wallet; buying the rest uses it, or you can set the approval back to zero in your
-            wallet.
+            router may still be approved to spend that USDC from your wallet; buying the rest uses it, or you can revoke it on{' '}
+            <Link href="/portfolio#approvals" className="emph-link">Portfolio</Link>.
           </p>
           <div className="basket-row">
             <button type="button" className="btn" onClick={() => startReview(rest)} disabled={busy !== null}>

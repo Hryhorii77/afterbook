@@ -1,6 +1,6 @@
 ---
 name: real-money-reviewer
-description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/BasketPanel.tsx), in-app swaps (lib/swap.ts, lib/swapGuard.ts, lib/swapLog.ts, app/api/swap/*, app/components/useSwapWallet.ts and the panels that use it: SwapPanel.tsx, MemeBuyPanel.tsx, BasketBuyPanel.tsx, BasketSellPanel.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
+description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/BasketPanel.tsx), in-app swaps (lib/swap.ts, lib/swapGuard.ts, lib/swapLog.ts, app/api/swap/*, app/components/useSwapWallet.ts and the panels that use it: SwapPanel.tsx, MemeBuyPanel.tsx, BasketBuyPanel.tsx, BasketSellPanel.tsx, RouterApprovals.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -72,8 +72,9 @@ check passes, say so in one short line; do not pad.
   `SLIPPAGE_BPS` of the quote, fee = `swapFee()` (or no fee arrays when off),
   empty permit. A removed or weakened check is a finding.
 - Approvals have one call site, `approveExact` in `app/components/useSwapWallet.ts`
-  (used by SwapPanel, MemeBuyPanel, BasketBuyPanel, BasketSellPanel): only
-  `KYBER_ROUTER`, only the exact reviewed amount, with `BUILDER_CODE_SUFFIX`;
+  (used by SwapPanel, MemeBuyPanel, BasketBuyPanel, BasketSellPanel, and by
+  `revokeRouter` for Portfolio's Revoke in `RouterApprovals.tsx`, which must
+  always pass 0): only `KYBER_ROUTER`, only the exact reviewed amount (or 0), with `BUILDER_CODE_SUFFIX`;
   anything unlimited (`maxUint256`), another spender or a second approve call
   site is a finding. The client re-checks `to`/`spender` against `KYBER_ROUTER`
   (`buildSwap`), and `sendSwap` (the one swap call site) re-checks `to` and

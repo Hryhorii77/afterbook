@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useAccount, useReadContracts } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { erc20Abi, getAddress, type Hex } from 'viem';
@@ -275,7 +276,7 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
       {approvedLeft && !busy && (
         <p className="geo-note">
           The router may still be approved to spend {fmt(approvedLeft.amountIn, stockOf(approvedLeft.symbol).decimals)} {approvedLeft.symbol} from your wallet.
-          Selling the rest uses it, or you can set the approval back to zero in your wallet.
+          Selling the rest uses it, or you can revoke it on <Link href="/portfolio#approvals" className="emph-link">Portfolio</Link>.
         </p>
       )}
       {rest && rest.length > 0 && !review && (
