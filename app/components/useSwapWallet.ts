@@ -1,7 +1,8 @@
 'use client';
 
 // The wallet side of every in-app swap, shared by the four swap panels (SwapPanel: one stock;
-// MemeBuyPanel: one meme; BasketBuyPanel and BasketSellPanel: one swap per /build leg). It holds the
+// MemeBuyPanel: one meme; BasketBuyPanel and BasketSellPanel: one swap per /build leg) and by
+// Portfolio's Revoke (RouterApprovals: revokeRouter, an approval of zero). It holds the
 // rules that must be the same everywhere, so they live in one place:
 // - approvals are for the exact amount, only for KyberSwap's router, never unlimited;
 // - every approval and swap carries Afterbook's Builder Code (approve: `dataSuffix`; the swap goes
@@ -100,7 +101,13 @@ export function useSwapWallet() {
     return hash;
   };
 
-  return { address, ensureBase, routerAllowance, approveExact, sendSwap };
+  /** Sets the router's allowance for `token` back to zero (Portfolio's Revoke): approve(router, 0). */
+  const revokeRouter = async (token: `0x${string}`, revertedMessage: string, onSigned?: () => void) => {
+    await ensureBase();
+    await approveExact(token, BigInt(0), revertedMessage, onSigned);
+  };
+
+  return { address, ensureBase, routerAllowance, approveExact, sendSwap, revokeRouter };
 }
 
 /** Wording for a run that stops: what the panel says and what the toast says. */
