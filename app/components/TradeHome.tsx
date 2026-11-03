@@ -15,7 +15,7 @@ import { SymbolTile } from './SymbolTile';
 // the market's state, the five deepest stocks and one action card (Swap, Borrow, Lend). The tape,
 // the calculators and each stock's history moved to /markets. Swap is a real in-app trade (the same
 // SwapPanel and eligibility check as before); Borrow links to the in-app Aave loan on /borrow (and
-// Morpho's own site); Lend opens Aave, and says so.
+// Morpho's own site); Lend links to the in-app Aave deposit on /borrow#lend-here (and Aave's site).
 
 const TOP_N = 5;
 const AAVE_URL = 'https://app.aave.com/';
@@ -256,7 +256,7 @@ export default function TradeHome({ initialTape, initialGeo, initialSymbol }: { 
               </p>
               <div className="basket-row">
                 <Link href="/borrow#borrow-here" className="btn">
-                  Borrow here
+                  Borrow
                 </Link>
                 <Link href="/borrow#check" className="btn btn-secondary">
                   Check a loan
@@ -276,20 +276,20 @@ export default function TradeHome({ initialTape, initialGeo, initialSymbol }: { 
             <div role="tabpanel" aria-label="Lend">
               <h2 className="action-title">Earn on idle USDC</h2>
               <p className="geo-note" style={{ marginTop: 0 }}>
-                Lend USDC to people who borrow against stock tokens, and earn their interest. On Aave that is the Equities Hub&apos;s
-                USDC pool, not Aave&apos;s main USDC market, so check which one you supply to. Its current rate is on the Borrow page.
+                Lend USDC to people who borrow against stock tokens, and earn their interest. It goes into Aave&apos;s Equities pool on
+                Base (not Aave&apos;s main USDC market), from your own wallet; the current rate is on the page.
               </p>
               <div className="basket-row">
-                <a href={AAVE_URL} target="_blank" rel="noopener noreferrer" className="btn">
+                <Link href="/borrow#lend-here" className="btn">
+                  Lend
+                </Link>
+                <a href={AAVE_URL} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
                   Open on Aave&nbsp;<span className="ext-arrow">↗</span>
                 </a>
-                <Link href="/borrow" className="btn btn-secondary">
-                  See rates
-                </Link>
               </div>
               <p className="action-foot">
-                Lending happens on Aave&apos;s own site, not in Afterbook. It is not risk-free: if a loan&apos;s stock can&apos;t be sold
-                fast enough when its price falls, lenders can lose money.
+                It is not risk-free: withdrawals can wait while borrowers use most of the pool, and if a loan&apos;s stock can&apos;t be
+                sold fast enough when its price falls, lenders can lose money.
               </p>
             </div>
           )}
