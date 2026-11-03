@@ -151,3 +151,30 @@ export function borrowCalls(account: `0x${string}`, opts: { stock?: AaveReserve;
   if (borrow > BigInt(0)) calls.push(encodeFunctionData({ abi: SPOKE_ABI, functionName: 'borrow', args: [BigInt(opts.usdc.reserveId), borrow, who] }));
   return calls;
 }
+
+// ---- Lending: deposit USDC into the same pool the loans borrow from (owner, 2026-11-03).
+// Verified in the same deployed source: supply pulls from msg.sender into the hub and never turns the
+// reserve on as collateral (USDC's collateral factor on this spoke is 0 anyway); withdraw pays
+// msg.sender, takes at most what the wallet has supplied, and runs the health check only for a reserve
+// used as collateral, so lending never touches a loan's health. A withdrawal can only take what the hub
+// has free: when borrowers have drawn most of the pool it reverts until loans are repaid.
+
+/** Largest USDC deposit per action (owner, 2026-11-03: same as a swap and a borrow). */
+export const MAX_LEND_USD = 25_000;
+
+export const HUB_ABI = parseAbi(['function getAssetLiquidity(uint256 assetId) view returns (uint256)']);
+
+/** Most USDC (raw) a lender can take out now: what they supplied, at most what the pool has free. */
+export function maxLendWithdrawRaw(suppliedRaw: bigint, poolLiquidityRaw: bigint): bigint {
+  return suppliedRaw < poolLiquidityRaw ? suppliedRaw : poolLiquidityRaw;
+}
+
+/** Free pool USDC a MAX withdrawal must leave spare (0.1% of the deposit plus one dollar), so interest
+ *  added since the read or a small draw by borrowers doesn't make it revert. */
+const MAX_WITHDRAW_SPARE = (suppliedRaw: bigint) => suppliedRaw / BigInt(1000) + BigInt(1_000_000);
+
+/** The withdraw amount to send: MAX_UINT256 ("everything, interest included up to the block") when the
+ *  lender takes all they have and the pool can comfortably pay it, else the exact amount. */
+export function lendWithdrawArg(amountRaw: bigint, suppliedRaw: bigint, poolLiquidityRaw: bigint): bigint {
+  return amountRaw >= suppliedRaw && suppliedRaw + MAX_WITHDRAW_SPARE(suppliedRaw) <= poolLiquidityRaw ? MAX_UINT256 : amountRaw;
+}

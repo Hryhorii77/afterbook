@@ -9,6 +9,7 @@ import { getGeoInfo } from '@/lib/geo';
 import { getStock, USDC } from '@/lib/tokens';
 import { getAaveStockLending } from '@/lib/aave';
 import { AaveBorrowSection } from '@/app/components/AaveBorrowSection';
+import { AaveLendSection } from '@/app/components/AaveLendSection';
 import type { AaveReserve } from '@/lib/aaveBorrow';
 import { bp, usdCompact } from '@/lib/format';
 import { shareMetadata } from '@/lib/shareMeta';
@@ -120,6 +121,9 @@ export default async function BorrowPage() {
               poolLiquidityUsd={aaveFree}
               borrowApr={aave.hub.borrowApr}
             />
+          )}
+          {aave && aaveUsdc && (
+            <AaveLendSection geo={geo} usdc={aaveUsdc} usdcAssetId={aave.usdcAssetId} supplyApr={aave.hub.supplyApr} utilization={aave.hub.utilization} />
           )}
 
           <section className="panel">

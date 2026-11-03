@@ -1,6 +1,6 @@
 ---
 name: real-money-reviewer
-description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/BasketPanel.tsx), in-app swaps (lib/swap.ts, lib/swapGuard.ts, lib/swapLog.ts, app/api/swap/*, app/components/useSwapWallet.ts and the panels that use it: SwapPanel.tsx, MemeBuyPanel.tsx, BasketBuyPanel.tsx, BasketSellPanel.tsx, RouterApprovals.tsx), in-app Aave borrowing (lib/aaveBorrow.ts, app/components/AaveBorrowPanel.tsx, AaveBorrowSection.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
+description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/BasketPanel.tsx), in-app swaps (lib/swap.ts, lib/swapGuard.ts, lib/swapLog.ts, app/api/swap/*, app/components/useSwapWallet.ts and the panels that use it: SwapPanel.tsx, MemeBuyPanel.tsx, BasketBuyPanel.tsx, BasketSellPanel.tsx, RouterApprovals.tsx), in-app Aave borrowing and lending (lib/aaveBorrow.ts, app/components/AaveBorrowPanel.tsx, AaveBorrowSection.tsx, AaveLendPanel.tsx, AaveLendSection.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -76,8 +76,8 @@ check passes, say so in one short line; do not pad.
   `revokeRouter` for Portfolio's Revoke in `RouterApprovals.tsx`, which must
   always pass 0): only `KYBER_ROUTER`, only the exact reviewed amount (or 0), with `BUILDER_CODE_SUFFIX`;
   anything unlimited (`maxUint256`), another spender or a second router
-  approve call site is a finding. (The Aave spoke's approvals are the other,
-  separate call site: see the Aave bullet below.) The client re-checks `to`/`spender` against `KYBER_ROUTER`
+  approve call site is a finding. (The Aave spoke's approvals are separate:
+  see the Aave bullets below.) The client re-checks `to`/`spender` against `KYBER_ROUTER`
   (`buildSwap`), and `sendSwap` (the one swap call site) re-checks `to` and
   appends the suffix.
 - A stock buy is refused above the lower of `MAX_SWAP_USD` and `MAX_BUY_DEPTH_SHARE` of its live pool depth (`poolDepthUsd` checked in `getRoute`, so quote, build and basket legs all hit it; it refuses when the depth can't be read). Raising or removing it is a finding.
@@ -122,8 +122,9 @@ check passes, say so in one short line; do not pad.
 - If the swap code changed, `.claude/skills/verify/swap-check.mts` must still
   pass (say if it was not run).
 - In-app Aave borrowing (`lib/aaveBorrow.ts`, `AaveBorrowPanel.tsx`):
-  only the MAG7 spoke `AAVE_MAG7_SPOKE`; spoke approvals have one call site,
-  `approveSpoke` in `AaveBorrowPanel.tsx`, and are exact (the added
+  only the MAG7 spoke `AAVE_MAG7_SPOKE`; spoke approvals have one call site per
+  panel, `approveSpoke` in `AaveBorrowPanel.tsx` and in `AaveLendPanel.tsx`
+  (any other is a finding); the borrow panel's are exact (the added
   stock, the repay amount, or the debt plus `REPAY_ALL_BUFFER_BPS` and one
   unit for "All") and name only the spoke; every spoke call passes
   `onBehalfOf` = the connected account (`borrowCalls` and the repay/withdraw
@@ -137,6 +138,17 @@ check passes, say so in one short line; do not pad.
   the protocol limit; widening past it or removing the region/eligibility
   gate is a finding). A new spoke function or ABI change needs the deployed
   source re-checked (the `verify-deployed-contract-version` skill).
+- In-app Aave lending (`AaveLendPanel.tsx`, the lending part of
+  `lib/aaveBorrow.ts`): only the USDC reserve of the same spoke; the one
+  approval call site is `approveSpoke` in `AaveLendPanel.tsx`, exactly the
+  deposit, spender the spoke; `supply` and `withdraw` pass `onBehalfOf` = the
+  connected account and the Builder Code; deposits capped at `MAX_LEND_USD`
+  and the balance; withdrawals at what was supplied and the hub's free
+  liquidity, `MAX` only for a full withdrawal with a margin of free liquidity
+  (`lendWithdrawArg`); amounts are re-read just before the first wallet call;
+  the panel pauses when the USDC reserve's token, decimals, hub or asset id
+  differ, the reserve is paused, or the wallet has USDC turned on as
+  collateral (set elsewhere); the region/eligibility gate stays.
 
 **Basket universe**
 - The basket is `BASKET_SYMBOLS` in `lib/baskets/tilt.ts`, not `STOCKS`.

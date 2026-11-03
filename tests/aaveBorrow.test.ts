@@ -8,6 +8,10 @@ import {
   fallToLiquidation,
   healthFactor,
   LIMIT_MARGIN,
+  lendWithdrawArg,
+  MAX_LEND_USD,
+  MAX_UINT256,
+  maxLendWithdrawRaw,
   MAX_BORROW_USD,
   maxBorrowRaw,
   maxWithdrawRaw,
@@ -112,5 +116,24 @@ describe('USDC priced by the oracle', () => {
     const max = maxBorrowRaw(p, 1e9);
     const after = withChange(p, { borrowRaw: max });
     expect(healthFactor(after)).toBeGreaterThanOrEqual(1 / (1 - LIMIT_MARGIN) - 1e-9);
+  });
+});
+
+describe('lending', () => {
+  it('withdraw is capped by what the pool has free', () => {
+    expect(maxLendWithdrawRaw(usdc(100), usdc(1_000))).toBe(usdc(100));
+    expect(maxLendWithdrawRaw(usdc(5_000), usdc(1_000))).toBe(usdc(1_000));
+    expect(maxLendWithdrawRaw(BigInt(0), usdc(1_000))).toBe(BigInt(0));
+  });
+  it('sends MAX only for a full withdrawal the pool can pay', () => {
+    expect(lendWithdrawArg(usdc(100), usdc(100), usdc(1_000))).toBe(MAX_UINT256);
+    expect(lendWithdrawArg(usdc(50), usdc(100), usdc(1_000))).toBe(usdc(50));
+    // Pool short: never MAX (it would revert anyway); the exact amount the panel allowed.
+    expect(lendWithdrawArg(usdc(1_000), usdc(5_000), usdc(1_000))).toBe(usdc(1_000));
+    // Pool only just covers it: the exact amount, so fresh interest can't make MAX revert.
+    expect(lendWithdrawArg(usdc(100), usdc(100), usdc(100.5))).toBe(usdc(100));
+  });
+  it('caps a deposit at $25k', () => {
+    expect(MAX_LEND_USD).toBe(25_000);
   });
 });

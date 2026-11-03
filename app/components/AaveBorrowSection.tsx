@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { GeoInfo } from '@/lib/geo';
 import { AaveBorrowPanel, type AaveBorrowProps } from './AaveBorrowPanel';
 
@@ -8,6 +8,11 @@ import { AaveBorrowPanel, type AaveBorrowProps } from './AaveBorrowPanel';
 // ticked each visit) in front of AaveBorrowPanel.
 export function AaveBorrowSection({ geo, ...props }: AaveBorrowProps & { geo: GeoInfo }) {
   const [eligible, setEligible] = useState(false);
+  // A link from another page (the home card) navigates client-side while a loading placeholder is up, so
+  // the browser's own jump to #borrow-here finds nothing; scroll here once mounted.
+  useEffect(() => {
+    if (window.location.hash === '#borrow-here') document.getElementById('borrow-here')?.scrollIntoView();
+  }, []);
   const unlocked = geo.nonUs === true && eligible;
   return (
     <section className="panel" id="borrow-here">
