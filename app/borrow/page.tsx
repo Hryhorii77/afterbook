@@ -6,7 +6,10 @@ import { getAllLiquidationRisk } from '@/lib/liquidationRisk';
 import { liquidationIncentiveFactor } from '@/lib/liquidationMath';
 import type { LendingVenue } from '@/lib/lendingMarket';
 import { getGeoInfo } from '@/lib/geo';
-import { getStock } from '@/lib/tokens';
+import { getStock, USDC } from '@/lib/tokens';
+import { getAaveStockLending } from '@/lib/aave';
+import { AaveBorrowSection } from '@/app/components/AaveBorrowSection';
+import type { AaveReserve } from '@/lib/aaveBorrow';
 import { bp, usdCompact } from '@/lib/format';
 import { shareMetadata } from '@/lib/shareMeta';
 import { ShareButton } from '@/app/components/ShareButton';
@@ -32,7 +35,7 @@ const pct = (x: number, digits = 1) => `${(x * 100).toFixed(digits)}%`;
 const ltvPct = (x: number) => `${Number((x * 100).toFixed(1))}%`;
 
 export default async function BorrowPage() {
-  const [all, geo] = await Promise.all([getAllLiquidationRisk().catch(() => null), getGeoInfo()]);
+  const [all, geo, aave] = await Promise.all([getAllLiquidationRisk().catch(() => null), getGeoInfo(), getAaveStockLending().catch(() => null)]);
   const risks = all?.stocks ?? null;
   const aaveHub = all?.aaveHub ?? null;
   const markets = (risks ?? [])
@@ -53,6 +56,13 @@ export default async function BorrowPage() {
   const aaveFree = aaveHub
     ? Math.max(0, Math.min(aaveHub.liquidityUsd, aaveHub.borrowCapUsd != null ? aaveHub.borrowCapUsd - aaveHub.borrowUsd : Infinity))
     : null;
+
+  // The in-app Aave loan: the spoke's stock reserves (marketId 'aave:<reserveId>') and its USDC reserve.
+  const aaveStocks: AaveReserve[] = (aave?.markets ?? []).flatMap((m) => {
+    const stock = getStock(m.symbol);
+    return stock ? [{ reserveId: Number(m.marketId.split(':')[1]), symbol: m.symbol, token: stock.tokenAddress, decimals: stock.decimals, collateralFactor: m.lltv }] : [];
+  });
+  const aaveUsdc: AaveReserve | null = aave ? { reserveId: aave.usdcReserveId, symbol: 'USDC', token: USDC.address, decimals: USDC.decimals, collateralFactor: 0 } : null;
 
   const calcMarkets: CalculatorMarket[] = markets.map((m) => ({
     marketId: m.marketId,
@@ -100,6 +110,17 @@ export default async function BorrowPage() {
               </div>
             </div>
           </section>
+
+          {aave && aaveUsdc && aaveStocks.length > 0 && aaveFree != null && (
+            <AaveBorrowSection
+              geo={geo}
+              stocks={aaveStocks}
+              usdc={aaveUsdc}
+              oracle={aave.markets[0].oracleAddress}
+              poolLiquidityUsd={aaveFree}
+              borrowApr={aave.hub.borrowApr}
+            />
+          )}
 
           <section className="panel">
             <h2>Markets</h2>

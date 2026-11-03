@@ -14,7 +14,8 @@ import { SymbolTile } from './SymbolTile';
 // The home page (owner, 2026-11-03, from an external review): one sentence on what the site is,
 // the market's state, the five deepest stocks and one action card (Swap, Borrow, Lend). The tape,
 // the calculators and each stock's history moved to /markets. Swap is a real in-app trade (the same
-// SwapPanel and eligibility check as before); Borrow and Lend open Aave or Morpho, and say so.
+// SwapPanel and eligibility check as before); Borrow links to the in-app Aave loan on /borrow (and
+// Morpho's own site); Lend opens Aave, and says so.
 
 const TOP_N = 5;
 const AAVE_URL = 'https://app.aave.com/';
@@ -250,23 +251,23 @@ export default function TradeHome({ initialTape, initialGeo, initialSymbol }: { 
             <div role="tabpanel" aria-label="Borrow">
               <h2 className="action-title">Borrow USDC against your stock tokens</h2>
               <p className="geo-note" style={{ marginTop: 0 }}>
-                Keep your stocks and borrow dollars against them on Aave or Morpho. Check how much you can borrow and the price at
-                which the loan would be liquidated before you open it.
+                Keep your stocks and borrow dollars against them on Aave, right here from your own wallet. See the health of the loan and
+                the fall that would liquidate it before you sign.
               </p>
               <div className="basket-row">
-                <Link href="/borrow#check" className="btn">
+                <Link href="/borrow#borrow-here" className="btn">
+                  Borrow here
+                </Link>
+                <Link href="/borrow#check" className="btn btn-secondary">
                   Check a loan
                 </Link>
-                <a href={AAVE_URL} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
-                  Open on Aave&nbsp;<span className="ext-arrow">↗</span>
-                </a>
                 <a href={MORPHO_URL} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
                   Open on Morpho&nbsp;<span className="ext-arrow">↗</span>
                 </a>
               </div>
               <p className="action-foot">
-                Loans open on Aave&apos;s or Morpho&apos;s own site, not in Afterbook. If the stock&apos;s price falls far enough, the
-                loan is liquidated and you lose part of the stock.
+                In-app loans use Aave&apos;s Equities pool, which has the USDC to lend; Morpho&apos;s stock markets open on its own site. If the
+                stock&apos;s price falls far enough, the loan is liquidated and you lose part of the stock.
               </p>
             </div>
           )}

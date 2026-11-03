@@ -10,8 +10,9 @@ import { STOCKS, USDC } from './tokens';
 // src/AaveV4Base.sol: AaveV4BaseHubs.EQUITIES_HUB, AaveV4BaseSpokes.MAG7_SPOKE).
 // Everything is read on-chain; there is no API or key. Interfaces:
 // aave/aave-v4 src/spoke/interfaces/ISpoke.sol and src/hub/interfaces/IHub.sol.
-export const AAVE_EQUITIES_HUB = '0xa4d5947Eb727A052bae69C593FfC84247EC9864E' as const;
-export const AAVE_MAG7_SPOKE = '0x17905Db0e4A3514467539956c084180616AE7B8D' as const;
+// The addresses live in lib/aaveBorrow.ts (browser-safe, used by the in-app borrow panel).
+import { AAVE_EQUITIES_HUB, AAVE_MAG7_SPOKE } from './aaveBorrow';
+export { AAVE_EQUITIES_HUB, AAVE_MAG7_SPOKE };
 export const aaveSpokeUrl = `https://basescan.org/address/${AAVE_MAG7_SPOKE}`;
 
 const SPOKE_ABI = parseAbi([
