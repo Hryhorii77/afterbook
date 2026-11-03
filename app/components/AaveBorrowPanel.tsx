@@ -159,7 +159,7 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
     if (tab === 'borrow') {
       if (addRaw === BigInt(0) && borrowRaw === BigInt(0)) return null;
       if (addRaw > sel.balance) return `That is more ${sel.s.symbol} than your wallet holds.`;
-      if (borrowRaw > BigInt(MAX_BORROW_USD) * BigInt(1e6)) return `Up to ${usd(MAX_BORROW_USD)} per borrow here.`;
+      if (borrowRaw > BigInt(MAX_BORROW_USD) * BigInt(1e6)) return `Up to $${MAX_BORROW_USD.toLocaleString('en-US')} per borrow here.`;
       if (borrowRaw > borrowLimit) return `Over what this collateral allows right now (at most ${fmt(borrowLimit, 6, 2)} USDC).`;
     }
     if (tab === 'repay') {
