@@ -1,6 +1,6 @@
 ---
 name: real-money-reviewer
-description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/BasketPanel.tsx), in-app swaps (lib/swap.ts, lib/swapGuard.ts, lib/swapLog.ts, app/api/swap/*, app/components/SwapPanel.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
+description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/BasketPanel.tsx), in-app swaps (lib/swap.ts, lib/swapGuard.ts, lib/swapLog.ts, app/api/swap/*, app/components/useSwapWallet.ts and the panels that use it: SwapPanel.tsx, MemeBuyPanel.tsx, BasketBuyPanel.tsx, BasketSellPanel.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -71,9 +71,13 @@ check passes, say so in one short line; do not pad.
   recipient = the requesting account, exact amount, minimum within
   `SLIPPAGE_BPS` of the quote, fee = `swapFee()` (or no fee arrays when off),
   empty permit. A removed or weakened check is a finding.
-- Approvals in `SwapPanel.tsx` name only `KYBER_ROUTER` and only the exact
-  `amountIn`; anything unlimited (`maxUint256`) or another spender is a finding.
-  The client re-checks `to`/`spender` against `KYBER_ROUTER`.
+- Approvals have one call site, `approveExact` in `app/components/useSwapWallet.ts`
+  (used by SwapPanel, MemeBuyPanel, BasketBuyPanel, BasketSellPanel): only
+  `KYBER_ROUTER`, only the exact reviewed amount, with `BUILDER_CODE_SUFFIX`;
+  anything unlimited (`maxUint256`), another spender or a second approve call
+  site is a finding. The client re-checks `to`/`spender` against `KYBER_ROUTER`
+  (`buildSwap`), and `sendSwap` (the one swap call site) re-checks `to` and
+  appends the suffix.
 - A stock buy is refused above the lower of `MAX_SWAP_USD` and `MAX_BUY_DEPTH_SHARE` of its live pool depth (`poolDepthUsd` checked in `getRoute`, so quote, build and basket legs all hit it; it refuses when the depth can't be read). Raising or removing it is a finding.
 - Tokens come only from `STOCKS` (`parseSwapRequest`), or for a meme buy from
   `parseMemeSwapRequest` (`lib/memeSwap.ts`): the meme must be on the verified
@@ -91,8 +95,9 @@ check passes, say so in one short line; do not pad.
   (minus the Builder Code) matches one `/api/swap/build` returned
   (`rememberBuiltSwap`), sent by the account it was built for; fee and size
   come from that stored build. Never the raw address in the record.
-- `SwapPanel.tsx` sends a rebuilt swap without a new review only if it is the
-  same trade with a minimum >= the reviewed one; approvals use the reviewed
+- `useReviewedSwap` (`useSwapWallet.ts`, used by SwapPanel and MemeBuyPanel)
+  sends a rebuilt swap without a new review only if it is the same trade (each
+  panel's `sameTrade`) with a minimum >= the reviewed one; approvals use the reviewed
   amount and token, not the live input.
 - Basket buys (`BasketBuyPanel.tsx`, `lib/basketBuy.ts`): one approval of USDC
   for `KYBER_ROUTER` for exactly the reviewed legs' total (never unlimited,

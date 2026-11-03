@@ -15,8 +15,11 @@ import type { MemePool } from '../../../lib/memestocks';
 
 const stock = getStock('NVDAc')!;
 const HOLDER = stock.pool.address as Hex;
-/** A public wallet holding NVDAc (a market maker, ~$44k on 2026-10-27), for sells and NVDAc-paid buys. */
-const STOCK_HOLDER = '0x72c4481f42d914cD53905017364aC3D1bC017Ba4' as Hex;
+/** A public wallet (no contract code) holding NVDAc, for sells and NVDAc-paid buys: ~79 NVDAc on
+ *  2026-11-03. Holders drain (the previous one was empty by then and every sell simulated as a revert):
+ *  when a sell fails with `swap 0x0`, check this balance first, then pick a new holder from recent
+ *  NVDAc Transfer logs, or set STOCK_HOLDER. */
+const STOCK_HOLDER = (process.env.STOCK_HOLDER ?? '0xD0e2F1c6B4D604DA32AE5831E616d6553EFDCC7f') as Hex;
 const EVIL = '0x2222222222222222222222222222222222222222' as const;
 const OTHER_MEME = '0xca18A528Ea897040f715edC92e6e4572780c5ca1'; // KAI, also on NVDAc
 const pool: MemePool = {

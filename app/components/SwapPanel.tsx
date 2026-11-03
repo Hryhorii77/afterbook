@@ -1,191 +1,47 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAccount, usePublicClient, useReadContract, useSendTransaction, useSwitchChain, useWriteContract } from 'wagmi';
-import { base } from 'wagmi/chains';
-import { concat, erc20Abi, formatUnits, getAddress, parseUnits, type Hex } from 'viem';
-import { BUILDER_CODE_SUFFIX } from '@/lib/builderCode';
-import { KYBER_ROUTER, SLIPPAGE_BPS, type SwapQuote, type SwapSide, type SwapTx } from '@/lib/swap';
+import { formatUnits, type Hex } from 'viem';
+import { SLIPPAGE_BPS, type SwapQuote, type SwapSide } from '@/lib/swap';
 import { USDC, type CbStock } from '@/lib/tokens';
 import { WalletConnectButton } from './WalletConnectButton';
-import { api, fmt, logSwapHash, usd, venueNames } from './swapClient';
+import { fmt, logSwapHash, usd, venueNames } from './swapClient';
 import { useNotify } from './notify';
+import { buildSwap, parseAmount, useLiveQuote, useReviewedSwap, useTokenBalance } from './useSwapWallet';
 
 // Buy or sell a tracked stock token with USDC from the visitor's own wallet, routed by KyberSwap.
 // The server (lib/swap.ts) builds the transaction and refuses it unless every field matches the
-// request; this panel shows the checked numbers, asks for an exact-amount approval of the router if
-// needed, and sends the transaction with Afterbook's Builder Code. It never holds funds or signs.
+// request; this panel shows the checked numbers and hands the wallet steps (exact-amount approval of
+// the router if needed, the swap with Afterbook's Builder Code) to useSwapWallet.ts. It never holds
+// funds or signs.
 
 export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: number }) {
-  const { address, chainId } = useAccount();
   const { notify } = useNotify();
-  const publicClient = usePublicClient({ chainId: base.id });
-  const { switchChainAsync } = useSwitchChain();
-  const { writeContractAsync } = useWriteContract();
-  const { sendTransactionAsync } = useSendTransaction();
-
   const [side, setSide] = useState<SwapSide>('buy');
   const [amount, setAmount] = useState(defaultUsd ? String(Math.round(defaultUsd)) : '');
-  const [quote, setQuote] = useState<SwapQuote | null>(null);
-  const [review, setReview] = useState<SwapTx | null>(null);
-  const [reviewedAt, setReviewedAt] = useState(0);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // A failed background price refresh is its own message, hidden while a review is open (the review
-  // holds checked numbers of its own), so it never reads like the swap failed.
-  const [quoteError, setQuoteError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ hash: string; text: string } | null>(null);
 
   const inToken = side === 'buy' ? { address: USDC.address, decimals: USDC.decimals, symbol: 'USDC' } : { address: stock.tokenAddress, decimals: stock.decimals, symbol: stock.symbol };
   const outToken = side === 'buy' ? { decimals: stock.decimals, symbol: stock.symbol } : { decimals: USDC.decimals, symbol: 'USDC' };
-
-  const { data: balance, refetch: refetchBalance } = useReadContract({
-    address: inToken.address,
-    abi: erc20Abi,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    chainId: base.id,
-    query: { enabled: !!address },
-  });
-  const { refetch: refetchAllowance } = useReadContract({
-    address: inToken.address,
-    abi: erc20Abi,
-    functionName: 'allowance',
-    args: address ? [address, KYBER_ROUTER] : undefined,
-    chainId: base.id,
-    query: { enabled: !!address },
-  });
+  const { balance, refetchBalance } = useTokenBalance(inToken.address);
 
   // Amount in raw units of the token being sold, or null while the field is empty / not a number.
-  const amountIn = (() => {
-    if (!/^\d*\.?\d+$/.test(amount)) return null;
-    try {
-      const v = parseUnits(amount, inToken.decimals);
-      return v > BigInt(0) ? v : null;
-    } catch {
-      return null;
-    }
-  })();
+  const amountIn = parseAmount(amount, inToken.decimals);
   const overBalance = amountIn !== null && balance !== undefined && amountIn > balance;
-
-  // Reset when the stock or direction changes; a review is only valid for what it was built for.
-  useEffect(() => {
-    setReview(null);
-    setQuote(null);
-    setError(null);
-    setQuoteError(null);
-    setDone(null);
-  }, [stock.symbol, side]);
-
-  // Live preview: debounced on typing, refreshed every 15 s while nothing is in flight.
   const amountKey = amountIn?.toString() ?? '';
-  useEffect(() => {
-    setReview(null);
-    if (!amountKey) {
-      setQuote(null);
-      return;
-    }
-    let cancelled = false;
-    const load = () =>
-      api<SwapQuote>(`/api/swap/quote?symbol=${stock.symbol}&side=${side}&amountIn=${amountKey}`)
-        .then((q) => {
-          if (!cancelled) {
-            setQuote(q);
-            setQuoteError(null);
-          }
-        })
-        .catch((e: Error) => !cancelled && setQuoteError(e.message));
-    const first = setTimeout(load, 400);
-    const every = setInterval(load, 15_000);
-    return () => {
-      cancelled = true;
-      clearTimeout(first);
-      clearInterval(every);
-    };
-  }, [amountKey, side, stock.symbol]);
+  const { quote, quoteError, clearQuote } = useLiveQuote(amountKey ? `/api/swap/quote?symbol=${stock.symbol}&side=${side}&amountIn=${amountKey}` : null);
 
-  const run = async (label: string, fn: () => Promise<void>) => {
-    setBusy(label);
-    setError(null);
-    try {
-      await fn();
-    } catch (e) {
-      const msg = (e as { shortMessage?: string; message?: string }).shortMessage ?? (e as Error).message ?? 'failed';
-      const declined = /reject|denied/i.test(msg);
-      setError(declined ? 'Declined in your wallet — nothing was submitted.' : msg);
-      notify(
-        declined
-          ? { kind: 'tx', tone: 'info', title: 'Swap declined', body: 'Nothing was submitted.' }
-          : { kind: 'tx', tone: 'error', title: 'Swap failed', body: msg },
-      );
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const build = async (): Promise<SwapTx> => {
-    const tx = await api<SwapTx>('/api/swap/build', { body: { symbol: stock.symbol, side, amountIn: amountKey, account: address } });
-    // The server already checked the calldata; this guards the one thing the wallet is pointed at.
-    if (getAddress(tx.to) !== KYBER_ROUTER || getAddress(tx.spender) !== KYBER_ROUTER) throw new Error('Refused: unexpected contract.');
-    return tx;
-  };
-
-  const startReview = () =>
-    run('review', async () => {
-      setDone(null);
-      setReview(await build());
-      setReviewedAt(Date.now());
-    });
-
-  const confirm = () =>
-    run('swap', async () => {
-      if (!address || !review || !publicClient) return;
-      if (chainId !== base.id) await switchChainAsync({ chainId: base.id });
-
-      // Everything below uses the reviewed values, never the live input field.
-      const reviewedIn = BigInt(review.quote.amountIn);
-      let tx = review;
-      let stale = Date.now() - reviewedAt > 60_000;
-      const { data: allowance } = await refetchAllowance();
-      if ((allowance ?? BigInt(0)) < reviewedIn) {
-        // Exactly the reviewed amount, never unlimited, and only ever for the router.
-        setBusy('approve');
-        const approval = await writeContractAsync({
-          address: review.tokenIn,
-          abi: erc20Abi,
-          functionName: 'approve',
-          args: [KYBER_ROUTER, reviewedIn],
-          chainId: base.id,
-          dataSuffix: BUILDER_CODE_SUFFIX,
-        });
-        await publicClient.waitForTransactionReceipt({ hash: approval });
-        stale = true;
-      }
-      if (stale) {
-        // Prices moved while the approval confirmed or the card sat open: rebuild. The wallet is only
-        // asked to sign it without a second look if it is the same trade with a minimum at least as
-        // good as the one on the card; otherwise the card shows the new numbers and asks again.
-        setBusy('rebuild');
-        tx = await build();
-        const same = tx.quote.amountIn === review.quote.amountIn && tx.quote.symbol === review.quote.symbol && tx.quote.side === review.quote.side && tx.tokenIn === review.tokenIn;
-        if (!same || BigInt(tx.minAmountOut) < BigInt(review.minAmountOut)) {
-          setReview(tx);
-          setReviewedAt(Date.now());
-          throw new Error('The price moved since you reviewed it. Check the new numbers and confirm again (no approval needed this time).');
-        }
-      }
-
-      setBusy('swap');
-      const hash = await sendTransactionAsync({
-        to: tx.to,
-        data: concat([tx.data, BUILDER_CODE_SUFFIX]),
-        value: BigInt(0),
-        chainId: base.id,
-      });
-      setReview(null);
-      setBusy('confirming');
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      if (receipt.status !== 'success') throw new Error('The swap reverted onchain (price moved past the 0.5% limit). Your funds did not move.');
+  const { address, busy, error, review, setReview, done, setDone, startReview, confirm, reset } = useReviewedSwap({
+    build: async () => buildSwap({ symbol: stock.symbol, side, amountIn: amountKey, account: address }),
+    sameTrade: (tx, reviewed) => tx.quote.amountIn === reviewed.quote.amountIn && tx.quote.symbol === reviewed.quote.symbol && tx.quote.side === reviewed.quote.side && tx.tokenIn === reviewed.tokenIn,
+    texts: {
+      declined: 'Declined in your wallet — nothing was submitted.',
+      declinedTitle: 'Swap declined',
+      declinedBody: 'Nothing was submitted.',
+      failedTitle: 'Swap failed',
+      approvalReverted: `The ${inToken.symbol} approval reverted onchain. Nothing was swapped.`,
+      reverted: 'The swap reverted onchain (price moved past the 0.5% limit). Your funds did not move.',
+    },
+    onSwapped: (tx, hash) => {
       const text = side === 'buy'
         ? `Bought ${stock.symbol} with ${fmt(tx.quote.amountIn, USDC.decimals, 2)} USDC.`
         : `Sold ${fmt(tx.quote.amountIn, stock.decimals)} ${stock.symbol} for USDC.`;
@@ -194,7 +50,17 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
       notify({ kind: 'tx', tone: 'success', title: side === 'buy' ? `Bought ${stock.symbol}` : `Sold ${stock.symbol}`, body: text });
       void refetchBalance();
       void logSwapHash(hash);
-    });
+    },
+  });
+
+  // Reset when the stock or direction changes; a review is only valid for what it was built for.
+  useEffect(() => {
+    reset();
+    clearQuote();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stock.symbol, side]);
+  // A new amount voids the card.
+  useEffect(() => setReview(null), [amountKey, setReview]);
 
   if (!address) {
     return (
@@ -230,8 +96,6 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
               // (0.33 USDC became 0.33 NVDAc, ~$72): start the other side empty.
               setSide(s);
               setAmount('');
-              setQuote(null);
-              setReview(null);
             }}
             disabled={busy !== null}
           >
