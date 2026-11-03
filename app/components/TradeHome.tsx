@@ -109,7 +109,7 @@ export default function TradeHome({
       <div className="trade-home-grid">
         <div className="trade-home-main">
           <header className="trade-home-intro">
-            <h1>Buy, borrow and earn with tokenized stocks on Base. 24/7.</h1>
+            <h1>Buy, borrow and earn with tokenized stocks on Base 24/7</h1>
             <p>
               Apple, Nvidia, Google and {others} more, priced next to the real stock market. Trade from your own wallet;
               Afterbook never holds your funds.
