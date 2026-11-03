@@ -36,7 +36,18 @@ function gapClass(gapBp: number | null): string {
   return gapBp == null ? '' : gapBp >= 0 ? 'basis-pos' : 'basis-neg';
 }
 
-export default function TradeHome({ initialTape, initialGeo, initialSymbol }: { initialTape: TapeResult; initialGeo: GeoInfo; initialSymbol?: string }) {
+export default function TradeHome({
+  initialTape,
+  initialGeo,
+  initialSymbol,
+  lendApr,
+}: {
+  initialTape: TapeResult;
+  initialGeo: GeoInfo;
+  initialSymbol?: string;
+  /** What lenders in Aave's Equities pool earn now (APR, before incentive programs); null if unread. */
+  lendApr?: number | null;
+}) {
   const [tape, setTape] = useState(initialTape);
   const geo = initialGeo;
 
@@ -261,13 +272,14 @@ export default function TradeHome({ initialTape, initialGeo, initialSymbol }: { 
                 <Link href="/borrow#check" className="btn btn-secondary">
                   Check a loan
                 </Link>
-                <a href={MORPHO_URL} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
-                  Open on Morpho&nbsp;<span className="ext-arrow">↗</span>
-                </a>
               </div>
               <p className="action-foot">
-                In-app loans use Aave&apos;s Equities pool, which has the USDC to lend; Morpho&apos;s stock markets open on its own site. If the
-                stock&apos;s price falls far enough, the loan is liquidated and you lose part of the stock.
+                In-app loans use Aave&apos;s Equities pool, which has the USDC to lend; Morpho&apos;s stock markets open on{' '}
+                <a href={MORPHO_URL} target="_blank" rel="noopener noreferrer" className="emph-link">
+                  its own site&nbsp;<span className="ext-arrow">↗</span>
+                </a>
+                . If the stock&apos;s price falls far enough, the loan is liquidated and you lose part
+                of the stock.
               </p>
             </div>
           )}
@@ -277,7 +289,10 @@ export default function TradeHome({ initialTape, initialGeo, initialSymbol }: { 
               <h2 className="action-title">Earn on idle USDC</h2>
               <p className="geo-note" style={{ marginTop: 0 }}>
                 Lend USDC to people who borrow against stock tokens, and earn their interest. It goes into Aave&apos;s Equities pool on
-                Base (not Aave&apos;s main USDC market), from your own wallet; the current rate is on the page.
+                Base (not Aave&apos;s main USDC market), from your own wallet.{' '}
+                {lendApr != null && lendApr > 0
+                  ? `Lenders earn about ${(lendApr * 100).toFixed(1)}% a year right now; it changes with how much is borrowed.`
+                  : 'You see the current rate before you deposit.'}
               </p>
               <div className="basket-row">
                 <Link href="/borrow#lend-here" className="btn">

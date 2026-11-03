@@ -3,6 +3,7 @@ import { getGeoInfo } from '@/lib/geo';
 import { buildTodaySnapshot } from '@/lib/todaySnapshot';
 import TradeHome from './components/TradeHome';
 import { shareMetadata } from '@/lib/shareMeta';
+import { getAaveStockLending } from '@/lib/aave';
 
 export const metadata = shareMetadata({
   title: 'Afterbook',
@@ -14,8 +15,14 @@ export const metadata = shareMetadata({
 // Real data in the server HTML (prices, the market's state, the region check), so a crawler or a
 // slow phone sees numbers rather than dashes. The tape page this used to be is /markets.
 export default async function Page() {
-  const [tape, geo] = await Promise.all([getTape(), getGeoInfo()]);
+  // The Lend tab quotes the lenders' rate: Aave's reads are cached a minute (lib/aave.ts) and given at
+  // most 1.5 s, so a slow RPC drops the number rather than holding up the page.
+  const lendApr = Promise.race([
+    getAaveStockLending().then((a) => a.hub.supplyApr),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500)),
+  ]).catch(() => null);
+  const [tape, geo, supplyApr] = await Promise.all([getTape(), getGeoInfo(), lendApr]);
   // The card opens on the day's biggest liquid gap (the pick /today uses).
   const initialSymbol = buildTodaySnapshot(tape).headline?.symbol;
-  return <TradeHome initialTape={tape} initialGeo={geo} initialSymbol={initialSymbol} />;
+  return <TradeHome initialTape={tape} initialGeo={geo} initialSymbol={initialSymbol} lendApr={supplyApr} />;
 }

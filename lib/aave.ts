@@ -160,11 +160,19 @@ async function read(): Promise<AaveStockLending> {
 // page loads and paid calls to a handful of RPC reads a minute.
 const CACHE_TTL_MS = 60_000;
 let cache: { value: AaveStockLending; fetchedAt: number } | null = null;
+// One read at a time: page loads that miss the cache together (the home page quotes the rate) share it.
+let pending: Promise<AaveStockLending> | null = null;
 
 export async function getAaveStockLending(): Promise<AaveStockLending> {
   const now = Date.now();
   if (cache && now - cache.fetchedAt < CACHE_TTL_MS) return cache.value;
-  const value = await read();
-  cache = { value, fetchedAt: now };
-  return value;
+  pending ??= read()
+    .then((value) => {
+      cache = { value, fetchedAt: Date.now() };
+      return value;
+    })
+    .finally(() => {
+      pending = null;
+    });
+  return pending;
 }

@@ -16,7 +16,7 @@ export function AaveLendSection({ geo, ...props }: AaveLendProps & { geo: GeoInf
   const unlocked = geo.nonUs === true && eligible;
   return (
     <section className="panel" id="lend-here">
-      <h2>Lend USDC here with Aave</h2>
+      <h2>Lend USDC with Aave</h2>
       <p className="geo-note" style={{ marginTop: 0 }}>
         Deposit USDC into Aave&apos;s Equities pool on Base, the pool the loans above borrow from, and earn their interest. Afterbook
         never holds your USDC; it sends Aave&apos;s own contract calls for you to sign.

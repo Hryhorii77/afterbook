@@ -16,7 +16,7 @@ export function AaveBorrowSection({ geo, ...props }: AaveBorrowProps & { geo: Ge
   const unlocked = geo.nonUs === true && eligible;
   return (
     <section className="panel" id="borrow-here">
-      <h2>Borrow here with Aave</h2>
+      <h2>Borrow with Aave</h2>
       <p className="geo-note" style={{ marginTop: 0 }}>
         Post stock tokens as collateral and borrow USDC from Aave&apos;s Equities pool on Base, from your own wallet. Afterbook never holds your
         stock or the loan; it sends Aave&apos;s own contract calls for you to sign.
