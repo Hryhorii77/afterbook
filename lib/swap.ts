@@ -16,8 +16,20 @@ import { getCachedPoolState, poolDepth } from './quote';
 export const KYBER_ROUTER = '0x6131B5fae19EA4f9D964eAc0408E4408b66337b5' as const;
 const KYBER_API = 'https://aggregator-api.kyberswap.com/base/api/v1';
 const CLIENT_ID = 'afterbook';
-/** Fixed 0.5%: the wallet's transaction reverts rather than fill below quote minus this. */
+/** Default slippage limit, 0.5%: the wallet's transaction reverts rather than fill below quote minus
+ *  this. The trader may pick MIN_SLIPPAGE_BPS..MAX_SLIPPAGE_BPS (owner, 2026-11-03: 0.1-1%, default
+ *  0.5%, the same for memes); the server builds and checks every swap with the request's value. */
 export const SLIPPAGE_BPS = 50;
+export const MIN_SLIPPAGE_BPS = 10;
+export const MAX_SLIPPAGE_BPS = 100;
+
+/** Untrusted slippage (bp) into a number in range, the default when absent, or the reason it is refused. */
+export function parseSlippageBps(input: unknown): number | string {
+  if (input === undefined || input === null || input === '') return SLIPPAGE_BPS;
+  const n = typeof input === 'number' ? input : typeof input === 'string' && /^[0-9]{1,4}$/.test(input) ? Number(input) : NaN;
+  if (!Number.isInteger(n) || n < MIN_SLIPPAGE_BPS || n > MAX_SLIPPAGE_BPS) return `slippageBps must be a whole number from ${MIN_SLIPPAGE_BPS} to ${MAX_SLIPPAGE_BPS}`;
+  return n;
+}
 /** Largest single swap the panel builds, in USD. A UX guard, not a security control. */
 export const MAX_SWAP_USD = 25_000;
 /** A stock buy is also capped at this share of the stock's live pool depth (owner, 2026-10-27): the
@@ -58,19 +70,23 @@ export interface SwapRequest {
   /** A meme buy (lib/memeSwap.ts): the allowlisted meme is the output, paid with USDC or `stock`
    *  (the stock token its pool is priced in). Always side 'buy', never with Afterbook's fee. */
   meme?: { pool: MemePool; payWith: 'USDC' | 'stock' };
+  /** The slippage limit this swap is built and checked with, MIN_SLIPPAGE_BPS..MAX_SLIPPAGE_BPS. */
+  slippageBps: number;
 }
 
 const AMOUNT_RE = /^[0-9]{1,30}$/;
 
 /** Validates untrusted input into a SwapRequest, or returns the reason it is refused. */
-export function parseSwapRequest(input: { symbol?: unknown; side?: unknown; amountIn?: unknown }): SwapRequest | string {
+export function parseSwapRequest(input: { symbol?: unknown; side?: unknown; amountIn?: unknown; slippageBps?: unknown }): SwapRequest | string {
   const stock = STOCKS.find((s) => s.symbol === input.symbol);
   if (!stock) return 'unknown symbol';
   if (input.side !== 'buy' && input.side !== 'sell') return 'side must be buy or sell';
   if (typeof input.amountIn !== 'string' || !AMOUNT_RE.test(input.amountIn)) return 'amountIn must be a raw integer string';
   const amountIn = BigInt(input.amountIn);
   if (amountIn <= BigInt(0)) return 'amountIn must be above zero';
-  return { stock, side: input.side, amountIn };
+  const slippageBps = parseSlippageBps(input.slippageBps);
+  if (typeof slippageBps === 'string') return slippageBps;
+  return { stock, side: input.side, amountIn, slippageBps };
 }
 
 function tokensFor(req: SwapRequest): { tokenIn: `0x${string}`; tokenOut: `0x${string}` } {
@@ -216,7 +232,7 @@ export async function buildSwap(req: SwapRequest, account: `0x${string}`): Promi
   const { summary, quote } = await getRoute(req, fee);
   const built = await kyber<{ amountIn: string; amountOut: string; data: Hex; routerAddress: string; transactionValue: string }>(
     '/route/build',
-    { body: { routeSummary: summary, sender: account, recipient: account, slippageTolerance: SLIPPAGE_BPS, source: CLIENT_ID } },
+    { body: { routeSummary: summary, sender: account, recipient: account, slippageTolerance: req.slippageBps, source: CLIENT_ID } },
   );
   if (getAddress(built.routerAddress) !== KYBER_ROUTER) throw new SwapError('unexpected router');
   if (built.transactionValue !== '0') throw new SwapError('swap must not send ETH');
@@ -236,7 +252,11 @@ export function checkSwapCalldata(req: SwapRequest, account: `0x${string}`, fee:
   }
   const desc = decoded.functionName === 'swap' ? decoded.args[0].desc : decoded.args[1];
   const { tokenIn, tokenOut } = tokensFor(req);
-  const floor = (expectedOut * BigInt(10_000 - SLIPPAGE_BPS - 1)) / BigInt(10_000);
+  // The request's own limit, range-checked again here so a SwapRequest built by hand cannot widen it.
+  // The extra 1 bp (always there) absorbs rounding between KyberSwap's minimum and our quote, so at
+  // 100 bp a minimum down to 98.99% of the quote passes.
+  if (!Number.isInteger(req.slippageBps) || req.slippageBps < MIN_SLIPPAGE_BPS || req.slippageBps > MAX_SLIPPAGE_BPS) throw new SwapError('refused: slippage out of range', 400);
+  const floor = (expectedOut * BigInt(10_000 - req.slippageBps - 1)) / BigInt(10_000);
   const checks: [boolean, string][] = [
     [getAddress(desc.srcToken) === tokenIn, 'input token'],
     [getAddress(desc.dstToken) === tokenOut, 'output token'],

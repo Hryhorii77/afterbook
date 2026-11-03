@@ -2,7 +2,7 @@
 // what the user pays and receives must match the request. Each case below tampers with one field.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { encodeFunctionData, getAddress, parseAbi, type Hex } from 'viem';
-import { checkSwapCalldata, parseSwapRequest, swapFee, SLIPPAGE_BPS, type SwapRequest } from '../lib/swap';
+import { checkSwapCalldata, parseSlippageBps, parseSwapRequest, swapFee, MAX_SLIPPAGE_BPS, MIN_SLIPPAGE_BPS, SLIPPAGE_BPS, type SwapRequest } from '../lib/swap';
 import { getStock, USDC } from '../lib/tokens';
 
 const routerAbi = parseAbi([
@@ -105,6 +105,40 @@ describe('checkSwapCalldata', () => {
     it('refuses a missing fee', () => {
       expect(() => checkSwapCalldata(buyRequest(), ACCOUNT, fee, swapData(goodDesc()), expectedOut)).toThrow(/fee/);
     });
+  });
+});
+
+describe('chosen slippage', () => {
+  const withSlippage = (bps: number) => ({ ...buyRequest(), slippageBps: bps });
+  const descAt = (bps: number) => ({ ...goodDesc(), minReturnAmount: (expectedOut * BigInt(10_000 - bps)) / BigInt(10_000) });
+  it('defaults to 0.5%', () => {
+    expect(buyRequest().slippageBps).toBe(SLIPPAGE_BPS);
+    expect(SLIPPAGE_BPS).toBe(50);
+  });
+  it('accepts a 1% minimum when the trader chose 1%', () => {
+    expect(checkSwapCalldata(withSlippage(100), ACCOUNT, null, swapData(descAt(100)), expectedOut)).toBe(descAt(100).minReturnAmount);
+  });
+  it('refuses a 1% minimum when the trader chose 0.5%', () => {
+    expect(() => checkSwapCalldata(withSlippage(50), ACCOUNT, null, swapData(descAt(100)), expectedOut)).toThrow(/minimum received/);
+  });
+  it('refuses a 0.5% minimum when the trader chose 0.1%', () => {
+    expect(() => checkSwapCalldata(withSlippage(10), ACCOUNT, null, swapData(descAt(50)), expectedOut)).toThrow(/minimum received/);
+  });
+  it('refuses a hand-built request outside the range, even with a matching minimum', () => {
+    expect(() => checkSwapCalldata(withSlippage(500), ACCOUNT, null, swapData(descAt(500)), expectedOut)).toThrow(/slippage out of range/);
+    expect(() => checkSwapCalldata(withSlippage(5), ACCOUNT, null, swapData(descAt(5)), expectedOut)).toThrow(/slippage out of range/);
+  });
+  it.each([
+    [undefined, 50], ['', 50], [null, 50], ['10', 10], ['100', 100], [25, 25],
+  ])('parses %o as %d bp', (input, bps) => {
+    expect(parseSlippageBps(input)).toBe(bps);
+  });
+  it.each([['9'], ['101'], ['1000'], ['0.5'], ['-50'], [50.5], ['abc'], [true]])('refuses %o', (input) => {
+    expect(parseSlippageBps(input)).toMatch(new RegExp(`from ${MIN_SLIPPAGE_BPS} to ${MAX_SLIPPAGE_BPS}`));
+  });
+  it('is refused by parseSwapRequest when out of range', () => {
+    expect(parseSwapRequest({ symbol: 'NVDAc', side: 'buy', amountIn: '1', slippageBps: '300' })).toMatch(/slippageBps/);
+    expect(parseSwapRequest({ symbol: 'NVDAc', side: 'buy', amountIn: '1', slippageBps: '100' })).toMatchObject({ slippageBps: 100 });
   });
 });
 

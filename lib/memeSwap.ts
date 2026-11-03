@@ -7,16 +7,18 @@
 // priced in, never anything else, and never sold here (the panel is buy-only).
 import { getMemeRow, MEME_MIN_LIQUIDITY_USD } from './memestocks';
 import { getStock } from './tokens';
-import type { SwapRequest } from './swap';
+import { parseSlippageBps, type SwapRequest } from './swap';
 
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 const AMOUNT_RE = /^[0-9]{1,30}$/;
 
-export async function parseMemeSwapRequest(input: { meme?: unknown; payWith?: unknown; amountIn?: unknown }): Promise<SwapRequest | string> {
+export async function parseMemeSwapRequest(input: { meme?: unknown; payWith?: unknown; amountIn?: unknown; slippageBps?: unknown }): Promise<SwapRequest | string> {
   if (typeof input.meme !== 'string' || !ADDRESS_RE.test(input.meme)) return 'meme must be a token address';
   if (typeof input.amountIn !== 'string' || !AMOUNT_RE.test(input.amountIn)) return 'amountIn must be a raw integer string';
   const amountIn = BigInt(input.amountIn);
   if (amountIn <= BigInt(0)) return 'amountIn must be above zero';
+  const slippageBps = parseSlippageBps(input.slippageBps);
+  if (typeof slippageBps === 'string') return slippageBps;
 
   const row = await getMemeRow(input.meme);
   if (!row) return 'this meme is not on the verified list';
@@ -27,5 +29,5 @@ export async function parseMemeSwapRequest(input: { meme?: unknown; payWith?: un
   // Pay with USDC, or with the stock token the meme's own pool is priced in (by its symbol).
   const payWith = input.payWith === 'USDC' ? 'USDC' : input.payWith === stock.symbol ? 'stock' : null;
   if (!payWith) return `pay with USDC or ${stock.symbol}`;
-  return { stock, side: 'buy', amountIn, meme: { pool: row.pool, payWith } };
+  return { stock, side: 'buy', amountIn, meme: { pool: row.pool, payWith }, slippageBps };
 }

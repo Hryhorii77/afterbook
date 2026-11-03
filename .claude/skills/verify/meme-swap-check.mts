@@ -8,7 +8,7 @@
 // The allowlist and liquidity checks (lib/memeSwap.ts) need the app's cache: test them through the
 // /api/swap routes on a local build instead (unknown meme, thin meme, wrong payWith, over $1,000).
 import { concat, decodeFunctionData, decodeFunctionResult, encodeFunctionData, erc20Abi, parseAbi, type Hex } from 'viem';
-import { buildSwap, checkSwapCalldata, KYBER_ROUTER, type SwapRequest } from '../../../lib/swap';
+import { buildSwap, checkSwapCalldata, KYBER_ROUTER, SLIPPAGE_BPS, type SwapRequest } from '../../../lib/swap';
 import { BUILDER_CODE_SUFFIX } from '../../../lib/builderCode';
 import { getStock, USDC } from '../../../lib/tokens';
 import type { MemePool } from '../../../lib/memestocks';
@@ -31,7 +31,7 @@ const pool: MemePool = {
   hooks: null,
   createdAt: null,
 };
-const req = (payWith: 'USDC' | 'stock', amountIn: string): SwapRequest => ({ stock, side: 'buy', amountIn: BigInt(amountIn), meme: { pool, payWith } });
+const req = (payWith: 'USDC' | 'stock', amountIn: string): SwapRequest => ({ stock, side: 'buy', amountIn: BigInt(amountIn), meme: { pool, payWith }, slippageBps: SLIPPAGE_BPS });
 
 async function tamper() {
   const abi = parseAbi([
