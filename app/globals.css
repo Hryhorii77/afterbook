@@ -2788,6 +2788,8 @@ section[id],
 .action-prices dd { margin: 0; font-size: 16px; font-weight: 600; }
 .action-card .eligibility { font-size: 14px; margin: 12px 0 12px -8px; }
 .action-foot { font-size: 14px; color: var(--info); line-height: 1.5; margin: 14px 0 0; }
+/* A secondary destination under the card's note (Morpho on Borrow): a link, 44px tall to tap. */
+.action-link { display: inline-flex; align-items: center; min-height: 44px; margin-top: 4px; }
 .trade-top { margin: 0; }
 .trade-top-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .trade-top-head h2 { margin: 0; }

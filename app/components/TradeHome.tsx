@@ -274,13 +274,12 @@ export default function TradeHome({
                 </Link>
               </div>
               <p className="action-foot">
-                In-app loans use Aave&apos;s Equities pool, which has the USDC to lend; Morpho&apos;s stock markets open on{' '}
-                <a href={MORPHO_URL} target="_blank" rel="noopener noreferrer" className="emph-link">
-                  its own site&nbsp;<span className="ext-arrow">↗</span>
-                </a>
-                . If the stock&apos;s price falls far enough, the loan is liquidated and you lose part
-                of the stock.
+                In-app loans use Aave&apos;s Equities pool, which has the USDC to lend; Morpho&apos;s stock markets are on its own site. If
+                the stock&apos;s price falls far enough, the loan is liquidated and you lose part of the stock.
               </p>
+              <a href={MORPHO_URL} target="_blank" rel="noopener noreferrer" className="emph-link action-link">
+                Open on Morpho&nbsp;<span className="ext-arrow">↗</span>
+              </a>
             </div>
           )}
 
