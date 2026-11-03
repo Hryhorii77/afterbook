@@ -256,7 +256,7 @@ export default function TradeHome({ initialTape, initialGeo, initialSymbol }: { 
               </p>
               <div className="basket-row">
                 <Link href="/borrow#borrow-here" className="btn">
-                  Borrow here
+                  Borrow
                 </Link>
                 <Link href="/borrow#check" className="btn btn-secondary">
                   Check a loan
@@ -281,7 +281,7 @@ export default function TradeHome({ initialTape, initialGeo, initialSymbol }: { 
               </p>
               <div className="basket-row">
                 <Link href="/borrow#lend-here" className="btn">
-                  Lend here
+                  Lend
                 </Link>
                 <a href={AAVE_URL} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
                   Open on Aave&nbsp;<span className="ext-arrow">↗</span>
