@@ -418,7 +418,7 @@ h1 {
 .how-num {
   display: block;
   margin-bottom: 10px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.08em;
   color: var(--accent);
@@ -594,6 +594,7 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .weight-bar { margin-top: 10px; height: 6px; border-radius: 999px; background: var(--overlay-3); overflow: hidden; }
 .weight-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
 .weight-meta { margin-top: 12px; display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--text-dim); }
+.weight-meta > a.emph-link { display: inline-flex; align-items: center; min-height: 44px; }
 
 /* /borrow market cards: wider than /build's stock cards (longer rows), one line per row with the
    label kept whole and values right-aligned, the rate's label beside it, a rule between the loan
@@ -606,11 +607,11 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .borrow-rate .weight-pct { margin-top: 0; color: var(--text); }
 .borrow-card-rule { margin-top: 12px; border-top: 1px solid var(--panel-border); }
 .borrow-grid .borrow-card-links { margin-top: auto; padding-top: 14px; }
-.borrow-card-links a { white-space: nowrap; }
+.borrow-card-links a { white-space: nowrap; display: inline-flex; align-items: center; min-height: 44px; }
 
 /* /today: hero identity row and stat cards. */
 .today-id { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
-.today-id-label { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dimmer); }
+.today-id-label { display: block; margin-bottom: 2px; font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dimmer); }
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
 .stat-card { padding: 18px 20px; background: var(--inset); border: 1px solid var(--panel-border); border-radius: 14px; }
 .stat-value { font-size: 30px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
@@ -881,7 +882,9 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
    (owner decision, 2026-10-12: one link style), plus an arrow that nudges on
    hover. */
 .page-link {
-  display: inline;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--accent);
   font-weight: 600;
   text-decoration: underline;
@@ -992,7 +995,7 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
   font-size: 14px;
 }
 .sticky-symbol-detail .gap-detail-label {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 /* The stock chooser inside the hero card: reads as the card's title. */
@@ -1026,7 +1029,7 @@ td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
   display: inline-flex;
   align-items: center;
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-dimmer);
   background: var(--panel);
   border: 1px solid var(--panel-border);
@@ -1128,7 +1131,7 @@ section.panel h2 {
   width: 100%;
   padding: 12px 12px 8px;
   text-align: left;
-  font-family: inherit;
+  font: inherit;
   color: inherit;
   background: transparent;
   border: 0;
@@ -1138,7 +1141,7 @@ section.panel h2 {
 .tape-card-more {
   display: block;
   width: 100%;
-  min-height: 36px;
+  min-height: 44px;
   padding: 6px 12px 10px;
   text-align: left;
   font: inherit;
@@ -1274,7 +1277,7 @@ th {
 
 .sort-indicator {
   color: var(--text-dimmer);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .sort-btn:hover .sort-indicator {
@@ -1406,7 +1409,7 @@ td.depth-cell {
 }
 
 .stale-tag {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--amber);
   border: 1px solid var(--amber);
   border-radius: 4px;
@@ -1416,7 +1419,7 @@ td.depth-cell {
 
 .earnings-tag {
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--amber);
   margin-top: 2px;
 }
@@ -1441,8 +1444,18 @@ td.depth-cell {
    touched). Checkboxes, radios and ranges keep native rendering. Wrapped in
    :where() so it has zero specificity and a component class (like the compact
    .sticky-symbol-select) can still override it. */
+/* Selects draw their own arrow: iOS Safari ignores min-height (and padding) on a native select, which
+   left them 28-30px tall (2026-11-03). */
+:where(select) {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 34px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238a8f9a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+}
 :where(select, main input:not([type='checkbox']):not([type='radio']):not([type='range'])) {
-  background: var(--inset);
+  background-color: var(--inset);
   border: 1px solid var(--panel-border);
   color: var(--text);
   border-radius: 12px;
@@ -1630,7 +1643,7 @@ summary:focus-visible,
 
 .curve-tick {
   fill: var(--text-dim);
-  font-size: 11px;
+  font-size: 12px;
   font-family: var(--font-ui);
   letter-spacing: -0.02em;
 }
@@ -2165,9 +2178,10 @@ footer {
 /* The swap's Buy / Sell switch sits in a row of 44px pills (amount, Max, Review), so it matches
    them: 44px tall, 14px semi-bold. The Carry calculator's switch stays the quiet small one. */
 .swap-side-toggle {
-  min-height: 44px;
+  min-height: 48px;
   align-items: stretch;
 }
+.swap-side-toggle .carry-direction-tab { min-height: 44px; }
 .swap-side-toggle .carry-direction-tab {
   font-size: 14px;
   font-weight: 600;
@@ -2280,6 +2294,7 @@ footer {
 .hero-sentence { margin-top: 10px; font-size: 20px; line-height: 1.4; color: var(--text); max-width: 30em; }
 .nowrap { white-space: nowrap; }
 .hero-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 20px; margin-top: 18px; }
+.hero-actions > .emph-link { display: inline-flex; align-items: center; min-height: 44px; }
 .hero-note { margin: 14px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-dimmer); }
 @media (max-width: 760px) {
   /* Price cards side by side on phones so the trade button isn't pushed off the first screen. */
@@ -2366,6 +2381,7 @@ footer {
 .directory-main {
   display: flex;
   align-items: center;
+  min-height: 44px;
   gap: 12px;
   min-width: 0;
   color: inherit;
@@ -2599,7 +2615,7 @@ a.directory-main:hover .directory-symbol {
   color: var(--accent);
 }
 .stock-row .directory-contract {
-  font-size: 11px;
+  font-size: 12px;
 }
 .stock-pager {
   display: flex;
@@ -2761,7 +2777,7 @@ section[id],
 .action-card { position: sticky; top: calc(var(--site-header-h) + 16px); margin: 0; }
 .action-tabs { display: flex; width: 100%; }
 .action-tabs { min-height: 48px; }
-.action-tabs .carry-direction-tab { flex: 1 1 0; min-height: 42px; }
+.action-tabs .carry-direction-tab { flex: 1 1 0; min-height: 44px; }
 .action-title { font-size: 18px; margin: 0 0 8px; }
 .action-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .action-field-label { font-size: 13px; font-weight: 600; color: var(--text-dim); }
