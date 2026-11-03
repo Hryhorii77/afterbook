@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { formatUnits, type Hex } from 'viem';
-import { SLIPPAGE_BPS, type SwapQuote, type SwapSide } from '@/lib/swap';
+import { type SwapQuote, type SwapSide } from '@/lib/swap';
 import { USDC, type CbStock } from '@/lib/tokens';
 import { WalletConnectButton } from './WalletConnectButton';
 import { fmt, logSwapHash, usd, venueNames } from './swapClient';
 import { useNotify } from './notify';
 import { buildSwap, parseAmount, useLiveQuote, useReviewedSwap, useTokenBalance } from './useSwapWallet';
+import { SlippageControl, useSlippage } from './slippage';
 
 // Buy or sell a tracked stock token with USDC from the visitor's own wallet, routed by KyberSwap.
 // The server (lib/swap.ts) builds the transaction and refuses it unless every field matches the
@@ -19,6 +20,7 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
   const { notify } = useNotify();
   const [side, setSide] = useState<SwapSide>('buy');
   const [amount, setAmount] = useState(defaultUsd ? String(Math.round(defaultUsd)) : '');
+  const slippageBps = useSlippage();
 
   const inToken = side === 'buy' ? { address: USDC.address, decimals: USDC.decimals, symbol: 'USDC' } : { address: stock.tokenAddress, decimals: stock.decimals, symbol: stock.symbol };
   const outToken = side === 'buy' ? { decimals: stock.decimals, symbol: stock.symbol } : { decimals: USDC.decimals, symbol: 'USDC' };
@@ -31,7 +33,7 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
   const { quote, quoteError, clearQuote } = useLiveQuote(amountKey ? `/api/swap/quote?symbol=${stock.symbol}&side=${side}&amountIn=${amountKey}` : null);
 
   const { address, busy, error, review, setReview, done, setDone, startReview, confirm, reset } = useReviewedSwap({
-    build: async () => buildSwap({ symbol: stock.symbol, side, amountIn: amountKey, account: address }),
+    build: async () => buildSwap({ symbol: stock.symbol, side, amountIn: amountKey, account: address, slippageBps }),
     sameTrade: (tx, reviewed) => tx.quote.amountIn === reviewed.quote.amountIn && tx.quote.symbol === reviewed.quote.symbol && tx.quote.side === reviewed.quote.side && tx.tokenIn === reviewed.tokenIn,
     texts: {
       declined: 'Declined in your wallet — nothing was submitted.',
@@ -39,7 +41,7 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
       declinedBody: 'Nothing was submitted.',
       failedTitle: 'Swap failed',
       approvalReverted: `The ${inToken.symbol} approval reverted onchain. Nothing was swapped.`,
-      reverted: 'The swap reverted onchain (price moved past the 0.5% limit). Your funds did not move.',
+      reverted: `The swap reverted onchain (price moved past the ${slippageBps / 100}% limit). Your funds did not move.`,
     },
     onSwapped: (tx, hash) => {
       const text = side === 'buy'
@@ -59,8 +61,8 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
     clearQuote();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stock.symbol, side]);
-  // A new amount voids the card.
-  useEffect(() => setReview(null), [amountKey, setReview]);
+  // A new amount or slippage limit voids the card.
+  useEffect(() => setReview(null), [amountKey, slippageBps, setReview]);
 
   if (!address) {
     return (
@@ -135,6 +137,7 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
         )}
       </div>
       {overBalance && <p className="geo-note">That is more {inToken.symbol} than your wallet holds on Base.</p>}
+      {!review && <SlippageControl disabled={busy !== null} />}
 
       {quote && !review && (
         <p className="geo-note">
@@ -151,7 +154,7 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
             <dt>You get (estimate)</dt>
             <dd>{fmt(review.quote.amountOut, outToken.decimals, outToken.decimals)} {outToken.symbol}</dd>
             <dt>Minimum you get</dt>
-            <dd>{fmt(review.minAmountOut, outToken.decimals, outToken.decimals)} {outToken.symbol} · reverts below this ({SLIPPAGE_BPS / 100}% limit)</dd>
+            <dd>{fmt(review.minAmountOut, outToken.decimals, outToken.decimals)} {outToken.symbol} · reverts below this ({slippageBps / 100}% limit)</dd>
             <dt>Afterbook fee</dt>
             <dd>{feeNote(review.quote)}</dd>
             <dt>Route</dt>

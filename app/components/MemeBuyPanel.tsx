@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { formatUnits, getAddress, type Hex } from 'viem';
-import { MAX_MEME_SWAP_USD, SLIPPAGE_BPS, type SwapQuote } from '@/lib/swap';
+import { MAX_MEME_SWAP_USD, type SwapQuote } from '@/lib/swap';
 import { USDC, type CbStock } from '@/lib/tokens';
 import { WalletConnectButton } from './WalletConnectButton';
 import { fmt, logSwapHash, usd, venueNames } from './swapClient';
 import { useNotify } from './notify';
 import { buildSwap, parseAmount, useLiveQuote, useReviewedSwap, useTokenBalance } from './useSwapWallet';
+import { SlippageControl, useSlippage } from './slippage';
 
 // Buy an allowlisted meme with USDC or the stock token its pool is priced in, from the visitor's own
 // wallet, routed by KyberSwap. Same rules as SwapPanel: the server (lib/memeSwap.ts + lib/swap.ts)
@@ -21,6 +22,7 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
   const { notify } = useNotify();
   const [payWith, setPayWith] = useState<PayWith>('USDC');
   const [amount, setAmount] = useState('');
+  const slippageBps = useSlippage();
 
   const inToken =
     payWith === 'USDC'
@@ -35,7 +37,7 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
 
   const { address, busy, error, review, setReview, done, setDone, startReview, confirm, reset } = useReviewedSwap({
     build: async () => {
-      const tx = await buildSwap({ meme: meme.address, payWith: inToken.param, amountIn: amountKey, account: address });
+      const tx = await buildSwap({ meme: meme.address, payWith: inToken.param, amountIn: amountKey, account: address, slippageBps });
       // The server already checked the calldata; this also checks that it is this buy.
       if (!tx.quote.meme || getAddress(tx.quote.meme) !== getAddress(meme.address) || getAddress(tx.tokenIn) !== getAddress(inToken.address) || tx.quote.side !== 'buy') {
         throw new Error('Refused: the transaction is not this buy.');
@@ -49,7 +51,7 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
       declinedBody: 'Nothing was submitted.',
       failedTitle: 'Buy failed',
       approvalReverted: `The ${inToken.symbol} approval reverted onchain. Nothing was bought.`,
-      reverted: 'The buy reverted onchain (price moved past the 0.5% limit). Your funds did not move.',
+      reverted: `The buy reverted onchain (price moved past the ${slippageBps / 100}% limit). Your funds did not move.`,
     },
     onSwapped: (tx, hash) => {
       const text = `Bought ${meme.symbol} with ${fmt(tx.quote.amountIn, inToken.decimals)} ${inToken.symbol}.`;
@@ -66,7 +68,7 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
     clearQuote();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meme.address, payWith]);
-  useEffect(() => setReview(null), [amountKey, payWith, setReview]);
+  useEffect(() => setReview(null), [amountKey, payWith, slippageBps, setReview]);
 
   if (!address) {
     return (
@@ -138,6 +140,7 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
         )}
       </div>
       {overBalance && <p className="geo-note">That is more {inToken.symbol} than your wallet holds on Base.</p>}
+      {!review && <SlippageControl disabled={busy !== null} />}
 
       {quote && !review && (
         <p className="geo-note">
@@ -161,7 +164,7 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
             </dd>
             <dt>Minimum you get</dt>
             <dd>
-              {fmt(review.minAmountOut, meme.decimals, 2)} {meme.symbol} · reverts below this ({SLIPPAGE_BPS / 100}% limit)
+              {fmt(review.minAmountOut, meme.decimals, 2)} {meme.symbol} · reverts below this ({slippageBps / 100}% limit)
             </dd>
             <dt>Cost of the trade</dt>
             <dd>{impactNote(review.quote)} · no Afterbook fee</dd>

@@ -12,6 +12,7 @@ import { WalletConnectButton } from './WalletConnectButton';
 import { useNotify } from './notify';
 import { fmt, logSwapHash, usd, venueNames } from './swapClient';
 import { buildSwap, useSwapWallet, useTxRun } from './useSwapWallet';
+import { SlippageControl, useSlippage } from './slippage';
 
 // Sell a /build basket: a share of whatever the wallet holds of each of its stocks, one KyberSwap
 // swap per stock back to USDC. The mirror of BasketBuyPanel with one difference: each stock is a
@@ -48,6 +49,7 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
   });
 
   const [pct, setPct] = useState('100');
+  const slippageBps = useSlippage();
   const [review, setReview] = useState<{ plan: BasketLegAmount; tx: SwapTx }[] | null>(null);
   const [progress, setProgress] = useState<Progress[] | null>(null);
   const [rest, setRest] = useState<BasketLegAmount[] | null>(null);
@@ -56,6 +58,8 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
   /** Stocks left out of the review because they are worth less than MIN_LEG_USDC (dust costs more in gas). */
   const [dust, setDust] = useState<string[]>([]);
   useEffect(() => onBusy?.(busy !== null), [busy, onBusy]);
+  // A review is only valid for the slippage limit it was built with.
+  useEffect(() => setReview(null), [slippageBps]);
 
   const stockOf = (symbol: string) => stocks.find((s) => s.symbol === symbol)!;
   const { data: balances, refetch: refetchBalances } = useReadContracts({
@@ -69,7 +73,7 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
   const loaded = balances !== undefined;
 
   const buildLeg = async (leg: BasketLegAmount): Promise<SwapTx> => {
-    const tx = await buildSwap({ symbol: leg.symbol, side: 'sell', amountIn: leg.amountIn.toString(), account: address, source: 'basket' }).catch((e: Error) => {
+    const tx = await buildSwap({ symbol: leg.symbol, side: 'sell', amountIn: leg.amountIn.toString(), account: address, source: 'basket', slippageBps }).catch((e: Error) => {
       throw /limited to/.test(e.message) ? new Error(`Selling that much ${leg.symbol} is over $25,000 in one swap. Lower the percent.`) : e;
     });
     // buildSwap checked the router; this checks it is the trade asked for: this stock, a sell,
@@ -201,6 +205,7 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
         )}
       </div>
       {!pctOk && pct !== '' && <p className="geo-note">Enter a whole percent from 1 to 100.</p>}
+      {!review && <SlippageControl disabled={busy !== null} />}
       {loaded && pctOk && plan.length === 0 && <p className="geo-note">Your wallet holds none of these stocks on Base, so there is nothing to sell.</p>}
       {dust.length > 0 && <p className="geo-note">Left out, worth under ${MIN_LEG_USDC} each: {dust.join(', ')}.</p>}
       {plan.length > 0 && !review && (
@@ -226,6 +231,8 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
             <dd>
               at least {fmt(totalOut, USDC.decimals, 2)} USDC from {n} swaps
             </dd>
+            <dt>Slippage limit</dt>
+            <dd>{slippageBps / 100}% per swap. The &ldquo;at least&rdquo; amounts above allow another 0.5% for prices moving between swaps.</dd>
             <dt>Afterbook fee</dt>
             <dd>{feeBps > 0 ? `${(feeBps / 100).toFixed(2)}% of each swap` : 'none'}</dd>
             <dt>Contract</dt>

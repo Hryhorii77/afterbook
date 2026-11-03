@@ -69,7 +69,7 @@ check passes, say so in one short line; do not pad.
 - `buildSwap` returns nothing the browser can send unless `checkSwapCalldata`
   passed: router = `KYBER_ROUTER`, `transactionValue` 0, input/output token,
   recipient = the requesting account, exact amount, minimum within
-  `SLIPPAGE_BPS` of the quote, fee = `swapFee()` (or no fee arrays when off),
+  the request's `slippageBps` of the quote (`parseSlippageBps`: 10-100, default `SLIPPAGE_BPS` 50, and range-checked again inside `checkSwapCalldata`; a wider range or a missing check is a finding), fee = `swapFee()` (or no fee arrays when off),
   empty permit. A removed or weakened check is a finding.
 - Approvals have one call site, `approveExact` in `app/components/useSwapWallet.ts`
   (used by SwapPanel, MemeBuyPanel, BasketBuyPanel, BasketSellPanel, and by

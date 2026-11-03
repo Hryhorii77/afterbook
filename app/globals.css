@@ -2872,3 +2872,12 @@ section[id],
 .approval-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 6px 12px; border-radius: 12px; background: var(--inset); }
 .approval-text { font-size: 14px; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
 .approval-row .btn { flex: none; }
+
+/* Swap panels: the slippage chips under the amount row (slippage.tsx). Chips are data controls (12px corners). */
+.slippage-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.slippage-label { font-size: 14px; color: var(--text-dim); margin-right: 4px; }
+.slippage-row .preset-btn { min-height: 44px; min-width: 56px; }
+main .slippage-custom { width: 88px; height: 44px; min-height: 44px; padding-top: 0; padding-bottom: 0; box-sizing: border-box; }
+@media (max-width: 600px) {
+  .slippage-label { flex-basis: 100%; }
+}

@@ -11,6 +11,7 @@ import { WalletConnectButton } from './WalletConnectButton';
 import { useNotify } from './notify';
 import { fmt, logSwapHash, usd, venueNames } from './swapClient';
 import { buildSwap, parseAmount, useSwapWallet, useTokenBalance, useTxRun } from './useSwapWallet';
+import { SlippageControl, useSlippage } from './slippage';
 
 // Buy a /build basket in one go: one USDC amount, split by the basket's weights, one KyberSwap swap
 // per stock. Every leg is built and checked by the server exactly like a single swap (lib/swap.ts);
@@ -53,6 +54,7 @@ export function BasketBuyPanel({ legs, stocks, onBusy }: { legs: BasketLeg[]; st
   });
 
   const [amount, setAmount] = useState('100');
+  const slippageBps = useSlippage();
   const [review, setReview] = useState<Review | null>(null);
   const [progress, setProgress] = useState<Progress[] | null>(null);
   /** Legs not bought yet after a run stopped: "Buy the rest" reviews just these. */
@@ -61,6 +63,8 @@ export function BasketBuyPanel({ legs, stocks, onBusy }: { legs: BasketLeg[]; st
   const [approvedFor, setApprovedFor] = useState<BasketLegAmount[] | null>(null);
   // Lets the page lock its Buy/Sell switch and eligibility box while a run is asking the wallet.
   useEffect(() => onBusy?.(busy !== null), [busy, onBusy]);
+  // A review is only valid for the slippage limit it was built with.
+  useEffect(() => setReview(null), [slippageBps]);
 
   const decimalsOf = (symbol: string) => stocks.find((s) => s.symbol === symbol)?.decimals ?? 8;
 
@@ -71,7 +75,7 @@ export function BasketBuyPanel({ legs, stocks, onBusy }: { legs: BasketLeg[]; st
   const overBalance = totalRaw !== null && balance !== undefined && totalRaw > balance;
 
   const buildLeg = async (leg: BasketLegAmount): Promise<SwapTx> => {
-    const tx = await buildSwap({ symbol: leg.symbol, side: 'buy', amountIn: leg.amountIn.toString(), account: address, source: 'basket' });
+    const tx = await buildSwap({ symbol: leg.symbol, side: 'buy', amountIn: leg.amountIn.toString(), account: address, source: 'basket', slippageBps });
     if (tx.quote.symbol !== leg.symbol || tx.quote.side !== 'buy' || tx.quote.amountIn !== leg.amountIn.toString()) throw new Error('Refused: the server built a different trade.');
     return tx;
   };
@@ -191,6 +195,7 @@ export function BasketBuyPanel({ legs, stocks, onBusy }: { legs: BasketLeg[]; st
         )}
       </div>
       {overBalance && <p className="geo-note">That is more USDC than your wallet holds on Base.</p>}
+      {!review && <SlippageControl disabled={busy !== null} />}
       {problem && <p className="geo-note">{problem}</p>}
       {plan && !problem && !review && (
         <p className="geo-note">Splits into {plan.map((l) => `${l.symbol} ${usd(Number(l.amountIn) / 1e6)}`).join(' · ')}, one swap each.</p>
@@ -212,6 +217,8 @@ export function BasketBuyPanel({ legs, stocks, onBusy }: { legs: BasketLeg[]; st
             <dd>
               {fmt(reviewTotal, USDC.decimals, 2)} USDC in {legCount} swaps
             </dd>
+            <dt>Slippage limit</dt>
+            <dd>{slippageBps / 100}% per swap. The &ldquo;at least&rdquo; amounts above allow another 0.5% for prices moving between swaps.</dd>
             <dt>Afterbook fee</dt>
             <dd>{feeBps > 0 ? `${(feeBps / 100).toFixed(2)}% of each swap` : 'none'}</dd>
             <dt>Contract</dt>
