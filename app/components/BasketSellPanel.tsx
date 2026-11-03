@@ -1,16 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAccount, usePublicClient, useReadContracts, useSendTransaction, useSwitchChain, useWriteContract } from 'wagmi';
+import { useAccount, useReadContracts } from 'wagmi';
 import { base } from 'wagmi/chains';
-import { concat, erc20Abi, getAddress, type Hex } from 'viem';
-import { BUILDER_CODE_SUFFIX } from '@/lib/builderCode';
+import { erc20Abi, getAddress, type Hex } from 'viem';
 import { KYBER_ROUTER, type SwapTx } from '@/lib/swap';
 import { USDC } from '@/lib/tokens';
 import { basketSellAmounts, legFloor, MIN_LEG_USDC, type BasketLegAmount } from '@/lib/basketBuy';
 import { WalletConnectButton } from './WalletConnectButton';
 import { useNotify } from './notify';
-import { api, fmt, logSwapHash, usd, venueNames } from './swapClient';
+import { fmt, logSwapHash, usd, venueNames } from './swapClient';
+import { buildSwap, useSwapWallet, useTxRun } from './useSwapWallet';
 
 // Sell a /build basket: a share of whatever the wallet holds of each of its stocks, one KyberSwap
 // swap per stock back to USDC. The mirror of BasketBuyPanel with one difference: each stock is a
@@ -36,17 +36,18 @@ interface Progress {
 }
 
 export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBusy?: (busy: boolean) => void }) {
-  const { address, chainId } = useAccount();
+  const { address } = useAccount();
   const { notify } = useNotify();
-  const publicClient = usePublicClient({ chainId: base.id });
-  const { switchChainAsync } = useSwitchChain();
-  const { writeContractAsync } = useWriteContract();
-  const { sendTransactionAsync } = useSendTransaction();
+  const wallet = useSwapWallet();
+  const { busy, setBusy, error, run } = useTxRun({
+    declined: 'Declined in your wallet. That step was not submitted.',
+    declinedTitle: 'Declined',
+    declinedBody: 'That step was not submitted.',
+    failedTitle: 'Basket sell stopped',
+  });
 
   const [pct, setPct] = useState('100');
   const [review, setReview] = useState<{ plan: BasketLegAmount; tx: SwapTx }[] | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<Progress[] | null>(null);
   const [rest, setRest] = useState<BasketLegAmount[] | null>(null);
   /** After a stop: the stock the router can still spend, read live from the chain (whatever run approved it). */
@@ -66,30 +67,12 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
   const plan = pctOk ? basketSellAmounts(holdings, pctNum) : [];
   const loaded = balances !== undefined;
 
-  const run = async (label: string, fn: () => Promise<void>) => {
-    setBusy(label);
-    setError(null);
-    try {
-      await fn();
-    } catch (e) {
-      const msg = (e as { shortMessage?: string; message?: string }).shortMessage ?? (e as Error).message ?? 'failed';
-      const declined = /reject|denied/i.test(msg);
-      setError(declined ? 'Declined in your wallet. That step was not submitted.' : msg);
-      notify(declined ? { kind: 'tx', tone: 'info', title: 'Declined', body: 'That step was not submitted.' } : { kind: 'tx', tone: 'error', title: 'Basket sell stopped', body: msg });
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const buildLeg = async (leg: BasketLegAmount): Promise<SwapTx> => {
-    const tx = await api<SwapTx>('/api/swap/build', {
-      body: { symbol: leg.symbol, side: 'sell', amountIn: leg.amountIn.toString(), account: address, source: 'basket' },
-    }).catch((e: Error) => {
+    const tx = await buildSwap({ symbol: leg.symbol, side: 'sell', amountIn: leg.amountIn.toString(), account: address, source: 'basket' }).catch((e: Error) => {
       throw /limited to/.test(e.message) ? new Error(`Selling that much ${leg.symbol} is over $25,000 in one swap. Lower the percent.`) : e;
     });
-    // The server already checked the calldata; this guards what the wallet is pointed at and that it
-    // is the trade asked for: this stock, a sell, exactly this amount, its own token as the input.
-    if (getAddress(tx.to) !== KYBER_ROUTER || getAddress(tx.spender) !== KYBER_ROUTER) throw new Error('Refused: unexpected contract.');
+    // buildSwap checked the router; this checks it is the trade asked for: this stock, a sell,
+    // exactly this amount, its own token as the input.
     if (tx.quote.symbol !== leg.symbol || tx.quote.side !== 'sell' || tx.quote.amountIn !== leg.amountIn.toString() || getAddress(tx.tokenIn) !== getAddress(stockOf(leg.symbol).tokenAddress)) {
       throw new Error('Refused: the server built a different trade.');
     }
@@ -109,8 +92,8 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
 
   const confirm = () =>
     run('start', async () => {
-      if (!address || !review || !publicClient) return;
-      if (chainId !== base.id) await switchChainAsync({ chainId: base.id });
+      if (!address || !review) return;
+      await wallet.ensureBase();
       setRest(null);
       setApprovedLeft(null);
 
@@ -124,19 +107,9 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
         setProgress([...status]);
         try {
           // This stock's own approval: exactly what this leg sells, only the router, never unlimited.
-          const allowance = (await publicClient.readContract({ address: token, abi: erc20Abi, functionName: 'allowance', args: [address, KYBER_ROUTER] })) as bigint;
-          if (allowance < leg.amountIn) {
+          if ((await wallet.routerAllowance(token)) < leg.amountIn) {
             setBusy(`approve-${i}`);
-            const approval = await writeContractAsync({
-              address: token,
-              abi: erc20Abi,
-              functionName: 'approve',
-              args: [KYBER_ROUTER, leg.amountIn],
-              chainId: base.id,
-              dataSuffix: BUILDER_CODE_SUFFIX,
-            });
-            const r = await publicClient.waitForTransactionReceipt({ hash: approval });
-            if (r.status !== 'success') throw new Error(`The ${leg.symbol} approval reverted onchain. It was not sold.`);
+            await wallet.approveExact(token, leg.amountIn, `The ${leg.symbol} approval reverted onchain. It was not sold.`);
             setBusy(`pause-${i}`);
             await new Promise((res) => setTimeout(res, LEG_PAUSE_MS));
           }
@@ -146,10 +119,7 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
           if (BigInt(tx.minAmountOut) < legFloor(BigInt(reviewed.minAmountOut))) {
             throw new Error(`${leg.symbol}'s price moved below the "at least" amount since your review, so it was not sold.`);
           }
-          const hash = await sendTransactionAsync({ to: tx.to, data: concat([tx.data, BUILDER_CODE_SUFFIX]), value: BigInt(0), chainId: base.id });
-          setBusy(`confirm-${i}`);
-          const receipt = await publicClient.waitForTransactionReceipt({ hash });
-          if (receipt.status !== 'success') throw new Error(`${leg.symbol}'s swap reverted onchain (its price moved past the limit); that stock did not move.`);
+          const hash = await wallet.sendSwap(tx, `${leg.symbol}'s swap reverted onchain (its price moved past the limit); that stock did not move.`, () => setBusy(`confirm-${i}`));
           status[i] = { symbol: leg.symbol, status: 'done', hash, text: `${fmt(leg.amountIn, stockOf(leg.symbol).decimals)} ${leg.symbol} for about ${fmt(tx.quote.amountOut, USDC.decimals, 2)} USDC` };
           setProgress([...status]);
           void logSwapHash(hash);
@@ -163,9 +133,7 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
           setRest(legsLeft());
           // Whatever approved it (this run, an earlier one, a reverted approval): show what the router can
           // really still spend of this stock, read now, not what we think we approved.
-          const open = (await publicClient
-            .readContract({ address: token, abi: erc20Abi, functionName: 'allowance', args: [address, KYBER_ROUTER] })
-            .catch(() => BigInt(0))) as bigint;
+          const open = await wallet.routerAllowance(token).catch(() => BigInt(0));
           setApprovedLeft(open > BigInt(0) ? { symbol: leg.symbol, amountIn: open } : null);
           setReview(null);
           void refetchBalances();
