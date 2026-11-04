@@ -41,7 +41,10 @@ candidate, use that function too, not a single `poolDepth` read. `?dry=1` (with 
 `CRON_SECRET` bearer) returns the digest without sending or storing
 anything — use it to see what it would report. A token is reported once
 when it first has a pool and once more when that pool first becomes
-liquid. Each real run also saves every untracked token's pool and depth
+liquid. A "Skipped:" part names, once each, any listed token that `/stocks` and the
+check leave out (`splitListedTokens` in `lib/stocks/coinbaseStockList.ts`: odd symbol, no
+address, duplicate); if it is a real stock, widen that function (BRK.Bc's dot, 2026-11-04).
+Each real run also saves every untracked token's pool and depth
 (`saveDirectoryPools`), which is what `/stocks` shows; `/stocks` with the
 Small pool filter is the quickest way to see how close a candidate is.
 

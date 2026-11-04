@@ -42,7 +42,7 @@ Styles are one stylesheet per area in `app/styles/` (2026-11-04), loaded in a fi
 ## Verifying changes
 
 No lint script yet. CI (`.github/workflows/ci.yml`) runs `npm run typecheck`, `npm test` and `npm run build` on every PR and push to `main`, with no secrets. To verify a change actually works:
-- `npm test` — Vitest unit tests in `tests/` for the swap money path (`checkSwapCalldata` tamper cases, `parseSwapRequest`, `swapFee`, the $25k and pool-depth caps, `guardSwapRequest`). Offline: KyberSwap, the chain, Redis and the region lookup are mocked, so tests never touch production Redis. A change to `lib/swap/swap.ts` or `lib/swap/swapGuard.ts` keeps or extends them.
+- `npm test` — Vitest unit tests in `tests/` for the swap money path (`checkSwapCalldata` tamper cases, `parseSwapRequest`, `swapFee`, the $25k and pool-depth caps, `guardSwapRequest`), plus a few others (the Aave borrow maths, the token-list split and the discovery digest's "Skipped" part). Offline: KyberSwap, the chain, Redis and the region lookup are mocked, so tests never touch production Redis. A change to `lib/swap/swap.ts` or `lib/swap/swapGuard.ts` keeps or extends them.
 - `npm run build` — typecheck + Next.js build. Not a correctness test.
 - For API routes (especially `app/api/v1/x402/*`), hit them for real:
   `curl -s -i https://afterbook.app/api/<route>` and read the response —

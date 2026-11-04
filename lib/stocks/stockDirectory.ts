@@ -5,14 +5,13 @@
 // minutes), and each tracked stock's memes from the /memes board. Nothing here reads the chain or
 // writes Redis on a page view, and the snapshot read is cached an hour.
 import { unstable_cache } from 'next/cache';
-import { fetchCoinbaseStockList, LISTED_SYMBOL_RE } from './coinbaseStockList';
+import { fetchCoinbaseStockList, splitListedTokens } from './coinbaseStockList';
 import { ICON_HOST } from './coinbaseIcons';
 import { getMemeBoard } from '../memes/memestocks';
 import { redis } from '../server/redis';
 import { STOCKS } from './tokens';
 
 const POOLS_KEY = 'directory:pools';
-const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 
 export type DirectoryStatus = 'tracked' | 'pool' | 'none' | 'unchecked';
 
@@ -150,9 +149,7 @@ export async function getStockDirectory(trackedDepth: Record<string, number | nu
   ]);
   if (!list) return null;
 
-  const tokens = list.filter(
-    (t) => typeof t.symbol === 'string' && LISTED_SYMBOL_RE.test(t.symbol) && typeof t.contract_address === 'string' && ADDRESS_RE.test(t.contract_address),
-  );
+  const tokens = splitListedTokens(list).kept;
   // Market data is a nice-to-have: the list still renders without it.
   const markets = await cachedStockMarkets(tokens.map((t) => String(t.contract_address).toLowerCase()).sort()).catch((err) => {
     console.error('[directory] market data unavailable', err);
@@ -167,13 +164,10 @@ export async function getStockDirectory(trackedDepth: Record<string, number | nu
   }
 
   const tracked = new Map(STOCKS.map((s) => [s.tokenAddress.toLowerCase(), s]));
-  const seen = new Set<string>();
   const rows: DirectoryRow[] = [];
   for (const t of tokens) {
     const symbol = t.symbol as string;
     const address = t.contract_address as string;
-    if (seen.has(symbol)) continue;
-    seen.add(symbol);
     const iconUrl = typeof t.icon_url === 'string' && t.icon_url.startsWith(ICON_HOST) ? t.icon_url : null;
     const name = typeof t.name === 'string' ? t.name : '';
     const market = markets[address.toLowerCase()] ?? { priceUsd: null, change24Pct: null, volume24Usd: null, onBaseUsd: null };

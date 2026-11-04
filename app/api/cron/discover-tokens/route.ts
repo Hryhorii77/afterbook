@@ -13,6 +13,9 @@ export const maxDuration = 60;
 // again when that pool first becomes liquid, but never repeatedly.
 const POOL_NOTIFIED_KEY = 'discover:notified';
 const LIQUID_NOTIFIED_KEY = 'discover:liquid';
+/** Listed tokens the site skips (splitListedTokens), by address and symbol, so each is reported once. */
+const SKIPPED_NOTIFIED_KEY = 'discover:skipped';
+const MAX_SKIPPED_LINES = 10;
 /** Depth at which a candidate is worth a ready-to-paste snippet. Half the tape's
  *  own "liquid" line, since the rows it would join start as thin books anyway. */
 const SNIPPET_MIN_DEPTH_USD = 250_000;
@@ -32,7 +35,8 @@ async function inChunks<T, R>(items: T[], size: number, fn: (item: T) => Promise
 
 // Daily: compares Coinbase's published tokenized-stock list against lib/stocks/tokens.ts
 // and tells the maintainer (one digest message, not one per token) about names
-// that now have a USDC pool (Aero or the older Aerodrome factory), with real depth. Never edits tokens.ts.
+// that now have a USDC pool (Aero or the older Aerodrome factory), with real depth, and once about any listed
+// token the site skips (splitListedTokens: an unexpected symbol, no address, a duplicate). Never edits tokens.ts.
 // ?dry=1 returns the digest without sending anything or touching Redis.
 export async function GET(request: NextRequest) {
   if (!cronAuthorized(request)) {
@@ -45,15 +49,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, reason: 'discovery not configured' });
   }
 
-  const published = await fetchPublishedStockList().catch(() => null);
-  if (!published) return NextResponse.json({ ok: false, reason: 'stock list fetch failed' });
+  const listing = await fetchPublishedStockList().catch(() => null);
+  if (!listing) return NextResponse.json({ ok: false, reason: 'stock list fetch failed' });
+  const published = listing.stocks;
+
+  const [poolSeen, liquidSeen, skippedSeen] = dry || !redis
+    ? [new Set<string>(), new Set<string>(), new Set<string>()]
+    : await Promise.all([redis.smembers(POOL_NOTIFIED_KEY), redis.smembers(LIQUID_NOTIFIED_KEY), redis.smembers(SKIPPED_NOTIFIED_KEY)]).then(
+        ([a, b, c]) => [new Set(a), new Set(b), new Set(c)],
+      );
+  // Tokens Coinbase lists that /stocks and this check leave out (odd symbol, no address, a duplicate).
+  const skipKey = (s: { symbol: string; address: string }) => `${s.address.toLowerCase()}|${s.symbol}`;
+  const newSkipped = listing.skipped.filter((s) => !skippedSeen.has(skipKey(s)));
 
   const untracked = diffAgainstTracked(published);
-  if (untracked.length === 0) return NextResponse.json({ ok: true, untracked: 0 });
-
-  const [poolSeen, liquidSeen] = dry || !redis
-    ? [new Set<string>(), new Set<string>()]
-    : await Promise.all([redis.smembers(POOL_NOTIFIED_KEY), redis.smembers(LIQUID_NOTIFIED_KEY)]).then(([a, b]) => [new Set(a), new Set(b)]);
+  if (untracked.length === 0 && newSkipped.length === 0) return NextResponse.json({ ok: true, untracked: 0 });
 
   const checked = await inChunks(untracked, CONCURRENCY, async (t) => ({
     t,
@@ -93,22 +103,32 @@ export async function GET(request: NextRequest) {
   const newLiquid = withPool.filter((c) => liquid(c) && !liquidSeen.has(c.t.symbol));
   const reportable = [...new Set([...newPool, ...newLiquid])];
 
-  if (reportable.length === 0) {
+  if (reportable.length === 0 && newSkipped.length === 0) {
     return NextResponse.json({ ok: true, untracked: untracked.length, withPool: withPool.length, noPool, reported: 0 });
   }
 
   const lines = reportable
     .sort((a, b) => (b.r?.depthUsd ?? -1) - (a.r?.depthUsd ?? -1))
     .map((c) => `${c.t.symbol} — ${c.t.name || 'unnamed'} — ${c.r?.depthUsd != null ? `${usdCompact(c.r.depthUsd)} depth` : 'depth unreadable'}${unsteady.has(c.t.symbol) ? ' (one read; its history could not be checked)' : ''}`);
-  const digest =
-    `Coinbase lists ${published.length} tokenized stocks; ${untracked.length} aren't tracked here. ` +
-    `New Aero or Aerodrome USDC pools since last check (${reportable.length}), deepest first:\n\n${lines.join('\n')}\n\n` +
-    `${noPool} others have no pool yet (checked again daily). Depth over ${usdCompact(STEADY_CHECK_FROM_USD)} is the lowest it has been in the last ${STEADY_HOURS} hours. Liquid ones get a snippet below; follow the add-tokenized-stock steps before adding.`;
+  const poolPart =
+    reportable.length === 0
+      ? ''
+      : `Coinbase lists ${published.length + listing.skipped.length} tokenized stocks; ${untracked.length} aren't tracked here. ` +
+        `New Aero or Aerodrome USDC pools since last check (${reportable.length}), deepest first:\n\n${lines.join('\n')}\n\n` +
+        `${noPool} others have no pool yet (checked again daily). Depth over ${usdCompact(STEADY_CHECK_FROM_USD)} is the lowest it has been in the last ${STEADY_HOURS} hours. Liquid ones get a snippet below; follow the add-tokenized-stock steps before adding.`;
+  const skippedLines = newSkipped.slice(0, MAX_SKIPPED_LINES).map((s) => `${s.symbol} — ${s.address} — ${s.reason}`);
+  if (newSkipped.length > MAX_SKIPPED_LINES) skippedLines.push(`…and ${newSkipped.length - MAX_SKIPPED_LINES} more`);
+  const skippedPart =
+    newSkipped.length === 0
+      ? ''
+      : `Skipped: Coinbase lists ${newSkipped.length} token${newSkipped.length === 1 ? '' : 's'} that /stocks and this check leave out:\n\n${skippedLines.join('\n')}\n\n` +
+        `If one is a real stock, widen splitListedTokens in lib/stocks/coinbaseStockList.ts. Each is reported once.`;
+  const digest = [poolPart, skippedPart].filter(Boolean).join('\n\n');
 
   const snippets = reportable.filter(liquid).slice(0, MAX_SNIPPETS_PER_RUN);
 
   if (dry) {
-    return NextResponse.json({ ok: true, dry: true, digest, snippetFor: snippets.map((c) => c.t.symbol) });
+    return NextResponse.json({ ok: true, dry: true, digest, snippetFor: snippets.map((c) => c.t.symbol), skipped: newSkipped });
   }
 
   await sendTelegramMessage(adminChatId!, digest);
@@ -123,7 +143,9 @@ export async function GET(request: NextRequest) {
     };
     await remember(POOL_NOTIFIED_KEY, newPool);
     await remember(LIQUID_NOTIFIED_KEY, newLiquid);
+    const [firstSkip, ...restSkip] = newSkipped.map(skipKey);
+    if (firstSkip) await store.sadd(SKIPPED_NOTIFIED_KEY, firstSkip, ...restSkip);
   }
 
-  return NextResponse.json({ ok: true, untracked: untracked.length, withPool: withPool.length, noPool, reported: reportable.length, snippets: snippets.length });
+  return NextResponse.json({ ok: true, untracked: untracked.length, withPool: withPool.length, noPool, reported: reportable.length, snippets: snippets.length, skipped: newSkipped.length });
 }
