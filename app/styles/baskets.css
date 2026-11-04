@@ -1,0 +1,50 @@
+
+/* "How it works" steps on /baskets. */
+.how-grid {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.how-step {
+  padding: 16px;
+  background: var(--inset);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+}
+.how-num {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+.how-step h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.how-step p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+@media (max-width: 960px) { .how-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .how-grid { grid-template-columns: 1fr; } }
+
+/* Rows of buttons/fields in the basket panel: real gaps instead of <br> and
+   inline spaces, so text above and below never sits flush against a button. */
+.basket-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+/* The amount box sits in a row of pill buttons (Max, Send USDC), so it is a pill too. */
+.basket-amount { width: 180px; max-width: 100%; border-radius: 999px; padding-left: 20px; padding-right: 20px; }
+.basket-deposit { margin-top: 16px; }
+
+.weight-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; margin-top: 16px; }
+.weight-card { padding: 16px; background: var(--inset); border: 1px solid var(--panel-border); border-radius: 14px; }
+.weight-card-top { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.weight-pct { margin-top: 14px; font-size: 26px; font-weight: 600; letter-spacing: -0.03em; }
+.weight-bar { margin-top: 10px; height: 6px; border-radius: 999px; background: var(--overlay-3); overflow: hidden; }
+.weight-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.weight-meta { margin-top: 12px; display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--text-dim); }
+.weight-meta > a.emph-link { display: inline-flex; align-items: center; min-height: 44px; }

@@ -1,0 +1,129 @@
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Form controls don't inherit the page font by default (they fall back to the
+   system UI font), which would leave every button in Arial next to Poppins text. */
+button, input, select, textarea {
+  font-family: inherit;
+}
+
+main {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 32px 20px 80px;
+}
+
+h1 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  /* Fixed layout + the shared <colgroup> widths in TapeColGroup (HomeClient.tsx)
+     keep the tape and thin-books tables' columns aligned — they're separate
+     <table> elements, so auto layout would otherwise size each one's columns
+     from its own content and the two tables would drift out of sync. */
+  table-layout: fixed;
+}
+
+th, td {
+  text-align: right;
+  padding: 10px 6px;
+  font-size: 14px;
+  font-family: var(--font-ui);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+th:first-child, td:first-child {
+  text-align: left;
+  font-family: inherit;
+}
+
+th {
+  color: var(--text-dim);
+  font-weight: 500;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+/* One look for every text-like field and select inside the app shell (the
+   wallet modal portals outside <main>, so RainbowKit's own inputs are not
+   touched). Checkboxes, radios and ranges keep native rendering. Wrapped in
+   :where() so it has zero specificity and a component class (like the compact
+   .sticky-symbol-select) can still override it. */
+/* Selects draw their own arrow: iOS Safari ignores min-height (and padding) on a native select, which
+   left them 28-30px tall (2026-11-03). */
+:where(select) {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 34px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238a8f9a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+}
+:where(select, main input:not([type='checkbox']):not([type='radio']):not([type='range'])) {
+  background-color: var(--inset);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-height: 44px;
+  font-size: 14px;
+  font-family: var(--font-ui);
+  letter-spacing: -0.02em;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+:where(select, main input:not([type='checkbox']):not([type='radio']):not([type='range'])):hover:not(:disabled) {
+  border-color: var(--secondary-border-hover);
+}
+:where(select, main input:not([type='checkbox']):not([type='radio']):not([type='range'])):focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+:where(select, main input:not([type='checkbox']):not([type='radio']):not([type='range'])):disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+main input::placeholder {
+  color: var(--text-dimmer);
+}
+
+/* Checkboxes: same size and accent everywhere (the eligibility box overrides
+   the size below, which only differs by a pixel). */
+main input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Fallback focus ring for anything interactive that has no ring of its own
+   (nav links, tape cards, preset and tab buttons, the theme toggle, the wallet
+   button). More specific rules, like button.btn's, still win. */
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+[role='tab']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

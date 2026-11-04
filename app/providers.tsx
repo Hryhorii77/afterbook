@@ -7,7 +7,7 @@ import { RainbowKitProvider, darkTheme, lightTheme } from '@rainbow-me/rainbowki
 import { useTheme } from './components/layout/theme';
 import { wagmiConfig } from '@/lib/wallet/wagmiConfig';
 
-// Match this app's own palette (app/globals.css) rather than RainbowKit's
+// Match this app's own palette (app/styles/tokens.css) rather than RainbowKit's
 // default blue/purple — the wallet modal should look like part of Afterbook,
 // in whichever theme is active.
 const rainbowKitThemes = {

@@ -1,0 +1,1034 @@
+.tape-card-id { display: inline-flex; align-items: center; gap: 8px; }
+
+/* Tape rows as individual rounded cards. Still a real <table> (sorting, fixed
+   column alignment between the tape and thin-books tables), just with
+   separated borders so each row reads as its own card. */
+#tape table { border-collapse: separate; border-spacing: 0 8px; }
+#tape thead th { border-bottom: 0; padding-bottom: 2px; }
+#tape tbody td {
+  background: var(--inset);
+  border-top: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--panel-border);
+  padding: 12px 8px;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+#tape tbody td:first-child { border-left: 1px solid var(--panel-border); border-radius: 14px 0 0 14px; padding-left: 12px; }
+#tape tbody td:last-child { border-right: 1px solid var(--panel-border); border-radius: 0 14px 14px 0; padding-right: 14px; }
+#tape .tape-row-clickable:hover td { background: var(--surface-hover); }
+#tape .tape-row-active { box-shadow: none; background: transparent; }
+#tape .tape-row-active td { background: color-mix(in srgb, var(--accent) 7%, var(--panel)); border-top-color: var(--accent); border-bottom-color: var(--accent); }
+#tape .tape-row-active td:first-child { border-left-color: var(--accent); }
+#tape .tape-row-active td:last-child { border-right-color: var(--accent); }
+#tape .thin-table tbody td { padding: 8px 8px; }
+td.spark-cell { text-align: right; }
+.mini-spark { width: 120px; height: 36px; display: inline-block; vertical-align: middle; overflow: visible; }
+.mini-spark-up { color: var(--green); }
+.mini-spark-down { color: var(--red); }
+/* On phone cards the 24h change sits at the end of the depth line. */
+td.change-cell { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.mini-spark-empty { color: var(--text-dimmer); }
+.mini-spark-new { display: inline-block; padding: 3px 10px; border: 1px solid var(--panel-border); border-radius: 999px; font-size: 12px; color: var(--text-dimmer); }
+
+/* /today: hero identity row and stat cards. */
+.today-id { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
+.today-id-label { display: block; margin-bottom: 2px; font-size: 12px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dimmer); }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 16px; }
+.stat-card { padding: 18px 20px; background: var(--inset); border: 1px solid var(--panel-border); border-radius: 14px; }
+.stat-value { font-size: 30px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
+.stat-label { margin-top: 8px; font-size: 13px; color: var(--text-dim); }
+/* The hero's onchain price: what you can trade at, so a firmer edge and a heavier number than the
+   cash price beside it (existing tokens only). */
+.stat-card-onchain {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--panel-border));
+  background: color-mix(in srgb, var(--accent) 6%, var(--inset));
+}
+.stat-card-onchain .stat-value { font-weight: 700; }
+.stat-sub { margin-top: 4px; font-size: 12.5px; color: var(--text-dimmer); }
+/* "Live · updated 15s ago" under the Tape heading: a system state, so the info colour; amber when
+   the numbers are delayed (the same amber as the STALE tag). */
+.tape-freshness {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 6px;
+  margin: -4px 0 12px;
+  font-size: 12.5px;
+  color: var(--info);
+}
+.tape-freshness-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.tape-freshness-delayed { color: var(--amber); }
+
+/* My Lots: wallet chip, LP card extras. */
+.my-lots-wallet { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; }
+.lp-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.lp-grid .weight-card .geo-note { font-size: 12.5px; }
+.range-badge { padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
+.range-badge-in { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.range-badge-out { color: var(--red); background: color-mix(in srgb, var(--red) 14%, transparent); }
+
+/* /today hero: identity and session on one row, then stat cards. */
+.today-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.today-top .today-id { margin-top: 0; }
+.today-session { padding: 6px 12px; border: 1px solid var(--panel-border); border-radius: 999px; font-size: 13px; color: var(--text-dim); background: var(--panel); }
+.today-stats { display: grid; grid-template-columns: 1.7fr 1fr 1fr; gap: 12px; margin-top: 18px; }
+.stat-card-hero { display: flex; flex-direction: column; justify-content: center; }
+.stat-card-hero .today-stat-value { margin-top: 6px; font-size: 56px; }
+.stat-card-hero .stat-label { margin-top: 8px; }
+@media (max-width: 760px) { .today-stats { grid-template-columns: 1fr; } .stat-card-hero .today-stat-value { font-size: 44px; } }
+
+.clock-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+}
+
+/* Same pill weight as .clock-badge next to it — the homepage's only entry
+   point into /today, which otherwise has no link pointing at it from
+   anywhere in the app (only a link back out, from /today itself). */
+.today-link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  text-decoration: none;
+}
+.today-link:hover {
+  border-color: var(--secondary-border-hover);
+  color: var(--text);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.dot.open { background: var(--green); animation: pulse 2s ease-in-out infinite; }
+.dot.pre-market, .dot.after-hours { background: var(--amber); animation: pulse 2s ease-in-out infinite; }
+.dot.closed-weekend { background: var(--blue-gray); }
+.dot.closed-holiday, .dot.closed-overnight { background: var(--text-dim); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Compact pinned bar: a zero-height sticky anchor with the bar absolutely
+   positioned inside it, so showing or hiding it never moves the page. It fades
+   in only once the hero card has scrolled out of view. */
+.compact-anchor {
+  position: sticky;
+  top: var(--site-header-h);
+  height: 0;
+  z-index: 20;
+}
+.sticky-symbol-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 16px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-pill);
+  font-family: var(--font-ui);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-6px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0s linear 0.15s;
+}
+.sticky-symbol-bar-on {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
+}
+
+.sticky-symbol-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.sticky-symbol-select {
+  background: var(--inset);
+  color: var(--text);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 4px 8px;
+  min-height: 0;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sticky-symbol-basis {
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.sticky-symbol-detail {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+.sticky-symbol-detail .gap-detail-label {
+  font-size: 12px;
+}
+
+/* The stock chooser inside the hero card: reads as the card's title. */
+.hero-symbol-select {
+  display: block;
+  padding: 2px 28px 2px 0;
+  min-height: 0;
+  border: 0;
+  background-color: transparent;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+}
+.hero-symbol-select:hover:not(:disabled) { border-color: transparent; color: var(--accent); }
+/* The title-style selects have no border, so the site-wide select focus glow (a 3px halo)
+   rendered as a heavy box hugging the name. A thin ring with breathing room instead. */
+.hero-symbol-select,
+.sticky-symbol-select { border-radius: 10px; }
+/* Room inside the ring (the negative margin keeps the text where it was) and a gap above the name. */
+.hero-symbol-select { padding-left: 8px; margin: 0 0 4px -8px; }
+.hero-symbol-select:focus-visible,
+.sticky-symbol-select:focus-visible {
+  box-shadow: none;
+  outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: 0;
+}
+.today-session .dot { display: inline-block; margin-right: 8px; vertical-align: middle; }
+
+.thin-chip {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--text-dimmer);
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  margin: -8px 0 16px;
+}
+
+
+.gap-hero-title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--amber);
+}
+
+.gap-hero-sub {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin-top: 4px;
+  margin-bottom: 16px;
+}
+
+.gap-detail-label {
+  font-size: 9px;
+  color: var(--text-dimmer);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  vertical-align: 1px;
+}
+
+/* Keeps a label glued to its own price — a line break must fall between
+   the cash and aero pairs, never between a label and the number it's
+   naming (that split briefly makes the number unattributed again, which
+   is exactly what these labels exist to prevent). */
+.gap-price-pair {
+  white-space: nowrap;
+}
+
+.gap-detail {
+  font-family: var(--font-ui);
+  letter-spacing: -0.02em;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Below 768px the fixed 5-column table doesn't fit without horizontal
+   scroll or collision — TapeCards (a stacked-card layout, same data) takes
+   over instead. Both render always; only one is ever visible, toggled
+   purely by CSS so there's no media-query-in-JS/hydration-mismatch risk. */
+.tape-cards {
+  display: none;
+}
+@media (max-width: 767px) {
+  .tape-table-desktop {
+    display: none;
+  }
+  .tape-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+.tape-card {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+/* The card's main part selects the stock; Details is its own button below it. */
+.tape-card-main {
+  display: block;
+  width: 100%;
+  padding: 12px 12px 8px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+}
+.tape-card-more {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 12px 10px;
+  text-align: left;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.tape-card-more:hover { color: var(--text); }
+.tape-card-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  margin: 0;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--panel-border);
+}
+.tape-card-details dt { font-size: 11.5px; color: var(--text-dimmer); }
+.tape-card-details dd { margin: 2px 0 0; font-size: 14px; font-weight: 600; }
+.tape-card-details-wide { grid-column: 1 / -1; }
+.tape-card-details-wide dd { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+.tape-card-details .mini-spark { width: 120px; height: 36px; }
+.tape-card-spark-text { font-size: 13px; color: var(--text-dim); }
+/* Closed-by-default explainers: "What the columns mean" above the tape, "What the words mean" in the hero. */
+.tape-legend, .explain { margin: 0 0 12px; font-size: 12.5px; color: var(--text-dim); }
+.tape-legend summary, .explain summary { cursor: pointer; width: fit-content; color: var(--info); }
+.tape-legend dl, .explain dl { display: grid; gap: 6px; margin: 8px 0 0; }
+.tape-legend dl > div, .explain dl > div { display: flex; gap: 8px; }
+.tape-legend dt, .explain dt { flex: 0 0 120px; font-weight: 600; color: var(--text); }
+.tape-legend dd, .explain dd { margin: 0; line-height: 1.5; }
+.hero-intro { margin: 10px 0 0; }
+.explain-foot { margin: 10px 0 0; color: var(--text-dimmer); }
+@media (max-width: 520px) {
+  .tape-legend dl > div, .explain dl > div { flex-direction: column; gap: 0; }
+  .tape-legend dt, .explain dt { flex: none; }
+}
+.tape-card-active {
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.tape-card-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tape-card-basis {
+  font-family: var(--font-ui);
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tape-card-name {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.tape-card-prices {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  margin-top: 8px;
+}
+.tape-card-depth {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--text-dimmer);
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+
+.sortable-th {
+  white-space: nowrap;
+}
+/* The sort control is a real button (keyboard, screen readers), drawn as a small pill so it
+   reads as clickable. */
+.sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: -4px -8px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  user-select: none;
+}
+.sort-btn:hover { color: var(--text); background: var(--overlay-2); border-color: var(--panel-border); }
+.sort-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sortable-th[aria-sort='ascending'] .sort-btn, .sortable-th[aria-sort='descending'] .sort-btn { color: var(--text); }
+#tape .tape-row-clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.sort-indicator {
+  color: var(--text-dimmer);
+  font-size: 12px;
+}
+
+.sort-btn:hover .sort-indicator {
+  color: var(--text-dim);
+}
+
+.sort-indicator-active {
+  color: var(--accent);
+  font-size: inherit;
+}
+
+.sort-btn:hover .sort-indicator-active {
+  color: var(--accent);
+}
+
+.basis-pos { color: var(--green); }
+.basis-neg { color: var(--red); }
+
+/* /today's single-stat hero — the "one screenshot stat" page, deliberately
+   built around one big number rather than a multi-symbol grid.
+   .basis-pos/.basis-neg above still color the number itself. */
+.today-symbol {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin-top: 4px;
+}
+.today-stat-value {
+  font-family: var(--font-ui);
+  letter-spacing: -0.02em;
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-top: 8px;
+}
+@media (max-width: 480px) {
+  .today-stat-value {
+    font-size: 44px;
+  }
+}
+
+/* Basis is the reason to open this page — give it more visual weight than
+   the surrounding cells. Depth is useful context, not the headline. */
+td.basis-cell {
+  font-size: 17px;
+  font-weight: 600;
+}
+td.depth-cell {
+  color: var(--text-dimmer);
+  font-size: 13px;
+}
+.depth-cell-inner {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.depth-usd {
+  min-width: 58px;
+  text-align: right;
+}
+.depth-shares {
+  min-width: 76px;
+  text-align: right;
+}
+/* Side by side the two figures need about 150px. Between the card layout
+   (760px and below) and about 1000px the column is narrower than that, and a
+   right-aligned flex row that doesn't fit spills out of its left edge, over
+   the basis figure. Stack them there instead. */
+@media (max-width: 1100px) {
+  .depth-cell-inner { flex-direction: column; align-items: flex-end; gap: 0; }
+  .depth-sep { display: none; }
+  .depth-usd, .depth-shares { min-width: 0; }
+}
+
+.tape-row-clickable {
+  cursor: pointer;
+}
+.tape-row-clickable:hover {
+  background: var(--surface-hover);
+}
+.tape-row-active {
+  background: var(--surface-hover);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.thin-books {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.thin-toggle {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+.thin-toggle:hover {
+  color: var(--text);
+}
+
+/* Thin books get the same layout as the main tape but deliberately less
+   visual weight — basis here is noise-dominated, not signal, and shouldn't
+   compete with the liquid names above it. */
+.thin-table {
+  margin-top: 10px;
+  opacity: 0.85;
+}
+.thin-table th, .thin-table td {
+  font-size: 12px;
+  padding: 7px 6px;
+}
+.thin-table td.basis-cell {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.stale-tag {
+  font-size: 12px;
+  color: var(--amber);
+  border: 1px solid var(--amber);
+  border-radius: 4px;
+  padding: 1px 4px;
+  margin-left: 6px;
+}
+
+.earnings-tag {
+  display: block;
+  font-size: 12px;
+  color: var(--amber);
+  margin-top: 2px;
+}
+
+.lot-lab-form {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 16px;
+}
+
+/* Shares out is the answer to the question the whole lab exists to ask —
+   it gets its own row, everything else (exec price, impact, fee) is
+   context underneath it, not four equal-weight tiles competing for
+   attention. */
+.result-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--inset);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin-top: 8px;
+}
+
+.result-hero .label {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.result-hero .value {
+  font-family: var(--font-ui);
+  letter-spacing: -0.02em;
+  font-size: 32px;
+  font-weight: 600;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+@media (max-width: 767px) {
+  .result-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.result-cell {
+  background: var(--inset);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.result-cell .label {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.result-cell .value {
+  font-family: var(--font-ui);
+  letter-spacing: -0.02em;
+  font-size: 18px;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.caveat {
+  color: var(--amber);
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+.range-bar-track {
+  position: relative;
+  height: 6px;
+  margin: 8px 0 6px;
+  border-radius: 3px;
+  background: var(--panel-border);
+}
+
+.range-bar-marker {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--green);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 2px var(--panel);
+}
+
+.range-bar-marker-out {
+  background: var(--red);
+}
+
+.impact-curve {
+  width: 100%;
+  height: auto;
+  margin-top: 16px;
+}
+
+.curve-axis {
+  stroke: var(--panel-border);
+  stroke-width: 1;
+}
+
+.curve-caveat-zone {
+  fill: var(--amber);
+  opacity: 0.06;
+}
+
+.curve-line {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.curve-dot {
+  fill: var(--accent);
+}
+
+.curve-dot-caveat {
+  fill: var(--amber);
+}
+
+.curve-current-line {
+  stroke: var(--text-dim);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.curve-current-dot {
+  fill: var(--bg);
+  stroke: var(--text);
+  stroke-width: 2;
+}
+
+.curve-tick {
+  fill: var(--text-dim);
+  font-size: 12px;
+  font-family: var(--font-ui);
+  letter-spacing: -0.02em;
+}
+
+.depth-heading {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin: 24px 0 0;
+}
+
+.depth-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.depth-heading-row .depth-heading {
+  margin: 24px 0 0;
+}
+
+.adjust-range-toggle {
+  margin-top: 24px;
+  background: none;
+  border: 1px solid var(--secondary-border);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+.adjust-range-toggle:hover {
+  border-color: var(--secondary-border-hover);
+  color: var(--text);
+}
+.adjust-range-toggle-active {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.depth-chart {
+  width: 100%;
+  height: auto;
+  margin-top: 16px;
+}
+
+.depth-bar {
+  fill: var(--accent);
+  opacity: 0.35;
+}
+
+.depth-bar-active {
+  opacity: 0.9;
+}
+
+.range-select-fill {
+  fill: var(--green);
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+.range-handle {
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+/* Non-interactive state (dragEnabled off): the handle's own touch-action:
+   none above would otherwise block page-scroll over its hit area even with
+   no pointerdown handler attached — override it back to the default so a
+   finger landing there scrolls the page like anywhere else on the chart. */
+.range-handle-static {
+  cursor: default;
+  touch-action: auto;
+}
+
+.range-handle-line {
+  stroke: var(--green);
+  stroke-width: 2;
+}
+
+.range-handle-grip {
+  fill: var(--green);
+}
+
+.range-handle-active .range-handle-line {
+  stroke-width: 3;
+}
+
+.lp-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: var(--inset);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+}
+
+.lp-line-label {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.lp-line-value {
+  font-family: var(--font-ui);
+  letter-spacing: -0.02em;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.paste-checklist {
+  margin: 12px 0 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.paste-checklist li {
+  margin-bottom: 4px;
+}
+.paste-checklist li:last-child {
+  margin-bottom: 0;
+}
+.paste-checklist strong {
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.sparkline {
+  width: 100%;
+  height: auto;
+  margin-top: 8px;
+}
+
+.size-presets {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.lot-lab-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 16px 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.lot-lab-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 4px 10px;
+  margin-right: 20px;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.lot-lab-tab:hover {
+  color: var(--text);
+}
+
+.lot-lab-tab-active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+/* Secondary, within-tab toggle (Carry's buy vs. short-basis/unwind
+   direction) — a segmented pill rather than the same underline style as
+   the Trade/LP/Carry tabs above it, so it doesn't read as a third level
+   of the same tab hierarchy. */
+.carry-direction-toggle {
+  display: inline-flex;
+  border: 1px solid var(--secondary-border);
+  border-radius: 999px;
+  padding: 2px;
+  margin-bottom: 16px;
+}
+.carry-direction-tab {
+  background: none;
+  border: none;
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.carry-direction-tab:hover {
+  color: var(--text);
+}
+.carry-direction-tab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.carry-direction-tab:disabled:hover {
+  color: var(--text-dim);
+}
+.carry-direction-tab-active {
+  background: var(--panel-border);
+  color: var(--text);
+}
+
+/* Subordinate info card — deliberately quieter than the calculator above
+   it (this is a link-out to third-party venues Afterbook has no
+   relationship with, not a feature of the app itself). */
+.carry-hedge-note {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--inset);
+}
+.carry-hedge-note h4 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.carry-hedge-note p.geo-note:last-child {
+  margin-bottom: 0;
+}
+
+.preset-btn {
+  background: var(--inset);
+  border: 1px solid var(--panel-border);
+  color: var(--text-dim);
+  border-radius: 12px;
+  padding: 6px 12px;
+  min-height: 40px;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background-color 0.12s ease;
+}
+
+.preset-btn:hover {
+  border-color: var(--secondary-border-hover);
+  color: var(--text);
+}
+
+/* Selected state fills solid (same --btn treatment as the primary CTA) —
+   a low-contrast outline alone didn't read as "this one's active" at a
+   glance, especially for the dynamic "1% of pool" chip whose target value
+   changes with the symbol. */
+.preset-btn-active {
+  background: var(--primary-bg);
+  border-color: var(--primary-bg);
+  color: var(--primary-text);
+}
+.preset-btn-active:hover {
+  background: var(--primary-bg-hover);
+  border-color: var(--primary-bg-hover);
+  color: var(--primary-text);
+}
+
+.event-log {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.event-log-time {
+  font-family: var(--font-ui);
+  color: var(--text-dimmer);
+  margin-right: 6px;
+}
+
+.my-lots-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.my-lots-address {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.my-lots-usd {
+  font-size: 12px;
+  color: var(--text-dimmer);
+  margin-top: 2px;
+}
+.hero-sentence { margin-top: 10px; font-size: 20px; line-height: 1.4; color: var(--text); max-width: 30em; }
+.hero-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 20px; margin-top: 18px; }
+.hero-actions > .emph-link { display: inline-flex; align-items: center; min-height: 44px; }
+.hero-note { margin: 14px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-dimmer); }
+@media (max-width: 760px) {
+  /* Price cards side by side on phones so the trade button isn't pushed off the first screen. */
+  .tape-hero .today-stats { grid-template-columns: 1fr 1fr; }
+  .tape-hero .stat-card-hero { grid-column: 1 / -1; }
+  .tape-hero .stat-card .stat-value { font-size: 22px; }
+  .hero-sentence { font-size: 18px; }
+}
+/* The zero count in "$0.0₆1554". */
+.price-zeros {
+  font-size: 0.6em;
+  vertical-align: -0.15em;
+  line-height: 0;
+  margin: 0 0.04em;
+}
+/* The percent leads; bp, the trader's unit, sits beside it smaller. */
+.today-stat-bp { margin-left: 12px; font-size: 0.34em; font-weight: 500; letter-spacing: 0; color: var(--text-dim); white-space: nowrap; }
+.how-steps { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.how-steps li { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--panel-border); border-radius: 12px; background: var(--inset); font-size: 14px; line-height: 1.45; color: var(--text-dim); }
+.how-steps strong { color: var(--text); font-weight: 600; }
+.how-step-n { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 999px; background: var(--accent); color: var(--bg); font-size: 13px; font-weight: 600; }
+@media (max-width: 760px) {
+  .how-steps { grid-template-columns: 1fr; }
+}

@@ -34,7 +34,7 @@ function stampLabel(sessionLabel: string, atMs: number): string {
 }
 
 // Card colours per theme: dark is the site's dark look, light uses the light tokens in
-// app/globals.css. The person sharing picks it (whatever theme they had on), not the viewer.
+// app/styles/tokens.css. The person sharing picks it (whatever theme they had on), not the viewer.
 const PALETTES = {
   dark: {
     bg: '#121214',

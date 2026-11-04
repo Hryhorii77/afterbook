@@ -1,0 +1,52 @@
+
+/* In-app swap (SwapPanel.tsx): the review is a quiet inset card listing exactly what the wallet will
+   be asked to sign; label column on the left, values wrap on a phone. */
+.swap-panel { margin: 4px 0 16px; }
+.swap-review {
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--inset);
+}
+.swap-review dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 16px;
+  margin: 0;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.swap-review dt { color: var(--text-dim); }
+.swap-review dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .swap-review dl { grid-template-columns: 1fr; gap: 2px; }
+  .swap-review dd { margin-bottom: 8px; }
+}
+/* The swap's Buy / Sell switch sits in a row of 44px pills (amount, Max, Review), so it matches
+   them: 44px tall, 14px semi-bold. The Carry calculator's switch stays the quiet small one. */
+.swap-side-toggle {
+  min-height: 48px;
+  align-items: stretch;
+}
+.swap-side-toggle .carry-direction-tab { min-height: 44px; }
+.swap-side-toggle .carry-direction-tab {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0 20px;
+}
+
+/* Portfolio → Approvals (RouterApprovals.tsx): one row per token the router may still spend. */
+.approval-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.approval-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 6px 12px; border-radius: 12px; background: var(--inset); }
+.approval-text { font-size: 14px; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
+.approval-row .btn { flex: none; }
+
+/* Swap panels: the slippage chips under the amount row (slippage.tsx). Chips are data controls (12px corners). */
+.slippage-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.slippage-label { font-size: 14px; color: var(--text-dim); margin-right: 4px; }
+.slippage-row .preset-btn { min-height: 44px; min-width: 56px; }
+main .slippage-custom { width: 88px; height: 44px; min-height: 44px; padding-top: 0; padding-bottom: 0; box-sizing: border-box; }
+@media (max-width: 600px) {
+  .slippage-label { flex-basis: 100%; }
+}

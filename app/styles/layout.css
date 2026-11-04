@@ -1,0 +1,512 @@
+
+.tagline {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Global top bar: wordmark and page links left, wallet and theme switch right. */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: var(--site-header-h);
+  /* flow-root stops the pill's top margin collapsing through this element,
+     which would push the whole page down 8px when the pill appears. */
+  display: flow-root;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--panel-border);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+.site-header-inner {
+  width: 100%;
+  max-width: 1240px;
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 20px;
+  border: 1px solid transparent;
+  transition: max-width 0.3s ease, height 0.3s ease, margin 0.3s ease, padding 0.3s ease, border-radius 0.3s ease,
+    background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  text-decoration: none;
+}
+.brand-mark { flex-shrink: 0; display: block; }
+.brand-mark-tile { fill: var(--accent); }
+.brand-mark-ink { fill: #fff; }
+:root:not([data-theme='light']) .brand-mark-ink { fill: var(--bg); }
+.site-brand-text {
+  margin-left: 9px;
+  max-width: 120px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: auto;
+  margin-left: 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.site-nav::-webkit-scrollbar { display: none; }
+.site-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-dim);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.12s ease, border-color 0.12s ease, background-color 0.12s ease;
+}
+.site-nav a:hover { color: var(--text); background: var(--overlay-2); }
+.site-nav a[aria-current='page'] {
+  color: var(--text);
+  border-color: var(--secondary-border);
+  background: var(--panel);
+}
+.site-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.theme-toggle:hover { color: var(--text); border-color: var(--secondary-border-hover); }
+/* Once the page is scrolled, the full-width bar condenses into a floating,
+   centred pill (the site-header element keeps its height, so nothing below it
+   shifts). data-scrolled is set by SiteHeader with a little hysteresis so it
+   doesn't flicker at the threshold. Phones and tablets keep the one-row bar
+   (900px and narrower), which scrolls away, so none of this applies there. */
+@media (min-width: 901px) {
+  .site-header[data-scrolled='true'] {
+    background: transparent;
+    border-bottom-color: transparent;
+    pointer-events: none; /* the empty strip beside the pill must not block clicks */
+  }
+  .site-header[data-scrolled='true'] .site-header-inner {
+    pointer-events: auto;
+    /* Five tabs beside the wallet and icons; never wider than the window. */
+    max-width: min(880px, calc(100% - 16px));
+    height: 48px;
+    margin: 8px auto 0;
+    padding: 0 6px 0 14px;
+    border-radius: 999px;
+    border-color: var(--panel-border);
+    background: var(--header-bg);
+    box-shadow: var(--shadow-pill);
+  }
+  .site-header[data-scrolled='true'] .site-brand-text { max-width: 0; margin-left: 0; opacity: 0; }
+  .site-header[data-scrolled='true'] .site-nav { margin-left: 8px; }
+  .site-header[data-scrolled='true'] .wallet-connect-btn { min-height: 36px; padding: 4px 14px; }
+  .site-header[data-scrolled='true'] .theme-toggle { width: 36px; height: 36px; }
+}
+.site-brand-text { transition: max-width 0.3s ease, margin-left 0.3s ease, opacity 0.2s ease; }
+.site-header .wallet-connect-btn {
+  transition: min-height 0.3s ease, padding 0.3s ease, background-color 0.12s ease, opacity 0.12s ease;
+}
+.site-header .theme-toggle {
+  transition: width 0.3s ease, height 0.3s ease, color 0.12s ease, border-color 0.12s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-header, .site-header * { transition: none !important; }
+}
+
+.ticker {
+  height: 44px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--bg);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+.ticker-track {
+  display: flex;
+  align-items: center;
+  width: max-content;
+  height: 100%;
+  animation: ticker-scroll 60s linear infinite;
+}
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  margin: 0 4px;
+  padding: 0 14px;
+  white-space: nowrap;
+  font-size: 13px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.ticker-item:hover { background: var(--overlay-3); border-color: var(--panel-border); }
+.ticker-item-here { background: var(--panel); border-color: var(--secondary-border); }
+/* Pauses while a mouse hovers it, so a stock is easy to click; runs again as
+   soon as the pointer leaves, and again right after a click (.ticker-resumed,
+   set in TickerStrip). Only for devices that really hover: on a touch screen
+   the browser keeps :hover stuck on the last tapped item, which froze the strip
+   until you tapped elsewhere. Focus and press never pause it. */
+@media (hover: hover) and (pointer: fine) {
+  .ticker:hover:not(.ticker-resumed) .ticker-track { animation-play-state: paused; }
+}
+.ticker-symbol { font-size: 12.5px; font-weight: 600; color: var(--text-dim); }
+.ticker-price { font-weight: 600; }
+.ticker-change { font-size: 12.5px; font-weight: 500; }
+@keyframes ticker-scroll { to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .ticker { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
+  .ticker-track { animation: none; }
+}
+.wallet-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
+
+/* Phones and tablets (900px and narrower): one header row (logo, wallet, bell, theme) that scrolls
+   away, and the five tabs in a bar fixed to the bottom of the screen (owner, 2026-11-03; a menu
+   panel held the links from 2026-10-19 until then). */
+.tab-bar { display: none; }
+@media (max-width: 900px) {
+  :root { --site-header-h: 0px; --tab-bar-h: 64px; }
+  .site-header { position: relative; height: auto; }
+  .site-header-inner { padding: 8px 12px; gap: 8px; }
+  .site-brand { margin-right: auto; }
+  .site-nav { display: none; }
+  .site-header-actions .wallet-connect-btn { min-height: 44px; padding: 6px 14px; }
+  .theme-toggle { width: 44px; height: 44px; }
+  .tab-bar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 45;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    background: var(--header-bg);
+    border-top: 1px solid var(--panel-border);
+  }
+  .tab-bar a {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 56px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-decoration: none;
+  }
+  .tab-bar a[aria-current='page'] { color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+  .tab-bar a:hover { color: var(--text); }
+  /* Room under the last thing on the page, so the bar never covers it. */
+  body { padding-bottom: calc(var(--tab-bar-h) + env(safe-area-inset-bottom)); }
+}
+/* Narrow phones: the logo, wallet and icons stay on one row (owner, 2026-10-17): the wallet drops
+   its "Base" label (the panel still says it) and the logo keeps only its mark under 421px. */
+@media (max-width: 420px) {
+  .site-header .wallet-chain { display: none; }
+  .site-header .site-brand-text { display: none; }
+  .site-header-actions { gap: 6px; }
+  .site-header-actions .wallet-connect-btn { padding: 6px 12px; }
+}
+
+
+.wallet-connect-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  border: 1px solid var(--primary-bg);
+  color: var(--primary-text);
+  background: var(--primary-bg);
+  cursor: pointer;
+  transition: background-color 0.12s ease, opacity 0.12s ease;
+}
+.wallet-connect-btn:not(.wallet-connect-btn-connected):hover:not(:disabled) {
+  background: var(--primary-bg-hover);
+}
+.wallet-connect-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+/* The header's Connect wallet is solid, the one call to action in the bar (owner, 2026-11-03; outlined
+   from 2026-10-19 until then). */
+.wallet-connect-btn-connected {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: var(--text);
+  font-family: var(--mono);
+  font-weight: 500;
+}
+.wallet-connect-btn-connected:hover {
+  border-color: var(--secondary-border-hover);
+  filter: none;
+}
+
+.wallet-wrap { position: relative; display: inline-flex; }
+.wallet-chain {
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 1px solid var(--panel-border);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+.wallet-connect-btn-wrong { border-color: var(--amber); color: var(--amber); font-family: inherit; font-weight: 600; }
+.wallet-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 60;
+  width: min(340px, calc(100vw - 24px));
+  padding: 16px 18px 6px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-pill);
+  text-align: left;
+}
+.wallet-status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-dim); }
+.wallet-status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+.wallet-id { margin-top: 12px; }
+.wallet-id-short { font-family: var(--mono); font-size: 20px; font-weight: 500; letter-spacing: -0.01em; }
+.wallet-id-sub { margin-top: 2px; font-size: 13px; color: var(--text-dim); }
+.wallet-full { margin-top: 10px; font-family: var(--mono); font-size: 11px; line-height: 1.4; color: var(--text-dimmer); word-break: break-all; user-select: all; }
+.wallet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.wallet-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--secondary-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  gap: 8px;
+}
+.wallet-action:hover { border-color: var(--secondary-border-hover); }
+.wallet-section { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--panel-border); }
+.wallet-section-title { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
+.wallet-net-ok {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.wallet-warn { margin: 0 0 10px; font-size: 13px; line-height: 1.45; color: var(--amber); }
+.wallet-switch {
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--primary-bg);
+  color: var(--primary-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.wallet-switch:disabled { opacity: 0.6; cursor: default; }
+.wallet-disconnect {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 14px;
+  padding: 14px 0;
+  border: 0;
+  border-top: 1px solid var(--panel-border);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.wallet-disconnect-label { display: inline-flex; align-items: center; gap: 10px; color: var(--text-dim); }
+.wallet-disconnect:hover .wallet-disconnect-label { color: var(--red); }
+.wallet-disconnect-note { font-size: 12.5px; color: var(--text-dimmer); }
+@media (max-width: 640px) {
+  .wallet-panel { position: fixed; top: 64px; right: 12px; }
+}
+
+footer {
+  color: var(--text-dimmer);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-top: 32px;
+}
+
+.footer-columns {
+  display: flex;
+  justify-content: space-between;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.footer-brand-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.footer-tagline {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 4px 0 12px;
+}
+
+.footer-links {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.footer-onchain {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: right;
+}
+
+.footer-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dimmer);
+  margin-bottom: 2px;
+}
+
+/* Same look as .emph-link: one link style across the app, footer included
+   (owner decision, 2026-10-12). Only the header nav stays a quiet menu.
+   X / GitHub / README carry no underline until hovered (owner decision, 2026-10-14). */
+.footer-links a,
+.footer-onchain a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: filter 0.12s ease;
+}
+.footer-links a {
+  text-decoration: none;
+}
+.footer-links a:hover,
+.footer-links a:focus-visible {
+  text-decoration: underline;
+}
+
+.footer-links a:hover,
+.footer-links a:focus-visible,
+.footer-onchain a:hover,
+.footer-onchain a:focus-visible {
+  filter: brightness(1.15);
+  text-decoration-thickness: 2px;
+}
+
+.footer-legal {
+  border-top: 1px solid var(--panel-border);
+  margin-top: 24px;
+  padding-top: 16px;
+}
+
+.footer-legal p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.footer-legal p:last-child {
+  margin-bottom: 0;
+}
+.footer-legal a {
+  color: var(--text-dim);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.footer-legal a:hover {
+  color: var(--text);
+}
+/* Emphasised links (Glider, risks and terms) look the same here as on /baskets. */
+.footer-legal a.emph-link,
+.footer-legal a.emph-link:hover { color: var(--accent); }
+.footer-legal a.emph-link { font-weight: 600; text-underline-offset: 3px; }
+
+.footer-meta {
+  margin-top: 16px;
+  font-size: 13px;
+}
+
+@media (max-width: 767px) {
+  .footer-columns {
+    flex-direction: column;
+    gap: 24px;
+  }
+  .footer-onchain {
+    text-align: left;
+  }
+  .footer-links a,
+  .footer-onchain a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+.more-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.more-list a { display: flex; flex-direction: column; gap: 2px; min-height: 56px; justify-content: center; padding: 8px 12px; margin: 0 -12px; border-radius: 12px; color: var(--text); text-decoration: none; }
+.more-list a:hover, .more-list a:focus-visible { background: var(--overlay-2); }
+.more-label { font-size: 16px; font-weight: 600; }
+.more-note { font-size: 14px; color: var(--text-dim); }
