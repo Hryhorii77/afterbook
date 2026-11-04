@@ -53,7 +53,7 @@ export const SORT_COLUMNS: { key: SortKey; label: (cashColumnLabel: string) => s
 // content — a long thin-book name/price (e.g. "Space Exploration
 // Technologies Corp.", "$1,791.82") throws its column widths out of sync
 // with the table above it. Fixed, shared percentages (paired with
-// `table-layout: fixed` in globals.css) keep both tables' columns lined up
+// `table-layout: fixed` in app/styles/markets.css) keep both tables' columns lined up
 // regardless of what either one's rows contain.
 export const TAPE_COLUMN_WIDTHS = ['23%', '12%', '12%', '11%', '17%', '10%', '15%'];
 

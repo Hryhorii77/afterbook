@@ -1,0 +1,147 @@
+
+.trade-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 4px;
+}
+
+.trade-summary {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Primary/secondary go full-width and stack on mobile so the actual CTA is
+   the biggest, most obviously-tappable thing on the card instead of
+   competing for space in a row; desktop keeps them auto-width and inline. */
+@media (max-width: 767px) {
+  .actions {
+    flex-direction: column;
+  }
+  .actions a.btn, .actions button.btn {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* ---- Newcomer layer (external review, owner OK 2026-10-28) --------------------------------------- */
+.home-intro { margin: 8px 0 18px; }
+.home-intro h1 { margin: 0; font-size: clamp(24px, 4.2vw, 34px); line-height: 1.2; letter-spacing: -0.02em; font-weight: 600; }
+.home-intro p { margin: 8px 0 0; font-size: 16px; line-height: 1.5; color: var(--text-dim); max-width: 44em; }
+
+/* ---------------------------------------------------------------- Home (Trade tab)
+   One responsive page (owner, 2026-11-03): two columns from 901px (the stocks left, the action card
+   right and sticky), one column at 900px and narrower, where the card comes after the intro and the
+   list follows it. The "Real stock" column hides between 901 and 1099px and under 420px. */
+.trade-home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+  gap: 24px;
+  align-items: start;
+}
+.trade-home-main { min-width: 0; }
+.trade-home-intro { margin-bottom: 20px; }
+.trade-home-intro h1 { font-size: 34px; line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 12px; }
+.trade-home-intro p { font-size: 16px; line-height: 1.5; color: var(--text-dim); margin: 0 0 10px; }
+.trade-home-intro .trade-home-status { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--info); margin: 0; }
+.trade-home-status .dot { display: inline-block; flex: none; }
+.action-card { position: sticky; top: calc(var(--site-header-h) + 16px); margin: 0; }
+.action-tabs { display: flex; width: 100%; }
+.action-tabs { min-height: 48px; }
+.action-tabs .carry-direction-tab { flex: 1 1 0; min-height: 44px; }
+.action-title { font-size: 18px; margin: 0 0 8px; }
+.action-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.action-field-label { font-size: 13px; font-weight: 600; color: var(--text-dim); }
+.action-field select { min-height: 44px; border-radius: 12px; padding: 0 12px; border: 1px solid var(--panel-border); background: var(--inset); color: var(--text); font-size: 15px; }
+.action-prices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 4px; }
+.action-prices div { padding: 10px 12px; border: 1px solid var(--panel-border); border-radius: 12px; background: var(--inset); min-width: 0; }
+.action-prices dt { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; }
+.action-prices dd { margin: 0; font-size: 16px; font-weight: 600; }
+.action-card .eligibility { font-size: 14px; margin: 12px 0 12px -8px; }
+.action-foot { font-size: 14px; color: var(--info); line-height: 1.5; margin: 14px 0 0; }
+/* A secondary destination under the card's note (Morpho on Borrow): a link, 44px tall to tap. */
+.action-link { display: inline-flex; align-items: center; min-height: 44px; margin-top: 4px; }
+.trade-top { margin: 0; }
+.trade-top-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.trade-top-head h2 { margin: 0; }
+.trade-top-note { font-size: 13px; color: var(--text-dim); }
+.trade-top-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.trade-top-table th { font-size: 12px; font-weight: 600; color: var(--text-dim); text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--panel-border); }
+.trade-top-table td { padding: 8px; border-bottom: 1px solid var(--panel-border); font-size: 15px; vertical-align: middle; }
+.trade-top-table .num { text-align: right; white-space: nowrap; }
+.trade-top-table tr[data-selected] td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.trade-top-stock { display: inline-flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; min-height: 44px; }
+.trade-top-stock > span { display: flex; flex-direction: column; min-width: 0; }
+.trade-top-sym { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trade-top-name { font-size: 13px; color: var(--text-dim); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trade-top-action { text-align: right; width: 1%; }
+.trade-top-action .btn { padding: 0 18px; }
+.trade-top-foot { font-size: 14px; color: var(--info); margin: 12px 0 4px; }
+.trade-top .page-link { display: inline-flex; align-items: center; min-height: 44px; }
+.trade-home-steps { margin-top: 24px; }
+.trade-home-footer .footer-links { margin-bottom: 12px; }
+@media (min-width: 901px) and (max-width: 1099px) {
+  .trade-top-table .col-ref { display: none; }
+}
+@media (max-width: 900px) {
+  .trade-home-grid { grid-template-columns: minmax(0, 1fr); }
+  .trade-home-main { display: contents; }
+  .trade-home-intro { order: 1; margin-bottom: 0; }
+  .action-card { order: 2; position: static; }
+  .trade-top { order: 3; }
+  .trade-home-intro h1 { font-size: 28px; }
+}
+/* Phones: each row is a grid instead of a table: the stock (logo, ticker, name) on the left, the Base
+   price over the gap in one column, then Buy. Safari sized the table's first column narrower than the
+   stock name, which ran under the price (owner's iPhone, 2026-11-03); stacking the two numbers keeps
+   the name readable down to 320px. */
+@media (max-width: 600px) {
+  .trade-top { padding: 16px 14px; }
+  .trade-top-table, .trade-top-table thead, .trade-top-table tbody { display: block; }
+  .trade-top-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: 'stock base buy' 'stock gap buy';
+    align-items: center;
+    column-gap: 10px;
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .trade-top-table th, .trade-top-table td { display: block; min-width: 0; padding: 0; border-bottom: 0; }
+  .trade-top-table tr > :nth-child(1) { grid-area: stock; }
+  .trade-top-table tr > :nth-child(2) { grid-area: base; align-self: end; }
+  .trade-top-table tr > :nth-child(4) { grid-area: gap; align-self: start; font-size: 14px; }
+  .trade-top-table tr > :nth-child(5) { grid-area: buy; }
+  .trade-top-table thead tr > :nth-child(4) { font-size: 12px; }
+  .trade-top-table .col-ref { display: none; }
+  .trade-top-table tr[data-selected] { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+  .trade-top-table tr[data-selected] td { background: none; }
+  .trade-top-stock { display: flex; min-width: 0; }
+  .trade-top-stock > span { flex: 1 1 auto; }
+  .trade-top-stock .symbol-icon, .trade-top-stock .symbol-tile { flex: none; width: 36px; height: 36px; }
+  .trade-top-name { max-width: none; }
+  .trade-top-action { width: auto; }
+  .trade-top-action .btn { padding: 0 16px; }
+}
+@media (max-width: 360px) {
+  .trade-top-table tr { column-gap: 8px; padding: 8px 4px; }
+  .trade-top-stock { gap: 8px; }
+  .trade-top-stock .symbol-icon, .trade-top-stock .symbol-tile { width: 30px; height: 30px; border-radius: 9px; }
+  .trade-top-table td { font-size: 14px; }
+  .trade-top-action .btn { padding: 0 12px; }
+}
+@media (max-width: 420px) {
+  .action-prices { grid-template-columns: 1fr 1fr; }
+  .action-prices div:last-child { grid-column: span 2; }
+}

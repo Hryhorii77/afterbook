@@ -1,0 +1,231 @@
+
+.contract-info {
+  font-family: var(--mono);
+}
+
+.contract-info a {
+  color: var(--accent);
+  text-decoration: none;
+  /* An address breaks after its "…" on a phone; keep "0xB198…5542 ↗" whole. */
+  white-space: nowrap;
+}
+
+.contract-info a:hover {
+  text-decoration: underline;
+}
+
+/* /stocks: every Coinbase tokenized stock. One row per token: icon and name, pool status, contract.
+   On phones the contract drops under the name so nothing is squeezed. */
+.directory-controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.directory-controls input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.directory-controls select {
+  flex: 0 1 auto;
+}
+.directory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.directory-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--panel-border);
+}
+.directory-row:first-child {
+  border-top: none;
+}
+.directory-main {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  gap: 12px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+a.directory-main:hover .directory-symbol {
+  color: var(--accent);
+}
+.directory-row .symbol-icon-sm,
+.directory-row .symbol-tile-sm {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 9.5px;
+}
+.directory-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.directory-symbol {
+  font-weight: 600;
+  font-size: 14px;
+}
+.directory-company {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.directory-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.directory-status-tracked {
+  color: var(--text);
+  font-weight: 600;
+}
+.directory-depth {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-dimmer);
+}
+.directory-contract {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .directory-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .directory-contract {
+    grid-column: 1 / -1;
+    padding-left: 48px;
+  }
+}
+
+/* /stocks as a table: one grid shared by the header row and every row; on phones each row becomes a
+   card (name on top, the numbers in a labelled two-column grid). */
+.stock-table-head,
+.stock-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) 0.8fr 0.6fr 0.8fr 0.8fr 1fr minmax(120px, 1fr);
+  align-items: center;
+  gap: 8px 14px;
+}
+.stock-table-head {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 0 0 8px;
+}
+.stock-table-head span:not(:first-child),
+.stock-cell {
+  text-align: right;
+  justify-self: end;
+}
+.stock-cell {
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+.stock-price {
+  font-weight: 600;
+}
+.directory-dim {
+  color: var(--text-dimmer);
+}
+.stock-memes {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  color: var(--text-dim);
+}
+.stock-memes .symbol-icon-sm,
+.stock-memes .symbol-tile-sm {
+  width: 24px;
+  height: 24px;
+  font-size: 7px;
+  border-radius: 7px;
+  margin-left: -6px;
+  box-shadow: 0 0 0 2px var(--panel);
+}
+.stock-memes > :first-child {
+  margin-left: 0;
+}
+.stock-memes-more {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.stock-memes:hover .stock-memes-more {
+  color: var(--accent);
+}
+.stock-row .directory-contract {
+  font-size: 12px;
+}
+.stock-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+/* The page arrows are the main way through the list, so full text colour and a firmer ring than
+   the header icons; the one that can't be used stays visible but faded. */
+.stock-pager .theme-toggle {
+  color: var(--text);
+  border-color: var(--secondary-border-hover);
+}
+.stock-pager .theme-toggle:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+@media (max-width: 900px) {
+  .stock-table-head {
+    display: none;
+  }
+  .stock-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .stock-row .directory-main {
+    grid-column: 1 / -1;
+  }
+  .stock-cell {
+    justify-self: stretch;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .stock-cell::before {
+    content: attr(data-label);
+    color: var(--text-dimmer);
+    font-weight: 400;
+  }
+  .stock-row .directory-status {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 4px 10px;
+    padding: 0;
+  }
+  .stock-row .directory-status::before {
+    content: none;
+  }
+  .stock-row .directory-contract {
+    padding-left: 0;
+    margin-left: auto;
+  }
+}
