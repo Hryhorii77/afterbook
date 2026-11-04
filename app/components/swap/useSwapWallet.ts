@@ -17,7 +17,7 @@ import { base } from 'wagmi/chains';
 import { concat, erc20Abi, getAddress, parseUnits, type Hex } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import { KYBER_ROUTER, type SwapQuote, type SwapTx } from '@/lib/swap/swap';
-import { useNotify } from './notify';
+import { useNotify } from '../notifications/notify';
 import { api } from './swapClient';
 
 /** A typed amount in raw token units, or null while it is empty, not a number or zero. */

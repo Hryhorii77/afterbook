@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { MyLots } from '../components/MyLots';
-import { RouterApprovals } from '../components/RouterApprovals';
+import { MyLots } from '../components/portfolio/MyLots';
+import { RouterApprovals } from '../components/swap/RouterApprovals';
 import { shareMetadata } from '@/lib/share/shareMeta';
 
 export const metadata = shareMetadata({

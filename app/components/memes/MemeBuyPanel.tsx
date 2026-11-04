@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import { formatUnits, getAddress, type Hex } from 'viem';
 import { MAX_MEME_SWAP_USD, type SwapQuote } from '@/lib/swap/swap';
 import { USDC, type CbStock } from '@/lib/stocks/tokens';
-import { WalletConnectButton } from './WalletConnectButton';
-import { fmt, logSwapHash, usd, venueNames } from './swapClient';
-import { useNotify } from './notify';
-import { buildSwap, parseAmount, useLiveQuote, useReviewedSwap, useTokenBalance } from './useSwapWallet';
-import { SlippageControl, useSlippage } from './slippage';
+import { WalletConnectButton } from '../layout/WalletConnectButton';
+import { fmt, logSwapHash, usd, venueNames } from '../swap/swapClient';
+import { useNotify } from '../notifications/notify';
+import { buildSwap, parseAmount, useLiveQuote, useReviewedSwap, useTokenBalance } from '../swap/useSwapWallet';
+import { SlippageControl, useSlippage } from '../swap/slippage';
 
 // Buy an allowlisted meme with USDC or the stock token its pool is priced in, from the visitor's own
 // wallet, routed by KyberSwap. Same rules as SwapPanel: the server (lib/swap/memeSwap.ts + lib/swap/swap.ts)

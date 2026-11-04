@@ -6,9 +6,9 @@ import { buildTilt } from '@/lib/baskets/tilt';
 import { DEPTH_SHARE, MIN_WEIGHT, MAX_WEIGHT } from '@/lib/baskets/weights';
 import { bp, usdCompact } from '@/lib/format';
 import { getStock } from '@/lib/stocks/tokens';
-import { SymbolTile } from '@/app/components/SymbolTile';
+import { SymbolTile } from '@/app/components/ui/SymbolTile';
 import { gliderConfigured } from '@/lib/baskets/glider';
-import { BasketPanel } from '@/app/components/BasketPanel';
+import { BasketPanel } from '@/app/components/baskets/BasketPanel';
 import { shareMetadata } from '@/lib/share/shareMeta';
 
 export const dynamic = 'force-dynamic';

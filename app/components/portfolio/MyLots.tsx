@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useAccount, useDisconnect } from 'wagmi';
 import { formatWindow } from '@/lib/format';
 import { getStock } from '@/lib/stocks/tokens';
-import { SymbolTile } from './SymbolTile';
-import { WalletConnectButton } from './WalletConnectButton';
+import { SymbolTile } from '../ui/SymbolTile';
+import { WalletConnectButton } from '../layout/WalletConnectButton';
 
 interface SpotHolding {
   symbol: string;

@@ -1,7 +1,7 @@
 import { getTape } from '@/lib/market/tape';
 import { getGeoInfo } from '@/lib/server/geo';
 import { buildTodaySnapshot } from '@/lib/market/todaySnapshot';
-import TradeHome from './components/TradeHome';
+import TradeHome from './components/home/TradeHome';
 import { shareMetadata } from '@/lib/share/shareMeta';
 import { getAaveStockLending } from '@/lib/lending/aave';
 

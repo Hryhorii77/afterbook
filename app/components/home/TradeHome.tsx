@@ -8,8 +8,8 @@ import { STOCKS, getStock, poolVenue } from '@/lib/stocks/tokens';
 import { TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
 import { bpPct, formatNextOpen, usd } from '@/lib/format';
 import { heroGapBp } from '@/lib/share/shareText';
-import { SwapPanel } from './SwapPanel';
-import { SymbolTile } from './SymbolTile';
+import { SwapPanel } from '../swap/SwapPanel';
+import { SymbolTile } from '../ui/SymbolTile';
 
 // The home page (owner, 2026-11-03, from an external review): one sentence on what the site is,
 // the market's state, the five deepest stocks and one action card (Swap, Borrow, Lend). The tape,

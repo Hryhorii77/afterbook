@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { SymbolTile } from './SymbolTile';
+import { SymbolTile } from '../ui/SymbolTile';
 import type { MemeRow } from '@/lib/memes/memestocks';
 import { pctMove, usdOrDash } from '@/lib/memes/memeFormat';
 

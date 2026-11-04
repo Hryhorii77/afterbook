@@ -1,7 +1,7 @@
 import { getTape } from '@/lib/market/tape';
 import { getGeoInfo } from '@/lib/server/geo';
 import { buildTodaySnapshot } from '@/lib/market/todaySnapshot';
-import HomeClient from '../components/HomeClient';
+import HomeClient from '../components/markets/HomeClient';
 import { shareMetadata } from '@/lib/share/shareMeta';
 
 export const metadata = shareMetadata({

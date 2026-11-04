@@ -16,10 +16,10 @@ import {
   SPOKE_ABI,
   type AaveReserve,
 } from '@/lib/lending/aaveBorrow';
-import { WalletConnectButton } from './WalletConnectButton';
-import { fmt, usd } from './swapClient';
-import { useNotify } from './notify';
-import { parseAmount, useSwapWallet, useTxRun } from './useSwapWallet';
+import { WalletConnectButton } from '../layout/WalletConnectButton';
+import { fmt, usd } from '../swap/swapClient';
+import { useNotify } from '../notifications/notify';
+import { parseAmount, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
 
 // Lend USDC into Aave V4's Equities pool through the MAG7 spoke, from the visitor's own wallet (real
 // money; lib/lending/aaveBorrow.ts has the verified contract facts). Two actions:

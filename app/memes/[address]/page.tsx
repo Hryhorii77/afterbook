@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { SymbolTile } from '@/app/components/SymbolTile';
-import { ShareButton } from '@/app/components/ShareButton';
-import { MemeBuySection } from '@/app/components/MemeBuySection';
+import { SymbolTile } from '@/app/components/ui/SymbolTile';
+import { ShareButton } from '@/app/components/ui/ShareButton';
+import { MemeBuySection } from '@/app/components/memes/MemeBuySection';
 import { getGeoInfo } from '@/lib/server/geo';
 import { getMemeRow, MEME_MIN_LIQUIDITY_USD, poolUrl, venueLabel, type MemeRow } from '@/lib/memes/memestocks';
 import { usdCompact } from '@/lib/format';

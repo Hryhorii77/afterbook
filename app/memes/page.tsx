@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { MemeBoard } from '@/app/components/MemeBoard';
+import { MemeBoard } from '@/app/components/memes/MemeBoard';
 import { getMemeBoard, MEME_MIN_LIQUIDITY_USD } from '@/lib/memes/memestocks';
 import { usdCompact } from '@/lib/format';
 import { shareMetadata } from '@/lib/share/shareMeta';

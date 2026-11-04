@@ -1,6 +1,6 @@
 ---
 name: real-money-reviewer
-description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/baskets/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/BasketPanel.tsx), in-app swaps (lib/swap/swap.ts, lib/swap/swapGuard.ts, lib/swap/swapLog.ts, app/api/swap/*, app/components/useSwapWallet.ts and the panels that use it: SwapPanel.tsx, MemeBuyPanel.tsx, BasketBuyPanel.tsx, BasketSellPanel.tsx, RouterApprovals.tsx), in-app Aave borrowing and lending (lib/lending/aaveBorrow.ts, app/components/AaveBorrowPanel.tsx, AaveBorrowSection.tsx, AaveLendPanel.tsx, AaveLendSection.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
+description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/baskets/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/baskets/BasketPanel.tsx), in-app swaps (lib/swap/swap.ts, lib/swap/swapGuard.ts, lib/swap/swapLog.ts, app/api/swap/*, app/components/swap/useSwapWallet.ts and the panels that use it: SwapPanel.tsx, MemeBuyPanel.tsx, BasketBuyPanel.tsx, BasketSellPanel.tsx, RouterApprovals.tsx), in-app Aave borrowing and lending (lib/lending/aaveBorrow.ts, app/components/lending/AaveBorrowPanel.tsx, AaveBorrowSection.tsx, AaveLendPanel.tsx, AaveLendSection.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -71,7 +71,7 @@ check passes, say so in one short line; do not pad.
   recipient = the requesting account, exact amount, minimum within
   the request's `slippageBps` of the quote (`parseSlippageBps`: 10-100, default `SLIPPAGE_BPS` 50, and range-checked again inside `checkSwapCalldata`; a wider range or a missing check is a finding), fee = `swapFee()` (or no fee arrays when off),
   empty permit. A removed or weakened check is a finding.
-- Router approvals have one call site, `approveExact` in `app/components/useSwapWallet.ts`
+- Router approvals have one call site, `approveExact` in `app/components/swap/useSwapWallet.ts`
   (used by SwapPanel, MemeBuyPanel, BasketBuyPanel, BasketSellPanel, and by
   `revokeRouter` for Portfolio's Revoke in `RouterApprovals.tsx`, which must
   always pass 0): only `KYBER_ROUTER`, only the exact reviewed amount (or 0), with `BUILDER_CODE_SUFFIX`;

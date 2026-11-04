@@ -3,7 +3,7 @@
 import type { CbStock } from '@/lib/stocks/tokens';
 import { formatWindow, usd } from '@/lib/format';
 import { IN_RANGE_HORIZON_DAYS } from '@/lib/market/volatilityMath';
-import { DepthChart } from '../DepthChart';
+import { DepthChart } from './DepthChart';
 import { shares } from './util';
 import type { DepthResponse, EarningsMoveStats, PriceRange, QuoteResponse } from './types';
 

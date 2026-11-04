@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { SymbolTile } from '@/app/components/SymbolTile';
-import { SessionPill } from '@/app/components/SessionPill';
-import { ShareButton } from '@/app/components/ShareButton';
+import { SymbolTile } from '@/app/components/ui/SymbolTile';
+import { SessionPill } from '@/app/components/ui/SessionPill';
+import { ShareButton } from '@/app/components/ui/ShareButton';
 import { unstable_cache } from 'next/cache';
 import { getTape } from '@/lib/market/tape';
 import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/market/liquidity';
