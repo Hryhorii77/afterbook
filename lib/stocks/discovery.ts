@@ -1,4 +1,4 @@
-import { fetchCoinbaseStockList } from './coinbaseStockList';
+import { fetchCoinbaseStockList, LISTED_SYMBOL_RE } from './coinbaseStockList';
 import { parseAbi } from 'viem';
 import { getClient, TOKEN_ABI, readPoolState, poolDepth, midPriceUsd, MULTIPLIER_ONE } from '../market/quote';
 import { STOCKS, USDC, CL_FACTORY, AERO_CL_FACTORY, type CbStock } from './tokens';
@@ -26,7 +26,7 @@ export async function fetchPublishedStockList(): Promise<PublishedStock[]> {
 
   const found = new Map<string, PublishedStock>();
   for (const t of tokens) {
-    if (typeof t.symbol !== 'string' || !/^[A-Z0-9]+c$/.test(t.symbol)) continue;
+    if (typeof t.symbol !== 'string' || !LISTED_SYMBOL_RE.test(t.symbol)) continue;
     if (typeof t.contract_address !== 'string' || !ADDRESS_RE.test(t.contract_address)) continue;
     found.set(t.symbol, {
       symbol: t.symbol,

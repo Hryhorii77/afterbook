@@ -4,6 +4,10 @@
 const LIST_URL = 'https://api.coinbase.com/v1/tokenized-stocks';
 const MAX_PAGES = 10;
 
+/** A listed symbol: letters and digits, an optional share class after a dot (`BRK.Bc`, listed
+ *  2026-11-04, which the old `/^[A-Z0-9]+c$/` dropped from /stocks and discovery), then the `c`. */
+export const LISTED_SYMBOL_RE = /^[A-Z0-9]+(?:\.[A-Z])?c$/;
+
 export interface ListedToken {
   symbol?: unknown;
   name?: unknown;
