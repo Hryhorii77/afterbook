@@ -5,6 +5,9 @@ import { BRAND_BLUE, BRAND_INK } from '@/lib/brand';
 // "Add to Home screen") read their icon from here or from a PNG <link rel="icon">.
 // With only the SVG favicon, the Base app drew a letter "A" instead (2026-10-18).
 // The PNGs are the 64x64 mark in app/icon.svg rendered full-bleed; re-render them if the mark changes.
+// Some apps skip the page's <link> tags and ask for /apple-touch-icon.png (and -precomposed) by name;
+// public/ has both as copies of app/apple-icon.png, since the Base app still drew the letter after a
+// bookmark was re-added (2026-11-04). Keep them in step with app/apple-icon.png.
 // No 'maskable' entry: the mark's lower bar reaches past the maskable safe circle.
 export default function manifest(): MetadataRoute.Manifest {
   return {
