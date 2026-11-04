@@ -1,4 +1,4 @@
-import { fetchCoinbaseStockList, LISTED_SYMBOL_RE } from './coinbaseStockList';
+import { fetchCoinbaseStockList, splitListedTokens, type SkippedListing } from './coinbaseStockList';
 import { parseAbi } from 'viem';
 import { getClient, TOKEN_ABI, readPoolState, poolDepth, midPriceUsd, MULTIPLIER_ONE } from '../market/quote';
 import { STOCKS, USDC, CL_FACTORY, AERO_CL_FACTORY, type CbStock } from './tokens';
@@ -19,26 +19,18 @@ export interface PublishedStock {
 // carries the contract address, so a candidate's identity comes from Coinbase,
 // not from a ticker match.
 // (lib/stocks/coinbaseStockList.ts reads every page; the first page alone is 100 of 145 as of 2026-10-14.)
-const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
-
-export async function fetchPublishedStockList(): Promise<PublishedStock[]> {
-  const tokens = await fetchCoinbaseStockList({ cache: 'no-store' });
-
-  const found = new Map<string, PublishedStock>();
-  for (const t of tokens) {
-    if (typeof t.symbol !== 'string' || !LISTED_SYMBOL_RE.test(t.symbol)) continue;
-    if (typeof t.contract_address !== 'string' || !ADDRESS_RE.test(t.contract_address)) continue;
-    found.set(t.symbol, {
-      symbol: t.symbol,
-      tokenAddress: t.contract_address as `0x${string}`,
-      name: typeof t.name === 'string' ? t.name : '',
-    });
-  }
+export async function fetchPublishedStockList(): Promise<{ stocks: PublishedStock[]; skipped: SkippedListing[] }> {
+  const { kept, skipped } = splitListedTokens(await fetchCoinbaseStockList({ cache: 'no-store' }));
+  const stocks = kept.map((t) => ({
+    symbol: t.symbol as string,
+    tokenAddress: t.contract_address as `0x${string}`,
+    name: typeof t.name === 'string' ? t.name : '',
+  }));
 
   // An empty parse means the response shape changed, not that Coinbase delisted
   // everything — fail so the cron skips the run instead of acting on a false diff.
-  if (found.size === 0) throw new Error('no tokens parsed from Coinbase tokenized-stocks response — shape may have changed');
-  return [...found.values()];
+  if (stocks.length === 0) throw new Error('no tokens parsed from Coinbase tokenized-stocks response — shape may have changed');
+  return { stocks, skipped };
 }
 
 export function diffAgainstTracked(published: PublishedStock[]): PublishedStock[] {

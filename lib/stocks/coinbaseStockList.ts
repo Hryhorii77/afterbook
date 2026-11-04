@@ -7,6 +7,43 @@ const MAX_PAGES = 10;
 /** A listed symbol: letters and digits, an optional share class after a dot (`BRK.Bc`, listed
  *  2026-11-04, which the old `/^[A-Z0-9]+c$/` dropped from /stocks and discovery), then the `c`. */
 export const LISTED_SYMBOL_RE = /^[A-Z0-9]+(?:\.[A-Z])?c$/;
+const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+
+/** A listed token the site leaves out, and why; the daily discovery digest reports each one once. */
+export interface SkippedListing {
+  symbol: string;
+  address: string;
+  reason: string;
+}
+
+/**
+ * The tokens /stocks and discovery use (a symbol matching LISTED_SYMBOL_RE, a contract address, the
+ * first entry per symbol) and the ones they skip. Skipped tokens used to vanish silently: BRK.Bc
+ * was missing from /stocks until someone counted.
+ */
+export function splitListedTokens(tokens: ListedToken[]): { kept: ListedToken[]; skipped: SkippedListing[] } {
+  const kept: ListedToken[] = [];
+  const skipped: SkippedListing[] = [];
+  const seen = new Set<string>();
+  for (const t of tokens) {
+    const symbol = typeof t.symbol === 'string' ? t.symbol : '';
+    const address = typeof t.contract_address === 'string' ? t.contract_address : '';
+    const reason = !LISTED_SYMBOL_RE.test(symbol)
+      ? 'unexpected symbol format'
+      : !ADDRESS_RE.test(address)
+        ? 'no valid contract address'
+        : seen.has(symbol)
+          ? 'duplicate symbol'
+          : null;
+    if (reason) {
+      skipped.push({ symbol: symbol.slice(0, 24) || '(no symbol)', address: address.slice(0, 42) || '(none)', reason });
+      continue;
+    }
+    seen.add(symbol);
+    kept.push(t);
+  }
+  return { kept, skipped };
+}
 
 export interface ListedToken {
   symbol?: unknown;
