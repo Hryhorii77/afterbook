@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { TapeRow } from '@/lib/tape';
+import type { TapeRow } from '@/lib/market/tape';
 import { bp, usd } from '@/lib/format';
 import { SymbolTile } from './SymbolTile';
 

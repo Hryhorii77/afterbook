@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGeoInfo } from '../geo';
-import { gliderConfigured, GliderError } from '../glider';
-import { basketLimiter } from '../ratelimit';
+import { getGeoInfo } from '../server/geo';
+import { gliderConfigured, GliderError } from './glider';
+import { basketLimiter } from '../server/ratelimit';
 
 export const OWNER_RE = /^0x[0-9a-fA-F]{40}$/;
 // Anything on Base, since positions can include USDC and other ERC-20s.

@@ -46,7 +46,7 @@ const usdShort = (n: number) => (n >= 1_000 ? `$${(n / 1_000).toFixed(1)}k` : `$
 
 /**
  * Bar histogram of active on-chain liquidity across the price window
- * lib/depth.ts scanned around the current tick — where LP support/
+ * lib/market/depth.ts scanned around the current tick — where LP support/
  * resistance walls actually sit, not just today's single-tick depth. Same
  * plain-SVG, no-chart-library approach as ImpactCurve.tsx.
  *
@@ -63,7 +63,7 @@ export function DepthChart({ buckets, currentPriceUsd, selectedRange, onRangeCha
   const plotH = HEIGHT - PAD_TOP - PAD_BOTTOM;
 
   // Named by screen position, not magnitude: buckets are tick-ascending, and
-  // USD price falls as tick rises (lib/depth.ts's convention, token0=USDC),
+  // USD price falls as tick rises (lib/market/depth.ts's convention, token0=USDC),
   // so leftPriceUsd is the *larger* number. xPos below is still a plain
   // affine map between the two, sign included, so this reads correctly
   // either way — the naming just avoids implying leftPriceUsd < rightPriceUsd.

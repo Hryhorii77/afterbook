@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAddress } from 'viem';
-import { resolveBasename } from '@/lib/basename';
-import { limitRead } from '@/lib/readGuard';
+import { resolveBasename } from '@/lib/wallet/basename';
+import { limitRead } from '@/lib/server/readGuard';
 
 export const revalidate = 0;
 

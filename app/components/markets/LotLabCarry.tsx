@@ -1,8 +1,8 @@
 // The trade calculator's Carry tab (only while cash is closed and the gap is wide): what buying or
 // unwinding now and holding to the reopen would earn after fees, impact and gas.
-import { aerodromeSwapUrl, type CbStock } from '@/lib/tokens';
+import { aerodromeSwapUrl, type CbStock } from '@/lib/stocks/tokens';
 import { bp, usd } from '@/lib/format';
-import { GAS_ESTIMATE_USD, type computeCashAndCarryEdge } from '@/lib/arb';
+import { GAS_ESTIMATE_USD, type computeCashAndCarryEdge } from '@/lib/market/arb';
 import { logOutboundClick } from './util';
 import type { QuoteResponse } from './types';
 

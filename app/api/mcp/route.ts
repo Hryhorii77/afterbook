@@ -1,10 +1,10 @@
 import { createMcpHandler } from 'mcp-handler';
 import { z } from 'zod';
-import { getTape } from '@/lib/tape';
-import { toPublicTape } from '@/lib/publicTape';
-import { getStock, STOCKS } from '@/lib/tokens';
-import { getBuyQuoter } from '@/lib/lotQuote';
-import { getClosedPeriodStats } from '@/lib/history';
+import { getTape } from '@/lib/market/tape';
+import { toPublicTape } from '@/lib/market/publicTape';
+import { getStock, STOCKS } from '@/lib/stocks/tokens';
+import { getBuyQuoter } from '@/lib/market/lotQuote';
+import { getClosedPeriodStats } from '@/lib/market/history';
 
 const HISTORY_LOOKBACK_MS = 30 * 24 * 60 * 60_000;
 

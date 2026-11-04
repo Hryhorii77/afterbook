@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getHistory } from '@/lib/history';
-import { limitRead } from '@/lib/readGuard';
+import { getHistory } from '@/lib/market/history';
+import { limitRead } from '@/lib/server/readGuard';
 
 export const revalidate = 0;
 

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useAccount, usePublicClient, useReadContracts, useWriteContract } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { erc20Abi, formatUnits, getAddress, type ContractFunctionParameters } from 'viem';
-import { BUILDER_CODE_SUFFIX } from '@/lib/builderCode';
+import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import {
   AAVE_MAG7_SPOKE,
   AAVE_ORACLE_ABI,
@@ -21,14 +21,14 @@ import {
   withChange,
   type AavePosition,
   type AaveReserve,
-} from '@/lib/aaveBorrow';
+} from '@/lib/lending/aaveBorrow';
 import { WalletConnectButton } from './WalletConnectButton';
 import { fmt, usd } from './swapClient';
 import { useNotify } from './notify';
 import { parseAmount, useSwapWallet, useTxRun } from './useSwapWallet';
 
 // Borrow USDC against stock tokens on Aave V4's MAG7 spoke, from the visitor's own wallet (real
-// money; lib/aaveBorrow.ts has the verified contract facts). Three actions:
+// money; lib/lending/aaveBorrow.ts has the verified contract facts). Three actions:
 // - Borrow: optionally add a stock as collateral (exact approval of the spoke, then one multicall:
 //   supply, setUsingAsCollateral, borrow), up to the protocol limit less a small margin, $25k per action.
 // - Repay: exact approval (or the debt plus 1 bp for "all"), then repay.

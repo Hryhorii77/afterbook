@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatSpec, normalizeLegs, MAX_LEGS, MIN_LEGS, type BasketLeg } from '@/lib/customBasket';
+import { formatSpec, normalizeLegs, MAX_LEGS, MIN_LEGS, type BasketLeg } from '@/lib/build/customBasket';
 
 interface Props {
   /** Every tracked symbol, liquid ones first. */

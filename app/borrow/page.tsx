@@ -2,19 +2,19 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { SymbolTile } from '@/app/components/SymbolTile';
 import { BorrowCalculator, type CalculatorMarket } from '@/app/components/BorrowCalculator';
-import { getAllLiquidationRisk } from '@/lib/liquidationRisk';
-import { liquidationIncentiveFactor } from '@/lib/liquidationMath';
-import type { LendingVenue } from '@/lib/lendingMarket';
-import { getGeoInfo } from '@/lib/geo';
-import { getStock, USDC } from '@/lib/tokens';
-import { getAaveStockLending } from '@/lib/aave';
+import { getAllLiquidationRisk } from '@/lib/lending/liquidationRisk';
+import { liquidationIncentiveFactor } from '@/lib/lending/liquidationMath';
+import type { LendingVenue } from '@/lib/lending/lendingMarket';
+import { getGeoInfo } from '@/lib/server/geo';
+import { getStock, USDC } from '@/lib/stocks/tokens';
+import { getAaveStockLending } from '@/lib/lending/aave';
 import { AaveBorrowSection } from '@/app/components/AaveBorrowSection';
 import { AaveLendSection } from '@/app/components/AaveLendSection';
-import type { AaveReserve } from '@/lib/aaveBorrow';
+import type { AaveReserve } from '@/lib/lending/aaveBorrow';
 import { bp, usdCompact } from '@/lib/format';
-import { shareMetadata } from '@/lib/shareMeta';
+import { shareMetadata } from '@/lib/share/shareMeta';
 import { ShareButton } from '@/app/components/ShareButton';
-import { aeroExit, borrowShareText, summarizeBorrow, venueName } from '@/lib/borrowSummary';
+import { aeroExit, borrowShareText, summarizeBorrow, venueName } from '@/lib/lending/borrowSummary';
 
 // Live pool and oracle reads on every request (each cached 20–60s
 // underneath), same as /today.

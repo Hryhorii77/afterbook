@@ -1,7 +1,7 @@
 // /today, its card and its share text measure the gap against the same thing as the home page's hero.
 import { describe, expect, it } from 'vitest';
-import { todayReference } from '../lib/todaySnapshot';
-import type { TapeRow } from '../lib/tape';
+import { todayReference } from '../lib/market/todaySnapshot';
+import type { TapeRow } from '../lib/market/tape';
 
 const row = (over: Partial<TapeRow>): TapeRow =>
   ({ symbol: 'GOOGLc', cashLastUsd: 290, closeUsd: 324.89, onchainMidUsd: 290.71, basisBp: 24.5, cashPriceType: 'after-hours', ...over }) as TapeRow;

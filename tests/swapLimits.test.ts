@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const depth = { usd: 50_000 as number | null };
-vi.mock('../lib/quote', () => ({
+vi.mock('../lib/market/quote', () => ({
   getCachedPoolState: vi.fn(async () => {
     if (depth.usd == null) throw new Error('rpc down');
     return {};
@@ -11,8 +11,8 @@ vi.mock('../lib/quote', () => ({
   poolDepth: vi.fn(() => ({ totalUsd: depth.usd })),
 }));
 
-const { quoteSwap, parseSwapRequest, KYBER_ROUTER, MAX_BUY_DEPTH_SHARE } = await import('../lib/swap');
-const { getStock, USDC } = await import('../lib/tokens');
+const { quoteSwap, parseSwapRequest, KYBER_ROUTER, MAX_BUY_DEPTH_SHARE } = await import('../lib/swap/swap');
+const { getStock, USDC } = await import('../lib/stocks/tokens');
 
 /** Answers KyberSwap's /routes the way the real API does, priced at `usd` for the input. */
 function mockKyber(usd: number) {

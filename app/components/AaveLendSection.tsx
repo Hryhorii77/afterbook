@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { GeoInfo } from '@/lib/geo';
+import type { GeoInfo } from '@/lib/server/geo';
 import { AaveLendPanel, type AaveLendProps } from './AaveLendPanel';
 
 // The /borrow page's in-app lending: the same gates as trading and borrowing (a non-US region and the

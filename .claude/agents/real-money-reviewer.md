@@ -1,6 +1,6 @@
 ---
 name: real-money-reviewer
-description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/BasketPanel.tsx), in-app swaps (lib/swap.ts, lib/swapGuard.ts, lib/swapLog.ts, app/api/swap/*, app/components/useSwapWallet.ts and the panels that use it: SwapPanel.tsx, MemeBuyPanel.tsx, BasketBuyPanel.tsx, BasketSellPanel.tsx, RouterApprovals.tsx), in-app Aave borrowing and lending (lib/aaveBorrow.ts, app/components/AaveBorrowPanel.tsx, AaveBorrowSection.tsx, AaveLendPanel.tsx, AaveLendSection.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
+description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/baskets/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/BasketPanel.tsx), in-app swaps (lib/swap/swap.ts, lib/swap/swapGuard.ts, lib/swap/swapLog.ts, app/api/swap/*, app/components/useSwapWallet.ts and the panels that use it: SwapPanel.tsx, MemeBuyPanel.tsx, BasketBuyPanel.tsx, BasketSellPanel.tsx, RouterApprovals.tsx), in-app Aave borrowing and lending (lib/lending/aaveBorrow.ts, app/components/AaveBorrowPanel.tsx, AaveBorrowSection.tsx, AaveLendPanel.tsx, AaveLendSection.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -21,13 +21,13 @@ check passes, say so in one short line; do not pad.
 - Every route under `app/api/baskets/*` starts with `guardBasketRequest`
   (`lib/baskets/guard.ts`: non-US gate that fails closed, config check, rate
   limiter that refuses when missing). A new route without it is a finding.
-- Limiters are `SafeLimiter` (`lib/ratelimit.ts`): null when Redis isn't configured (callers refuse
+- Limiters are `SafeLimiter` (`lib/server/ratelimit.ts`): null when Redis isn't configured (callers refuse
   with 503), and when Redis errors at runtime they count in memory per instance (swap and basket at
   half their normal tokens). A Redis error turning into a 500 on a money route, or a bookkeeping
   write (swap log) failing the request, is a finding.
 - Cron routes and the maintainer-only `/api/clicks/stats` start with
   `cronAuthorized(request)`, and the Telegram webhook
-  with `secretMatches` (`lib/sharedSecret.ts`: constant-time, and refuses
+  with `secretMatches` (`lib/server/sharedSecret.ts`: constant-time, and refuses
   everything in a built deployment when the secret is unset). A route that checks
   a secret only `if (secret)`, or a new cron without the check, is a finding.
   The basket cron keeps `?dry=1` writing nothing.
@@ -53,7 +53,7 @@ check passes, say so in one short line; do not pad.
 
 **Wallet transactions**
 - Every transaction the app asks a wallet to send passes
-  `dataSuffix: BUILDER_CODE_SUFFIX` (`lib/builderCode.ts`) **per call**
+  `dataSuffix: BUILDER_CODE_SUFFIX` (`lib/wallet/builderCode.ts`) **per call**
   (a config-level setting does not reach `useWriteContract`, wevm/wagmi
   #5248), or, for `sendTransaction` (no `dataSuffix` option), has it
   appended with `concat([data, BUILDER_CODE_SUFFIX])`. A new `writeContract`,
@@ -63,7 +63,7 @@ check passes, say so in one short line; do not pad.
   shows.
 
 **In-app swaps**
-- Every `/api/swap/*` route starts with `guardSwapRequest` (`lib/swapGuard.ts`:
+- Every `/api/swap/*` route starts with `guardSwapRequest` (`lib/swap/swapGuard.ts`:
   fail-closed non-US gate, limiter that refuses when missing); `/api/swap/stats`
   uses `cronAuthorized`.
 - `buildSwap` returns nothing the browser can send unless `checkSwapCalldata`
@@ -82,7 +82,7 @@ check passes, say so in one short line; do not pad.
   appends the suffix.
 - A stock buy is refused above the lower of `MAX_SWAP_USD` and `MAX_BUY_DEPTH_SHARE` of its live pool depth (`poolDepthUsd` checked in `getRoute`, so quote, build and basket legs all hit it; it refuses when the depth can't be read). Raising or removing it is a finding.
 - Tokens come only from `STOCKS` (`parseSwapRequest`), or for a meme buy from
-  `parseMemeSwapRequest` (`lib/memeSwap.ts`): the meme must be on the verified
+  `parseMemeSwapRequest` (`lib/swap/memeSwap.ts`): the meme must be on the verified
   `memes:pools` allowlist with live liquidity >= `MEME_MIN_LIQUIDITY_USD`, paid
   with USDC or that meme's own stock token only, side `buy` only, capped at
   `MAX_MEME_SWAP_USD`, and `feeFor` must return no fee for it. Loosening any of
@@ -101,7 +101,7 @@ check passes, say so in one short line; do not pad.
   sends a rebuilt swap without a new review only if it is the same trade (each
   panel's `sameTrade`) with a minimum >= the reviewed one; approvals use the reviewed
   amount and token, not the live input.
-- Basket buys (`BasketBuyPanel.tsx`, `lib/basketBuy.ts`): one approval of USDC
+- Basket buys (`BasketBuyPanel.tsx`, `lib/swap/basketBuy.ts`): one approval of USDC
   for `KYBER_ROUTER` for exactly the reviewed legs' total (never unlimited,
   never another spender); each leg built through `/api/swap/build` (so every
   check above applies) and re-checked client-side (router, symbol, side,
@@ -121,7 +121,7 @@ check passes, say so in one short line; do not pad.
   leg can never ask to sell more than is held.
 - If the swap code changed, `.claude/skills/verify/swap-check.mts` must still
   pass (say if it was not run).
-- In-app Aave borrowing (`lib/aaveBorrow.ts`, `AaveBorrowPanel.tsx`):
+- In-app Aave borrowing (`lib/lending/aaveBorrow.ts`, `AaveBorrowPanel.tsx`):
   only the MAG7 spoke `AAVE_MAG7_SPOKE`; spoke approvals have one call site per
   panel, `approveSpoke` in `AaveBorrowPanel.tsx` and in `AaveLendPanel.tsx`
   (any other is a finding); the borrow panel's are exact (the added
@@ -139,7 +139,7 @@ check passes, say so in one short line; do not pad.
   gate is a finding). A new spoke function or ABI change needs the deployed
   source re-checked (the `verify-deployed-contract-version` skill).
 - In-app Aave lending (`AaveLendPanel.tsx`, the lending part of
-  `lib/aaveBorrow.ts`): only the USDC reserve of the same spoke; the one
+  `lib/lending/aaveBorrow.ts`): only the USDC reserve of the same spoke; the one
   approval call site is `approveSpoke` in `AaveLendPanel.tsx`, exactly the
   deposit, spender the spoke; `supply` and `withdraw` pass `onBehalfOf` = the
   connected account and the Builder Code; deposits capped at `MAX_LEND_USD`

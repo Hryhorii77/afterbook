@@ -4,14 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const state = { nonUs: true, limiter: true as boolean, allow: true };
-vi.mock('../lib/geo', () => ({ getGeoInfo: vi.fn(async () => ({ nonUs: state.nonUs, country: state.nonUs ? 'DE' : 'US' })) }));
-vi.mock('../lib/ratelimit', () => ({
+vi.mock('../lib/server/geo', () => ({ getGeoInfo: vi.fn(async () => ({ nonUs: state.nonUs, country: state.nonUs ? 'DE' : 'US' })) }));
+vi.mock('../lib/server/ratelimit', () => ({
   get swapLimiter() {
     return state.limiter ? { limit: vi.fn(async () => ({ success: state.allow })) } : null;
   },
 }));
 
-const { guardSwapRequest } = await import('../lib/swapGuard');
+const { guardSwapRequest } = await import('../lib/swap/swapGuard');
 const request = () => new NextRequest('https://afterbook.app/api/swap/quote', { headers: { 'x-forwarded-for': '203.0.113.7' } });
 
 beforeEach(() => Object.assign(state, { nonUs: true, limiter: true, allow: true }));

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listPortfolios, getPositions } from '@/lib/glider';
+import { listPortfolios, getPositions } from '@/lib/baskets/glider';
 import { guardBasketRequest, errorResponse, OWNER_RE, ownerAccountId, strategyId } from '@/lib/baskets/guard';
 
 export const revalidate = 0;

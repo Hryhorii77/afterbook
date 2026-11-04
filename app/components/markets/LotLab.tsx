@@ -2,12 +2,12 @@
 // Trade (shares out, impact, the impact curve), LP (LotLabLp) and Carry (LotLabCarry, only while
 // cash is closed with a wide gap). Each tab is rendered only while open.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { poolVenue, type CbStock } from '@/lib/tokens';
-import type { TapeResult, TapeRow } from '@/lib/tape';
+import { poolVenue, type CbStock } from '@/lib/stocks/tokens';
+import type { TapeResult, TapeRow } from '@/lib/market/tape';
 import { bp, usd, usdCompact } from '@/lib/format';
-import { computeCashAndCarryEdge } from '@/lib/arb';
-import { computeInRangeProbabilityPct, solveImpliedHorizonDays } from '@/lib/volatilityMath';
-import { capitalEfficiencyMultiplier, computeDivergenceLossAtBoundary, computeLiquidityConcentrationRange, rangeAprPct } from '@/lib/lpRange';
+import { computeCashAndCarryEdge } from '@/lib/market/arb';
+import { computeInRangeProbabilityPct, solveImpliedHorizonDays } from '@/lib/market/volatilityMath';
+import { capitalEfficiencyMultiplier, computeDivergenceLossAtBoundary, computeLiquidityConcentrationRange, rangeAprPct } from '@/lib/lp/lpRange';
 import { ImpactCurve } from '../ImpactCurve';
 import { daysUntil, EARNINGS_CAVEAT_WINDOW_DAYS } from '../Tape';
 import { SymbolOptions } from './SymbolOptions';
@@ -103,7 +103,7 @@ export function LotLab({ tape, symbol, setSymbolAndUrl, activeRow, activeStock, 
 
   // How many days of this token's realized volatility the pool's own
   // liquidity concentration would justify, vs. the real days-until-
-  // earnings — see lib/lpRange.ts and lib/volatilityMath.ts for why this
+  // earnings — see lib/lp/lpRange.ts and lib/market/volatilityMath.ts for why this
   // is framed as a horizon comparison rather than a fabricated "implied
   // volatility" number (there's no options market here to price one).
   const earningsVolAnalysis = useMemo(() => {

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withX402 } from '@x402/next';
-import { getStock } from '@/lib/tokens';
-import { getStockLiquidationRisk } from '@/lib/liquidationRisk';
-import { positionRisk } from '@/lib/liquidationMath';
-import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE_PREMIUM } from '@/lib/x402';
+import { getStock } from '@/lib/stocks/tokens';
+import { getStockLiquidationRisk } from '@/lib/lending/liquidationRisk';
+import { positionRisk } from '@/lib/lending/liquidationMath';
+import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE_PREMIUM } from '@/lib/server/x402';
 
 export const revalidate = 0;
 

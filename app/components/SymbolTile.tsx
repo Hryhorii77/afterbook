@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { tileHue } from '@/lib/symbolStyle';
+import { tileHue } from '@/lib/stocks/symbolStyle';
 import { useTokenIcon } from './TokenIcons';
 
 // The token's icon when Coinbase supplies one; otherwise (or if the image

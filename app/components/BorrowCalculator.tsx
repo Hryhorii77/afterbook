@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { positionRisk, type SellCurvePoint } from '@/lib/liquidationMath';
+import { positionRisk, type SellCurvePoint } from '@/lib/lending/liquidationMath';
 import { usd } from '@/lib/format';
 
 export interface CalculatorMarket {

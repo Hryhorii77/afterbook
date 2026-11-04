@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { formatUnits, getAddress, type Hex } from 'viem';
-import { MAX_MEME_SWAP_USD, type SwapQuote } from '@/lib/swap';
-import { USDC, type CbStock } from '@/lib/tokens';
+import { MAX_MEME_SWAP_USD, type SwapQuote } from '@/lib/swap/swap';
+import { USDC, type CbStock } from '@/lib/stocks/tokens';
 import { WalletConnectButton } from './WalletConnectButton';
 import { fmt, logSwapHash, usd, venueNames } from './swapClient';
 import { useNotify } from './notify';
@@ -11,7 +11,7 @@ import { buildSwap, parseAmount, useLiveQuote, useReviewedSwap, useTokenBalance 
 import { SlippageControl, useSlippage } from './slippage';
 
 // Buy an allowlisted meme with USDC or the stock token its pool is priced in, from the visitor's own
-// wallet, routed by KyberSwap. Same rules as SwapPanel: the server (lib/memeSwap.ts + lib/swap.ts)
+// wallet, routed by KyberSwap. Same rules as SwapPanel: the server (lib/swap/memeSwap.ts + lib/swap/swap.ts)
 // builds the transaction and refuses it unless every field matches; this panel shows the checked
 // numbers and useSwapWallet.ts approves exactly the reviewed amount for the router only and sends
 // with the Builder Code. Buy only: selling a meme is left to the venue.

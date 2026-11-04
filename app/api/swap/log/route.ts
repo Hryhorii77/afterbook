@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { guardSwapRequest } from '@/lib/swapGuard';
-import { logSwap } from '@/lib/swapLog';
+import { guardSwapRequest } from '@/lib/swap/swapGuard';
+import { logSwap } from '@/lib/swap/swapLog';
 
 export const revalidate = 0;
 
 const HASH_RE = /^0x[0-9a-fA-F]{64}$/;
 
-// The swap panel reports a confirmed swap's hash; lib/swapLog.ts reads it back from the chain and
+// The swap panel reports a confirmed swap's hash; lib/swap/swapLog.ts reads it back from the chain and
 // records it only if it is an Afterbook swap. POST { hash }
 export async function POST(request: NextRequest) {
   const refused = await guardSwapRequest(request);

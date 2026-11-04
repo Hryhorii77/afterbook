@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { buildBasketOgImage, buildBorrowOgImage, buildMemeOgImage, buildOgImage, buildTodayOgImage } from '@/lib/ogImage';
-import { parseTheme } from '@/lib/cardUrl';
-import { getStock } from '@/lib/tokens';
-import { parseSpec } from '@/lib/customBasket';
-import { getShareSnapshot } from '@/lib/shareSnapshot';
+import { buildBasketOgImage, buildBorrowOgImage, buildMemeOgImage, buildOgImage, buildTodayOgImage } from '@/lib/share/ogImage';
+import { parseTheme } from '@/lib/share/cardUrl';
+import { getStock } from '@/lib/stocks/tokens';
+import { parseSpec } from '@/lib/build/customBasket';
+import { getShareSnapshot } from '@/lib/share/shareSnapshot';
 
 export const dynamic = 'force-dynamic';
 
-// Every share card: link previews (each page's og:image / twitter:image, see lib/cardUrl.ts)
+// Every share card: link previews (each page's og:image / twitter:image, see lib/share/cardUrl.ts)
 // and the share panel's "Download card". Query: page=home|stock|today|build|borrow|meme, sym, spec, addr,
 // theme=light (dark otherwise). `s` is a share's id: when it names a stored snapshot the card is
 // drawn from those frozen numbers (the same ones the post's sentence used); otherwise from the live

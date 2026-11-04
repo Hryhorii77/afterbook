@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { shareMetadata } from '@/lib/shareMeta';
+import { shareMetadata } from '@/lib/share/shareMeta';
 
 export const metadata: Metadata = shareMetadata({
   title: 'Basket risks and terms — Afterbook',

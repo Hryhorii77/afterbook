@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { formatUnits, type Hex } from 'viem';
-import { KYBER_ROUTER, type SwapTx } from '@/lib/swap';
-import { USDC } from '@/lib/tokens';
-import type { BasketLeg } from '@/lib/customBasket';
-import { basketAmountProblem, legFloor, splitBasketUsdc, type BasketLegAmount } from '@/lib/basketBuy';
+import { KYBER_ROUTER, type SwapTx } from '@/lib/swap/swap';
+import { USDC } from '@/lib/stocks/tokens';
+import type { BasketLeg } from '@/lib/build/customBasket';
+import { basketAmountProblem, legFloor, splitBasketUsdc, type BasketLegAmount } from '@/lib/swap/basketBuy';
 import { WalletConnectButton } from './WalletConnectButton';
 import { useNotify } from './notify';
 import { fmt, logSwapHash, usd, venueNames } from './swapClient';
@@ -14,7 +14,7 @@ import { buildSwap, parseAmount, useSwapWallet, useTokenBalance, useTxRun } from
 import { SlippageControl, useSlippage } from './slippage';
 
 // Buy a /build basket in one go: one USDC amount, split by the basket's weights, one KyberSwap swap
-// per stock. Every leg is built and checked by the server exactly like a single swap (lib/swap.ts);
+// per stock. Every leg is built and checked by the server exactly like a single swap (lib/swap/swap.ts);
 // the wallet approves exactly the basket's total for the router once, then signs one swap per leg,
 // each with Afterbook's Builder Code (the wallet steps are useSwapWallet.ts). A leg is rebuilt just before it is signed and only sent if its
 // minimum is at least the "at least" figure on the review card. Anything that stops the run stops

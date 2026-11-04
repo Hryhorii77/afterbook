@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { STOCKS } from '@/lib/tokens';
-import { fetchNasdaqEarningsForDate, recordNextEarnings } from '@/lib/earningsCalendar';
-import { syncEarningsMovesForDate } from '@/lib/earningsHistory';
-import { cronAuthorized } from '@/lib/sharedSecret';
+import { STOCKS } from '@/lib/stocks/tokens';
+import { fetchNasdaqEarningsForDate, recordNextEarnings } from '@/lib/stocks/earningsCalendar';
+import { syncEarningsMovesForDate } from '@/lib/stocks/earningsHistory';
+import { cronAuthorized } from '@/lib/server/sharedSecret';
 
 export const revalidate = 0;
 export const maxDuration = 30;
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     STOCKS.map((stock) => recordNextEarnings(stock.symbol, nextDateByTicker.get(stock.cashTicker) ?? null, now)),
   );
 
-  // Piggybacks the same daily run to grow lib/earningsHistory.ts's real
+  // Piggybacks the same daily run to grow lib/stocks/earningsHistory.ts's real
   // record of past reports — one extra day-scan, cheap, and naturally
   // no-ops (hasEarningsMove) once a date's already recorded.
   const historyDateStr = new Date(now - HISTORY_SYNC_LAG_DAYS * 86_400_000).toISOString().slice(0, 10);

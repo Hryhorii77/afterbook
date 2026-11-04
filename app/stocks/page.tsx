@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { StockDirectory } from '@/app/components/StockDirectory';
-import { getStockDirectory } from '@/lib/stockDirectory';
-import { getTape } from '@/lib/tape';
-import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
+import { getStockDirectory } from '@/lib/stocks/stockDirectory';
+import { getTape } from '@/lib/market/tape';
+import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/market/liquidity';
 import { usdCompact } from '@/lib/format';
-import { shareMetadata } from '@/lib/shareMeta';
+import { shareMetadata } from '@/lib/share/shareMeta';
 
 // Rendered per request (the tape's live depth for tracked rows, cached 20 s underneath). Coinbase's
 // list and the daily pool snapshot are each cached an hour, so a page view costs no chain reads for

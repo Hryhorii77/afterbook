@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
-import { getTape } from '@/lib/tape';
-import { formatSpec, normalizeLegs } from '@/lib/customBasket';
+import { getTape } from '@/lib/market/tape';
+import { formatSpec, normalizeLegs } from '@/lib/build/customBasket';
 
 export const dynamic = 'force-dynamic';
 

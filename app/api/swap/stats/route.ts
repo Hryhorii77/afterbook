@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cronAuthorized } from '@/lib/sharedSecret';
-import { swapStats } from '@/lib/swapLog';
+import { cronAuthorized } from '@/lib/server/sharedSecret';
+import { swapStats } from '@/lib/swap/swapLog';
 
 export const revalidate = 0;
 

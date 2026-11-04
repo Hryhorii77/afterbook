@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { MemeBoard } from '@/app/components/MemeBoard';
-import { getMemeBoard, MEME_MIN_LIQUIDITY_USD } from '@/lib/memestocks';
+import { getMemeBoard, MEME_MIN_LIQUIDITY_USD } from '@/lib/memes/memestocks';
 import { usdCompact } from '@/lib/format';
-import { shareMetadata } from '@/lib/shareMeta';
+import { shareMetadata } from '@/lib/share/shareMeta';
 
-// Live: the allowlist is cached an hour and Dexscreener's numbers two minutes (lib/memestocks.ts),
+// Live: the allowlist is cached an hour and Dexscreener's numbers two minutes (lib/memes/memestocks.ts),
 // so a view costs no chain reads.
 export const dynamic = 'force-dynamic';
 

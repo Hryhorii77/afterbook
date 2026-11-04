@@ -3,8 +3,8 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { SymbolTile } from './SymbolTile';
-import type { MemeRow } from '@/lib/memestocks';
-import { pctMove, usdOrDash } from '@/lib/memeFormat';
+import type { MemeRow } from '@/lib/memes/memestocks';
+import { pctMove, usdOrDash } from '@/lib/memes/memeFormat';
 
 type Sort = 'volume' | 'move';
 

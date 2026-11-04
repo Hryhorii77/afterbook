@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withX402 } from '@x402/next';
-import { getTape } from '@/lib/tape';
-import { toPublicTape } from '@/lib/publicTape';
-import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE } from '@/lib/x402';
+import { getTape } from '@/lib/market/tape';
+import { toPublicTape } from '@/lib/market/publicTape';
+import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE } from '@/lib/server/x402';
 
 export const revalidate = 0;
 

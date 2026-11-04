@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPriceHistory } from '@/lib/volatility';
-import { limitRead } from '@/lib/readGuard';
+import { getPriceHistory } from '@/lib/market/volatility';
+import { limitRead } from '@/lib/server/readGuard';
 
 export const revalidate = 0;
 

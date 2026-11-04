@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { redis } from '@/lib/redis';
-import { tapeLimiter } from '@/lib/ratelimit';
-import { getTape } from '@/lib/tape';
-import { toPublicTape } from '@/lib/publicTape';
+import { redis } from '@/lib/server/redis';
+import { tapeLimiter } from '@/lib/server/ratelimit';
+import { getTape } from '@/lib/market/tape';
+import { toPublicTape } from '@/lib/market/publicTape';
 
 export const revalidate = 0;
 

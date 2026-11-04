@@ -10,12 +10,12 @@ import { Toaster } from './components/Toaster';
 import { LiveAlerts } from './components/LiveAlerts';
 import { TickerStrip } from './components/TickerStrip';
 import { TokenIconsProvider } from './components/TokenIcons';
-import { getTokenIcons } from '@/lib/coinbaseIcons';
+import { getTokenIcons } from '@/lib/stocks/coinbaseIcons';
 import { Analytics } from '@vercel/analytics/next';
-import { siteUrl } from '@/lib/siteUrl';
+import { siteUrl } from '@/lib/share/siteUrl';
 import { THEME_INIT_SCRIPT } from './components/theme';
-import { cardPath } from '@/lib/cardUrl';
-import { OG_ALT, OG_SIZE } from '@/lib/ogImage';
+import { cardPath } from '@/lib/share/cardUrl';
+import { OG_ALT, OG_SIZE } from '@/lib/share/ogImage';
 
 // Self-hosted at build time by next/font, so the CSP needs no extra font host.
 const poppins = Poppins({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-poppins', display: 'swap' });
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   // Proves domain ownership for the base.dev app registration's
   // "Add Domain" verification step — Base checks the live page for this tag.
   other: { 'base:app_id': '6a78ca7585896ee843331757' },
-  // Fallback preview for any page without its own (each page sets one via lib/shareMeta.ts).
+  // Fallback preview for any page without its own (each page sets one via lib/share/shareMeta.ts).
   openGraph: { images: [{ url: cardPath({ page: 'home' }), ...OG_SIZE, alt: OG_ALT }] },
   twitter: { card: 'summary_large_image', images: [{ url: cardPath({ page: 'home' }), alt: OG_ALT }] },
 };

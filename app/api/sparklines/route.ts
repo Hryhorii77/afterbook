@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { unstable_cache } from 'next/cache';
-import { STOCKS } from '@/lib/tokens';
-import { getPriceHistory } from '@/lib/volatility';
+import { STOCKS } from '@/lib/stocks/tokens';
+import { getPriceHistory } from '@/lib/market/volatility';
 
 export const revalidate = 0;
 

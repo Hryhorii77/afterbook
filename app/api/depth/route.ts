@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { getStock } from '@/lib/tokens';
-import { getCachedPoolState, getClient, ERC20_ABI, MULTIPLIER_ONE } from '@/lib/quote';
-import { getCachedLiquidityDistribution } from '@/lib/depth';
-import { computeFeeAprWithFallback } from '@/lib/feeApr';
-import { limitRead } from '@/lib/readGuard';
+import { getStock } from '@/lib/stocks/tokens';
+import { getCachedPoolState, getClient, ERC20_ABI, MULTIPLIER_ONE } from '@/lib/market/quote';
+import { getCachedLiquidityDistribution } from '@/lib/market/depth';
+import { computeFeeAprWithFallback } from '@/lib/lp/feeApr';
+import { limitRead } from '@/lib/server/readGuard';
 
 export async function GET(request: Request) {
   const limited = limitRead(request, 'depth');
@@ -19,8 +19,8 @@ export async function GET(request: Request) {
   try {
     const state = await getCachedPoolState(stock);
     const distribution = await getCachedLiquidityDistribution(stock, state);
-    // Full-range fee APR (lib/feeApr.ts); the range selector multiplies it
-    // by the range's capital efficiency client-side (lib/lpRange.ts
+    // Full-range fee APR (lib/lp/feeApr.ts); the range selector multiplies it
+    // by the range's capital efficiency client-side (lib/lp/lpRange.ts
     // rangeAprPct), so it can update live while dragging.
     const [feeApr, totalSupplyRaw] = await Promise.all([
       computeFeeAprWithFallback(stock.symbol, stock, distribution.currentPriceUsd, state.multiplier).catch(() => null),

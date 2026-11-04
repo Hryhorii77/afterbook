@@ -5,16 +5,18 @@
 //    must refuse each (including any fee at all).
 // 2. Simulate (eth_simulateV1): approve + the server-built buy with the Builder Code appended, from a real
 //    holder (the NVDAc/USDC pool), paying with USDC and with NVDAc; prints the BLUECHIP received.
-// The allowlist and liquidity checks (lib/memeSwap.ts) need the app's cache: test them through the
+// The allowlist and liquidity checks (lib/swap/memeSwap.ts) need the app's cache: test them through the
 // /api/swap routes on a local build instead (unknown meme, thin meme, wrong payWith, over $1,000).
 import { concat, decodeFunctionData, decodeFunctionResult, encodeFunctionData, erc20Abi, parseAbi, type Hex } from 'viem';
-import { buildSwap, checkSwapCalldata, KYBER_ROUTER, SLIPPAGE_BPS, type SwapRequest } from '../../../lib/swap';
-import { BUILDER_CODE_SUFFIX } from '../../../lib/builderCode';
-import { getStock, USDC } from '../../../lib/tokens';
-import type { MemePool } from '../../../lib/memestocks';
+import { buildSwap, checkSwapCalldata, KYBER_ROUTER, SLIPPAGE_BPS, type SwapRequest } from '../../../lib/swap/swap';
+import { BUILDER_CODE_SUFFIX } from '../../../lib/wallet/builderCode';
+import { getStock, USDC } from '../../../lib/stocks/tokens';
+import type { MemePool } from '../../../lib/memes/memestocks';
 
 const stock = getStock('NVDAc')!;
-const HOLDER = stock.pool.address as Hex;
+/** Spends USDC for USDC-paid buys: Morpho Blue's contract (read-only simulation), not the NVDAc pool, which
+ *  reverted whenever KyberSwap routed through that same pool (same fix as swap-check.mts, 2026-11-04). */
+const HOLDER = (process.env.USDC_HOLDER ?? '0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb') as Hex;
 /** A public wallet (no contract code) holding NVDAc, for sells and NVDAc-paid buys: ~79 NVDAc on
  *  2026-11-03. Holders drain (the previous one was empty by then and every sell simulated as a revert):
  *  when a sell fails with `swap 0x0`, check this balance first, then pick a new holder from recent

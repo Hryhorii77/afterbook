@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { cardPath, type CardSpec } from '@/lib/cardUrl';
+import { cardPath, type CardSpec } from '@/lib/share/cardUrl';
 import { useTheme } from './theme';
 
 const svgProps = {
@@ -56,7 +56,7 @@ interface ShareButtonProps {
   /** File name for "Download card". */
   fileName: string;
   /** The sentence that goes with the link: facts only, no advice. Used only if the server can't
-   *  take a snapshot; normally the sentence comes back with the snapshot (lib/shareSnapshot.ts). */
+   *  take a snapshot; normally the sentence comes back with the snapshot (lib/share/shareSnapshot.ts). */
   text: string;
 }
 
@@ -100,7 +100,7 @@ export function ShareButton({ path, card, fileName, text }: ShareButtonProps) {
   // anyone shared it, contradicting the sentence in the post. A fresh stamp per share (set when
   // the panel opens) makes every share a new URL, so the card is fetched at share time.
   // The link also carries the sharer's theme and, on /today, the stock shown, so the preview card
-  // and "Download card" are the same image as the one on screen (lib/cardUrl.ts).
+  // and "Download card" are the same image as the one on screen (lib/share/cardUrl.ts).
   const q = new URLSearchParams();
   if (stamp) q.set('s', stamp);
   if (card.page === 'today' && card.sym) q.set('sym', card.sym);

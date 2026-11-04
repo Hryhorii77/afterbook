@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/redis', () => ({ redis: null }));
-vi.mock('../lib/redis', () => ({ redis: null }));
+vi.mock('@/lib/server/redis', () => ({ redis: null }));
+vi.mock('../lib/server/redis', () => ({ redis: null }));
 
-import { carryOverFailed, MEME_CARRY_MAX_AGE_MS, type MemeAllowlist, type MemePool } from '../lib/memestocks';
+import { carryOverFailed, MEME_CARRY_MAX_AGE_MS, type MemeAllowlist, type MemePool } from '../lib/memes/memestocks';
 
 const NOW = 10 * MEME_CARRY_MAX_AGE_MS;
 const pool = (id: string, stockSymbol: string, extra: Partial<MemePool> = {}): MemePool => ({

@@ -4,10 +4,10 @@
 // prices, Share and the words explained; plus the compact bar that pins the gap once the hero has
 // scrolled away.
 import { useEffect, useRef, useState } from 'react';
-import { poolVenue, type CbStock } from '@/lib/tokens';
-import type { TapeResult, TapeRow } from '@/lib/tape';
+import { poolVenue, type CbStock } from '@/lib/stocks/tokens';
+import type { TapeResult, TapeRow } from '@/lib/market/tape';
 import { bp, bpPct, usd, usdCompact, formatNextOpen, gapSizeText } from '@/lib/format';
-import { heroGapBp, heroReferenceLabel, shortName, stockShareText } from '@/lib/shareText';
+import { heroGapBp, heroReferenceLabel, shortName, stockShareText } from '@/lib/share/shareText';
 import { SymbolTile } from '../SymbolTile';
 import { ShareButton } from '../ShareButton';
 import { SessionPill } from '../SessionPill';

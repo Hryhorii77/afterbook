@@ -2,8 +2,8 @@
 // what the user pays and receives must match the request. Each case below tampers with one field.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { encodeFunctionData, getAddress, parseAbi, type Hex } from 'viem';
-import { checkSwapCalldata, parseSlippageBps, parseSwapRequest, swapFee, MAX_SLIPPAGE_BPS, MIN_SLIPPAGE_BPS, SLIPPAGE_BPS, type SwapRequest } from '../lib/swap';
-import { getStock, USDC } from '../lib/tokens';
+import { checkSwapCalldata, parseSlippageBps, parseSwapRequest, swapFee, MAX_SLIPPAGE_BPS, MIN_SLIPPAGE_BPS, SLIPPAGE_BPS, type SwapRequest } from '../lib/swap/swap';
+import { getStock, USDC } from '../lib/stocks/tokens';
 
 const routerAbi = parseAbi([
   'struct SwapDescriptionV2 { address srcToken; address dstToken; address[] srcReceivers; uint256[] srcAmounts; address[] feeReceivers; uint256[] feeAmounts; address dstReceiver; uint256 amount; uint256 minReturnAmount; uint256 flags; bytes permit; }',

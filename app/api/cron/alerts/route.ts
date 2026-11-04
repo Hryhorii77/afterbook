@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTape, recordTapeSamples } from '@/lib/tape';
-import { splitByLiquidity } from '@/lib/liquidity';
-import { getAllChatIds, getRules, setRules, nextBasisState, type AlertRule } from '@/lib/alerts';
-import { sendTelegramMessage } from '@/lib/telegram';
+import { getTape, recordTapeSamples } from '@/lib/market/tape';
+import { splitByLiquidity } from '@/lib/market/liquidity';
+import { getAllChatIds, getRules, setRules, nextBasisState, type AlertRule } from '@/lib/alerts/alerts';
+import { sendTelegramMessage } from '@/lib/alerts/telegram';
 import { bp } from '@/lib/format';
-import { cronAuthorized } from '@/lib/sharedSecret';
-import { getWalletLoans } from '@/lib/loanPositions';
-import { loanAlertText, nextLoanState, worstHealth, type WalletLoan } from '@/lib/loanHealth';
+import { cronAuthorized } from '@/lib/server/sharedSecret';
+import { getWalletLoans } from '@/lib/lending/loanPositions';
+import { loanAlertText, nextLoanState, worstHealth, type WalletLoan } from '@/lib/lending/loanHealth';
 
 export const revalidate = 0;
 export const maxDuration = 60;

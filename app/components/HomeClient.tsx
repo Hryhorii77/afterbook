@@ -5,10 +5,10 @@
 // active stock, the calculator size, the eligibility box) and the data; each section is its own
 // component in ./markets/.
 import { useMemo, useState } from 'react';
-import { STOCKS } from '@/lib/tokens';
-import type { TapeResult } from '@/lib/tape';
-import { isLiquid, TAPE_MAIN_DEPTH_USD } from '@/lib/liquidity';
-import type { GeoInfo } from '@/lib/geo';
+import { STOCKS } from '@/lib/stocks/tokens';
+import type { TapeResult } from '@/lib/market/tape';
+import { isLiquid, TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
+import type { GeoInfo } from '@/lib/server/geo';
 import { bp, usdCompact } from '@/lib/format';
 import { Sparkline } from './Sparkline';
 import { useLotQuote, useNow, useSymbolData, useTapePoll, useTrend } from './markets/useMarketData';

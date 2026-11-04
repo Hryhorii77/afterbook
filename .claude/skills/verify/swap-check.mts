@@ -2,15 +2,18 @@
 //   SWAP_FEE_BPS=20 SWAP_FEE_RECIPIENT=0x9b3F205E43dc9FcC1cc2Fe6d9dCD0357769A6Bae npx tsx .claude/skills/verify/swap-check.mts
 // 1. Tamper: real KyberSwap calldata with one field changed at a time; checkSwapCalldata must refuse each.
 // 2. Simulate (eth_simulateV1 on mainnet.base.org): approve + the server-built swap with the Builder Code
-//    appended, from real holders (the NVDAc/USDC pool for USDC, a market maker for NVDAc), for a buy and a sell; prints what the trader
+//    appended, from real holders (Morpho Blue for USDC, a market maker for NVDAc), for a buy and a sell; prints what the trader
 //    received and what reached the fee recipient. Unset the fee variables to check that nothing does.
 import { concat, decodeFunctionData, decodeFunctionResult, encodeFunctionData, erc20Abi, parseAbi, type Hex } from 'viem';
-import { buildSwap, checkSwapCalldata, KYBER_ROUTER, parseSwapRequest, quoteSwap, swapFee } from '../../../lib/swap';
-import { BUILDER_CODE_SUFFIX } from '../../../lib/builderCode';
-import { getStock, USDC } from '../../../lib/tokens';
+import { buildSwap, checkSwapCalldata, KYBER_ROUTER, parseSwapRequest, quoteSwap, swapFee } from '../../../lib/swap/swap';
+import { BUILDER_CODE_SUFFIX } from '../../../lib/wallet/builderCode';
+import { getStock, USDC } from '../../../lib/stocks/tokens';
 
 const stock = getStock('NVDAc')!;
-const HOLDER = stock.pool.address as Hex;
+/** Spends USDC for buys: Morpho Blue's contract (it holds plenty; read-only simulation). Not the NVDAc pool
+ *  itself, as it was until 2026-11-04: when KyberSwap routed the buy through that pool, the pool paid
+ *  itself mid-swap and the simulation reverted (`swap 0x0`) while real swaps were fine. */
+const HOLDER = (process.env.USDC_HOLDER ?? '0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb') as Hex;
 /** A public wallet (no contract code) holding NVDAc, for sells and NVDAc-paid buys: ~79 NVDAc on
  *  2026-11-03. Holders drain (the previous one was empty by then and every sell simulated as a revert):
  *  when a sell fails with `swap 0x0`, check this balance first, then pick a new holder from recent

@@ -1,4 +1,4 @@
-// The in-app Aave borrow's maths and calls (lib/aaveBorrow.ts): what "Max" allows, the health factor
+// The in-app Aave borrow's maths and calls (lib/lending/aaveBorrow.ts): what "Max" allows, the health factor
 // shown before signing, and that every call is on behalf of the signer.
 import { describe, expect, it } from 'vitest';
 import { decodeFunctionData } from 'viem';
@@ -20,7 +20,7 @@ import {
   withChange,
   type AavePosition,
   type AaveReserve,
-} from '../lib/aaveBorrow';
+} from '../lib/lending/aaveBorrow';
 
 const NVDA: AaveReserve = { reserveId: 3, symbol: 'NVDAc', token: '0xb20000000000000000000078ee7ce2fe4908108c', decimals: 8, collateralFactor: 0.7 };
 const AAPL: AaveReserve = { reserveId: 1, symbol: 'AAPLc', token: '0xb200000000000000000000c2e324d24d7eecd1fb', decimals: 8, collateralFactor: 0.78 };

@@ -13,7 +13,7 @@ const nextConfig = {
   // this app doesn't have (Afterbook is EVM/Base-only, and already has its
   // own unrelated @x402/* deps for the x402 payment routes). That's true
   // regardless of which wallets are actually configured (see
-  // lib/wagmiConfig.ts) — RainbowKit's own module graph pulls it in just
+  // lib/wallet/wagmiConfig.ts) — RainbowKit's own module graph pulls it in just
   // from importing getDefaultConfig. Turbopack's SSR bundler tries to
   // statically resolve that dynamic import at build time and fails outright
   // since the package isn't installed. Marking cdp-sdk (and its own parent)

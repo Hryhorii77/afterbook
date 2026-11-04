@@ -5,7 +5,7 @@
 // outside MIN_SLIPPAGE_BPS..MAX_SLIPPAGE_BPS and builds and checks each swap with the value sent.
 
 import { useState, useSyncExternalStore } from 'react';
-import { MAX_SLIPPAGE_BPS, MIN_SLIPPAGE_BPS, SLIPPAGE_BPS } from '@/lib/swap';
+import { MAX_SLIPPAGE_BPS, MIN_SLIPPAGE_BPS, SLIPPAGE_BPS } from '@/lib/swap/swap';
 
 const KEY = 'afterbook-slippage-bps';
 const PRESETS = [10, 50, 100];

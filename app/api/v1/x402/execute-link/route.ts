@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withX402 } from '@x402/next';
-import { getStock, aerodromeSwapUrl } from '@/lib/tokens';
-import { getBuyQuoter } from '@/lib/lotQuote';
-import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE } from '@/lib/x402';
+import { getStock, aerodromeSwapUrl } from '@/lib/stocks/tokens';
+import { getBuyQuoter } from '@/lib/market/lotQuote';
+import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE } from '@/lib/server/x402';
 
 export const revalidate = 0;
 
@@ -82,7 +82,7 @@ async function handler(request: NextRequest) {
 // same verified deep link the human UI already uses is the responsible
 // thing to hand back instead. An agent's own execution layer opens/submits
 // it; this route never returns calldata or touches a key (in-app swaps are a separate, browser-only
-// flow with their own checks, lib/swap.ts).
+// flow with their own checks, lib/swap/swap.ts).
 export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configured
   ? withX402<unknown>(
       handler,
