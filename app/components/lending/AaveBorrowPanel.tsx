@@ -22,10 +22,10 @@ import {
   type AavePosition,
   type AaveReserve,
 } from '@/lib/lending/aaveBorrow';
-import { WalletConnectButton } from './WalletConnectButton';
-import { fmt, usd } from './swapClient';
-import { useNotify } from './notify';
-import { parseAmount, useSwapWallet, useTxRun } from './useSwapWallet';
+import { WalletConnectButton } from '../layout/WalletConnectButton';
+import { fmt, usd } from '../swap/swapClient';
+import { useNotify } from '../notifications/notify';
+import { parseAmount, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
 
 // Borrow USDC against stock tokens on Aave V4's MAG7 spoke, from the visitor's own wallet (real
 // money; lib/lending/aaveBorrow.ts has the verified contract facts). Three actions:

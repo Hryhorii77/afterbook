@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { SymbolTile } from './SymbolTile';
+import { SymbolTile } from '../ui/SymbolTile';
 import { usdCompact } from '@/lib/format';
 import { memePrice, pctMove } from '@/lib/memes/memeFormat';
 import type { DirectoryRow, DirectoryStatus } from '@/lib/stocks/stockDirectory';

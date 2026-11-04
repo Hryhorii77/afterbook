@@ -6,7 +6,7 @@ import { erc20Abi } from 'viem';
 import { KYBER_ROUTER } from '@/lib/swap/swap';
 import { STOCKS, USDC } from '@/lib/stocks/tokens';
 import { fmt } from './swapClient';
-import { useNotify } from './notify';
+import { useNotify } from '../notifications/notify';
 import { useSwapWallet, useTxRun } from './useSwapWallet';
 
 // Portfolio: what KyberSwap's router (the only contract Afterbook's swaps approve) may still spend

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { TapeResult } from '@/lib/market/tape';
 import { splitByLiquidity } from '@/lib/market/liquidity';
 import { bp } from '@/lib/format';
-import type { TrendData } from '../Tape';
+import type { TrendData } from './Tape';
 import type { ClosedPeriodStats, DepthResponse, EarningsMoveStats, EventLogEntry, HistorySample, OpenSnapStats, PriceSample, QuoteResponse } from './types';
 
 /** The tape, polled every 20 s, plus a session-local log of the cash market closing. */

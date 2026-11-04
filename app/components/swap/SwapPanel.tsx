@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import { formatUnits, type Hex } from 'viem';
 import { type SwapQuote, type SwapSide } from '@/lib/swap/swap';
 import { USDC, type CbStock } from '@/lib/stocks/tokens';
-import { WalletConnectButton } from './WalletConnectButton';
+import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { fmt, logSwapHash, usd, venueNames } from './swapClient';
-import { useNotify } from './notify';
+import { useNotify } from '../notifications/notify';
 import { buildSwap, parseAmount, useLiveQuote, useReviewedSwap, useTokenBalance } from './useSwapWallet';
 import { SlippageControl, useSlippage } from './slippage';
 

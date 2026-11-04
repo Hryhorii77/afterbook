@@ -278,7 +278,7 @@ rendered client-side.
 ## Wallet-connect modal — dev-mode CPU gotcha
 
 Both My Lots' own "Connect wallet" and the header's "Connect wallet"
-button (`app/components/WalletConnectButton.tsx`) open the same
+button (`app/components/layout/WalletConnectButton.tsx`) open the same
 RainbowKit multi-wallet picker (`app/providers.tsx`, `lib/wallet/wagmiConfig.ts`)
 instead of grabbing `window.ethereum` directly — they read the same
 global wagmi account state, so testing either one is equivalent. Once

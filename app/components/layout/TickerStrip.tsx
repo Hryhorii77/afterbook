@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { TapeRow } from '@/lib/market/tape';
 import { bp, usd } from '@/lib/format';
-import { SymbolTile } from './SymbolTile';
+import { SymbolTile } from '../ui/SymbolTile';
 
 const POLL_MS = 30_000;
 

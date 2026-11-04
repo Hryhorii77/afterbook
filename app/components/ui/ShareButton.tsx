@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { cardPath, type CardSpec } from '@/lib/share/cardUrl';
-import { useTheme } from './theme';
+import { useTheme } from '../layout/theme';
 
 const svgProps = {
   width: 16,

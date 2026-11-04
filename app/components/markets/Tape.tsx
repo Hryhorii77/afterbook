@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import type { TapeResult, TapeRow } from '@/lib/market/tape';
 import { bp, usd, usdCompact } from '@/lib/format';
-import { SymbolTile } from './SymbolTile';
+import { SymbolTile } from '../ui/SymbolTile';
 import { MiniSpark, sparkSummary } from './MiniSpark';
 
 export type SortKey = 'symbol' | 'cashLastUsd' | 'onchainMidUsd' | 'basisBp' | 'depthUsd';

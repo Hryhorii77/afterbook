@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import type { TapeResult, TapeRow } from '@/lib/market/tape';
 import { TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
 import { usdCompact } from '@/lib/format';
-import { sortRows, TapeCards, TapeColGroup, TapeFreshness, TapeHead, TapeRows, type SortKey, type SortState, type TrendData } from '../Tape';
+import { sortRows, TapeCards, TapeColGroup, TapeFreshness, TapeHead, TapeRows, type SortKey, type SortState, type TrendData } from './Tape';
 
 interface Props {
   tape: TapeResult;

@@ -8,11 +8,11 @@ import { erc20Abi, getAddress, type Hex } from 'viem';
 import { KYBER_ROUTER, type SwapTx } from '@/lib/swap/swap';
 import { USDC } from '@/lib/stocks/tokens';
 import { basketSellAmounts, legFloor, MIN_LEG_USDC, type BasketLegAmount } from '@/lib/swap/basketBuy';
-import { WalletConnectButton } from './WalletConnectButton';
-import { useNotify } from './notify';
-import { fmt, logSwapHash, usd, venueNames } from './swapClient';
-import { buildSwap, useSwapWallet, useTxRun } from './useSwapWallet';
-import { SlippageControl, useSlippage } from './slippage';
+import { WalletConnectButton } from '../layout/WalletConnectButton';
+import { useNotify } from '../notifications/notify';
+import { fmt, logSwapHash, usd, venueNames } from '../swap/swapClient';
+import { buildSwap, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
+import { SlippageControl, useSlippage } from '../swap/slippage';
 
 // Sell a /build basket: a share of whatever the wallet holds of each of its stocks, one KyberSwap
 // swap per stock back to USDC. The mirror of BasketBuyPanel with one difference: each stock is a

@@ -7,11 +7,11 @@ import { KYBER_ROUTER, type SwapTx } from '@/lib/swap/swap';
 import { USDC } from '@/lib/stocks/tokens';
 import type { BasketLeg } from '@/lib/build/customBasket';
 import { basketAmountProblem, legFloor, splitBasketUsdc, type BasketLegAmount } from '@/lib/swap/basketBuy';
-import { WalletConnectButton } from './WalletConnectButton';
-import { useNotify } from './notify';
-import { fmt, logSwapHash, usd, venueNames } from './swapClient';
-import { buildSwap, parseAmount, useSwapWallet, useTokenBalance, useTxRun } from './useSwapWallet';
-import { SlippageControl, useSlippage } from './slippage';
+import { WalletConnectButton } from '../layout/WalletConnectButton';
+import { useNotify } from '../notifications/notify';
+import { fmt, logSwapHash, usd, venueNames } from '../swap/swapClient';
+import { buildSwap, parseAmount, useSwapWallet, useTokenBalance, useTxRun } from '../swap/useSwapWallet';
+import { SlippageControl, useSlippage } from '../swap/slippage';
 
 // Buy a /build basket in one go: one USDC amount, split by the basket's weights, one KyberSwap swap
 // per stock. Every leg is built and checked by the server exactly like a single swap (lib/swap/swap.ts);

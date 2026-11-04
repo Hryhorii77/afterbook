@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { StockDirectory } from '@/app/components/StockDirectory';
+import { StockDirectory } from '@/app/components/markets/StockDirectory';
 import { getStockDirectory } from '@/lib/stocks/stockDirectory';
 import { getTape } from '@/lib/market/tape';
 import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/market/liquidity';

@@ -4,7 +4,7 @@ import { aerodromeSwapUrl, aerodromeDepositUrl, type CbStock } from '@/lib/stock
 import type { TapeRow } from '@/lib/market/tape';
 import type { GeoInfo } from '@/lib/server/geo';
 import { usd } from '@/lib/format';
-import { SwapPanel } from '../SwapPanel';
+import { SwapPanel } from '../swap/SwapPanel';
 import { logOutboundClick, truncateAddr, useCopy } from './util';
 import type { DepthResponse, QuoteResponse } from './types';
 

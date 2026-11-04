@@ -11,12 +11,12 @@ import { isLiquid, TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
 import type { GeoInfo } from '@/lib/server/geo';
 import { bp, usdCompact } from '@/lib/format';
 import { Sparkline } from './Sparkline';
-import { useLotQuote, useNow, useSymbolData, useTapePoll, useTrend } from './markets/useMarketData';
-import { MarketsHero } from './markets/MarketsHero';
-import { TapeSection } from './markets/TapeSection';
-import { LotLab } from './markets/LotLab';
-import { ExecuteSection } from './markets/ExecuteSection';
-import { MarketsFooter } from './markets/MarketsFooter';
+import { useLotQuote, useNow, useSymbolData, useTapePoll, useTrend } from './useMarketData';
+import { MarketsHero } from './MarketsHero';
+import { TapeSection } from './TapeSection';
+import { LotLab } from './LotLab';
+import { ExecuteSection } from './ExecuteSection';
+import { MarketsFooter } from './MarketsFooter';
 
 function formatLogTime(ts: number): string {
   return (

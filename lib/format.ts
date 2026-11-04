@@ -1,5 +1,5 @@
 // Shared between server code (e.g. app/api/cron/alerts) and
-// app/components/HomeClient.tsx — kept framework-agnostic (no 'use client')
+// app/components/markets/HomeClient.tsx — kept framework-agnostic (no 'use client')
 // so server routes can import it without pulling in client-component
 // context.
 /** A gap in bp as a percent, for the headline figure: -1103 -> "-11.03%", 6.3 -> "+0.06%" (an ASCII minus, like bp()). */

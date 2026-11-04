@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { SymbolTile } from '@/app/components/SymbolTile';
-import { SessionPill } from '@/app/components/SessionPill';
-import { ShareButton } from '@/app/components/ShareButton';
-import { BasketPicker } from '@/app/components/BasketPicker';
+import { SymbolTile } from '@/app/components/ui/SymbolTile';
+import { SessionPill } from '@/app/components/ui/SessionPill';
+import { ShareButton } from '@/app/components/ui/ShareButton';
+import { BasketPicker } from '@/app/components/baskets/BasketPicker';
 import { getTape } from '@/lib/market/tape';
 import { isLiquid } from '@/lib/market/liquidity';
 import { STOCKS, getStock } from '@/lib/stocks/tokens';
@@ -14,7 +14,7 @@ import { bp, usd, usdCompact, gapSizeText, formatNextOpen } from '@/lib/format';
 import { shareMetadata } from '@/lib/share/shareMeta';
 import { basketShareText } from '@/lib/share/shareText';
 import { getGeoInfo } from '@/lib/server/geo';
-import { BasketBuySection } from '@/app/components/BasketBuySection';
+import { BasketBuySection } from '@/app/components/baskets/BasketBuySection';
 
 // Live tape and pool reads on every request (each cached 20–60s
 // underneath), same as /today and /borrow.

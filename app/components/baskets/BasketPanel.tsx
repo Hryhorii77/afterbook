@@ -6,8 +6,8 @@ import { base } from 'wagmi/chains';
 import { erc20Abi, formatUnits, parseUnits, type Hex } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import { USDC } from '@/lib/stocks/tokens';
-import { WalletConnectButton } from './WalletConnectButton';
-import { useNotify } from './notify';
+import { WalletConnectButton } from '../layout/WalletConnectButton';
+import { useNotify } from '../notifications/notify';
 
 interface Portfolio {
   portfolioId: string;

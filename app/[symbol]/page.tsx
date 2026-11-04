@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { getTape } from '@/lib/market/tape';
 import { getGeoInfo } from '@/lib/server/geo';
 import { findStock, getStock, poolVenue } from '@/lib/stocks/tokens';
-import HomeClient from '../components/HomeClient';
+import HomeClient from '../components/markets/HomeClient';
 import { shareMetadata } from '@/lib/share/shareMeta';
 
 interface PageProps {
