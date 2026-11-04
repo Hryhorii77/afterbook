@@ -5,7 +5,7 @@
 // minutes), and each tracked stock's memes from the /memes board. Nothing here reads the chain or
 // writes Redis on a page view, and the snapshot read is cached an hour.
 import { unstable_cache } from 'next/cache';
-import { fetchCoinbaseStockList } from './coinbaseStockList';
+import { fetchCoinbaseStockList, LISTED_SYMBOL_RE } from './coinbaseStockList';
 import { ICON_HOST } from './coinbaseIcons';
 import { getMemeBoard } from '../memes/memestocks';
 import { redis } from '../server/redis';
@@ -151,7 +151,7 @@ export async function getStockDirectory(trackedDepth: Record<string, number | nu
   if (!list) return null;
 
   const tokens = list.filter(
-    (t) => typeof t.symbol === 'string' && /^[A-Z0-9]+c$/.test(t.symbol) && typeof t.contract_address === 'string' && ADDRESS_RE.test(t.contract_address),
+    (t) => typeof t.symbol === 'string' && LISTED_SYMBOL_RE.test(t.symbol) && typeof t.contract_address === 'string' && ADDRESS_RE.test(t.contract_address),
   );
   // Market data is a nice-to-have: the list still renders without it.
   const markets = await cachedStockMarkets(tokens.map((t) => String(t.contract_address).toLowerCase()).sort()).catch((err) => {
