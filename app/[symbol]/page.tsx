@@ -1,10 +1,10 @@
 import { notFound, permanentRedirect } from 'next/navigation';
 import type { Metadata } from 'next';
-import { getTape } from '@/lib/tape';
-import { getGeoInfo } from '@/lib/geo';
-import { findStock, getStock, poolVenue } from '@/lib/tokens';
+import { getTape } from '@/lib/market/tape';
+import { getGeoInfo } from '@/lib/server/geo';
+import { findStock, getStock, poolVenue } from '@/lib/stocks/tokens';
 import HomeClient from '../components/HomeClient';
-import { shareMetadata } from '@/lib/shareMeta';
+import { shareMetadata } from '@/lib/share/shareMeta';
 
 interface PageProps {
   params: Promise<{ symbol: string }>;

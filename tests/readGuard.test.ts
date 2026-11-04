@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-// The Redis-backed limiters in lib/ratelimit.ts are built at import; keep the test offline.
-vi.mock('../lib/redis', () => ({ redis: null }));
-vi.mock('@/lib/redis', () => ({ redis: null }));
+// The Redis-backed limiters in lib/server/ratelimit.ts are built at import; keep the test offline.
+vi.mock('../lib/server/redis', () => ({ redis: null }));
+vi.mock('@/lib/server/redis', () => ({ redis: null }));
 
-import { MemoryLimiter } from '../lib/ratelimit';
-import { limitRead } from '../lib/readGuard';
+import { MemoryLimiter } from '../lib/server/ratelimit';
+import { limitRead } from '../lib/server/readGuard';
 
 const req = (ip: string) => new Request('https://afterbook.app/api/x', { headers: { 'x-forwarded-for': `${ip}, 10.0.0.1` } });
 

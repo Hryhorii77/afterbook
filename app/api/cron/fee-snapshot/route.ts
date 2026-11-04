@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { STOCKS } from '@/lib/tokens';
-import { readPoolState, poolDepth } from '@/lib/quote';
-import { recordFeeSnapshot } from '@/lib/feeApr';
-import { cronAuthorized } from '@/lib/sharedSecret';
+import { STOCKS } from '@/lib/stocks/tokens';
+import { readPoolState, poolDepth } from '@/lib/market/quote';
+import { recordFeeSnapshot } from '@/lib/lp/feeApr';
+import { cronAuthorized } from '@/lib/server/sharedSecret';
 
 export const revalidate = 0;
 export const maxDuration = 30;
 
 // Snapshots every stock's pool-wide feeGrowthGlobal0X128/1X128 once a day so
-// lib/feeApr.ts can take a delta between two runs to compute fee APR. Not
+// lib/lp/feeApr.ts can take a delta between two runs to compute fee APR. Not
 // gated on liquidity — a currently-thin pool that deepens later shouldn't
 // have to wait another cold-start period just because it wasn't liquid on
 // day one.

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAccount, useDisconnect } from 'wagmi';
 import { formatWindow } from '@/lib/format';
-import { getStock } from '@/lib/tokens';
+import { getStock } from '@/lib/stocks/tokens';
 import { SymbolTile } from './SymbolTile';
 import { WalletConnectButton } from './WalletConnectButton';
 

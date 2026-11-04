@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getTape } from '@/lib/tape';
+import { getTape } from '@/lib/market/tape';
 
 export const revalidate = 0; // getTape manages its own short cache
 

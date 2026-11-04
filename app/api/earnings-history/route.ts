@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getStock } from '@/lib/tokens';
-import { getEarningsMoveStats } from '@/lib/earningsHistory';
-import { limitRead } from '@/lib/readGuard';
+import { getStock } from '@/lib/stocks/tokens';
+import { getEarningsMoveStats } from '@/lib/stocks/earningsHistory';
+import { limitRead } from '@/lib/server/readGuard';
 
 export const revalidate = 0;
 

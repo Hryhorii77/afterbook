@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useAccount, useReadContract, useSignMessage, useSignTypedData, useWriteContract } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { erc20Abi, formatUnits, parseUnits, type Hex } from 'viem';
-import { BUILDER_CODE_SUFFIX } from '@/lib/builderCode';
-import { USDC } from '@/lib/tokens';
+import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
+import { USDC } from '@/lib/stocks/tokens';
 import { WalletConnectButton } from './WalletConnectButton';
 import { useNotify } from './notify';
 

@@ -1,8 +1,8 @@
 // The tape: every tracked stock's gap, price and pool, sortable; pools under TAPE_MAIN_DEPTH_USD
 // behind a toggle.
 import { useMemo, useState } from 'react';
-import type { TapeResult, TapeRow } from '@/lib/tape';
-import { TAPE_MAIN_DEPTH_USD } from '@/lib/liquidity';
+import type { TapeResult, TapeRow } from '@/lib/market/tape';
+import { TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
 import { usdCompact } from '@/lib/format';
 import { sortRows, TapeCards, TapeColGroup, TapeFreshness, TapeHead, TapeRows, type SortKey, type SortState, type TrendData } from '../Tape';
 

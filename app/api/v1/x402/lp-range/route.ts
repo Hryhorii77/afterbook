@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withX402 } from '@x402/next';
-import { getStock } from '@/lib/tokens';
-import { getCachedPoolState, midPriceUsd, tickForPriceUsd } from '@/lib/quote';
-import { getPriceHistory, computeInRangeBounds } from '@/lib/volatility';
-import { getNextEarnings } from '@/lib/earningsCalendar';
-import { computeDivergenceLossAtBoundary } from '@/lib/lpRange';
-import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE_PREMIUM } from '@/lib/x402';
+import { getStock } from '@/lib/stocks/tokens';
+import { getCachedPoolState, midPriceUsd, tickForPriceUsd } from '@/lib/market/quote';
+import { getPriceHistory, computeInRangeBounds } from '@/lib/market/volatility';
+import { getNextEarnings } from '@/lib/stocks/earningsCalendar';
+import { computeDivergenceLossAtBoundary } from '@/lib/lp/lpRange';
+import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE_PREMIUM } from '@/lib/server/x402';
 
 export const revalidate = 0;
 
@@ -14,7 +14,7 @@ const DEFAULT_TARGET_PROBABILITY_PCT = 70;
 const PRICE_HISTORY_LOOKBACK_MS = 30 * 24 * 60 * 60_000;
 
 // No options-implied-vol source exists anywhere in this app (see
-// lib/earningsCalendar.ts and Bankr's separate "earnings volatility
+// lib/stocks/earningsCalendar.ts and Bankr's separate "earnings volatility
 // premium" suggestion for that gap) — this is a documented heuristic
 // widening, not a real implied-move estimate, applied only when the
 // earnings date actually falls inside the requested holding window.
@@ -83,7 +83,7 @@ async function handler(request: NextRequest) {
         tickUpper,
       },
       // Impermanent-loss benchmark if price reaches exactly the low/high
-      // edge of the recommended range — see lib/lpRange.ts for the
+      // edge of the recommended range — see lib/lp/lpRange.ts for the
       // derivation. Not fees (which offset it separately).
       divergenceLossAtBoundary: divergenceLoss,
     });
@@ -97,7 +97,7 @@ async function handler(request: NextRequest) {
 // Agent-facing sizing tool: pass a ticker and a target holding period, get
 // back a tick range sized from realized volatility (widened if earnings
 // fall inside the window) instead of the agent having to pull 30 days of
-// price history and reimplement lib/volatility.ts's estimator itself.
+// price history and reimplement lib/market/volatility.ts's estimator itself.
 export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configured
   ? withX402<unknown>(
       handler,

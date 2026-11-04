@@ -1,7 +1,7 @@
 import { randomBytes } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { redis } from '@/lib/redis';
-import { keyCreationLimiter } from '@/lib/ratelimit';
+import { redis } from '@/lib/server/redis';
+import { keyCreationLimiter } from '@/lib/server/ratelimit';
 
 export const revalidate = 0;
 

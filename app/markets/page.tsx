@@ -1,8 +1,8 @@
-import { getTape } from '@/lib/tape';
-import { getGeoInfo } from '@/lib/geo';
-import { buildTodaySnapshot } from '@/lib/todaySnapshot';
+import { getTape } from '@/lib/market/tape';
+import { getGeoInfo } from '@/lib/server/geo';
+import { buildTodaySnapshot } from '@/lib/market/todaySnapshot';
 import HomeClient from '../components/HomeClient';
-import { shareMetadata } from '@/lib/shareMeta';
+import { shareMetadata } from '@/lib/share/shareMeta';
 
 export const metadata = shareMetadata({
   title: 'Markets — Afterbook',

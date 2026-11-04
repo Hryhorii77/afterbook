@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { shareLimiter } from '@/lib/ratelimit';
-import { cleanCardSpec, createShareSnapshot } from '@/lib/shareSnapshot';
+import { shareLimiter } from '@/lib/server/ratelimit';
+import { cleanCardSpec, createShareSnapshot } from '@/lib/share/shareSnapshot';
 
 export const revalidate = 0;
 
@@ -10,7 +10,7 @@ function callerIp(request: NextRequest): string {
 }
 
 // Called by the Share button when its panel opens: freezes the numbers for this share and returns
-// its id (the link's `s`) and the post's sentence, both from one tape read (lib/shareSnapshot.ts).
+// its id (the link's `s`) and the post's sentence, both from one tape read (lib/share/shareSnapshot.ts).
 // Any failure answers an error and the button falls back to a live card and the on-screen text.
 export async function POST(request: NextRequest) {
   if (!shareLimiter) return NextResponse.json({ error: 'sharing snapshots unavailable' }, { status: 503 });

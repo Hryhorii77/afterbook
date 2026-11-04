@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { shareMetadata } from '@/lib/shareMeta';
+import { shareMetadata } from '@/lib/share/shareMeta';
 
 export const metadata = shareMetadata({
   title: 'More — Afterbook',

@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import type { GeoInfo } from '@/lib/geo';
-import type { BasketLeg } from '@/lib/customBasket';
+import type { GeoInfo } from '@/lib/server/geo';
+import type { BasketLeg } from '@/lib/build/customBasket';
 import { BasketBuyPanel } from './BasketBuyPanel';
 import { BasketSellPanel, type SellStock } from './BasketSellPanel';
 

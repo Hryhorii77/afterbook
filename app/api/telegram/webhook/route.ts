@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { findStock, STOCKS } from '@/lib/tokens';
-import { getTape } from '@/lib/tape';
-import { getRules, setRules, canAddRule, MAX_RULES_PER_CHAT, MAX_LOAN_RULES_PER_CHAT, REARM_RATIO, type AlertRule } from '@/lib/alerts';
-import { getWalletLoans } from '@/lib/loanPositions';
-import { loanStatusText, nextLoanState, parseWatchArgs, worstHealth, LOAN_REARM_FACTOR } from '@/lib/loanHealth';
-import { sendTelegramMessage } from '@/lib/telegram';
-import { secretMatches } from '@/lib/sharedSecret';
+import { findStock, STOCKS } from '@/lib/stocks/tokens';
+import { getTape } from '@/lib/market/tape';
+import { getRules, setRules, canAddRule, MAX_RULES_PER_CHAT, MAX_LOAN_RULES_PER_CHAT, REARM_RATIO, type AlertRule } from '@/lib/alerts/alerts';
+import { getWalletLoans } from '@/lib/lending/loanPositions';
+import { loanStatusText, nextLoanState, parseWatchArgs, worstHealth, LOAN_REARM_FACTOR } from '@/lib/lending/loanHealth';
+import { sendTelegramMessage } from '@/lib/alerts/telegram';
+import { secretMatches } from '@/lib/server/sharedSecret';
 
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 

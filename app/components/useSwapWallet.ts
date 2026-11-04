@@ -7,7 +7,7 @@
 // - approvals are for the exact amount, only for KyberSwap's router, never unlimited;
 // - every approval and swap carries Afterbook's Builder Code (approve: `dataSuffix`; the swap goes
 //   through sendTransaction, which has none, so the suffix is appended with `concat`);
-// - a swap is only sent to the router (the server already checked the calldata, lib/swap.ts);
+// - a swap is only sent to the router (the server already checked the calldata, lib/swap/swap.ts);
 // - a transaction that reverts onchain is an error, never a success.
 // Each panel keeps its own review card, wording and progress; this file never decides what to trade.
 
@@ -15,8 +15,8 @@ import { useEffect, useState } from 'react';
 import { useAccount, usePublicClient, useReadContract, useSendTransaction, useSwitchChain, useWriteContract } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { concat, erc20Abi, getAddress, parseUnits, type Hex } from 'viem';
-import { BUILDER_CODE_SUFFIX } from '@/lib/builderCode';
-import { KYBER_ROUTER, type SwapQuote, type SwapTx } from '@/lib/swap';
+import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
+import { KYBER_ROUTER, type SwapQuote, type SwapTx } from '@/lib/swap/swap';
 import { useNotify } from './notify';
 import { api } from './swapClient';
 

@@ -1,9 +1,9 @@
-import { getTape } from '@/lib/tape';
-import { getGeoInfo } from '@/lib/geo';
-import { buildTodaySnapshot } from '@/lib/todaySnapshot';
+import { getTape } from '@/lib/market/tape';
+import { getGeoInfo } from '@/lib/server/geo';
+import { buildTodaySnapshot } from '@/lib/market/todaySnapshot';
 import TradeHome from './components/TradeHome';
-import { shareMetadata } from '@/lib/shareMeta';
-import { getAaveStockLending } from '@/lib/aave';
+import { shareMetadata } from '@/lib/share/shareMeta';
+import { getAaveStockLending } from '@/lib/lending/aave';
 
 export const metadata = shareMetadata({
   title: 'Afterbook',
@@ -15,7 +15,7 @@ export const metadata = shareMetadata({
 // Real data in the server HTML (prices, the market's state, the region check), so a crawler or a
 // slow phone sees numbers rather than dashes. The tape page this used to be is /markets.
 export default async function Page() {
-  // The Lend tab quotes the lenders' rate: Aave's reads are cached a minute (lib/aave.ts) and given at
+  // The Lend tab quotes the lenders' rate: Aave's reads are cached a minute (lib/lending/aave.ts) and given at
   // most 1.5 s, so a slow RPC drops the number rather than holding up the page.
   const lendApr = Promise.race([
     getAaveStockLending().then((a) => a.hub.supplyApr),

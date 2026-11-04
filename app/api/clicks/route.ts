@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStock } from '@/lib/tokens';
-import { logClick, type ClickVenue } from '@/lib/clicks';
-import { clickLimiter } from '@/lib/ratelimit';
+import { getStock } from '@/lib/stocks/tokens';
+import { logClick, type ClickVenue } from '@/lib/server/clicks';
+import { clickLimiter } from '@/lib/server/ratelimit';
 
 export const revalidate = 0;
 
@@ -14,7 +14,7 @@ function callerIp(request: NextRequest): string {
 
 // Fire-and-forget target for navigator.sendBeacon() from HomeClient's
 // Execute buttons — exists purely to prove sized, geo-gated outbound flow
-// for a future partner/referral conversation (see lib/clicks.ts). Never
+// for a future partner/referral conversation (see lib/server/clicks.ts). Never
 // blocks or gates the outbound link itself: this logs a click that's
 // already happening, it doesn't decide whether it's allowed to.
 export async function POST(request: NextRequest) {
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   const usdInNum = typeof usdIn === 'number' && Number.isFinite(usdIn) && usdIn > 0 ? usdIn : null;
 
   // Country comes from Vercel's own edge header, never from the client body
-  // — see lib/clicks.ts's ClickRecord comment for why that matters here.
+  // — see lib/server/clicks.ts's ClickRecord comment for why that matters here.
   const country = request.headers.get('x-vercel-ip-country');
 
   await logClick({

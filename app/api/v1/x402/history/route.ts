@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withX402 } from '@x402/next';
-import { getStock } from '@/lib/tokens';
-import { getHistory } from '@/lib/history';
-import { getCachedPoolState } from '@/lib/quote';
-import { getCachedLiquidityDistribution } from '@/lib/depth';
-import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE_PREMIUM } from '@/lib/x402';
+import { getStock } from '@/lib/stocks/tokens';
+import { getHistory } from '@/lib/market/history';
+import { getCachedPoolState } from '@/lib/market/quote';
+import { getCachedLiquidityDistribution } from '@/lib/market/depth';
+import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE_PREMIUM } from '@/lib/server/x402';
 
 export const revalidate = 0;
 
@@ -21,7 +21,7 @@ async function handler(request: NextRequest) {
 
   const sinceParam = searchParams.get('since');
   const requestedSince = sinceParam && Number.isFinite(Number(sinceParam)) ? Number(sinceParam) : Date.now() - MAX_LOOKBACK_MS;
-  // lib/history.ts only retains 30 days server-side anyway — clamp here too
+  // lib/market/history.ts only retains 30 days server-side anyway — clamp here too
   // so the response's `since` field never claims a wider window than the
   // data actually covers.
   const sinceMs = Math.max(requestedSince, Date.now() - MAX_LOOKBACK_MS);
@@ -43,8 +43,8 @@ async function handler(request: NextRequest) {
 }
 
 // Backtesting-oriented tier: the same 30-day basis samples the free basis
-// chart draws from (lib/history.ts), plus the live tick-liquidity
-// distribution lib/depth.ts computes for the depth chart — bundled since a
+// chart draws from (lib/market/history.ts), plus the live tick-liquidity
+// distribution lib/market/depth.ts computes for the depth chart — bundled since a
 // backtest wants both the historical mispricing signal and how thick the
 // book was to trade against it.
 export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configured

@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import type { TapeResult, TapeRow } from '@/lib/tape';
-import type { GeoInfo } from '@/lib/geo';
-import { STOCKS, getStock, poolVenue } from '@/lib/tokens';
-import { TAPE_MAIN_DEPTH_USD } from '@/lib/liquidity';
+import type { TapeResult, TapeRow } from '@/lib/market/tape';
+import type { GeoInfo } from '@/lib/server/geo';
+import { STOCKS, getStock, poolVenue } from '@/lib/stocks/tokens';
+import { TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
 import { bpPct, formatNextOpen, usd } from '@/lib/format';
-import { heroGapBp } from '@/lib/shareText';
+import { heroGapBp } from '@/lib/share/shareText';
 import { SwapPanel } from './SwapPanel';
 import { SymbolTile } from './SymbolTile';
 

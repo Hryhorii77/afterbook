@@ -1,4 +1,4 @@
-import type { CbStock } from '@/lib/tokens';
+import type { CbStock } from '@/lib/stocks/tokens';
 
 export function MarketsFooter({ activeStock }: { activeStock: CbStock }) {
   return (

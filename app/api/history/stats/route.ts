@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getClosedPeriodStats, getOpenSnapStats, STATS_LOOKBACK_MS } from '@/lib/history';
-import { limitRead } from '@/lib/readGuard';
+import { getClosedPeriodStats, getOpenSnapStats, STATS_LOOKBACK_MS } from '@/lib/market/history';
+import { limitRead } from '@/lib/server/readGuard';
 
 export const revalidate = 0;
 

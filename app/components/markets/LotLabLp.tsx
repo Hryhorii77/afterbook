@@ -1,8 +1,8 @@
 // The trade calculator's LP tab: the same size as a full-range deposit, the pool's liquidity by
 // price with a draggable range, what that range would earn and risk, and the earnings comparison.
-import type { CbStock } from '@/lib/tokens';
+import type { CbStock } from '@/lib/stocks/tokens';
 import { formatWindow, usd } from '@/lib/format';
-import { IN_RANGE_HORIZON_DAYS } from '@/lib/volatilityMath';
+import { IN_RANGE_HORIZON_DAYS } from '@/lib/market/volatilityMath';
 import { DepthChart } from '../DepthChart';
 import { shares } from './util';
 import type { DepthResponse, EarningsMoveStats, PriceRange, QuoteResponse } from './types';

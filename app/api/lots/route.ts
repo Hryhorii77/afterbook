@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAddress } from 'viem';
-import { getTape } from '@/lib/tape';
-import { getMyLots } from '@/lib/lots';
-import { limitRead } from '@/lib/readGuard';
+import { getTape } from '@/lib/market/tape';
+import { getMyLots } from '@/lib/lp/lots';
+import { limitRead } from '@/lib/server/readGuard';
 
 export const revalidate = 0;
 

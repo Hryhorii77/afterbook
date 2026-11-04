@@ -1,4 +1,4 @@
-import type { TapeRow } from '@/lib/tape';
+import type { TapeRow } from '@/lib/market/tape';
 
 /** The stock picker's options: the tape's main list, then the smaller pools. */
 export function SymbolOptions({ liquidRows, thinRows }: { liquidRows: TapeRow[]; thinRows: TapeRow[] }) {

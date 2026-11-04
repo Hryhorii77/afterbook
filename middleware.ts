@@ -33,7 +33,7 @@ export function middleware(request: NextRequest) {
       ? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval'`
       : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`;
 
-  // The wallet-connect modal (RainbowKit/wagmi, lib/wagmiConfig.ts) needs
+  // The wallet-connect modal (RainbowKit/wagmi, lib/wallet/wagmiConfig.ts) needs
   // its own carve-outs on top of the policy above:
   //  - connect-src: WalletConnect/Reown's relay (wss, for the actual
   //    session) and their API (wallet metadata/icons, fetched over https).
@@ -45,7 +45,7 @@ export function middleware(request: NextRequest) {
   //    remotely instead of bundling. WalletConnect's "All Wallets" window
   //    (the searchable list on phones) loads those icons as blob: URLs, so
   //    blob: is allowed too: without it every wallet icon is a broken image.
-  //    cdn.dexscreener.com: meme token logos on /memes and /stocks (lib/memestocks.ts keeps only
+  //    cdn.dexscreener.com: meme token logos on /memes and /stocks (lib/memes/memestocks.ts keeps only
   //    https URLs on that host).
   //  - frame-src: Coinbase Wallet's SDK popup communication happens through
   //    an iframe on Coinbase's own domain, not window.open; WalletConnect's

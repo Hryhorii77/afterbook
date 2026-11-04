@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { formatUnits, type Hex } from 'viem';
-import { type SwapQuote, type SwapSide } from '@/lib/swap';
-import { USDC, type CbStock } from '@/lib/tokens';
+import { type SwapQuote, type SwapSide } from '@/lib/swap/swap';
+import { USDC, type CbStock } from '@/lib/stocks/tokens';
 import { WalletConnectButton } from './WalletConnectButton';
 import { fmt, logSwapHash, usd, venueNames } from './swapClient';
 import { useNotify } from './notify';
@@ -11,7 +11,7 @@ import { buildSwap, parseAmount, useLiveQuote, useReviewedSwap, useTokenBalance 
 import { SlippageControl, useSlippage } from './slippage';
 
 // Buy or sell a tracked stock token with USDC from the visitor's own wallet, routed by KyberSwap.
-// The server (lib/swap.ts) builds the transaction and refuses it unless every field matches the
+// The server (lib/swap/swap.ts) builds the transaction and refuses it unless every field matches the
 // request; this panel shows the checked numbers and hands the wallet steps (exact-amount approval of
 // the router if needed, the swap with Afterbook's Builder Code) to useSwapWallet.ts. It never holds
 // funds or signs.

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getStock } from '@/lib/tokens';
-import { getBuyQuoter } from '@/lib/lotQuote';
-import { limitRead } from '@/lib/readGuard';
+import { getStock } from '@/lib/stocks/tokens';
+import { getBuyQuoter } from '@/lib/market/lotQuote';
+import { limitRead } from '@/lib/server/readGuard';
 
 export async function GET(request: Request) {
   const limited = limitRead(request, 'quote');

@@ -83,7 +83,7 @@ placeholder `<`/`>`).
 ## Secrets that switch routes off when missing
 
 `CRON_SECRET` and `TELEGRAM_WEBHOOK_SECRET` are fail-closed in every
-built deployment (`lib/sharedSecret.ts`): removing either, even for a moment during a
+built deployment (`lib/server/sharedSecret.ts`): removing either, even for a moment during a
 rm/add swap, makes every cron run (or every Telegram message) answer 401
 until a redeploy with the new value. Swap them right before a redeploy, and
 for `TELEGRAM_WEBHOOK_SECRET` also call Telegram's `setWebhook` with the new

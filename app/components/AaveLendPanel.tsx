@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useAccount, usePublicClient, useReadContracts, useWriteContract } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { erc20Abi, formatUnits, getAddress, type ContractFunctionParameters } from 'viem';
-import { BUILDER_CODE_SUFFIX } from '@/lib/builderCode';
+import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import {
   AAVE_EQUITIES_HUB,
   AAVE_MAG7_SPOKE,
@@ -15,14 +15,14 @@ import {
   maxLendWithdrawRaw,
   SPOKE_ABI,
   type AaveReserve,
-} from '@/lib/aaveBorrow';
+} from '@/lib/lending/aaveBorrow';
 import { WalletConnectButton } from './WalletConnectButton';
 import { fmt, usd } from './swapClient';
 import { useNotify } from './notify';
 import { parseAmount, useSwapWallet, useTxRun } from './useSwapWallet';
 
 // Lend USDC into Aave V4's Equities pool through the MAG7 spoke, from the visitor's own wallet (real
-// money; lib/aaveBorrow.ts has the verified contract facts). Two actions:
+// money; lib/lending/aaveBorrow.ts has the verified contract facts). Two actions:
 // - Deposit: an exact approval of the spoke (skipped if it already covers it), then supply(USDC).
 //   At most $25k per deposit.
 // - Withdraw: take USDC back, at most what the pool has free right now.

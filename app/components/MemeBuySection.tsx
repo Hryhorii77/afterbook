@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import type { GeoInfo } from '@/lib/geo';
-import type { CbStock } from '@/lib/tokens';
+import type { GeoInfo } from '@/lib/server/geo';
+import type { CbStock } from '@/lib/stocks/tokens';
 import { MemeBuyPanel } from './MemeBuyPanel';
 
 // The meme page's Buy panel behind the same gates as a stock's Execute panel: the fail-closed non-US

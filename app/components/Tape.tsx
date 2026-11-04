@@ -3,7 +3,7 @@
 // The tape's table, phone cards, column header, freshness line and the sort/trend helpers they share.
 // Moved out of HomeClient.tsx (2026-10-29) unchanged; HomeClient owns the state and passes it in.
 import { useEffect, useState } from 'react';
-import type { TapeResult, TapeRow } from '@/lib/tape';
+import type { TapeResult, TapeRow } from '@/lib/market/tape';
 import { bp, usd, usdCompact } from '@/lib/format';
 import { SymbolTile } from './SymbolTile';
 import { MiniSpark, sparkSummary } from './MiniSpark';

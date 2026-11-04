@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation';
 import { WalletConnectButton } from './WalletConnectButton';
 import { ThemeToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
-import { getStock } from '@/lib/tokens';
+import { getStock } from '@/lib/stocks/tokens';
 
 // Five tabs (owner, 2026-11-03, from an external review): Trade is the home page; Markets holds the
 // tape, today's gap, every stock and each stock's page; Borrow the loan markets; Portfolio the

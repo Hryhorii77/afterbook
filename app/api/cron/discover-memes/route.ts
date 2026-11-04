@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { carryOverFailed, discoverMemePools, readSavedMemeAllowlist, saveMemeAllowlist } from '@/lib/memestocks';
-import { cronAuthorized } from '@/lib/sharedSecret';
+import { carryOverFailed, discoverMemePools, readSavedMemeAllowlist, saveMemeAllowlist } from '@/lib/memes/memestocks';
+import { cronAuthorized } from '@/lib/server/sharedSecret';
 
 export const revalidate = 0;
 // About 45 s for ~65 candidate pools (each read on-chain plus a KyberSwap route check). A stock whose
@@ -8,7 +8,7 @@ export const revalidate = 0;
 // past the limit the run dies before saving and yesterday's list stays.
 export const maxDuration = 300;
 
-// Daily: finds Base meme pools quoted in a tracked stock token, verifies each on-chain (lib/memestocks.ts)
+// Daily: finds Base meme pools quoted in a tracked stock token, verifies each on-chain (lib/memes/memestocks.ts)
 // and replaces the /memes allowlist with the ones that pass. ?dry=1 returns the result without saving.
 // Nothing is saved unless this run itself verified at least one pool: a Dexscreener or RPC outage must not
 // empty the page or re-stamp yesterday's list as checked today. A stock whose Dexscreener lookup failed

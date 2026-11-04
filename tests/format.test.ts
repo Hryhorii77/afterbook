@@ -1,7 +1,7 @@
 // The headline gap figure and sentence every page and card leads with.
 import { describe, expect, it } from 'vitest';
 import { bpPct, gapSizeText } from '../lib/format';
-import { todayShareText } from '../lib/shareText';
+import { todayShareText } from '../lib/share/shareText';
 
 describe('bpPct', () => {
   it.each([

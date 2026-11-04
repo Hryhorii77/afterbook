@@ -1,15 +1,15 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getTape } from '@/lib/tape';
-import { getGeoInfo } from '@/lib/geo';
+import { getTape } from '@/lib/market/tape';
+import { getGeoInfo } from '@/lib/server/geo';
 import { buildTilt } from '@/lib/baskets/tilt';
 import { DEPTH_SHARE, MIN_WEIGHT, MAX_WEIGHT } from '@/lib/baskets/weights';
 import { bp, usdCompact } from '@/lib/format';
-import { getStock } from '@/lib/tokens';
+import { getStock } from '@/lib/stocks/tokens';
 import { SymbolTile } from '@/app/components/SymbolTile';
-import { gliderConfigured } from '@/lib/glider';
+import { gliderConfigured } from '@/lib/baskets/glider';
 import { BasketPanel } from '@/app/components/BasketPanel';
-import { shareMetadata } from '@/lib/shareMeta';
+import { shareMetadata } from '@/lib/share/shareMeta';
 
 export const dynamic = 'force-dynamic';
 

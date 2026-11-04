@@ -1,8 +1,8 @@
 // The Markets page's data: the tape (server-rendered, then polled), the trend lines, the calculator's
 // quote and the per-stock reads. Each poll keeps the last good answer when a refresh fails.
 import { useEffect, useRef, useState } from 'react';
-import type { TapeResult } from '@/lib/tape';
-import { splitByLiquidity } from '@/lib/liquidity';
+import type { TapeResult } from '@/lib/market/tape';
+import { splitByLiquidity } from '@/lib/market/liquidity';
 import { bp } from '@/lib/format';
 import type { TrendData } from '../Tape';
 import type { ClosedPeriodStats, DepthResponse, EarningsMoveStats, EventLogEntry, HistorySample, OpenSnapStats, PriceSample, QuoteResponse } from './types';

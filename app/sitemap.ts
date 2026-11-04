@@ -1,9 +1,9 @@
 import type { MetadataRoute } from 'next';
-import { STOCKS } from '@/lib/tokens';
-import { siteUrl } from '@/lib/siteUrl';
+import { STOCKS } from '@/lib/stocks/tokens';
+import { siteUrl } from '@/lib/share/siteUrl';
 
 // The pages people land on: home, Markets (the tape), More, the biggest-gap page, every tokenized stock (/stocks), memestocks (/memes), Borrow, the basket builder, Baskets and its risks page, and one page
-// per tracked stock (so it follows lib/tokens.ts by itself). All of it is live data.
+// per tracked stock (so it follows lib/stocks/tokens.ts by itself). All of it is live data.
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
   return [

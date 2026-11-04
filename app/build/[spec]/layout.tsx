@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { parseSpec } from '@/lib/customBasket';
+import { parseSpec } from '@/lib/build/customBasket';
 
 // Rejects a malformed basket URL with a real 404 before the page renders.
 // While this route had a loading.tsx, the page's own notFound() came after

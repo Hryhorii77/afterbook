@@ -5,7 +5,7 @@ description: Operate the Basis Tilt basket on Glider safely — check who is enr
 
 # Basis Tilt operations (Glider, real money)
 
-Background: `README.md` → "Baskets (Basis Tilt)". Code: `lib/glider.ts`
+Background: `README.md` → "Baskets (Basis Tilt)". Code: `lib/baskets/glider.ts`
 (client), `lib/baskets/{weights,tilt,update,guard}.ts`,
 `app/api/baskets/*`, `app/api/cron/basket-tilt/route.ts`.
 
@@ -74,7 +74,7 @@ afterwards**. Don't commit them.
 ## 1. Who is enrolled and what do they hold? (read-only, always first)
 
 ```ts
-import { getStrategy } from './lib/glider';
+import { getStrategy } from './lib/baskets/glider';
 const base = (process.env.GLIDER_API_BASE ?? 'https://api.glider.fi/v2').trim();
 const key = process.env.GLIDER_API_KEY!.trim();
 const get = async (p: string) => (await fetch(base + p, { headers: { 'x-api-key': key } })).json();
@@ -98,7 +98,7 @@ doing anything.
 ## 2. Dry-run the update (read-only)
 
 ```ts
-import { getTape } from './lib/tape';
+import { getTape } from './lib/market/tape';
 import { planTiltUpdate } from './lib/baskets/update';
 (async () => {
   const plan = await planTiltUpdate(process.env.GLIDER_STRATEGY_ID_MAIN!.trim(), await getTape());
@@ -124,11 +124,11 @@ Write the new weights through the same path the cron uses so the moving
 average is saved too, but with an accurate change log:
 
 ```ts
-import { getTape } from './lib/tape';
+import { getTape } from './lib/market/tape';
 import { planTiltUpdate } from './lib/baskets/update';
 import { assetIdFor } from './lib/baskets/tilt';
-import { publishStrategyVersion, getStrategy } from './lib/glider';
-import { redis } from './lib/redis';
+import { publishStrategyVersion, getStrategy } from './lib/baskets/glider';
+import { redis } from './lib/server/redis';
 (async () => {
   const id = process.env.GLIDER_STRATEGY_ID_MAIN!.trim();
   const plan = await planTiltUpdate(id, await getTape());
@@ -175,7 +175,7 @@ publish makes every enrolled portfolio trade, so:
 ## 5. A private test strategy (to try things without touching the real one)
 
 ```ts
-import { createStrategy } from './lib/glider';
+import { createStrategy } from './lib/baskets/glider';
 import { assetIdFor } from './lib/baskets/tilt';
 createStrategy({
   name: 'Afterbook Basis Tilt (test, 3 tokens)',

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { enroll } from '@/lib/glider';
+import { enroll } from '@/lib/baskets/glider';
 import { BASE_CHAIN_ID } from '@/lib/baskets/tilt';
 import { guardBasketRequest, readJson, errorResponse, OWNER_RE, ownerAccountId, strategyId } from '@/lib/baskets/guard';
 

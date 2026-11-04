@@ -4,10 +4,10 @@
 //
 // Weights come from Afterbook's own on-chain reads only: real pool depth and
 // cash-vs-chain basis. Basis is only counted for liquid pools — a thin pool's
-// basis is mostly noise (see lib/liquidity.ts), so tilting toward it would
+// basis is mostly noise (see lib/market/liquidity.ts), so tilting toward it would
 // reward the noisiest names.
 
-import { isLiquid } from '../liquidity';
+import { isLiquid } from '../market/liquidity';
 
 export interface WeightInput {
   symbol: string;

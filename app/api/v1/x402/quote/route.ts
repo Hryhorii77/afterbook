@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withX402 } from '@x402/next';
-import { getStock } from '@/lib/tokens';
-import { getBuyQuoter } from '@/lib/lotQuote';
-import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE } from '@/lib/x402';
+import { getStock } from '@/lib/stocks/tokens';
+import { getBuyQuoter } from '@/lib/market/lotQuote';
+import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE } from '@/lib/server/x402';
 
 export const revalidate = 0;
 
@@ -36,7 +36,7 @@ async function handler(request: NextRequest) {
   }
 }
 
-// Same lib/lotQuote.ts path /api/quote and the MCP get_quote
+// Same lib/market/lotQuote.ts path /api/quote and the MCP get_quote
 // tool already share (and the same 20s pool-state cache) — a third,
 // machine-payable caller of an already-shared, already-cached path.
 export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configured

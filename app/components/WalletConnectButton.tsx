@@ -53,7 +53,7 @@ export function WalletConnectButton() {
   const { switchChain, isPending: switching, error: switchError } = useSwitchChain();
   const { openConnectModal } = useConnectModal();
 
-  // Every device opens RainbowKit's list (lib/wagmiConfig.ts builds a short one for phones: Base
+  // Every device opens RainbowKit's list (lib/wallet/wagmiConfig.ts builds a short one for phones: Base
   // Account, then WalletConnect's All Wallets window). Until 2026-11-03 phones skipped the list and
   // opened WalletConnect's window directly; Base Account needed the list back.
   const handleConnect = openConnectModal;

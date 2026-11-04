@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { redis } from '@/lib/redis';
-import { sendTelegramMessage } from '@/lib/telegram';
-import { fetchPublishedStockList, diffAgainstTracked, verifyCandidate, lowestRecentDepthUsd, type CandidateResult } from '@/lib/discovery';
+import { redis } from '@/lib/server/redis';
+import { sendTelegramMessage } from '@/lib/alerts/telegram';
+import { fetchPublishedStockList, diffAgainstTracked, verifyCandidate, lowestRecentDepthUsd, type CandidateResult } from '@/lib/stocks/discovery';
 import { usdCompact } from '@/lib/format';
-import { cronAuthorized } from '@/lib/sharedSecret';
-import { saveDirectoryPools } from '@/lib/stockDirectory';
+import { cronAuthorized } from '@/lib/server/sharedSecret';
+import { saveDirectoryPools } from '@/lib/stocks/stockDirectory';
 
 export const revalidate = 0;
 export const maxDuration = 60;
@@ -30,7 +30,7 @@ async function inChunks<T, R>(items: T[], size: number, fn: (item: T) => Promise
   return out;
 }
 
-// Daily: compares Coinbase's published tokenized-stock list against lib/tokens.ts
+// Daily: compares Coinbase's published tokenized-stock list against lib/stocks/tokens.ts
 // and tells the maintainer (one digest message, not one per token) about names
 // that now have a USDC pool (Aero or the older Aerodrome factory), with real depth. Never edits tokens.ts.
 // ?dry=1 returns the digest without sending anything or touching Redis.

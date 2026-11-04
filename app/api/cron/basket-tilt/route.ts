@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTape } from '@/lib/tape';
-import { gliderConfigured, GliderError } from '@/lib/glider';
+import { getTape } from '@/lib/market/tape';
+import { gliderConfigured, GliderError } from '@/lib/baskets/glider';
 import { planTiltUpdate, applyTiltUpdate, saveTiltEma } from '@/lib/baskets/update';
-import { sendTelegramMessage } from '@/lib/telegram';
-import { cronAuthorized } from '@/lib/sharedSecret';
+import { sendTelegramMessage } from '@/lib/alerts/telegram';
+import { cronAuthorized } from '@/lib/server/sharedSecret';
 
 export const revalidate = 0;
 export const maxDuration = 30;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDailyClickStats, getRecentClicks } from '@/lib/clicks';
-import { cronAuthorized } from '@/lib/sharedSecret';
+import { getDailyClickStats, getRecentClicks } from '@/lib/server/clicks';
+import { cronAuthorized } from '@/lib/server/sharedSecret';
 
 export const revalidate = 0;
 
@@ -17,7 +17,7 @@ interface DaySummary {
   bySymbol: Record<string, number>;
 }
 
-// Maintainer-only read of the outbound-click log (lib/clicks.ts) — the raw
+// Maintainer-only read of the outbound-click log (lib/server/clicks.ts) — the raw
 // material for a partner/referral pitch (see CLAUDE.md's context on why
 // this exists). Reuses CRON_SECRET rather than inventing a second admin
 // env var: it's already the one bearer token this app treats as

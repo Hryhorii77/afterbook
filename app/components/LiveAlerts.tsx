@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { detectEvents, type AlertSnapshot, type TapeLite } from '@/lib/liveAlerts';
+import { detectEvents, type AlertSnapshot, type TapeLite } from '@/lib/alerts/liveAlerts';
 import { useNotify } from './notify';
 
 const POLL_MS = 60_000;

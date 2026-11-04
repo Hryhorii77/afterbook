@@ -1,8 +1,8 @@
 // Execute: the eligibility checkbox, the in-app swap (SwapPanel) once it is ticked in an eligible
 // region, the Aerodrome fallback, and the token's contract facts.
-import { aerodromeSwapUrl, aerodromeDepositUrl, type CbStock } from '@/lib/tokens';
-import type { TapeRow } from '@/lib/tape';
-import type { GeoInfo } from '@/lib/geo';
+import { aerodromeSwapUrl, aerodromeDepositUrl, type CbStock } from '@/lib/stocks/tokens';
+import type { TapeRow } from '@/lib/market/tape';
+import type { GeoInfo } from '@/lib/server/geo';
 import { usd } from '@/lib/format';
 import { SwapPanel } from '../SwapPanel';
 import { logOutboundClick, truncateAddr, useCopy } from './util';

@@ -1,12 +1,12 @@
-import type { TapeResult, TapeRow } from '../tape';
-import { getStock } from '../tokens';
+import type { TapeResult, TapeRow } from '../market/tape';
+import { getStock } from '../stocks/tokens';
 import { computeTiltWeights, type BasketWeight } from './weights';
 
 // Base mainnet, where every tracked B20 token lives.
 export const BASE_CHAIN_ID = 8453;
 
 /** CAIP-19 id Glider expects for an ERC-20 on Base. The address is the exact
- *  string in lib/tokens.ts. Whether Glider wants it lowercased is unconfirmed —
+ *  string in lib/stocks/tokens.ts. Whether Glider wants it lowercased is unconfirmed —
  *  strategies/validate will say. */
 export function assetIdFor(symbol: string): string {
   const stock = getStock(symbol);
@@ -31,7 +31,7 @@ export interface TiltRow extends BasketWeight {
 }
 
 // The names Basis Tilt holds. Deliberately separate from the tracked list in
-// lib/tokens.ts: adding a stock to the tape must NOT silently change what
+// lib/stocks/tokens.ts: adding a stock to the tape must NOT silently change what
 // enrolled users hold. Widening the basket is an explicit decision (and a new
 // strategy version), made once a name's pool is deep enough.
 export const BASKET_SYMBOLS: readonly string[] = [

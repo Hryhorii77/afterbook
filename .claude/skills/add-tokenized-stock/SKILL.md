@@ -1,17 +1,17 @@
 ---
 name: add-tokenized-stock
-description: Verify and add a new Coinbase tokenized-stock symbol (B20 token + Aero or Aerodrome Slipstream USDC pool) to lib/tokens.ts. Use when the discover-tokens cron sends a Telegram digest naming a candidate, or the user asks to add a new stock symbol to Afterbook. Coinbase lists far more tokens than Afterbook tracks (218 vs 38 on 2026-10-27; 92 vs 12 on 2026-10-07); adding one never changes the Basis Tilt basket.
+description: Verify and add a new Coinbase tokenized-stock symbol (B20 token + Aero or Aerodrome Slipstream USDC pool) to lib/stocks/tokens.ts. Use when the discover-tokens cron sends a Telegram digest naming a candidate, or the user asks to add a new stock symbol to Afterbook. Coinbase lists far more tokens than Afterbook tracks (218 vs 38 on 2026-10-27; 92 vs 12 on 2026-10-07); adding one never changes the Basis Tilt basket.
 ---
 
 # Add a new tokenized stock
 
-`lib/tokens.ts`'s `STOCKS` array is the **single source of truth** for
+`lib/stocks/tokens.ts`'s `STOCKS` array is the **single source of truth** for
 what the tape tracks — the tape, Lot Lab, My Lots, the ticker strip, the
 trend charts, the earnings/fee-snapshot crons, and the MCP route all
 derive from it (including the per-stock pages in `sitemap.xml`, and the token's row on `/stocks` turning to Tracked, matched by contract address). Nothing else needs separate registration. The
 liquid-vs-thin split is automatic (driven by live depth, not a hardcoded
 list) — a new addition doesn't need to be sorted into a bucket by hand.
-A pool under `LIQUID_DEPTH_THRESHOLD_USD` ($1M, `lib/liquidity.ts`) lands
+A pool under `LIQUID_DEPTH_THRESHOLD_USD` ($1M, `lib/market/liquidity.ts`) lands
 in the "thin books" tier, which is correct for most new names.
 
 **Adding a stock does NOT add it to the Basis Tilt basket.** The basket
@@ -34,7 +34,7 @@ diffs that list against `STOCKS` and sends **one Telegram digest** of new
 USDC pools with real depth (Aero's factory or the older Aerodrome one, any tick spacing; each token reported on its deepest pool), deepest first, plus a
 ready-to-paste snippet for any pool over $250k. A pool over $50k on one read is judged
 by the lowest its depth has been in the last three hours
-(`lowestRecentDepthUsd` in `lib/discovery.ts`, from the pool's Mint/Burn
+(`lowestRecentDepthUsd` in `lib/stocks/discovery.ts`, from the pool's Mint/Burn
 logs): on 2026-10-19 a bot moving ~$200k in and out of the LLYc pool made one
 read say $254k for a pool whose three-hour low was $39k. When you verify a
 candidate, use that function too, not a single `poolDepth` read. `?dry=1` (with the
@@ -57,7 +57,7 @@ If the candidate came from the digest, its snippet already has
 Coinbase's list) and a `multiplier() present/MISSING` note. Use that as
 the starting point, but still do the checks below.
 
-From scratch (same checks `verifyCandidate` in `lib/discovery.ts` does):
+From scratch (same checks `verifyCandidate` in `lib/stocks/discovery.ts` does):
 
 ```bash
 cast call <tokenAddress> "decimals()(uint8)" --rpc-url base
@@ -67,17 +67,17 @@ cast call <poolAddress> "fee()(uint24)" --rpc-url base
 cast call <tokenAddress> "multiplier()(uint256)" --rpc-url base   # confirm it exists; note if missing
 ```
 
-(`AERO_CL_FACTORY`, `CL_FACTORY` and `USDC` are the constants at the top of `lib/tokens.ts`.
+(`AERO_CL_FACTORY`, `CL_FACTORY` and `USDC` are the constants at the top of `lib/stocks/tokens.ts`.
 Check both factories at tick spacings 1, 10, 50, 100 and 200 and take the deepest pool: on
 2026-10-27 Aero pools used 10 and the older factory's new pools used 1. Set `pool.factory` to
 the factory constant; for an Aero pool `feePpm` is 500, its ceiling, because the live fee is
 dynamic and read per quote.)
 `cast` may not be installed; the same reads work with viem via
-`getClient()` from `lib/quote.ts` in a `tsx` script.)
+`getClient()` from `lib/market/quote.ts` in a `tsx` script.)
 
 Measure real depth the way the app does: build a `CbStock`, then
-`poolDepth(await readPoolState(stock), stock).totalUsd` (`lib/quote.ts`), and
-`lowestRecentDepthUsd(stock, 3)` (`lib/discovery.ts`) for the three-hour low;
+`poolDepth(await readPoolState(stock), stock).totalUsd` (`lib/market/quote.ts`), and
+`lowestRecentDepthUsd(stock, 3)` (`lib/stocks/discovery.ts`) for the three-hour low;
 the low is the number that must clear the line. Don't trust Dexscreener's
 liquidity number alone.
 
@@ -99,7 +99,7 @@ liquidity number alone.
 
 ## 4. Add the entry
 
-Append a `CbStock` object to `STOCKS` in `lib/tokens.ts`, matching the
+Append a `CbStock` object to `STOCKS` in `lib/stocks/tokens.ts`, matching the
 existing entries' field order and style exactly. No explanatory comment —
 the interface above documents the fields.
 
@@ -121,7 +121,7 @@ grep -rnE "\bten\b|10 stocks" app lib README.md | grep -v "^app/baskets/risks"
   samples; a 24h change measured over slightly under 24 hours (nearest
   sample within a 3-hour tolerance) or a dash if none; and no card in
   "who mean-reverts at the open" on `/today` until it has 8 usable
-  trading sessions (`MIN_DAYS_FOR_OPEN_SNAP` in `lib/history.ts`), so
+  trading sessions (`MIN_DAYS_FOR_OPEN_SNAP` in `lib/market/history.ts`), so
   roughly 1.5 to 2 calendar weeks. None of that is a bug.
 
 ## 6. Verify

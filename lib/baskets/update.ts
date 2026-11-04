@@ -1,7 +1,7 @@
-import { redis } from '../redis';
-import { STOCKS } from '../tokens';
-import { getStrategy, publishStrategyVersion } from '../glider';
-import type { TapeResult } from '../tape';
+import { redis } from '../server/redis';
+import { STOCKS } from '../stocks/tokens';
+import { getStrategy, publishStrategyVersion } from './glider';
+import type { TapeResult } from '../market/tape';
 import { buildTilt, assetIdFor } from './tilt';
 import { smoothWeights, type SmoothResult } from './weights';
 

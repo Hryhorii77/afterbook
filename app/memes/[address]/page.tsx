@@ -4,12 +4,12 @@ import { notFound } from 'next/navigation';
 import { SymbolTile } from '@/app/components/SymbolTile';
 import { ShareButton } from '@/app/components/ShareButton';
 import { MemeBuySection } from '@/app/components/MemeBuySection';
-import { getGeoInfo } from '@/lib/geo';
-import { getMemeRow, MEME_MIN_LIQUIDITY_USD, poolUrl, venueLabel, type MemeRow } from '@/lib/memestocks';
+import { getGeoInfo } from '@/lib/server/geo';
+import { getMemeRow, MEME_MIN_LIQUIDITY_USD, poolUrl, venueLabel, type MemeRow } from '@/lib/memes/memestocks';
 import { usdCompact } from '@/lib/format';
-import { ageText, memePrice, memePriceZeros, memeShareText, moveSentence, pctMove, usdOrDash } from '@/lib/memeFormat';
-import { getStock } from '@/lib/tokens';
-import { shareMetadata } from '@/lib/shareMeta';
+import { ageText, memePrice, memePriceZeros, memeShareText, moveSentence, pctMove, usdOrDash } from '@/lib/memes/memeFormat';
+import { getStock } from '@/lib/stocks/tokens';
+import { shareMetadata } from '@/lib/share/shareMeta';
 
 export const dynamic = 'force-dynamic';
 

@@ -3,8 +3,8 @@
 import { useAccount, useReadContracts } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { erc20Abi } from 'viem';
-import { KYBER_ROUTER } from '@/lib/swap';
-import { STOCKS, USDC } from '@/lib/tokens';
+import { KYBER_ROUTER } from '@/lib/swap/swap';
+import { STOCKS, USDC } from '@/lib/stocks/tokens';
 import { fmt } from './swapClient';
 import { useNotify } from './notify';
 import { useSwapWallet, useTxRun } from './useSwapWallet';

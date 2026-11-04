@@ -5,15 +5,15 @@ import { SymbolTile } from '@/app/components/SymbolTile';
 import { SessionPill } from '@/app/components/SessionPill';
 import { ShareButton } from '@/app/components/ShareButton';
 import { BasketPicker } from '@/app/components/BasketPicker';
-import { getTape } from '@/lib/tape';
-import { isLiquid } from '@/lib/liquidity';
-import { STOCKS, getStock } from '@/lib/tokens';
-import { parseSpec, formatSpec, basketLabel, basketGapBp, basketReferenceLabel, legGapBp } from '@/lib/customBasket';
-import { getBasketCost, MAX_COST_BP } from '@/lib/basketCost';
+import { getTape } from '@/lib/market/tape';
+import { isLiquid } from '@/lib/market/liquidity';
+import { STOCKS, getStock } from '@/lib/stocks/tokens';
+import { parseSpec, formatSpec, basketLabel, basketGapBp, basketReferenceLabel, legGapBp } from '@/lib/build/customBasket';
+import { getBasketCost, MAX_COST_BP } from '@/lib/build/basketCost';
 import { bp, usd, usdCompact, gapSizeText, formatNextOpen } from '@/lib/format';
-import { shareMetadata } from '@/lib/shareMeta';
-import { basketShareText } from '@/lib/shareText';
-import { getGeoInfo } from '@/lib/geo';
+import { shareMetadata } from '@/lib/share/shareMeta';
+import { basketShareText } from '@/lib/share/shareText';
+import { getGeoInfo } from '@/lib/server/geo';
 import { BasketBuySection } from '@/app/components/BasketBuySection';
 
 // Live tape and pool reads on every request (each cached 20–60s

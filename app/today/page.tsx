@@ -4,16 +4,16 @@ import { SymbolTile } from '@/app/components/SymbolTile';
 import { SessionPill } from '@/app/components/SessionPill';
 import { ShareButton } from '@/app/components/ShareButton';
 import { unstable_cache } from 'next/cache';
-import { getTape } from '@/lib/tape';
-import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/liquidity';
-import { buildTodaySnapshot, todayReference } from '@/lib/todaySnapshot';
+import { getTape } from '@/lib/market/tape';
+import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/market/liquidity';
+import { buildTodaySnapshot, todayReference } from '@/lib/market/todaySnapshot';
 import { bp, bpPct, usd, usdCompact, formatDuration, formatNextOpen, gapSizeText } from '@/lib/format';
-import { STOCKS, getStock, poolVenue } from '@/lib/tokens';
-import { getBuyQuoter } from '@/lib/lotQuote';
-import { getOpenSnapStats, STATS_LOOKBACK_MS, type OpenSnapStats } from '@/lib/history';
-import { shareMetadata } from '@/lib/shareMeta';
-import { firstParam } from '@/lib/cardUrl';
-import { todayShareText } from '@/lib/shareText';
+import { STOCKS, getStock, poolVenue } from '@/lib/stocks/tokens';
+import { getBuyQuoter } from '@/lib/market/lotQuote';
+import { getOpenSnapStats, STATS_LOOKBACK_MS, type OpenSnapStats } from '@/lib/market/history';
+import { shareMetadata } from '@/lib/share/shareMeta';
+import { firstParam } from '@/lib/share/cardUrl';
+import { todayShareText } from '@/lib/share/shareText';
 
 // Forces a fresh getTape() read (bounded by its own 20s cache) on every
 // request rather than a stale, build-time-frozen number — same reasoning as
@@ -23,7 +23,7 @@ import { todayShareText } from '@/lib/shareText';
 export const dynamic = 'force-dynamic';
 
 // A shared link carries the stock the page showed (`sym`), so its card shows that stock and not
-// whichever one leads a second later (lib/cardUrl.ts).
+// whichever one leads a second later (lib/share/cardUrl.ts).
 export async function generateMetadata({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
   const sp = await searchParams;
   const sym = getStock(firstParam(sp.sym) ?? '')?.symbol;
@@ -46,7 +46,7 @@ interface SizingInfo {
 }
 
 /** Pool-state-dependent numbers for just the headline symbol — a second RPC
- *  read (cached 20s by lib/quote.ts itself) beyond getTape()'s own, since
+ *  read (cached 20s by lib/market/quote.ts itself) beyond getTape()'s own, since
  *  TapeRow doesn't carry sqrtPriceX96/liquidity. Never fails the page: a
  *  dropped read here just means this one section doesn't render. */
 async function getSizingInfo(symbol: string): Promise<SizingInfo | null> {

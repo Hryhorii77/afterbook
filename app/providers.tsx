@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WagmiProvider } from 'wagmi';
 import { RainbowKitProvider, darkTheme, lightTheme } from '@rainbow-me/rainbowkit';
 import { useTheme } from './components/theme';
-import { wagmiConfig } from '@/lib/wagmiConfig';
+import { wagmiConfig } from '@/lib/wallet/wagmiConfig';
 
 // Match this app's own palette (app/globals.css) rather than RainbowKit's
 // default blue/purple — the wallet modal should look like part of Afterbook,
