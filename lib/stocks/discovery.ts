@@ -95,6 +95,11 @@ const POOL_LIQUIDITY_EVENTS = parseAbi([
   'event Burn(address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)',
 ]);
 
+/** The first block of the last `hours`, found by timestamp (one search, shareable across pools). */
+export function recentWindowStart(hours: number, client = getClient()): Promise<bigint> {
+  return blockAtOrBefore(client, Date.now() / 1000 - hours * 3600);
+}
+
 /**
  * The lowest the pool's depth has been over the last `hours`, valued at today's price: today's
  * depth, walked back through every deposit (Mint) and withdrawal (Burn) in the window. One read
@@ -102,7 +107,13 @@ const POOL_LIQUIDITY_EVENTS = parseAbi([
  * pool for minutes at a time (in half of three hours, out for up to 45 minutes), and a single read
  * reported $254k for a pool that held $49k. Throws if the logs can't be read.
  */
-export async function lowestRecentDepthUsd(stock: CbStock, hours = 3, client = getClient()): Promise<number> {
+export async function lowestRecentDepthUsd(
+  stock: CbStock,
+  hours = 3,
+  client = getClient(),
+  /** The window's first block, when the caller already found it (the daily job checks several pools). */
+  fromBlock?: bigint,
+): Promise<number> {
   const state = await readPoolState(stock, client);
   const now = poolDepth(state, stock).totalUsd;
   const stockUsdPerRaw = (midPriceUsd(state, stock) * (Number(state.multiplier) / MULTIPLIER_ONE)) / 10 ** stock.decimals;
@@ -111,9 +122,11 @@ export async function lowestRecentDepthUsd(stock: CbStock, hours = 3, client = g
 
   // The window is found by timestamp, not by block count: Denim (2026-11-05) made blocks ten times
   // faster, and a fixed 5,400 blocks would have shrunk "three hours" to 18 minutes.
-  const head = await client.getBlockNumber();
-  const start = await blockAtOrBefore(client, Date.now() / 1000 - hours * 3600, head);
-  const chunks = await mapLimited(blockRanges(start, head), LOG_CONCURRENCY, (r) =>
+  // Each pool reads up to its own latest block (its depth above was read just now); only the
+  // start, which costs a block search, is shared.
+  const toBlock = await client.getBlockNumber();
+  const from = fromBlock ?? (await blockAtOrBefore(client, Date.now() / 1000 - hours * 3600, toBlock));
+  const chunks = await mapLimited(blockRanges(from, toBlock), LOG_CONCURRENCY, (r) =>
     client.getLogs({ address: stock.pool.address as `0x${string}`, events: POOL_LIQUIDITY_EVENTS, ...r }),
   );
   const moves: { block: bigint; index: number; usd: number }[] = [];
