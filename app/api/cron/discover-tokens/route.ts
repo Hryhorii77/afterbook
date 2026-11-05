@@ -7,7 +7,8 @@ import { cronAuthorized } from '@/lib/server/sharedSecret';
 import { saveDirectoryPools } from '@/lib/stocks/stockDirectory';
 
 export const revalidate = 0;
-export const maxDuration = 60;
+// 120 s: after Denim (2026-11-05) each pool over $50k needs ~27 log reads for its three-hour low.
+export const maxDuration = 120;
 
 // Two Redis sets, so a token is reported when it first has an Aerodrome pool and
 // again when that pool first becomes liquid, but never repeatedly.

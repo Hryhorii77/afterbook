@@ -1,6 +1,7 @@
 import { redis } from '../server/redis';
 import type { CbStock } from '../stocks/tokens';
 import { getClient } from '../market/quote';
+import { blockAtOrBefore, blockRanges, mapLimited } from '../market/blocks';
 import { fullRangeAprPct } from './lpRange';
 
 // Snapshot-based fee APR: Aerodrome exposes no volume/fee-revenue API
@@ -150,20 +151,18 @@ const SWAP_EVENT = {
   ],
 } as const;
 
-// mainnet.base.org (and most public Base RPCs) cap eth_getLogs at a
-// 2,000-block range — confirmed live against a real pool (error: "eth_getLogs
-// is limited to a 2,000 range"). At Base's current ~2s block time that's a
-// bit under 1.1 hours, so this samples the most recent ~1900 blocks (a
-// safety margin under the cap, since "latest" can advance between the
-// block-number read and the getLogs call) and annualizes that window's fee per
-// unit of liquidity. Deliberately a much
+// Samples the last hour of Swap logs and annualizes that window's fee per unit of liquidity.
+// The hour is found by block timestamp (blockAtOrBefore): until Base's Denim upgrade
+// (2026-11-05) this read a fixed 1,900 blocks (~1 hour at 2 s blocks), which at 200 ms
+// blocks would have been about 6 minutes. mainnet.base.org caps eth_getLogs at 2,000 blocks,
+// so the hour is read in chunks (about nine after Denim). Deliberately a much
 // noisier, single-hour-sample estimate than computeFeeApr's multi-day
 // feeGrowthGlobal delta above — this exists only to replace "collecting
 // data" with *something* for a fresh deploy or a newly-thin pool, not to
 // match that method's precision. Confirmed live that Slipstream pools emit
 // the standard Uniswap V3 Swap event signature (topic0 0xc42079f9...ca6,
 // verified against a real NVDAc pool log).
-const LOG_RANGE_BLOCKS = 1900n;
+const SAMPLE_SECONDS = 3600;
 
 const UNSTAKED_FEE_ABI = [{ type: 'function', name: 'unstakedFee', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint24' }] }] as const;
 const FEE_ABI = [{ type: 'function', name: 'fee', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint24' }] }] as const;
@@ -172,16 +171,17 @@ export async function estimateFeeAprFromRecentSwaps(stock: CbStock, currentPrice
   const client = getClient();
   try {
     const toBlock = await client.getBlockNumber();
-    const fromBlock = toBlock > LOG_RANGE_BLOCKS ? toBlock - LOG_RANGE_BLOCKS : 0n;
+    const fromBlock = await blockAtOrBefore(client, Date.now() / 1000 - SAMPLE_SECONDS, toBlock);
 
-    const [logs, fromBlockInfo, toBlockInfo, unstakedFeePpm, liveFeePpm] = await Promise.all([
-      client.getLogs({ address: stock.pool.address as `0x${string}`, event: SWAP_EVENT, fromBlock, toBlock }),
+    const [chunks, fromBlockInfo, toBlockInfo, unstakedFeePpm, liveFeePpm] = await Promise.all([
+      mapLimited(blockRanges(fromBlock, toBlock), 6, (r) => client.getLogs({ address: stock.pool.address as `0x${string}`, event: SWAP_EVENT, ...r })),
       client.getBlock({ blockNumber: fromBlock }),
       client.getBlock({ blockNumber: toBlock }),
       client.readContract({ address: stock.pool.address, abi: UNSTAKED_FEE_ABI, functionName: 'unstakedFee' }),
       // Aero's fee moves with the market; today's is the best single figure for the window.
       client.readContract({ address: stock.pool.address, abi: FEE_ABI, functionName: 'fee' }).catch(() => stock.pool.feePpm),
     ]);
+    const logs = chunks.flat();
     if (logs.length === 0) return null;
 
     const windowMs = Number(toBlockInfo.timestamp - fromBlockInfo.timestamp) * 1000;

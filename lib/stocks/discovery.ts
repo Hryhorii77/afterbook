@@ -1,6 +1,7 @@
 import { fetchCoinbaseStockList, splitListedTokens, type SkippedListing } from './coinbaseStockList';
 import { parseAbi } from 'viem';
 import { getClient, TOKEN_ABI, readPoolState, poolDepth, midPriceUsd, MULTIPLIER_ONE } from '../market/quote';
+import { blockAtOrBefore, blockRanges, mapLimited } from '../market/blocks';
 import { STOCKS, USDC, CL_FACTORY, AERO_CL_FACTORY, type CbStock } from './tokens';
 
 const DECIMALS_ABI = [
@@ -87,12 +88,12 @@ export async function readDepthUsd(stock: CbStock, client = getClient()): Promis
   return Number.isFinite(total) && total >= 0 && total < 1e10 ? total : null;
 }
 
+/** Log reads in flight per pool: three hours is about 27 calls of 2,000 blocks after Denim. */
+const LOG_CONCURRENCY = 6;
 const POOL_LIQUIDITY_EVENTS = parseAbi([
   'event Mint(address sender, address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)',
   'event Burn(address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)',
 ]);
-const BASE_BLOCKS_PER_HOUR = 1800n;
-const LOG_CHUNK = 500n;
 
 /**
  * The lowest the pool's depth has been over the last `hours`, valued at today's price: today's
@@ -108,12 +109,15 @@ export async function lowestRecentDepthUsd(stock: CbStock, hours = 3, client = g
   const usdcUsdPerRaw = 1 / 10 ** USDC.decimals;
   const [usdPerRaw0, usdPerRaw1] = stock.pool.token0 === 'USDC' ? [usdcUsdPerRaw, stockUsdPerRaw] : [stockUsdPerRaw, usdcUsdPerRaw];
 
+  // The window is found by timestamp, not by block count: Denim (2026-11-05) made blocks ten times
+  // faster, and a fixed 5,400 blocks would have shrunk "three hours" to 18 minutes.
   const head = await client.getBlockNumber();
-  const start = head - BigInt(hours) * BASE_BLOCKS_PER_HOUR;
+  const start = await blockAtOrBefore(client, Date.now() / 1000 - hours * 3600, head);
+  const chunks = await mapLimited(blockRanges(start, head), LOG_CONCURRENCY, (r) =>
+    client.getLogs({ address: stock.pool.address as `0x${string}`, events: POOL_LIQUIDITY_EVENTS, ...r }),
+  );
   const moves: { block: bigint; index: number; usd: number }[] = [];
-  for (let from = start; from <= head; from += LOG_CHUNK) {
-    const to = from + LOG_CHUNK - 1n > head ? head : from + LOG_CHUNK - 1n;
-    const logs = await client.getLogs({ address: stock.pool.address as `0x${string}`, events: POOL_LIQUIDITY_EVENTS, fromBlock: from, toBlock: to });
+  for (const logs of chunks) {
     for (const l of logs) {
       const usd = Number(l.args.amount0 ?? 0n) * usdPerRaw0 + Number(l.args.amount1 ?? 0n) * usdPerRaw1;
       moves.push({ block: l.blockNumber, index: l.logIndex, usd: l.eventName === 'Mint' ? usd : -usd });
