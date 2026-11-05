@@ -235,6 +235,29 @@ export async function computeFeeAprWithFallback(
   const real = await computeFeeApr(symbol, stock, currentPriceUsd, multiplier);
   if (real) return { ...real, estimated: false };
 
-  const estimate = await estimateFeeAprFromRecentSwaps(stock, currentPriceUsd, multiplier);
+  const estimate = await cachedEstimate(stock, currentPriceUsd, multiplier);
   return estimate ? { ...estimate, estimated: true } : null;
+}
+
+// The estimate costs ~20 RPC calls since Denim (the block search plus about nine 2,000-block log
+// reads for an hour of 200 ms blocks), and /api/depth is public and polled, so it is kept per pool
+// for a few minutes in this instance's memory and simultaneous requests share one read. A null
+// (no swaps, or a failed read) is kept for a minute only. The price moves the figure a little in
+// that time; it is labelled "prelim." anyway.
+const ESTIMATE_TTL_MS = 5 * 60_000;
+const ESTIMATE_NULL_TTL_MS = 60_000;
+const estimates = new Map<string, { at: number; value: Promise<FeeAprResult | null> }>();
+
+function cachedEstimate(stock: CbStock, currentPriceUsd: number, multiplier: bigint): Promise<FeeAprResult | null> {
+  const key = stock.pool.address.toLowerCase();
+  const hit = estimates.get(key);
+  if (hit && Date.now() - hit.at < ESTIMATE_TTL_MS) return hit.value;
+  const at = Date.now();
+  const value = estimateFeeAprFromRecentSwaps(stock, currentPriceUsd, multiplier).then((r) => {
+    // A null expires sooner: re-stamp it so it lives ESTIMATE_NULL_TTL_MS from now.
+    if (r === null && estimates.get(key)?.value === value) estimates.set(key, { at: Date.now() - (ESTIMATE_TTL_MS - ESTIMATE_NULL_TTL_MS), value });
+    return r;
+  });
+  estimates.set(key, { at, value });
+  return value;
 }

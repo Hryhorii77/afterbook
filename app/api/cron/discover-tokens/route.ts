@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/server/redis';
 import { sendTelegramMessage } from '@/lib/alerts/telegram';
-import { fetchPublishedStockList, diffAgainstTracked, verifyCandidate, lowestRecentDepthUsd, type CandidateResult } from '@/lib/stocks/discovery';
+import { fetchPublishedStockList, diffAgainstTracked, verifyCandidate, lowestRecentDepthUsd, recentWindowStart, type CandidateResult } from '@/lib/stocks/discovery';
 import { usdCompact } from '@/lib/format';
 import { cronAuthorized } from '@/lib/server/sharedSecret';
 import { saveDirectoryPools } from '@/lib/stocks/stockDirectory';
@@ -27,6 +27,7 @@ const CONCURRENCY = 8;
  *  re-checked) and /stocks showed that, while its three-hour low was $29k. */
 const STEADY_CHECK_FROM_USD = 50_000;
 const STEADY_HOURS = 3;
+const STEADY_CONCURRENCY = 3;
 
 async function inChunks<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = [];
@@ -73,18 +74,22 @@ export async function GET(request: NextRequest) {
 
   // A pool over STEADY_CHECK_FROM_USD on one read is judged by the lowest it has been in the last few hours
   // (lowestRecentDepthUsd), so liquidity that comes and goes can't make it look liquid. Few pools
-  // are over the line, so this is a handful of log reads a day. If the history can't be read the
+  // are over the line, so this is a few dozen log reads a pool, once a day. If the history can't be read the
   // pool keeps its one read but gets no snippet.
   const unsteady = new Set<string>();
-  for (const c of checked) {
-    if (!c.r?.stock || (c.r.depthUsd ?? 0) < STEADY_CHECK_FROM_USD) continue;
+  const toCheck = checked.filter((c) => c.r?.stock && (c.r.depthUsd ?? 0) >= STEADY_CHECK_FROM_USD);
+  // One block search for the run, then up to STEADY_CONCURRENCY pools at a time: since Denim each
+  // pool's three hours is ~27 log reads (4-6 s measured on 2026-11-05), and bot-filled pools come in groups.
+  const fromBlock = toCheck.length > 0 ? await recentWindowStart(STEADY_HOURS).catch(() => null) : null;
+  await inChunks(toCheck, STEADY_CONCURRENCY, async (c) => {
     try {
-      c.r.depthUsd = Math.min(c.r.depthUsd ?? Infinity, await lowestRecentDepthUsd(c.r.stock, STEADY_HOURS));
+      if (fromBlock == null) throw new Error('block window unreadable');
+      c.r!.depthUsd = Math.min(c.r!.depthUsd ?? Infinity, await lowestRecentDepthUsd(c.r!.stock!, STEADY_HOURS, undefined, fromBlock));
     } catch (err) {
       console.error(`[discover-tokens] ${c.t.symbol}: liquidity history unreadable`, err);
       unsteady.add(c.t.symbol);
     }
-  }
+  });
 
   // The /stocks page's pool column: every untracked token's pool and depth from this run (one write a day).
   // A failed check is left out, so the page shows it as not checked rather than as having no pool.
