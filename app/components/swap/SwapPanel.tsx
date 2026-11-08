@@ -16,7 +16,8 @@ import { SlippageControl, useSlippage } from './slippage';
 // the router if needed, the swap with Afterbook's Builder Code) to useSwapWallet.ts. It never holds
 // funds or signs.
 
-export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: number }) {
+/** `source` labels the build for the swap metrics only (lib/swap/swapLog.ts); it changes nothing in the trade. */
+export function SwapPanel({ stock, defaultUsd, source = 'stock' }: { stock: CbStock; defaultUsd?: number; source?: 'stock' | 'plan' }) {
   const { notify } = useNotify();
   const [side, setSide] = useState<SwapSide>('buy');
   const [amount, setAmount] = useState(defaultUsd ? String(Math.round(defaultUsd)) : '');
@@ -33,7 +34,7 @@ export function SwapPanel({ stock, defaultUsd }: { stock: CbStock; defaultUsd?: 
   const { quote, quoteError, clearQuote } = useLiveQuote(amountKey ? `/api/swap/quote?symbol=${stock.symbol}&side=${side}&amountIn=${amountKey}` : null);
 
   const { address, busy, error, review, setReview, done, setDone, startReview, confirm, reset } = useReviewedSwap({
-    build: async () => buildSwap({ symbol: stock.symbol, side, amountIn: amountKey, account: address, slippageBps }),
+    build: async () => buildSwap({ symbol: stock.symbol, side, amountIn: amountKey, account: address, slippageBps, source }),
     sameTrade: (tx, reviewed) => tx.quote.amountIn === reviewed.quote.amountIn && tx.quote.symbol === reviewed.quote.symbol && tx.quote.side === reviewed.quote.side && tx.tokenIn === reviewed.tokenIn,
     texts: {
       declined: 'Declined in your wallet — nothing was submitted.',

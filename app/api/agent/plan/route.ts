@@ -10,6 +10,7 @@ import { limitRead } from '@/lib/server/readGuard';
 import { agentLimiter, agentDailyLimiter } from '@/lib/server/ratelimit';
 import { parsePlanInput, screen, sizeLegs, summarize, fallbackExplanation, type CostModel } from '@/lib/agent/plan';
 import { explainPlan, explainerConfigured } from '@/lib/agent/explain';
+import { countPlanBriefly } from '@/lib/agent/planStats';
 
 export const maxDuration = 60;
 
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
     );
     const plan = summarize(sizeLegs(legs, input, costs, swapFee()?.bps ?? 0), input, tape.session);
     const explained = (await mayExplain(request)) ? await explainPlan(plan, input) : null;
+    await countPlanBriefly({ explainedBy: explained ? 'claude' : 'fixed', buys: plan.legs.filter((l) => l.verdict === 'buy').length });
     return NextResponse.json({
       plan,
       explanation: explained ?? fallbackExplanation(plan),
