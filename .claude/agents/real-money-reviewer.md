@@ -65,7 +65,9 @@ check passes, say so in one short line; do not pad.
 **In-app swaps**
 - Every `/api/swap/*` route starts with `guardSwapRequest` (`lib/swap/swapGuard.ts`:
   fail-closed non-US gate, limiter that refuses when missing); `/api/swap/stats`
-  uses `cronAuthorized`.
+  and `/api/agent/stats` use `cronAuthorized`. The build's `source` label
+  ('stock' | 'basket' | 'plan'; 'meme' only for a meme request) is for the metrics
+  only and must never change what is built or checked.
 - `buildSwap` returns nothing the browser can send unless `checkSwapCalldata`
   passed: router = `KYBER_ROUTER`, `transactionValue` 0, input/output token,
   recipient = the requesting account, exact amount, minimum within

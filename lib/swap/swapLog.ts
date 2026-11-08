@@ -18,8 +18,11 @@ const KEY = (hash: string) => `swap:${hash.toLowerCase()}`;
 const BUILT = (data: Hex) => `swapbuild:${keccak256(data)}`;
 const BUILT_TTL_S = 2 * 60 * 60;
 
-/** Which panel built it: one stock's Buy/Sell, a /build basket bought in one go, or a meme buy on /memes. */
-export type SwapSource = 'stock' | 'basket' | 'meme';
+/** Which panel built it: one stock's Buy/Sell, a /build basket bought in one go, a meme buy on /memes,
+ *  or a buy reviewed from a trade plan on /plan. The label is the browser's claim, for the metrics only:
+ *  a swap still counts only if it passes every check below, whatever it is labelled. */
+export type SwapSource = 'stock' | 'basket' | 'meme' | 'plan';
+export const SWAP_SOURCES: readonly SwapSource[] = ['stock', 'basket', 'meme', 'plan'];
 
 interface BuiltSwap {
   account: string;
@@ -149,8 +152,8 @@ export interface SwapStats {
   volumeUsd: number;
   feesUsd: number;
   bySymbol: Record<string, { swaps: number; volumeUsd: number }>;
-  /** Swaps from a stock's own panel vs legs of a basket bought in one go. */
-  bySource: Record<SwapSource, { swaps: number; volumeUsd: number }>;
+  /** Swaps by the panel that built them, with distinct (hashed) wallets per panel. */
+  bySource: Record<SwapSource, { swaps: number; volumeUsd: number; traders: number }>;
 }
 
 export async function swapStats(days: number): Promise<SwapStats | null> {
@@ -167,14 +170,14 @@ export async function swapStats(days: number): Promise<SwapStats | null> {
   return {
     days,
     swaps: records.length,
-    traders: new Set(records.map((r) => r.wallet)).size,
+    traders: new Set(records.map((r) => r.wallet).filter(Boolean)).size,
     volumeUsd: records.reduce((a, r) => a + r.usd, 0),
     feesUsd: records.reduce((a, r) => a + r.feeUsd, 0),
     bySymbol,
-    bySource: (['stock', 'basket', 'meme'] as const).reduce(
+    bySource: SWAP_SOURCES.reduce(
       (acc, src) => {
         const mine = records.filter((r) => (r.source ?? 'stock') === src);
-        acc[src] = { swaps: mine.length, volumeUsd: mine.reduce((a, r) => a + r.usd, 0) };
+        acc[src] = { swaps: mine.length, volumeUsd: mine.reduce((a, r) => a + r.usd, 0), traders: new Set(mine.map((r) => r.wallet).filter(Boolean)).size };
         return acc;
       },
       {} as SwapStats['bySource'],

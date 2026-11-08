@@ -304,7 +304,7 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
                     I confirm I am not a US person and am eligible under my local law to trade tokenized equities.
                   </label>
                   {eligible ? (
-                    <SwapPanel key={`${selected.symbol}-${selected.usd}`} stock={selectedStock} defaultUsd={selected.usd} />
+                    <SwapPanel key={`${selected.symbol}-${selected.usd}`} stock={selectedStock} defaultUsd={selected.usd} source="plan" />
                   ) : (
                     <p className="geo-note">Tick the box above to review the buy.</p>
                   )}
