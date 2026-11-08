@@ -12,4 +12,6 @@ export const PLAN_LIMITS = {
   maxNoteChars: 280,
   /** A leg smaller than this is not worth a transaction. */
   minLegUsd: 10,
+  /** A gap wider than this either way waits: the pool may be stale, or something happened to the stock. */
+  maxAbsGapBp: 300,
 } as const;

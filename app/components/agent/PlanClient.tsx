@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TapeResult } from '@/lib/market/tape';
 import type { GeoInfo } from '@/lib/server/geo';
 import type { Plan, PlanLeg } from '@/lib/agent/plan';
+import { isLoggedPlan, type LoggedPlan } from '@/lib/agent/planLog';
 import { PLAN_LIMITS } from '@/lib/agent/limits';
 import { getStock } from '@/lib/stocks/tokens';
 import { TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
@@ -18,18 +19,15 @@ import { SymbolTile } from '../ui/SymbolTile';
 const LOG_KEY = 'afterbook-plans';
 const LOG_MAX = 20;
 
-interface LoggedPlan {
-  at: number;
-  budgetUsd: number;
-  explainedBy: 'claude' | 'fixed';
-  legs: { symbol: string; verdict: PlanLeg['verdict']; usd?: number; priceUsd: number | null }[];
-}
 
 function readLog(): LoggedPlan[] {
   try {
     const raw = localStorage.getItem(LOG_KEY);
-    const list = raw ? (JSON.parse(raw) as LoggedPlan[]) : [];
-    return Array.isArray(list) ? list.slice(0, LOG_MAX) : [];
+    const list: unknown = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(list)) return [];
+    // Keep good entries, at distinct times (they are the list's keys).
+    const seen = new Set<number>();
+    return list.filter((p): p is LoggedPlan => isLoggedPlan(p) && !seen.has(p.at) && !!seen.add(p.at)).slice(0, LOG_MAX);
   } catch {
     return [];
   }

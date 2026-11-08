@@ -47,9 +47,9 @@ describe('parsePlanInput', () => {
   });
   it('refuses unknown symbols, out-of-range numbers and long notes', () => {
     expect(parsePlanInput({ symbols: ['XYZc'], budgetUsd: 500 }, known)).toMatch(/unknown symbol/);
-    expect(parsePlanInput({ budgetUsd: 5 }, known)).toMatch(/budgetUsd/);
-    expect(parsePlanInput({ budgetUsd: 500, maxCostBp: 0 }, known)).toMatch(/maxCostBp/);
-    expect(parsePlanInput({ budgetUsd: 500, note: 'x'.repeat(281) }, known)).toMatch(/note/);
+    expect(parsePlanInput({ budgetUsd: 5 }, known)).toBe('the budget must be between $10 and $100,000');
+    expect(parsePlanInput({ budgetUsd: 500, maxCostBp: 0 }, known)).toMatch(/^the most you'll pay to trade/);
+    expect(parsePlanInput({ budgetUsd: 500, note: 'x'.repeat(281) }, known)).toBe('the note must be at most 280 characters');
     expect(parsePlanInput(null, known)).toMatch(/JSON object/);
   });
 });
@@ -65,6 +65,19 @@ describe('screen', () => {
     const tape = { rows: [row({ nextEarningsDate: '2026-11-10' })], session: session('open') };
     expect(screen(input({ symbols: ['NVDAc'] }), tape)[0].verdict).toBe('wait');
     expect(screen(input({ symbols: ['NVDAc'], earningsDays: 0 }), tape)[0].verdict).toBe('buy');
+  });
+  it('waits on a gap over 3% either way, discounts included', () => {
+    const tape = { rows: [row({ basisBp: -900 })], session: session('open') };
+    const [leg] = screen(input({ symbols: ['NVDAc'] }), tape);
+    expect(leg.verdict).toBe('wait');
+    expect(leg.reasons[0]).toMatch(/below the cash price, over 3.0% \(300.0 bp\) either way: the pool’s price may be stale/);
+  });
+  it('says when the earnings date is unknown, without changing the verdict', () => {
+    const [leg] = screen(input({ symbols: ['NVDAc'] }), { rows: [row({ nextEarningsDate: null })], session: session('open') });
+    expect(leg.verdict).toBe('buy');
+    expect(leg.reasons.join(' ')).toMatch(/next earnings date is unknown/);
+    const [ignored] = screen(input({ symbols: ['NVDAc'], earningsDays: 0 }), { rows: [row({ nextEarningsDate: null })], session: session('open') });
+    expect(ignored.reasons.join(' ')).not.toMatch(/earnings/);
   });
   it('skips thin pools and stale prices', () => {
     const tape = { rows: [row({ depthUsd: 100_000 }), row({ symbol: 'AAPLc', cashStale: true })], session: session('open') };
@@ -113,10 +126,39 @@ describe('sizeLegs', () => {
     const legs = sizeLegs(screen(input({ symbols: ['NVDAc', 'AAPLc'] }), tape), input(), new Map([['NVDAc', null], ['AAPLc', steep]]));
     expect(legs.map((l) => l.verdict)).toEqual(['skip', 'skip']);
   });
+  it('gives the real reason when the budget split is under the $10 minimum', () => {
+    const tiny = input({ symbols: ['NVDAc', 'AAPLc'], budgetUsd: 10 });
+    const legs = sizeLegs(screen(tiny, tape), tiny, new Map([['NVDAc', linear], ['AAPLc', linear]]));
+    expect(legs.map((l) => l.verdict)).toEqual(['skip', 'skip']);
+    expect(legs[0].reasons.at(-1)).toBe('Your $10 split over 2 stocks is $5.00 each, under the $10 minimum for a swap. Pick fewer stocks or raise the budget.');
+  });
+  it('counts Afterbook’s swap fee in the cost and the sizing', () => {
+    const one = input({ symbols: ['NVDAc'], budgetUsd: 50_000, maxCostBp: 20 });
+    const [leg] = sizeLegs(screen(one, tape), one, new Map([['NVDAc', linear]]), 10);
+    // Pool cost may use only 20 - 10 = 10 bp: at most ~$5k.
+    expect(leg.usd!).toBeLessThanOrEqual(5_000);
+    expect(leg.costBp!).toBeLessThanOrEqual(20);
+    expect(leg.reasons.join(' ')).toMatch(/plus Afterbook’s 10 bp fee/);
+    const [over] = sizeLegs(screen(one, tape), { ...one, maxCostBp: 10 }, new Map([['NVDAc', linear]]), 10);
+    expect(over.verdict).toBe('skip');
+  });
   it('summarizes and explains without Claude', () => {
     const legs = sizeLegs(screen(input({ symbols: ['NVDAc'] }), tape), input(), new Map([['NVDAc', linear]]));
     const plan = summarize(legs, input(), tape.session, 1);
     expect(plan.plannedUsd).toBe(1000);
     expect(fallbackExplanation(plan)).toMatch(/One buy passes your limits: NVDAc \$1,000/);
+  });
+});
+
+describe('isLoggedPlan', () => {
+  it('accepts a saved plan and rejects broken entries', async () => {
+    const { isLoggedPlan } = await import('../lib/agent/planLog');
+    const ok = { at: 1, budgetUsd: 100, explainedBy: 'fixed', legs: [{ symbol: 'NVDAc', verdict: 'buy', usd: 50, priceUsd: 100 }] };
+    expect(isLoggedPlan(ok)).toBe(true);
+    expect(isLoggedPlan(null)).toBe(false);
+    expect(isLoggedPlan({ ...ok, legs: 'x' })).toBe(false);
+    expect(isLoggedPlan({ ...ok, legs: [{ symbol: 'NVDAc', verdict: 'maybe', priceUsd: 1 }] })).toBe(false);
+    expect(isLoggedPlan({ ...ok, legs: [null] })).toBe(false);
+    expect(isLoggedPlan({ ...ok, at: 'today' })).toBe(false);
   });
 });

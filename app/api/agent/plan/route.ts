@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { getTape } from '@/lib/market/tape';
 import { getBuyQuoter } from '@/lib/market/lotQuote';
 import { getStock } from '@/lib/stocks/tokens';
+import { swapFee } from '@/lib/swap/swap';
 import { limitRead } from '@/lib/server/readGuard';
 import { agentLimiter, agentDailyLimiter } from '@/lib/server/ratelimit';
 import { parsePlanInput, screen, sizeLegs, summarize, fallbackExplanation, type CostModel } from '@/lib/agent/plan';
@@ -26,7 +27,8 @@ async function mayExplain(request: Request): Promise<boolean> {
 }
 
 export async function POST(request: Request) {
-  const limited = limitRead(request, 'agent-plan');
+  // The 10-a-minute bucket: a plan is a deliberate click, not a poll.
+  const limited = limitRead(request, 'agent-plan', 'lots');
   if (limited) return limited;
   let body: unknown;
   try {
@@ -49,7 +51,7 @@ export async function POST(request: Request) {
           costs.set(l.symbol, stock ? await getBuyQuoter(stock).catch(() => null) : null);
         }),
     );
-    const plan = summarize(sizeLegs(legs, input, costs), input, tape.session);
+    const plan = summarize(sizeLegs(legs, input, costs, swapFee()?.bps ?? 0), input, tape.session);
     const explained = (await mayExplain(request)) ? await explainPlan(plan, input) : null;
     return NextResponse.json({
       plan,

@@ -59,27 +59,28 @@ export function parsePlanInput(body: unknown, known: (symbol: string) => boolean
   if (!body || typeof body !== 'object') return 'expected a JSON object';
   const b = body as Record<string, unknown>;
   const symbols = b.symbols ?? [];
-  if (!Array.isArray(symbols) || symbols.some((s) => typeof s !== 'string')) return 'symbols must be a list of symbols';
+  if (!Array.isArray(symbols) || symbols.some((s) => typeof s !== 'string')) return 'the stocks must be a list of symbols';
   const uniq = [...new Set(symbols as string[])];
   if (uniq.length > PLAN_LIMITS.maxSymbols) return `at most ${PLAN_LIMITS.maxSymbols} stocks`;
   const unknown = uniq.find((s) => !known(s));
   if (unknown) return `unknown symbol: ${unknown.slice(0, 20)}`;
-  const num = (v: unknown, lo: number, hi: number, name: string): number | string => {
+  // Messages are read by people on the page, so they name the form's fields, not the JSON keys.
+  const num = (v: unknown, lo: number, hi: number, message: string): number | string => {
     const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
-    if (!Number.isFinite(n) || n < lo || n > hi) return `${name} must be between ${lo} and ${hi}`;
+    if (!Number.isFinite(n) || n < lo || n > hi) return message;
     return n;
   };
-  const budgetUsd = num(b.budgetUsd, PLAN_LIMITS.minBudgetUsd, PLAN_LIMITS.maxBudgetUsd, 'budgetUsd');
+  const budgetUsd = num(b.budgetUsd, PLAN_LIMITS.minBudgetUsd, PLAN_LIMITS.maxBudgetUsd, `the budget must be between $${PLAN_LIMITS.minBudgetUsd} and $${PLAN_LIMITS.maxBudgetUsd.toLocaleString('en-US')}`);
   if (typeof budgetUsd === 'string') return budgetUsd;
-  const maxPremiumBp = num(b.maxPremiumBp ?? 50, 0, PLAN_LIMITS.maxPremiumBp, 'maxPremiumBp');
+  const maxPremiumBp = num(b.maxPremiumBp ?? 50, 0, PLAN_LIMITS.maxPremiumBp, `the most you'll pay over the real stock must be between 0% and ${PLAN_LIMITS.maxPremiumBp / 100}%`);
   if (typeof maxPremiumBp === 'string') return maxPremiumBp;
-  const maxCostBp = num(b.maxCostBp ?? 30, 1, PLAN_LIMITS.maxCostBp, 'maxCostBp');
+  const maxCostBp = num(b.maxCostBp ?? 30, 1, PLAN_LIMITS.maxCostBp, `the most you'll pay to trade must be between 0.01% and ${PLAN_LIMITS.maxCostBp / 100}%`);
   if (typeof maxCostBp === 'string') return maxCostBp;
-  const earningsDays = num(b.earningsDays ?? 2, 0, PLAN_LIMITS.maxEarningsDays, 'earningsDays');
+  const earningsDays = num(b.earningsDays ?? 2, 0, PLAN_LIMITS.maxEarningsDays, `the earnings wait must be between 0 and ${PLAN_LIMITS.maxEarningsDays} days`);
   if (typeof earningsDays === 'string') return earningsDays;
   const note = b.note ?? '';
-  if (typeof note !== 'string') return 'note must be text';
-  if (note.length > PLAN_LIMITS.maxNoteChars) return `note must be at most ${PLAN_LIMITS.maxNoteChars} characters`;
+  if (typeof note !== 'string') return 'the note must be text';
+  if (note.length > PLAN_LIMITS.maxNoteChars) return `the note must be at most ${PLAN_LIMITS.maxNoteChars} characters`;
   return { symbols: uniq, budgetUsd, maxPremiumBp, maxCostBp, earningsDays: Math.floor(earningsDays), note: note.trim() };
 }
 
@@ -122,11 +123,19 @@ export function screen(input: PlanInput, tape: Pick<TapeResult, 'rows' | 'sessio
       return leg;
     }
     const gapText = `${gapSizeText(Math.abs(ref.bp))} ${ref.bp >= 0 ? 'above' : 'below'} the cash ${ref.word}`;
-    if (ref.bp > input.maxPremiumBp) {
+    if (Math.abs(ref.bp) > PLAN_LIMITS.maxAbsGapBp) {
+      // A gap this wide (BILIc read 9% below on 2026-11-08) is more often a stale pool or news than a
+      // bargain: say so rather than let a discount pass as "inside your limit".
+      leg.verdict = 'wait';
+      leg.reasons.push(`The token trades ${gapText}, over ${gapSizeText(PLAN_LIMITS.maxAbsGapBp)} either way: the pool’s price may be stale, or something happened to the stock. Check it before buying.`);
+    } else if (ref.bp > input.maxPremiumBp) {
       leg.verdict = 'wait';
       leg.reasons.push(`The token trades ${gapText}, more than the ${gapSizeText(input.maxPremiumBp)} you set.`);
     } else {
       leg.reasons.push(`The token trades ${gapText}, inside your ${gapSizeText(input.maxPremiumBp)} limit.`);
+    }
+    if (input.earningsDays > 0 && !row.nextEarningsDate) {
+      leg.reasons.push(`${row.cashTicker}’s next earnings date is unknown, so the earnings wait couldn’t be checked.`);
     }
     if (input.earningsDays > 0 && row.nextEarningsDate) {
       const days = daysUntil(tape.session.dateKey, row.nextEarningsDate);
@@ -146,11 +155,27 @@ export interface CostModel {
 }
 
 /** Step 2: split the budget equally over the legs that passed, within the swap's own caps and the
- *  person's cost limit. Mutates and returns the legs. */
-export function sizeLegs(legs: PlanLeg[], input: PlanInput, costs: Map<string, CostModel | null>): PlanLeg[] {
+ *  person's cost limit. `feeBps` is Afterbook's own swap fee (lib/swap/swap.ts swapFee, 0 while off),
+ *  counted in the cost so the plan never looks cheaper than the swap. Mutates and returns the legs. */
+export function sizeLegs(legs: PlanLeg[], input: PlanInput, costs: Map<string, CostModel | null>, feeBps = 0): PlanLeg[] {
   const buys = legs.filter((l) => l.verdict === 'buy');
   if (!buys.length) return legs;
   const share = input.budgetUsd / buys.length;
+  if (share < PLAN_LIMITS.minLegUsd) {
+    for (const leg of buys) {
+      leg.verdict = 'skip';
+      leg.reasons.push(`Your ${usd(input.budgetUsd, 0)} split over ${buys.length} stocks is ${usd(share)} each, under the ${usd(PLAN_LIMITS.minLegUsd, 0)} minimum for a swap. Pick fewer stocks or raise the budget.`);
+    }
+    return legs;
+  }
+  if (feeBps >= input.maxCostBp) {
+    for (const leg of buys) {
+      leg.verdict = 'skip';
+      leg.reasons.push(`Afterbook’s ${feeBps} bp swap fee alone is over your ${input.maxCostBp} bp limit.`);
+    }
+    return legs;
+  }
+  const poolLimitBp = input.maxCostBp - feeBps;
   for (const leg of buys) {
     const model = costs.get(leg.symbol);
     if (!model) {
@@ -163,23 +188,27 @@ export function sizeLegs(legs: PlanLeg[], input: PlanInput, costs: Map<string, C
     const capped = size < share;
     let est = model.estimate(size);
     let shrunk = false;
-    if (est.impactBp > input.maxCostBp || est.largeTradeCaveat) {
-      size = Math.min(size, model.sizeForImpact(input.maxCostBp) * 0.98);
+    if (est.impactBp > poolLimitBp || est.largeTradeCaveat) {
+      size = Math.min(size, model.sizeForImpact(poolLimitBp) * 0.98);
       est = model.estimate(size);
       shrunk = true;
     }
-    if (size < PLAN_LIMITS.minLegUsd || est.impactBp > input.maxCostBp) {
+    if (size < PLAN_LIMITS.minLegUsd || est.impactBp > poolLimitBp) {
       leg.verdict = 'skip';
-      leg.reasons.push(`Even ${usd(PLAN_LIMITS.minLegUsd, 0)} would cost more than your ${input.maxCostBp} bp fill limit in this pool.`);
+      leg.reasons.push(`Even a ${usd(PLAN_LIMITS.minLegUsd, 0)} buy would cost more than your ${input.maxCostBp} bp limit in this pool.`);
       continue;
     }
     size = Math.floor(size);
     est = model.estimate(size);
     leg.usd = size;
     leg.shares = est.sharesOut;
-    leg.costBp = est.impactBp;
-    leg.reasons.push(`A ${usd(size, 0)} buy would cost about ${est.impactBp.toFixed(1)} bp (price impact plus the pool fee).`);
-    if (shrunk) leg.reasons.push(`Sized down from ${usd(share, 0)} to stay inside your ${input.maxCostBp} bp fill limit.`);
+    leg.costBp = est.impactBp + feeBps;
+    leg.reasons.push(
+      feeBps > 0
+        ? `A ${usd(size, 0)} buy would cost about ${leg.costBp.toFixed(1)} bp: ${est.impactBp.toFixed(1)} bp of price impact and pool fee, plus Afterbook’s ${feeBps} bp fee.`
+        : `A ${usd(size, 0)} buy would cost about ${est.impactBp.toFixed(1)} bp (price impact plus the pool fee; Afterbook charges no fee).`,
+    );
+    if (shrunk) leg.reasons.push(`Sized down from ${usd(share, 0)} to stay inside your ${input.maxCostBp} bp limit.`);
     else if (capped) leg.reasons.push(`Capped at ${usd(size, 0)}: one swap is at most ${usd(MAX_SWAP_USD, 0)} and 10% of the pool.`);
   }
   return legs;
