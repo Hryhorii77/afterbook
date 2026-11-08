@@ -98,8 +98,20 @@ export function pickRows(input: PlanInput, tape: Pick<TapeResult, 'rows'>): Tape
     .slice(0, PLAN_LIMITS.anyCount);
 }
 
-/** Step 1: the checks that don't depend on size. Legs still marked 'buy' go on to sizing. */
-export function screen(input: PlanInput, tape: Pick<TapeResult, 'rows' | 'session'>): PlanLeg[] {
+/** How old the earnings job's last full scan may be for "no date" to mean "no report in the window":
+ *  it runs daily, so 36 hours allows one late run. */
+export const EARNINGS_FRESH_MS = 36 * 3_600_000;
+
+/** Step 1: the checks that don't depend on size. Legs still marked 'buy' go on to sizing.
+ *  `earningsSyncedAt` is when the earnings job last scanned its whole window without a failed day
+ *  (lib/stocks/earningsCalendar.ts), or null if never or unknown. */
+export function screen(
+  input: PlanInput,
+  tape: Pick<TapeResult, 'rows' | 'session'>,
+  earningsSyncedAt: number | null = null,
+  now = Date.now(),
+): PlanLeg[] {
+  const calendarFresh = earningsSyncedAt != null && now - earningsSyncedAt >= 0 && now - earningsSyncedAt < EARNINGS_FRESH_MS;
   return pickRows(input, tape).map((row) => {
     const ref = todayReference(row, tape.session);
     const leg: PlanLeg = {
@@ -135,9 +147,14 @@ export function screen(input: PlanInput, tape: Pick<TapeResult, 'rows' | 'sessio
       leg.reasons.push(`The token trades ${gapText}, inside your ${gapSizeText(input.maxPremiumBp)} limit.`);
     }
     if (input.earningsDays > 0 && !row.nextEarningsDate) {
-      // The earnings job (app/api/cron/earnings-sync) scans Nasdaq's calendar 14 days ahead, the
-      // longest wait the form offers, so no date means no report in that window, not "unknown".
-      leg.reasons.push(`${row.cashTicker} has no earnings report on the calendar in the next ${PLAN_LIMITS.maxEarningsDays} days.`);
+      // The earnings job scans 15 days ahead (EARNINGS_SCAN_DAYS), so after a recent full scan no date
+      // means no report in any wait the form offers. If the last full scan is old or a day failed,
+      // absence proves nothing: say so (from a review, 2026-11-08).
+      leg.reasons.push(
+        calendarFresh
+          ? `${row.cashTicker} has no earnings report on the calendar in the next ${PLAN_LIMITS.maxEarningsDays} days.`
+          : `Couldn’t confirm ${row.cashTicker}’s earnings date: the calendar wasn’t fully checked in the last 36 hours. Check it before buying.`,
+      );
     }
     if (input.earningsDays > 0 && row.nextEarningsDate) {
       const days = daysUntil(tape.session.dateKey, row.nextEarningsDate);

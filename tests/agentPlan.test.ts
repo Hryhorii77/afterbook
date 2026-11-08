@@ -72,11 +72,18 @@ describe('screen', () => {
     expect(leg.verdict).toBe('wait');
     expect(leg.reasons[0]).toMatch(/below the cash price, over 3.0% \(300.0 bp\) either way: the pool’s price may be stale/);
   });
-  it('says when no earnings report is due in the scanned 14 days, without changing the verdict', () => {
-    const [leg] = screen(input({ symbols: ['NVDAc'] }), { rows: [row({ nextEarningsDate: null })], session: session('open') });
-    expect(leg.verdict).toBe('buy');
-    expect(leg.reasons.join(' ')).toMatch(/NVDA has no earnings report on the calendar in the next 14 days\./);
-    const [ignored] = screen(input({ symbols: ['NVDAc'], earningsDays: 0 }), { rows: [row({ nextEarningsDate: null })], session: session('open') });
+  it('says no earnings report is due only after a full calendar scan in the last 36 hours', () => {
+    const tape = { rows: [row({ nextEarningsDate: null })], session: session('open') };
+    const now = 1_800_000_000_000;
+    const [fresh] = screen(input({ symbols: ['NVDAc'] }), tape, now - 20 * 3_600_000, now);
+    expect(fresh.verdict).toBe('buy');
+    expect(fresh.reasons.join(' ')).toMatch(/NVDA has no earnings report on the calendar in the next 14 days\./);
+    // A stale scan, or none on record (a failed day keeps the time from moving): absence proves nothing.
+    for (const syncedAt of [now - 40 * 3_600_000, null]) {
+      const [leg] = screen(input({ symbols: ['NVDAc'] }), tape, syncedAt, now);
+      expect(leg.reasons.join(' ')).toMatch(/Couldn’t confirm NVDA’s earnings date: the calendar wasn’t fully checked in the last 36 hours\. Check it before buying\./);
+    }
+    const [ignored] = screen(input({ symbols: ['NVDAc'], earningsDays: 0 }), tape, null, now);
     expect(ignored.reasons.join(' ')).not.toMatch(/earnings/);
   });
   it('skips thin pools and stale prices', () => {

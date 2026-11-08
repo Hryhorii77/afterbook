@@ -12,22 +12,55 @@ interface NasdaqEarningsRow {
   symbol: string;
 }
 
-/** Never throws — a failed day's fetch just means that day contributes no
- *  tickers to the scan, same as a market holiday with no data at all. */
-export async function fetchNasdaqEarningsForDate(dateStr: string): Promise<Set<string>> {
+/** The tickers reporting on `dateStr`, an empty set for a day with none, or null when the fetch failed.
+ *  Never throws. The two must stay apart (2026-11-08, from a review): a failed day used to read as "no
+ *  earnings", which deleted saved dates and let the trade plan's earnings wait pass. Nasdaq answers a
+ *  day with no reports (a Sunday) with status 200, `data` present and `rows: null`; anything else that
+ *  isn't a list of rows is a failure. */
+export async function fetchNasdaqEarningsForDate(dateStr: string, fetchFn: typeof fetch = fetch): Promise<Set<string> | null> {
   try {
-    const res = await fetch(`${NASDAQ_HOST}/api/calendar/earnings?date=${dateStr}`, {
+    const res = await fetchFn(`${NASDAQ_HOST}/api/calendar/earnings?date=${dateStr}`, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AfterbookCalendar/1.0)' },
       signal: AbortSignal.timeout(5000),
     });
-    if (!res.ok) return new Set();
+    if (!res.ok) return null;
     const json = await res.json();
-    const rows = json?.data?.rows as NasdaqEarningsRow[] | null;
-    if (!rows) return new Set();
-    return new Set(rows.map((r) => r.symbol).filter((s): s is string => typeof s === 'string'));
+    if (!json || typeof json !== 'object' || !json.data || typeof json.data !== 'object') return null;
+    if (json.status?.rCode != null && json.status.rCode !== 200) return null;
+    const rows = json.data.rows as NasdaqEarningsRow[] | null | undefined;
+    if (rows === null) return new Set();
+    if (!Array.isArray(rows)) return null;
+    return new Set(rows.map((r) => r?.symbol).filter((s): s is string => typeof s === 'string'));
   } catch {
-    return new Set();
+    return null;
   }
+}
+
+/** When the earnings job last scanned every day of its window without a failure. */
+export const EARNINGS_SYNCED_KEY = 'earnings:syncedAt';
+
+export async function recordEarningsSynced(now: number): Promise<void> {
+  if (!redis) return;
+  try {
+    await redis.set(EARNINGS_SYNCED_KEY, now, { ex: 30 * 86_400 });
+  } catch {
+    // best-effort: a missed write makes the trade plan say it couldn't confirm the calendar
+  }
+}
+
+// Read by the trade plan route only (one per plan, not per tape build), and cached a few minutes anyway.
+let syncedCache: { value: number | null; at: number } | null = null;
+export async function getEarningsSyncedAt(now = Date.now()): Promise<number | null> {
+  if (!redis) return null;
+  if (syncedCache && now - syncedCache.at < 5 * 60_000) return syncedCache.value;
+  try {
+    const raw = await redis.get<number | string>(EARNINGS_SYNCED_KEY);
+    const value = raw == null ? null : Number(raw);
+    syncedCache = { value: Number.isFinite(value) ? value : null, at: now };
+  } catch {
+    syncedCache = { value: syncedCache?.value ?? null, at: now };
+  }
+  return syncedCache.value;
 }
 
 /** TTL is sized to the date itself, so a symbol's key self-expires shortly
@@ -69,4 +102,32 @@ export async function getNextEarnings(symbol: string): Promise<string | null> {
     earningsCache.set(symbol, { value, at: Date.now() - EARNINGS_CACHE_MS + 5 * 60_000 });
     return value;
   }
+}
+
+/** Days the earnings job scans ahead. One more than the trade plan's longest earnings wait
+ *  (PLAN_LIMITS.maxEarningsDays, 14), so the window still covers 14 days when the plan reads it up to a
+ *  day after the job ran. */
+export const EARNINGS_SCAN_DAYS = 15;
+
+/** Walks the calendar day by day (Nasdaq has no range query) and records, per ticker, the earliest day
+ *  it reports in the window. `failedDays` counts days whose fetch failed: with any, a ticker's absence
+ *  proves nothing. */
+export async function scanNextEarnings(
+  tickers: string[],
+  now: number,
+  fetchDay: (dateStr: string) => Promise<Set<string> | null> = (d) => fetchNasdaqEarningsForDate(d),
+  days = EARNINGS_SCAN_DAYS,
+): Promise<{ next: Map<string, string>; failedDays: string[] }> {
+  const next = new Map<string, string>();
+  const failedDays: string[] = [];
+  for (let i = 0; i < days; i++) {
+    const dateStr = new Date(now + i * 86_400_000).toISOString().slice(0, 10);
+    const reporting = await fetchDay(dateStr);
+    if (!reporting) {
+      failedDays.push(dateStr);
+      continue;
+    }
+    for (const ticker of tickers) if (!next.has(ticker) && reporting.has(ticker)) next.set(ticker, dateStr);
+  }
+  return { next, failedDays };
 }

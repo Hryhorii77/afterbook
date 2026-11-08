@@ -5,6 +5,7 @@ import { getTape } from '@/lib/market/tape';
 import { getBuyQuoter } from '@/lib/market/lotQuote';
 import { getStock } from '@/lib/stocks/tokens';
 import { swapFee } from '@/lib/swap/swap';
+import { getEarningsSyncedAt } from '@/lib/stocks/earningsCalendar';
 import { limitRead } from '@/lib/server/readGuard';
 import { agentLimiter, agentDailyLimiter } from '@/lib/server/ratelimit';
 import { parsePlanInput, screen, sizeLegs, summarize, fallbackExplanation, type CostModel } from '@/lib/agent/plan';
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
 
   try {
     const tape = await getTape();
-    const legs = screen(input, tape);
+    const legs = screen(input, tape, await getEarningsSyncedAt());
     const costs = new Map<string, CostModel | null>();
     await Promise.all(
       legs
