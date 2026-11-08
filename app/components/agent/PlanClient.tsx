@@ -291,10 +291,10 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
           {selected && selectedStock && (
             <div className="plan-swap" ref={swapRef}>
               <h3>
-                Buy {selected.symbol} · {usd(selected.usd ?? 0, 0)}
+                {selected.symbol} · the plan’s amount: {usd(selected.usd ?? 0, 0)}
               </h3>
               <p className="geo-note">
-                The swap below gets a fresh quote and runs the usual checks; the amount is yours to change. If needed, your wallet
+                The swap below gets a fresh quote and runs the usual checks. It starts at the plan’s amount; what you type in the box is what you buy. If needed, your wallet
                 asks you to approve exactly the amount you review, then the swap.
               </p>
               {geo.nonUs === true ? (
