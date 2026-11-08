@@ -7,6 +7,7 @@ import { cronAuthorized } from '@/lib/server/sharedSecret';
 export const revalidate = 0;
 export const maxDuration = 30;
 
+// The trade plan reads "no date" as "no report in the next 14 days" (PLAN_LIMITS.maxEarningsDays): keep them equal.
 const SCAN_DAYS = 14;
 // How many days back to check for a just-completed report to record into
 // history — lagged (not "yesterday") so Yahoo's closing price for the

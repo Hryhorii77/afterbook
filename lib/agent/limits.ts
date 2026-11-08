@@ -8,6 +8,7 @@ export const PLAN_LIMITS = {
   maxBudgetUsd: 100_000,
   maxPremiumBp: 500,
   maxCostBp: 200,
+  /** Equal to the earnings job's 14-day scan (SCAN_DAYS), so a stock with no date has no report in any window offered. */
   maxEarningsDays: 14,
   maxNoteChars: 280,
   /** A leg smaller than this is not worth a transaction. */

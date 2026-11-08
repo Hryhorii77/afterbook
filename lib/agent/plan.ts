@@ -135,7 +135,9 @@ export function screen(input: PlanInput, tape: Pick<TapeResult, 'rows' | 'sessio
       leg.reasons.push(`The token trades ${gapText}, inside your ${gapSizeText(input.maxPremiumBp)} limit.`);
     }
     if (input.earningsDays > 0 && !row.nextEarningsDate) {
-      leg.reasons.push(`${row.cashTicker}’s next earnings date is unknown, so the earnings wait couldn’t be checked.`);
+      // The earnings job (app/api/cron/earnings-sync) scans Nasdaq's calendar 14 days ahead, the
+      // longest wait the form offers, so no date means no report in that window, not "unknown".
+      leg.reasons.push(`${row.cashTicker} has no earnings report on the calendar in the next ${PLAN_LIMITS.maxEarningsDays} days.`);
     }
     if (input.earningsDays > 0 && row.nextEarningsDate) {
       const days = daysUntil(tape.session.dateKey, row.nextEarningsDate);

@@ -72,10 +72,10 @@ describe('screen', () => {
     expect(leg.verdict).toBe('wait');
     expect(leg.reasons[0]).toMatch(/below the cash price, over 3.0% \(300.0 bp\) either way: the pool’s price may be stale/);
   });
-  it('says when the earnings date is unknown, without changing the verdict', () => {
+  it('says when no earnings report is due in the scanned 14 days, without changing the verdict', () => {
     const [leg] = screen(input({ symbols: ['NVDAc'] }), { rows: [row({ nextEarningsDate: null })], session: session('open') });
     expect(leg.verdict).toBe('buy');
-    expect(leg.reasons.join(' ')).toMatch(/next earnings date is unknown/);
+    expect(leg.reasons.join(' ')).toMatch(/NVDA has no earnings report on the calendar in the next 14 days\./);
     const [ignored] = screen(input({ symbols: ['NVDAc'], earningsDays: 0 }), { rows: [row({ nextEarningsDate: null })], session: session('open') });
     expect(ignored.reasons.join(' ')).not.toMatch(/earnings/);
   });
