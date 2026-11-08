@@ -16,8 +16,8 @@ describe('bpPct', () => {
 });
 
 describe('gap sentence', () => {
-  it('names the venue first, so "on Aero" never reads as where the cash price is', () => {
-    expect(todayShareText('SNDKc', 15.9, 'price')).toBe('On Aero, SNDKc is trading 0.16% (15.9 bp) above the cash price.');
+  it('names the venue first, so "on Base" never reads as where the cash price is', () => {
+    expect(todayShareText('SNDKc', 15.9, 'price')).toBe('On Base, SNDKc is trading 0.16% (15.9 bp) above the cash price.');
   });
   it('keeps small gaps in bp only', () => {
     expect(gapSizeText(-3.2)).toBe('3.2 bp');

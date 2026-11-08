@@ -8,7 +8,7 @@ import { getTape } from '@/lib/market/tape';
 import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/market/liquidity';
 import { buildTodaySnapshot, todayReference } from '@/lib/market/todaySnapshot';
 import { bp, bpPct, usd, usdCompact, formatDuration, formatNextOpen, gapSizeText } from '@/lib/format';
-import { STOCKS, getStock, poolVenue } from '@/lib/stocks/tokens';
+import { STOCKS, getStock } from '@/lib/stocks/tokens';
 import { getBuyQuoter } from '@/lib/market/lotQuote';
 import { getOpenSnapStats, STATS_LOOKBACK_MS, type OpenSnapStats } from '@/lib/market/history';
 import { shareMetadata } from '@/lib/share/shareMeta';
@@ -144,7 +144,7 @@ export default async function TodayPage() {
                     </div>
                     {headlineBp != null && (
                       <div className="hero-sentence">
-                        {`On ${poolVenue(getStock(headline.symbol))}, ${headline.symbol} is trading ${gapSizeText(headlineBp)} ${headlineBp >= 0 ? 'above' : 'below'} the cash ${ref?.word ?? 'close'}.`}
+                        {`On Base, ${headline.symbol} is trading ${gapSizeText(headlineBp)} ${headlineBp >= 0 ? 'above' : 'below'} the cash ${ref?.word ?? 'close'}.`}
                       </div>
                     )}
                   </div>
