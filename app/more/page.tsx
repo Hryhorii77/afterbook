@@ -15,6 +15,7 @@ const GROUPS: { title: string; items: { href: string; label: string; note: strin
   {
     title: 'Invest',
     items: [
+      { href: '/plan', label: 'Trade plan', note: 'Your budget and limits in; a checked plan, explained by Claude, out. You sign every buy.' },
       { href: '/baskets', label: 'Baskets', note: 'A managed basket of stock tokens, run on Glider' },
       { href: '/build', label: 'Build a basket', note: 'Pick your own stocks and weights, buy them in one go' },
       { href: '/memes', label: 'Memestocks', note: 'Base memes priced in stock tokens. Any memecoin can go to zero.' },

@@ -1,0 +1,211 @@
+// The trade plan (owner, 2026-11-08): a person gives stocks, a budget and their own limits; this code
+// decides, for each stock, "review a buy", "wait" or "skip", and sizes the buys. Claude only explains
+// the result in words (lib/agent/explain.ts); it never changes a verdict or a number. Any buy still goes
+// through the normal swap panel and its checks (lib/swap/swap.ts) and is signed in the person's wallet.
+//
+// Pure: the route (app/api/agent/plan/route.ts) passes in the tape and the fill-cost estimates.
+import type { TapeResult, TapeRow } from '../market/tape';
+import { todayReference } from '../market/todaySnapshot';
+import { TAPE_MAIN_DEPTH_USD } from '../market/liquidity';
+import { MAX_SWAP_USD, MAX_BUY_DEPTH_SHARE } from '../swap/swap';
+import { gapSizeText, usd, formatNextOpen } from '../format';
+import { PLAN_LIMITS } from './limits';
+
+export { PLAN_LIMITS } from './limits';
+
+export interface PlanInput {
+  /** Empty: let the plan pick the deepest pools. */
+  symbols: string[];
+  budgetUsd: number;
+  /** The most the onchain price may sit above the cash price, in bp. */
+  maxPremiumBp: number;
+  /** The most a fill may cost (price impact plus the pool fee), in bp. */
+  maxCostBp: number;
+  /** Wait if the company reports earnings within this many days (0: ignore earnings). */
+  earningsDays: number;
+  /** Free text for the explanation only; it never reaches the numbers. */
+  note: string;
+}
+
+export type Verdict = 'buy' | 'wait' | 'skip';
+
+export interface PlanLeg {
+  symbol: string;
+  name: string;
+  verdict: Verdict;
+  /** Plain sentences, written here from the numbers, shown as they are. */
+  reasons: string[];
+  gapBp: number | null;
+  /** "close", "price", "after-hours price"…: what the gap is measured against. */
+  gapAgainst: string;
+  priceUsd: number | null;
+  depthUsd: number | null;
+  /** Buys only. */
+  usd?: number;
+  shares?: number;
+  costBp?: number;
+}
+
+export interface Plan {
+  legs: PlanLeg[];
+  budgetUsd: number;
+  plannedUsd: number;
+  session: { state: string; label: string; nextOpenIso: string };
+  createdAt: number;
+}
+
+/** Parses the request body; returns the input or a message for a 400. */
+export function parsePlanInput(body: unknown, known: (symbol: string) => boolean): PlanInput | string {
+  if (!body || typeof body !== 'object') return 'expected a JSON object';
+  const b = body as Record<string, unknown>;
+  const symbols = b.symbols ?? [];
+  if (!Array.isArray(symbols) || symbols.some((s) => typeof s !== 'string')) return 'symbols must be a list of symbols';
+  const uniq = [...new Set(symbols as string[])];
+  if (uniq.length > PLAN_LIMITS.maxSymbols) return `at most ${PLAN_LIMITS.maxSymbols} stocks`;
+  const unknown = uniq.find((s) => !known(s));
+  if (unknown) return `unknown symbol: ${unknown.slice(0, 20)}`;
+  const num = (v: unknown, lo: number, hi: number, name: string): number | string => {
+    const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
+    if (!Number.isFinite(n) || n < lo || n > hi) return `${name} must be between ${lo} and ${hi}`;
+    return n;
+  };
+  const budgetUsd = num(b.budgetUsd, PLAN_LIMITS.minBudgetUsd, PLAN_LIMITS.maxBudgetUsd, 'budgetUsd');
+  if (typeof budgetUsd === 'string') return budgetUsd;
+  const maxPremiumBp = num(b.maxPremiumBp ?? 50, 0, PLAN_LIMITS.maxPremiumBp, 'maxPremiumBp');
+  if (typeof maxPremiumBp === 'string') return maxPremiumBp;
+  const maxCostBp = num(b.maxCostBp ?? 30, 1, PLAN_LIMITS.maxCostBp, 'maxCostBp');
+  if (typeof maxCostBp === 'string') return maxCostBp;
+  const earningsDays = num(b.earningsDays ?? 2, 0, PLAN_LIMITS.maxEarningsDays, 'earningsDays');
+  if (typeof earningsDays === 'string') return earningsDays;
+  const note = b.note ?? '';
+  if (typeof note !== 'string') return 'note must be text';
+  if (note.length > PLAN_LIMITS.maxNoteChars) return `note must be at most ${PLAN_LIMITS.maxNoteChars} characters`;
+  return { symbols: uniq, budgetUsd, maxPremiumBp, maxCostBp, earningsDays: Math.floor(earningsDays), note: note.trim() };
+}
+
+/** Whole days from the New York date `todayKey` to `isoDate` (both YYYY-MM-DD). */
+function daysUntil(todayKey: string, isoDate: string): number {
+  return Math.round((Date.parse(`${isoDate}T00:00:00Z`) - Date.parse(`${todayKey}T00:00:00Z`)) / 86_400_000);
+}
+
+/** The stocks a plan looks at: the ones asked for, or the deepest pools with a fresh price. */
+export function pickRows(input: PlanInput, tape: Pick<TapeResult, 'rows'>): TapeRow[] {
+  if (input.symbols.length) return input.symbols.map((s) => tape.rows.find((r) => r.symbol === s)).filter((r): r is TapeRow => !!r);
+  return [...tape.rows]
+    .filter((r) => r.onchainMidUsd != null && !r.cashStale && (r.depthUsd ?? 0) >= TAPE_MAIN_DEPTH_USD)
+    .sort((a, b) => (b.depthUsd ?? 0) - (a.depthUsd ?? 0))
+    .slice(0, PLAN_LIMITS.anyCount);
+}
+
+/** Step 1: the checks that don't depend on size. Legs still marked 'buy' go on to sizing. */
+export function screen(input: PlanInput, tape: Pick<TapeResult, 'rows' | 'session'>): PlanLeg[] {
+  return pickRows(input, tape).map((row) => {
+    const ref = todayReference(row, tape.session);
+    const leg: PlanLeg = {
+      symbol: row.symbol,
+      name: row.name,
+      verdict: 'buy',
+      reasons: [],
+      gapBp: ref.bp,
+      gapAgainst: ref.word,
+      priceUsd: row.onchainMidUsd,
+      depthUsd: row.depthUsd,
+    };
+    if (row.onchainMidUsd == null || ref.bp == null || row.cashStale) {
+      leg.verdict = 'skip';
+      leg.reasons.push('No fresh onchain or cash price right now, so the gap can’t be checked.');
+      return leg;
+    }
+    if ((row.depthUsd ?? 0) < TAPE_MAIN_DEPTH_USD) {
+      leg.verdict = 'skip';
+      leg.reasons.push(`The pool holds ${usd(row.depthUsd ?? 0, 0)}, under the ${usd(TAPE_MAIN_DEPTH_USD, 0)} this plan needs to size a trade.`);
+      return leg;
+    }
+    const gapText = `${gapSizeText(Math.abs(ref.bp))} ${ref.bp >= 0 ? 'above' : 'below'} the cash ${ref.word}`;
+    if (ref.bp > input.maxPremiumBp) {
+      leg.verdict = 'wait';
+      leg.reasons.push(`The token trades ${gapText}, more than the ${gapSizeText(input.maxPremiumBp)} you set.`);
+    } else {
+      leg.reasons.push(`The token trades ${gapText}, inside your ${gapSizeText(input.maxPremiumBp)} limit.`);
+    }
+    if (input.earningsDays > 0 && row.nextEarningsDate) {
+      const days = daysUntil(tape.session.dateKey, row.nextEarningsDate);
+      if (days >= 0 && days <= input.earningsDays) {
+        leg.verdict = leg.verdict === 'buy' ? 'wait' : leg.verdict;
+        leg.reasons.push(`${row.cashTicker} reports earnings ${days === 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`} (${row.nextEarningsDate}); you asked to wait within ${input.earningsDays} days.`);
+      }
+    }
+    return leg;
+  });
+}
+
+/** The fill-cost model for one stock (lib/market/lotQuote.ts BuyQuoter, trimmed). */
+export interface CostModel {
+  estimate: (usdcIn: number) => { sharesOut: number; impactBp: number; largeTradeCaveat?: boolean };
+  sizeForImpact: (targetBp: number) => number;
+}
+
+/** Step 2: split the budget equally over the legs that passed, within the swap's own caps and the
+ *  person's cost limit. Mutates and returns the legs. */
+export function sizeLegs(legs: PlanLeg[], input: PlanInput, costs: Map<string, CostModel | null>): PlanLeg[] {
+  const buys = legs.filter((l) => l.verdict === 'buy');
+  if (!buys.length) return legs;
+  const share = input.budgetUsd / buys.length;
+  for (const leg of buys) {
+    const model = costs.get(leg.symbol);
+    if (!model) {
+      leg.verdict = 'skip';
+      leg.reasons.push('The pool’s liquidity couldn’t be read just now, so the fill cost is unknown.');
+      continue;
+    }
+    const depthCap = (leg.depthUsd ?? 0) * MAX_BUY_DEPTH_SHARE;
+    let size = Math.min(share, MAX_SWAP_USD, depthCap);
+    const capped = size < share;
+    let est = model.estimate(size);
+    let shrunk = false;
+    if (est.impactBp > input.maxCostBp || est.largeTradeCaveat) {
+      size = Math.min(size, model.sizeForImpact(input.maxCostBp) * 0.98);
+      est = model.estimate(size);
+      shrunk = true;
+    }
+    if (size < PLAN_LIMITS.minLegUsd || est.impactBp > input.maxCostBp) {
+      leg.verdict = 'skip';
+      leg.reasons.push(`Even ${usd(PLAN_LIMITS.minLegUsd, 0)} would cost more than your ${input.maxCostBp} bp fill limit in this pool.`);
+      continue;
+    }
+    size = Math.floor(size);
+    est = model.estimate(size);
+    leg.usd = size;
+    leg.shares = est.sharesOut;
+    leg.costBp = est.impactBp;
+    leg.reasons.push(`A ${usd(size, 0)} buy would cost about ${est.impactBp.toFixed(1)} bp (price impact plus the pool fee).`);
+    if (shrunk) leg.reasons.push(`Sized down from ${usd(share, 0)} to stay inside your ${input.maxCostBp} bp fill limit.`);
+    else if (capped) leg.reasons.push(`Capped at ${usd(size, 0)}: one swap is at most ${usd(MAX_SWAP_USD, 0)} and 10% of the pool.`);
+  }
+  return legs;
+}
+
+export function summarize(legs: PlanLeg[], input: PlanInput, session: TapeResult['session'], now = Date.now()): Plan {
+  return {
+    legs,
+    budgetUsd: input.budgetUsd,
+    plannedUsd: legs.reduce((s, l) => s + (l.verdict === 'buy' ? (l.usd ?? 0) : 0), 0),
+    session: { state: session.state, label: session.label, nextOpenIso: session.nextOpenIso },
+    createdAt: now,
+  };
+}
+
+/** The explanation used when Claude isn't configured or doesn't answer: the same facts, fixed words. */
+export function fallbackExplanation(plan: Plan): string {
+  const buys = plan.legs.filter((l) => l.verdict === 'buy');
+  const waits = plan.legs.filter((l) => l.verdict === 'wait');
+  const skips = plan.legs.filter((l) => l.verdict === 'skip');
+  const parts: string[] = [];
+  if (buys.length) parts.push(`${buys.length === 1 ? 'One buy passes' : `${buys.length} buys pass`} your limits: ${buys.map((l) => `${l.symbol} ${usd(l.usd ?? 0, 0)}`).join(', ')}, ${usd(plan.plannedUsd, 0)} of your ${usd(plan.budgetUsd, 0)}.`);
+  else parts.push('Nothing passes your limits right now.');
+  if (waits.length) parts.push(`Wait on ${waits.map((l) => l.symbol).join(', ')}.`);
+  if (skips.length) parts.push(`Skip ${skips.map((l) => l.symbol).join(', ')}.`);
+  if (plan.session.state.startsWith('closed')) parts.push(`The US market is closed, so each gap is against the last close and can move when cash reopens ${formatNextOpen(plan.session.nextOpenIso)}.`);
+  parts.push('Each reason is listed under the stock. Nothing is bought until you review it and sign in your wallet.');
+  return parts.join(' ');
+}
