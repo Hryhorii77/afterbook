@@ -1,6 +1,6 @@
 ---
 name: real-money-reviewer
-description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/baskets/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/baskets/BasketPanel.tsx), in-app swaps (lib/swap/swap.ts, lib/swap/swapGuard.ts, lib/swap/swapLog.ts, app/api/swap/*, app/components/swap/useSwapWallet.ts and the panels that use it: SwapPanel.tsx, MemeBuyPanel.tsx, BasketBuyPanel.tsx, BasketSellPanel.tsx, RouterApprovals.tsx, and the pages that mount SwapPanel, including the trade plan app/components/agent/PlanClient.tsx), in-app Aave borrowing and lending (lib/lending/aaveBorrow.ts, app/components/lending/AaveBorrowPanel.tsx, AaveBorrowSection.tsx, AaveLendPanel.tsx, AaveLendSection.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
+description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/baskets/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/baskets/BasketPanel.tsx), in-app swaps (lib/swap/swap.ts, lib/swap/swapGuard.ts, lib/swap/swapLog.ts, app/api/swap/*, app/components/swap/useSwapWallet.ts and the panels that use it: SwapPanel.tsx, MemeBuyPanel.tsx, BasketBuyPanel.tsx, BasketSellPanel.tsx, RouterApprovals.tsx, and the pages that mount SwapPanel, including the trade plan app/components/agent/PlanClient.tsx), in-app Aave borrowing and lending (lib/lending/aaveBorrow.ts, app/components/lending/AaveBorrowPanel.tsx, AaveBorrowSection.tsx, the loan rescue planner LoanRescue.tsx and lib/lending/rescue.ts, AaveLendPanel.tsx, AaveLendSection.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -124,6 +124,13 @@ check passes, say so in one short line; do not pad.
   leg can never ask to sell more than is held.
 - If the swap code changed, `.claude/skills/verify/swap-check.mts` must still
   pass (say if it was not run).
+- The loan rescue planner (`LoanRescue.tsx`, `lib/lending/rescue.ts`) only
+  computes amounts and fills the borrow panel's Repay or Add field through
+  callbacks (tab, amount, stock); it must not import wagmi write hooks, encode a
+  call, approve or sign, and a filled amount must still pass the panel's own
+  checks (`problem`) before the panel's button acts. Its amounts must reach the
+  target (rounded up, never down) and it must stay off when its health differs
+  from the spoke's by over `RESCUE_MAX_MODEL_GAP`.
 - In-app Aave borrowing (`lib/lending/aaveBorrow.ts`, `AaveBorrowPanel.tsx`):
   only the MAG7 spoke `AAVE_MAG7_SPOKE`; spoke approvals have one call site per
   panel, `approveSpoke` in `AaveBorrowPanel.tsx` and in `AaveLendPanel.tsx`
