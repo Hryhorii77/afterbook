@@ -4,7 +4,7 @@
 // prices, Share and the words explained; plus the compact bar that pins the gap once the hero has
 // scrolled away.
 import { useEffect, useRef, useState } from 'react';
-import { poolVenue, type CbStock } from '@/lib/stocks/tokens';
+import { type CbStock } from '@/lib/stocks/tokens';
 import type { TapeResult, TapeRow } from '@/lib/market/tape';
 import { bp, bpPct, usd, usdCompact, formatNextOpen, gapSizeText } from '@/lib/format';
 import { heroGapBp, heroReferenceLabel, shortName, stockShareText } from '@/lib/share/shareText';
@@ -86,7 +86,7 @@ export function MarketsHero({ tape, symbol, activeRow, activeStock, liquidRows, 
               <div className="hero-sentence">
                 {/* One string per sentence: separate text pieces read as "4.1 bpbelowthe" to some
                     accessibility tools, which drop the lone spaces between them. */}
-                {`On ${poolVenue(activeStock)}, ${shortName(activeRow)} is trading ${gapSizeText(heroBp)} ${heroBp >= 0 ? 'above' : 'below'} `}
+                {`On Base, ${shortName(activeRow)} is trading ${gapSizeText(heroBp)} ${heroBp >= 0 ? 'above' : 'below'} `}
                 <span className="nowrap">{referenceLabel}</span>
                 {'.'}
                 {tape.session.state.startsWith('closed') && ` Cash reopens ${formatNextOpen(tape.session.nextOpenIso)}.`}

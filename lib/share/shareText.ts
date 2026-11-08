@@ -4,7 +4,6 @@
 import type { TapeResult, TapeRow } from '../market/tape';
 import { gapSizeText } from '../format';
 import { basketLabel, type BasketLeg } from '../build/customBasket';
-import { getStock, poolVenue } from '../stocks/tokens';
 
 type Session = TapeResult['session'];
 
@@ -42,13 +41,13 @@ export function heroReferenceLabel(row: TapeRow | null | undefined, tape: Pick<T
 export function stockShareText(row: TapeRow | null | undefined, tape: Pick<TapeResult, 'rows' | 'session'>): string {
   const gap = heroGapBp(row, tape.session);
   return row && gap != null
-    ? `On ${poolVenue(getStock(row.symbol))}, ${shortName(row)} is trading ${gapSizeText(gap)} ${gap >= 0 ? 'above' : 'below'} ${heroReferenceLabel(row, tape)}.`
+    ? `On Base, ${shortName(row)} is trading ${gapSizeText(gap)} ${gap >= 0 ? 'above' : 'below'} ${heroReferenceLabel(row, tape)}.`
     : 'Cash close vs the onchain price on Aero for Coinbase tokenized stocks on Base.';
 }
 
 /** `reference` ends "the cash …": "price", "close", "after-hours price" (todayReference's word). */
 export function todayShareText(symbol: string, gapBp: number, reference: string): string {
-  return `On ${poolVenue(getStock(symbol))}, ${symbol} is trading ${gapSizeText(gapBp)} ${gapBp >= 0 ? 'above' : 'below'} the cash ${reference}.`;
+  return `On Base, ${symbol} is trading ${gapSizeText(gapBp)} ${gapBp >= 0 ? 'above' : 'below'} the cash ${reference}.`;
 }
 
 export function basketShareText(legs: BasketLeg[], gapBp: number | null, reference: string): string {
