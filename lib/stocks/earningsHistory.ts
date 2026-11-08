@@ -136,7 +136,7 @@ export async function computeHistoricalMove(cashTicker: string, earningsDateStr:
  */
 export async function syncEarningsMovesForDate(dateStr: string): Promise<number> {
   const reporting = await fetchNasdaqEarningsForDate(dateStr);
-  if (reporting.size === 0) return 0;
+  if (!reporting || reporting.size === 0) return 0;
 
   let recorded = 0;
   for (const stock of STOCKS) {

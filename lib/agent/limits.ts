@@ -8,6 +8,7 @@ export const PLAN_LIMITS = {
   maxBudgetUsd: 100_000,
   maxPremiumBp: 500,
   maxCostBp: 200,
+  /** One day under the earnings job's 15-day scan (EARNINGS_SCAN_DAYS): see lib/stocks/earningsCalendar.ts. */
   maxEarningsDays: 14,
   maxNoteChars: 280,
   /** A leg smaller than this is not worth a transaction. */
