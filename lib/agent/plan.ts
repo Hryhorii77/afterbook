@@ -29,12 +29,22 @@ export interface PlanInput {
 
 export type Verdict = 'buy' | 'wait' | 'skip';
 
+/** Turn a leg into a wait or skip for `reason`. The first reason that blocked it is the one recorded. */
+function block(leg: PlanLeg, verdict: Exclude<Verdict, 'buy'>, reason: string): void {
+  leg.verdict = verdict;
+  leg.reasons.push(reason);
+  leg.decidedBy ??= reason;
+}
+
 export interface PlanLeg {
   symbol: string;
   name: string;
   verdict: Verdict;
   /** Plain sentences, written here from the numbers, shown as they are. */
   reasons: string[];
+  /** For a wait or skip, the reason that decided it (one of `reasons`); the others are context only.
+   *  Kept apart so Claude can't present a warning as the cause (it did, live, 2026-11-08). */
+  decidedBy?: string;
   gapBp: number | null;
   /** "close", "price", "after-hours price"…: what the gap is measured against. */
   gapAgainst: string;
@@ -125,24 +135,20 @@ export function screen(
       depthUsd: row.depthUsd,
     };
     if (row.onchainMidUsd == null || ref.bp == null || row.cashStale) {
-      leg.verdict = 'skip';
-      leg.reasons.push('No fresh onchain or cash price right now, so the gap can’t be checked.');
+      block(leg, 'skip', 'No fresh onchain or cash price right now, so the gap can’t be checked.');
       return leg;
     }
     if ((row.depthUsd ?? 0) < TAPE_MAIN_DEPTH_USD) {
-      leg.verdict = 'skip';
-      leg.reasons.push(`The pool holds ${usd(row.depthUsd ?? 0, 0)}, under the ${usd(TAPE_MAIN_DEPTH_USD, 0)} this plan needs to size a trade.`);
+      block(leg, 'skip', `The pool holds ${usd(row.depthUsd ?? 0, 0)}, under the ${usd(TAPE_MAIN_DEPTH_USD, 0)} this plan needs to size a trade.`);
       return leg;
     }
     const gapText = `${gapSizeText(Math.abs(ref.bp))} ${ref.bp >= 0 ? 'above' : 'below'} the cash ${ref.word}`;
     if (Math.abs(ref.bp) > PLAN_LIMITS.maxAbsGapBp) {
       // A gap this wide (BILIc read 9% below on 2026-11-08) is more often a stale pool or news than a
       // bargain: say so rather than let a discount pass as "inside your limit".
-      leg.verdict = 'wait';
-      leg.reasons.push(`The token trades ${gapText}, over ${gapSizeText(PLAN_LIMITS.maxAbsGapBp)} either way: the pool’s price may be stale, or something happened to the stock. Check it before buying.`);
+      block(leg, 'wait', `The token trades ${gapText}, over ${gapSizeText(PLAN_LIMITS.maxAbsGapBp)} either way: the pool’s price may be stale, or something happened to the stock. Check it before buying.`);
     } else if (ref.bp > input.maxPremiumBp) {
-      leg.verdict = 'wait';
-      leg.reasons.push(`The token trades ${gapText}, more than the ${gapSizeText(input.maxPremiumBp)} you set.`);
+      block(leg, 'wait', `The token trades ${gapText}, more than the ${gapSizeText(input.maxPremiumBp)} you set.`);
     } else {
       leg.reasons.push(`The token trades ${gapText}, inside your ${gapSizeText(input.maxPremiumBp)} limit.`);
     }
@@ -159,8 +165,9 @@ export function screen(
     if (input.earningsDays > 0 && row.nextEarningsDate) {
       const days = daysUntil(tape.session.dateKey, row.nextEarningsDate);
       if (days >= 0 && days <= input.earningsDays) {
-        leg.verdict = leg.verdict === 'buy' ? 'wait' : leg.verdict;
-        leg.reasons.push(`${row.cashTicker} reports earnings ${days === 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`} (${row.nextEarningsDate}); you asked to wait within ${input.earningsDays} days.`);
+        const why = `${row.cashTicker} reports earnings ${days === 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`} (${row.nextEarningsDate}); you asked to wait within ${input.earningsDays} days.`;
+        if (leg.verdict === 'buy') block(leg, 'wait', why);
+        else leg.reasons.push(why);
       }
     }
     return leg;
@@ -182,15 +189,13 @@ export function sizeLegs(legs: PlanLeg[], input: PlanInput, costs: Map<string, C
   const share = input.budgetUsd / buys.length;
   if (share < PLAN_LIMITS.minLegUsd) {
     for (const leg of buys) {
-      leg.verdict = 'skip';
-      leg.reasons.push(`Your ${usd(input.budgetUsd, 0)} split over ${buys.length} stocks is ${usd(share)} each, under the ${usd(PLAN_LIMITS.minLegUsd, 0)} minimum for a swap. Pick fewer stocks or raise the budget.`);
+      block(leg, 'skip', `Your ${usd(input.budgetUsd, 0)} split over ${buys.length} stocks is ${usd(share)} each, under the ${usd(PLAN_LIMITS.minLegUsd, 0)} minimum for a swap. Pick fewer stocks or raise the budget.`);
     }
     return legs;
   }
   if (feeBps >= input.maxCostBp) {
     for (const leg of buys) {
-      leg.verdict = 'skip';
-      leg.reasons.push(`Afterbook’s ${feeBps} bp swap fee alone is over your ${input.maxCostBp} bp limit.`);
+      block(leg, 'skip', `Afterbook’s ${feeBps} bp swap fee alone is over your ${input.maxCostBp} bp limit.`);
     }
     return legs;
   }
@@ -198,8 +203,7 @@ export function sizeLegs(legs: PlanLeg[], input: PlanInput, costs: Map<string, C
   for (const leg of buys) {
     const model = costs.get(leg.symbol);
     if (!model) {
-      leg.verdict = 'skip';
-      leg.reasons.push('The pool’s liquidity couldn’t be read just now, so the fill cost is unknown.');
+      block(leg, 'skip', 'The pool’s liquidity couldn’t be read just now, so the fill cost is unknown.');
       continue;
     }
     const depthCap = (leg.depthUsd ?? 0) * MAX_BUY_DEPTH_SHARE;
@@ -213,8 +217,7 @@ export function sizeLegs(legs: PlanLeg[], input: PlanInput, costs: Map<string, C
       shrunk = true;
     }
     if (size < PLAN_LIMITS.minLegUsd || est.impactBp > poolLimitBp) {
-      leg.verdict = 'skip';
-      leg.reasons.push(`Even a ${usd(PLAN_LIMITS.minLegUsd, 0)} buy would cost more than your ${input.maxCostBp} bp limit in this pool.`);
+      block(leg, 'skip', `Even a ${usd(PLAN_LIMITS.minLegUsd, 0)} buy would cost more than your ${input.maxCostBp} bp limit in this pool.`);
       continue;
     }
     size = Math.floor(size);
