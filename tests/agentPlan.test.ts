@@ -133,6 +133,24 @@ describe('sizeLegs', () => {
     const legs = sizeLegs(screen(input({ symbols: ['NVDAc', 'AAPLc'] }), tape), input(), new Map([['NVDAc', null], ['AAPLc', steep]]));
     expect(legs.map((l) => l.verdict)).toEqual(['skip', 'skip']);
   });
+  it('records the reason that decided a skip, not a warning listed before it (live, 2026-11-08)', () => {
+    const tiny = input({ symbols: ['NVDAc', 'AAPLc'], budgetUsd: 10 });
+    const legs = sizeLegs(screen(tiny, tape), tiny, new Map([['NVDAc', linear], ['AAPLc', linear]]));
+    expect(legs[0].reasons.some((r) => r.startsWith('Couldn’t confirm'))).toBe(true);
+    expect(legs[0].decidedBy).toMatch(/^Your \$10 split over 2 stocks/);
+  });
+  it('keeps the first blocking reason when a wait also has earnings inside the window', () => {
+    const t = { rows: [row({ basisBp: 80, nextEarningsDate: '2026-11-10' })], session: session('open') };
+    const [leg] = screen(input({ symbols: ['NVDAc'] }), t);
+    expect(leg.verdict).toBe('wait');
+    expect(leg.decidedBy).toMatch(/more than the 0\.50%/);
+    expect(leg.reasons.at(-1)).toMatch(/reports earnings tomorrow/);
+  });
+  it('leaves decidedBy unset on a buy', () => {
+    const [leg] = sizeLegs(screen(input({ symbols: ['NVDAc'] }), tape), input(), new Map([['NVDAc', linear]]));
+    expect(leg.verdict).toBe('buy');
+    expect(leg.decidedBy).toBeUndefined();
+  });
   it('gives the real reason when the budget split is under the $10 minimum', () => {
     const tiny = input({ symbols: ['NVDAc', 'AAPLc'], budgetUsd: 10 });
     const legs = sizeLegs(screen(tiny, tape), tiny, new Map([['NVDAc', linear], ['AAPLc', linear]]));

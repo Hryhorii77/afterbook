@@ -22,7 +22,7 @@ vi.mock('@anthropic-ai/sdk', () => {
   return { default: FakeAnthropic };
 });
 
-import { acceptExplanation } from '../lib/agent/explain';
+import { acceptExplanation, planFacts } from '../lib/agent/explain';
 import type { Plan, PlanInput } from '../lib/agent/plan';
 
 const good = 'Two buys pass your limits: NVDAc and AAPLc at $500 each. Nothing is bought until you review each buy and sign it in your own wallet.';
@@ -70,6 +70,22 @@ describe('acceptExplanation', () => {
     expect(acceptExplanation(good, 'max_tokens')).toBeNull();
     expect(acceptExplanation('Two buys pass your limits: NVDAc and AAPLc at $500 each and then', 'end_turn')).toBeNull();
     expect(acceptExplanation(good, 'refusal')).toBeNull();
+  });
+});
+
+describe('planFacts', () => {
+  it('gives Claude the deciding reason apart from the side notes, and the counts', () => {
+    const leg = (symbol: string, verdict: 'buy' | 'wait' | 'skip', reasons: string[], decidedBy?: string) => ({
+      symbol, name: symbol, verdict, reasons, decidedBy, gapBp: 10, gapAgainst: 'close', priceUsd: 100, depthUsd: 1e6,
+    });
+    const split = 'Your $10 split over 2 stocks is $5.00 each, under the $10 minimum for a swap.';
+    const warn = 'Couldn’t confirm META’s earnings date.';
+    const p: Plan = { ...plan, legs: [leg('METAc', 'skip', ['Inside your limit.', warn, split], split), leg('NVDAc', 'buy', ['Inside your limit.'])] };
+    const f = planFacts(p, input);
+    expect(f.counts).toEqual({ stocks: 2, buy: 1, wait: 0, skip: 1 });
+    expect(f.stocks[0].verdictBecause).toBe(split);
+    expect(f.stocks[0].otherNotes).toEqual(['Inside your limit.', warn]);
+    expect(f.stocks[1].verdictBecause).toBeNull();
   });
 });
 
