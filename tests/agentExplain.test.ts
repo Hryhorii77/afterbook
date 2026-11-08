@@ -84,7 +84,7 @@ describe('planFacts', () => {
     const f = planFacts(p, input);
     expect(f.counts).toEqual({ stocks: 2, buy: 1, wait: 0, skip: 1 });
     expect(f.stocks[0].verdictBecause).toBe(split);
-    expect(f.stocks[0].otherNotes).toEqual(['Inside your limit.', warn]);
+    expect(f.stocks[0].sideFacts).toEqual(['Inside your limit.', warn]);
     expect(f.stocks[1].verdictBecause).toBeNull();
   });
 });
