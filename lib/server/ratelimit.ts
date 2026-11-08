@@ -100,3 +100,10 @@ export const readLimiters = {
   basename: new MemoryLimiter(20, MINUTE),
   read: new MemoryLimiter(60, MINUTE),
 };
+
+// The trade plan (/api/agent/plan) calls Claude, which is billed per call: a few plans an hour per
+// visitor, and a ceiling for the whole site per day so a script can't run up the bill. Over either,
+// the plan is still made and explained in fixed words; only the Claude call is skipped.
+const HOUR = 60 * MINUTE;
+export const agentLimiter = redis ? new SafeLimiter('ratelimit:agent', 10, '1 h', HOUR, 5) : null;
+export const agentDailyLimiter = redis ? new SafeLimiter('ratelimit:agent-day', 500, '1 d', 24 * HOUR, 100) : null;

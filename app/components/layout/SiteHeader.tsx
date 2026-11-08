@@ -36,7 +36,7 @@ const TABS: Tab[] = [
     href: '/more',
     label: 'More',
     icon: icon('M5 12h.01M12 12h.01M19 12h.01'),
-    also: (p) => p.startsWith('/baskets') || p.startsWith('/build') || p.startsWith('/memes'),
+    also: (p) => p.startsWith('/baskets') || p.startsWith('/build') || p.startsWith('/memes') || p.startsWith('/plan'),
   },
 ];
 

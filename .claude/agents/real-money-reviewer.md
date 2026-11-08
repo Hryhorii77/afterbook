@@ -1,6 +1,6 @@
 ---
 name: real-money-reviewer
-description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/baskets/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/baskets/BasketPanel.tsx), in-app swaps (lib/swap/swap.ts, lib/swap/swapGuard.ts, lib/swap/swapLog.ts, app/api/swap/*, app/components/swap/useSwapWallet.ts and the panels that use it: SwapPanel.tsx, MemeBuyPanel.tsx, BasketBuyPanel.tsx, BasketSellPanel.tsx, RouterApprovals.tsx), in-app Aave borrowing and lending (lib/lending/aaveBorrow.ts, app/components/lending/AaveBorrowPanel.tsx, AaveBorrowSection.tsx, AaveLendPanel.tsx, AaveLendSection.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
+description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/baskets/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/baskets/BasketPanel.tsx), in-app swaps (lib/swap/swap.ts, lib/swap/swapGuard.ts, lib/swap/swapLog.ts, app/api/swap/*, app/components/swap/useSwapWallet.ts and the panels that use it: SwapPanel.tsx, MemeBuyPanel.tsx, BasketBuyPanel.tsx, BasketSellPanel.tsx, RouterApprovals.tsx, and the pages that mount SwapPanel, including the trade plan app/components/agent/PlanClient.tsx), in-app Aave borrowing and lending (lib/lending/aaveBorrow.ts, app/components/lending/AaveBorrowPanel.tsx, AaveBorrowSection.tsx, AaveLendPanel.tsx, AaveLendSection.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -97,6 +97,7 @@ check passes, say so in one short line; do not pad.
   (minus the Builder Code) matches one `/api/swap/build` returned
   (`rememberBuiltSwap`), sent by the account it was built for; fee and size
   come from that stored build. Never the raw address in the record.
+- The trade plan (`/plan`, `app/components/agent/PlanClient.tsx`, `app/api/agent/plan/route.ts`, `lib/agent/*`): the route starts with `limitRead`, keeps `agentLimiter`/`agentDailyLimiter` and skips Claude (fixed-word explanation) when they are missing; Claude's text is rendered only as a plain React text node; the only plan fields that reach `SwapPanel` are `stock` (a `STOCKS` entry) and `defaultUsd` (pre-fills the editable amount), behind `geo.nonUs === true` and the eligibility checkbox; `lib/agent/explain.ts` stays `server-only` and never logs or returns the key.
 - `useReviewedSwap` (`useSwapWallet.ts`, used by SwapPanel and MemeBuyPanel)
   sends a rebuilt swap without a new review only if it is the same trade (each
   panel's `sameTrade`) with a minimum >= the reviewed one; approvals use the reviewed

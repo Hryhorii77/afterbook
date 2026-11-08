@@ -1,0 +1,34 @@
+/* /plan: the trade plan (owner, 2026-11-08). Chips are the existing .preset-btn data controls. */
+.plan-intro { font-size: 14px; color: var(--text-dim); margin: 0 0 16px; max-width: 72ch; }
+.plan-form { display: grid; gap: 16px; }
+.plan-field { display: grid; gap: 6px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.plan-field > span, .plan-field legend { font-size: 14px; font-weight: 600; color: var(--text); padding: 0; margin-bottom: 6px; }
+.plan-field small, .plan-hint { font-size: 12px; color: var(--text-dim); }
+.plan-field input, .plan-field select, .plan-field textarea { width: 100%; box-sizing: border-box; min-height: 44px; }
+.plan-field textarea { resize: vertical; font: inherit; }
+.plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.plan-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.plan-chips .preset-btn { min-height: 44px; min-width: 56px; }
+.plan-meta { font-size: 14px; color: var(--text-dim); margin: 0 0 8px; }
+.plan-explanation { font-size: 16px; line-height: 1.5; margin: 0 0 4px; }
+.plan-legs { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 12px; }
+.plan-leg { border: 1px solid var(--panel-border); border-radius: 16px; padding: 14px 16px; background: var(--panel); }
+.plan-leg-buy { border-color: var(--accent); }
+.plan-leg-head { display: flex; align-items: center; gap: 12px; }
+.plan-leg-name { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.plan-leg-name span { font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-verdict { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; color: var(--info); border: 1px solid var(--panel-border); white-space: nowrap; }
+.plan-leg-buy .plan-verdict { color: var(--accent); border-color: var(--accent); }
+.plan-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px 16px; margin: 12px 0 0; }
+.plan-figures dt { font-size: 12px; color: var(--text-dim); }
+.plan-figures dd { margin: 2px 0 0; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.plan-reasons { margin: 12px 0 0; padding-left: 18px; font-size: 14px; color: var(--text-dim); display: grid; gap: 4px; }
+.plan-leg .basket-row { margin-top: 12px; }
+.plan-swap { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--panel-border); scroll-margin-top: 80px; }
+.plan-swap h3 { margin: 0 0 8px; }
+.plan-result { scroll-margin-top: 80px; }
+.plan-log-list { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 8px; }
+.plan-log-list li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; font-size: 14px; }
+.plan-log-date { color: var(--text-dim); min-width: 110px; }
+.plan-log-legs { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.plan-log-leg { font-variant-numeric: tabular-nums; }

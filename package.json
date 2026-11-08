@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
     "@coinbase/x402": "^2.1.0",
     "@modelcontextprotocol/server": "^2.3.1",
     "@rainbow-me/rainbowkit": "^2.2.11",
