@@ -12,9 +12,27 @@ import type { Plan, PlanInput } from './plan';
 const MODEL = 'claude-haiku-5-5';
 const MAX_TOKENS = 400;
 
-/** Words the explanation must never use (it isn't advice and promises nothing). A reply containing any
- *  is replaced by the fixed-words explanation. */
-const FORBIDDEN = /\b(guarantee[ds]?|guaranteed|profit(s|able)?|advice|advis(e|ed|ing|or)|recommend(s|ed|ation|ations)?|price target|target price|will (go|move|rise|climb|jump|fall|drop|keep) (up|down|higher|lower)?|(sure|certain) to|can't lose|risk-free|no risk)\b/i;
+/** What the explanation must never say (it isn't advice, forecasts nothing and promises nothing).
+ *  Each pattern starts at a word boundary and ends without needing a space after it, so "will rise."
+ *  and "will rise," match too (the first version needed a space: an external review, 2026-11-08). */
+const FORBIDDEN: RegExp[] = [
+  /\bwill\s+(?:rise|fall|drop|climb|moon|pump|jump|soar|surge|rally|crash|tank|dip|gain|increase|decrease|recover|rebound|outperform|underperform|double|go\s+(?:up|down|higher|lower)|move\s+(?:up|down|higher|lower)|keep\s+(?:rising|falling|climbing|dropping))/i,
+  /\b(?:going|headed|heading|poised|likely|expected)\s+(?:to\s+(?:rise|fall|climb|drop|go\s+(?:up|down))|up|down|higher|lower)\b/i,
+  /\bshould\s+(?:buy|sell|hold|get|grab|add|load|ape)\b/i,
+  /\brecommend/i,
+  /\b(?:price\s+targets?|target\s+price)/i,
+  /\bguarantee/i,
+  /\bprofit/i,
+  /\badvi[cs]/i,
+  /\bmoon/i,
+  /\bpump/i,
+  /\b(?:sure|certain|bound)\s+to\b/i,
+  /\bcan(?:'|’|no)?t\s+lose\b/i,
+  /\brisk[-\s]?free\b|\bno\s+risk\b/i,
+];
+
+/** Any Markdown at all: emphasis, code, headings, links, list bullets. The page shows plain text. */
+const MARKDOWN = /[*_`#]|\[[^\]]*\]\([^)]*\)|^\s*(?:[-•]|\d+\.)\s/m;
 
 /** The checks a reply must pass to be shown; null if it fails any. Exported for tests. */
 export function acceptExplanation(text: string, stopReason: string | null): string | null {
@@ -22,8 +40,8 @@ export function acceptExplanation(text: string, stopReason: string | null): stri
   const t = text.trim();
   if (t.length < 40 || t.length > 1200) return null;
   if (!/[.!?]["”’)]?$/.test(t)) return null;
-  if (FORBIDDEN.test(t)) return null;
-  if (/^#|\n\s*[-*•]\s|\*\*/m.test(t)) return null;
+  if (FORBIDDEN.some((re) => re.test(t))) return null;
+  if (MARKDOWN.test(t)) return null;
   return t;
 }
 

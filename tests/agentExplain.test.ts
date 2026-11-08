@@ -40,8 +40,31 @@ describe('acceptExplanation', () => {
     ['We recommend buying NVDAc today before the market opens again.'],
     ['Analysts give a price target of $300 for this one, so take a look.'],
     ['**Plan:** two buys pass your limits and nothing is bought until you sign.'],
+    // From the second external review (2026-11-08): each of these got through the first filter.
+    ['NVDAc will rise.'],
+    ['NVDAc is going up.'],
+    ['You should buy NVDAc.'],
+    ['NVDAc will moon.'],
+    ['We are recommending NVDAc.'],
+    ['*NVDAc* looks good.'],
+    ['[NVDAc](https://x.com) is cheap.'],
+    ['NVDAc will rise, so review it and sign it in your wallet.'],
+    ['Use `NVDAc` for the buy; nothing is bought until you sign it.'],
+    ['_NVDAc_ passes your limits and nothing is bought until you sign it.'],
+    ['# Plan\nNVDAc passes your limits and nothing is bought until you sign it.'],
+    ['NVDAc passes:\n- buy $500\nNothing is bought until you sign it in your wallet.'],
+    ['It is risk-free to review NVDAc, and nothing is bought until you sign it.'],
   ])('throws away a reply with a banned word or markdown: %s', (t) => {
     expect(acceptExplanation(t, 'end_turn')).toBeNull();
+    // Padded past the length floor, so the word or markdown rule is what rejects it, not the length.
+    expect(acceptExplanation(`${t} Nothing is bought until you review each buy and sign it.`, 'end_turn')).toBeNull();
+  });
+  it.each([
+    ['NVDAc passes your limits: the token trades 0.20% above the cash close. Nothing is bought until you review each buy and sign it in your own wallet.'],
+    ['Wait on SPCXc: it trades 0.87% above the last close, more than you set. The US market is closed, so gaps can move at the open. Nothing is bought until you sign.'],
+    ['Nothing passes your limits right now, because each split is under the $10 minimum. Nothing is bought until you review a buy and sign it.'],
+  ])('keeps a normal explanation: %s', (t) => {
+    expect(acceptExplanation(t, 'end_turn')).toBe(t);
   });
   it('throws away a reply cut off by the token cap or not ending a sentence', () => {
     expect(acceptExplanation(good, 'max_tokens')).toBeNull();
