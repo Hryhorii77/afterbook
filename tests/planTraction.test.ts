@@ -95,6 +95,7 @@ describe('plan counters', () => {
 });
 
 describe('swap stats by source', () => {
+  beforeEach(() => r.store.clear());
   it('counts plan swaps with their own distinct wallets', async () => {
     const now = Date.now();
     const rec = (hash: string, wallet: string, source?: string, usd = 10) => r.store.set(`swap:${hash}`, { hash, at: now, symbol: 'NVDAc', side: 'buy', usd, feeBps: 0, feeUsd: 0, wallet, source });
@@ -106,5 +107,13 @@ describe('swap stats by source', () => {
     expect(s?.bySource.plan).toEqual({ swaps: 3, volumeUsd: 45, traders: 2 });
     expect(s?.bySource.stock).toEqual({ swaps: 1, volumeUsd: 10, traders: 1 });
     expect(s?.traders).toBe(3);
+  });
+  it('does not count a swap logged without a wallet as a trader', async () => {
+    const now = Date.now();
+    r.store.set('swap:old', { hash: 'old', at: now, symbol: 'NVDAc', side: 'buy', usd: 10, feeBps: 0, feeUsd: 0 });
+    r.store.set('swap:new', { hash: 'new', at: now, symbol: 'NVDAc', side: 'buy', usd: 10, feeBps: 0, feeUsd: 0, wallet: 'w9' });
+    const s = await swapStats(7);
+    expect(s?.swaps).toBe(2);
+    expect(s?.traders).toBe(1);
   });
 });

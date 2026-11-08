@@ -170,14 +170,14 @@ export async function swapStats(days: number): Promise<SwapStats | null> {
   return {
     days,
     swaps: records.length,
-    traders: new Set(records.map((r) => r.wallet)).size,
+    traders: new Set(records.map((r) => r.wallet).filter(Boolean)).size,
     volumeUsd: records.reduce((a, r) => a + r.usd, 0),
     feesUsd: records.reduce((a, r) => a + r.feeUsd, 0),
     bySymbol,
     bySource: SWAP_SOURCES.reduce(
       (acc, src) => {
         const mine = records.filter((r) => (r.source ?? 'stock') === src);
-        acc[src] = { swaps: mine.length, volumeUsd: mine.reduce((a, r) => a + r.usd, 0), traders: new Set(mine.map((r) => r.wallet)).size };
+        acc[src] = { swaps: mine.length, volumeUsd: mine.reduce((a, r) => a + r.usd, 0), traders: new Set(mine.map((r) => r.wallet).filter(Boolean)).size };
         return acc;
       },
       {} as SwapStats['bySource'],
