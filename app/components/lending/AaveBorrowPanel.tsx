@@ -31,7 +31,7 @@ import { parseAmount, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
 // Borrow USDC against stock tokens on Aave V4's MAG7 spoke, from the visitor's own wallet (real
 // money; lib/lending/aaveBorrow.ts has the verified contract facts). Three actions:
 // - Borrow: optionally add a stock as collateral (exact approval of the spoke, then one multicall:
-//   supply, setUsingAsCollateral, borrow), up to the protocol limit less a small margin, $25k per action.
+//   supply, setUsingAsCollateral, borrow), up to the protocol limit less a small margin, $25k per borrow (adding collateral and repaying have no cap).
 // - Repay: exact approval (or the debt plus 1 bp for "all"), then repay.
 // - Withdraw: take collateral back while the loan stays within the limit.
 // The rescue planner (LoanRescue.tsx) only fills the Repay or Add field; these buttons do the rest.

@@ -91,7 +91,9 @@ export function LoanRescue({
                 Repay {plan.repay.all ? `all you owe, ${exact(plan.repay.raw, 6)} USDC` : `${exact(plan.repay.raw, 6)} USDC`} → health{' '}
                 {hf(plan.repay.healthAfter)}
                 {plan.repay.partial
-                  ? ` · your wallet holds ${exact(plan.repay.partial.raw, 6)} USDC, which gets it to ${hf(plan.repay.partial.healthAfter)}`
+                  ? plan.repay.partial.raw === usdcBalance
+                    ? ` · your wallet holds ${exact(plan.repay.partial.raw, 6)} USDC, which gets it to ${hf(plan.repay.partial.healthAfter)}`
+                    : ` · repaying all needs a little extra USDC for interest, so you can repay up to ${exact(plan.repay.partial.raw, 6)} USDC, which gets it to ${hf(plan.repay.partial.healthAfter)}`
                   : usdcBalance === BigInt(0) && ' · your wallet holds no USDC on Base'}
               </span>
               {(plan.repay.partial || usdcBalance > BigInt(0)) && (
@@ -125,7 +127,7 @@ export function LoanRescue({
           {plan.adds.length === 0 && <p className="geo-note">Your wallet holds none of the stocks this pool takes as collateral, so repaying is the way here.</p>}
           <p className="geo-note">
             Every stock is assumed to fall by the same share; the debt is in USDC and doesn&apos;t move. Amounts are rounded up with a little
-            room for interest. Filling only puts the amount in the form below: your wallet then asks you to approve and sign as usual.
+            room for interest. While the stock market is closed, Aave&apos;s stock prices can be old, and the test starts from them. Filling only puts the amount in the form below: your wallet then asks you to approve and sign as usual.
           </p>
         </>
       )}
