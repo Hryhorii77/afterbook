@@ -11,3 +11,12 @@
 .borrow-card-rule { margin-top: 12px; border-top: 1px solid var(--panel-border); }
 .borrow-grid .borrow-card-links { margin-top: auto; padding-top: 14px; }
 .borrow-card-links a { white-space: nowrap; display: inline-flex; align-items: center; min-height: 44px; }
+
+/* The loan rescue planner inside the borrow panel (LoanRescue.tsx). */
+.rescue { margin: 16px 0; padding: 16px 0; border-top: 1px solid var(--panel-border); border-bottom: 1px solid var(--panel-border); }
+.rescue h3 { margin: 0 0 8px; font-size: 16px; }
+.rescue-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0 16px; margin-top: 12px; }
+.rescue-fields label { font-size: 13px; font-weight: 600; color: var(--text-dim); }
+.rescue-options { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 10px; }
+.rescue-options li { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; }
+.rescue-options li span { flex: 1 1 240px; min-width: 0; }

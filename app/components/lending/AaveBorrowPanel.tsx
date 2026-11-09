@@ -23,6 +23,7 @@ import {
   type AaveReserve,
 } from '@/lib/lending/aaveBorrow';
 import { WalletConnectButton } from '../layout/WalletConnectButton';
+import { LoanRescue } from './LoanRescue';
 import { fmt, usd } from '../swap/swapClient';
 import { useNotify } from '../notifications/notify';
 import { parseAmount, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
@@ -30,9 +31,10 @@ import { parseAmount, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
 // Borrow USDC against stock tokens on Aave V4's MAG7 spoke, from the visitor's own wallet (real
 // money; lib/lending/aaveBorrow.ts has the verified contract facts). Three actions:
 // - Borrow: optionally add a stock as collateral (exact approval of the spoke, then one multicall:
-//   supply, setUsingAsCollateral, borrow), up to the protocol limit less a small margin, $25k per action.
+//   supply, setUsingAsCollateral, borrow), up to the protocol limit less a small margin, $25k per borrow (adding collateral and repaying have no cap).
 // - Repay: exact approval (or the debt plus 1 bp for "all"), then repay.
 // - Withdraw: take collateral back while the loan stays within the limit.
+// The rescue planner (LoanRescue.tsx) only fills the Repay or Add field; these buttons do the rest.
 // Every call is on behalf of the signer and carries the Builder Code. Before acting, each reserve's
 // token and the oracle are checked against what the page expects; any mismatch stops everything.
 // Spoke approvals have one call site, approveSpoke below: spender only AAVE_MAG7_SPOKE, exact amount.
@@ -301,7 +303,32 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
         </dl>
       </div>
 
-      <div className="carry-direction-toggle swap-side-toggle" role="tablist" aria-label="Loan action">
+      {owes && (
+        <LoanRescue
+          position={position}
+          chainHealth={chainHf}
+          balances={new Map(perStock.map((x) => [x.s.reserveId, x.balance]))}
+          usdcBalance={usdcBalance}
+          disabled={busy !== null}
+          onRepay={(raw, all) => {
+            setDone(null);
+            setTab('repay');
+            setRepayAll(all);
+            setRepayText(all ? '' : formatUnits(raw, 6));
+            document.getElementById('aave-loan-action')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          }}
+          onAdd={(reserve, raw) => {
+            setDone(null);
+            setTab('borrow');
+            setSymbol(reserve.symbol);
+            setAddText(formatUnits(raw, reserve.decimals));
+            setBorrowText('');
+            document.getElementById('aave-loan-action')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          }}
+        />
+      )}
+
+      <div className="carry-direction-toggle swap-side-toggle" role="tablist" aria-label="Loan action" id="aave-loan-action">
         {(['borrow', 'repay', 'withdraw'] as const).map((t) => (
           <button
             key={t}
