@@ -4,7 +4,7 @@ import { getTape } from '@/lib/market/tape';
 import { getGeoInfo } from '@/lib/server/geo';
 import { buildTilt } from '@/lib/baskets/tilt';
 import { DEPTH_SHARE, MIN_WEIGHT, MAX_WEIGHT } from '@/lib/baskets/weights';
-import { bp, usdCompact } from '@/lib/format';
+import { bp, bpClass, usdCompact } from '@/lib/format';
 import { getStock } from '@/lib/stocks/tokens';
 import { SymbolTile } from '@/app/components/ui/SymbolTile';
 import { gliderConfigured } from '@/lib/baskets/glider';
@@ -64,7 +64,7 @@ export default async function BasketsPage() {
                   </div>
                   <div className="weight-meta">
                     <span>Depth {row.depthUsd != null ? usdCompact(row.depthUsd) : '—'}</span>
-                    <span className={row.basisBp != null ? (row.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}>{bp(row.basisBp)}</span>
+                    <span className={bpClass(row.basisBp)}>{bp(row.basisBp)}</span>
                   </div>
                 </div>
               );

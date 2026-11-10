@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { type CbStock } from '@/lib/stocks/tokens';
 import type { TapeResult, TapeRow } from '@/lib/market/tape';
-import { bp, bpPct, usd, usdCompact, formatNextOpen, gapSizeText } from '@/lib/format';
+import { bp, bpPct, usd, usdCompact, formatNextOpen, gapVsText, bpClass } from '@/lib/format';
 import { heroGapBp, heroReferenceLabel, shortName, stockShareText } from '@/lib/share/shareText';
 import { SymbolTile } from '../ui/SymbolTile';
 import { ShareButton } from '../ui/ShareButton';
@@ -78,7 +78,7 @@ export function MarketsHero({ tape, symbol, activeRow, activeStock, liquidRows, 
           <div className="stat-card stat-card-hero">
             <div className="stat-label" style={{ marginTop: 0 }}>Onchain price vs cash price</div>
             {/* The percent is the headline (everyone reads %); bp, the trader's unit, sits beside it. */}
-            <div className={`today-stat-value ${heroBp != null ? (heroBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
+            <div className={`today-stat-value ${bpClass(heroBp)}`}>
               {bpPct(heroBp)}
               {heroBp != null && <span className="today-stat-bp">{bp(heroBp)}</span>}
             </div>
@@ -86,7 +86,7 @@ export function MarketsHero({ tape, symbol, activeRow, activeStock, liquidRows, 
               <div className="hero-sentence">
                 {/* One string per sentence: separate text pieces read as "4.1 bpbelowthe" to some
                     accessibility tools, which drop the lone spaces between them. */}
-                {`On Base, ${shortName(activeRow)} is trading ${gapSizeText(heroBp)} ${heroBp >= 0 ? 'above' : 'below'} `}
+                {`On Base, ${shortName(activeRow)} is trading ${gapVsText(heroBp)} `}
                 <span className="nowrap">{referenceLabel}</span>
                 {'.'}
                 {tape.session.state.startsWith('closed') && ` Cash reopens ${formatNextOpen(tape.session.nextOpenIso)}.`}
@@ -175,7 +175,7 @@ export function MarketsHero({ tape, symbol, activeRow, activeStock, liquidRows, 
         <select className="sticky-symbol-select" value={symbol} onChange={(e) => setSymbolAndUrl(e.target.value)} aria-label="Active symbol">
           <SymbolOptions liquidRows={liquidRows} thinRows={thinRows} />
         </select>
-        {heroBp != null && <span className={`sticky-symbol-basis ${heroBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(heroBp)}</span>}
+        {heroBp != null && <span className={`sticky-symbol-basis ${bpClass(heroBp)}`}>{bp(heroBp)}</span>}
       </div>
       {activeRow?.cashLastUsd != null && activeRow?.onchainMidUsd != null && (
         <div className="sticky-symbol-detail">

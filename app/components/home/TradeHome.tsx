@@ -6,7 +6,7 @@ import type { TapeResult, TapeRow } from '@/lib/market/tape';
 import type { GeoInfo } from '@/lib/server/geo';
 import { STOCKS, getStock, poolVenue } from '@/lib/stocks/tokens';
 import { TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
-import { bpPct, formatNextOpen, usd } from '@/lib/format';
+import { bpClass, bpPct, formatNextOpen, usd } from '@/lib/format';
 import { heroGapBp } from '@/lib/share/shareText';
 import { SwapPanel } from '../swap/SwapPanel';
 import { SymbolTile } from '../ui/SymbolTile';
@@ -33,7 +33,7 @@ function stockReference(row: TapeRow, state: string): { usd: number | null; labe
 }
 
 function gapClass(gapBp: number | null): string {
-  return gapBp == null ? '' : gapBp >= 0 ? 'basis-pos' : 'basis-neg';
+  return bpClass(gapBp);
 }
 
 export default function TradeHome({
