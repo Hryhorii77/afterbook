@@ -1,6 +1,6 @@
 // The headline gap figure and sentence every page and card leads with.
 import { describe, expect, it } from 'vitest';
-import { bpPct, gapSizeText } from '../lib/format';
+import { bp, bpClass, bpPct, gapSizeText } from '../lib/format';
 import { todayShareText } from '../lib/share/shareText';
 
 describe('bpPct', () => {
@@ -21,5 +21,15 @@ describe('gap sentence', () => {
   });
   it('keeps small gaps in bp only', () => {
     expect(gapSizeText(-3.2)).toBe('3.2 bp');
+  });
+  it('calls a gap that shows as 0.0 bp level, with no sign and no colour', () => {
+    expect(todayShareText('GOOGLc', 0.02, 'price')).toBe('On Base, GOOGLc is trading level with the cash price.');
+    expect(todayShareText('GOOGLc', -0.04, 'price')).toBe('On Base, GOOGLc is trading level with the cash price.');
+    expect(bp(0.02)).toBe('0.0 bp');
+    expect(bp(-0.04)).toBe('0.0 bp');
+    expect(bpClass(0.02)).toBe('');
+    expect(bpClass(0.06)).toBe('basis-pos');
+    expect(bpClass(-0.06)).toBe('basis-neg');
+    expect(todayShareText('GOOGLc', -0.06, 'price')).toBe('On Base, GOOGLc is trading 0.1 bp below the cash price.');
   });
 });

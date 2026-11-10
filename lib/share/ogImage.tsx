@@ -76,7 +76,8 @@ function frame(c: Palette) {
   } as const;
 }
 
-const gapColor = (c: Palette, n: number | null) => (n == null ? c.dim : n >= 0 ? c.pos : c.neg);
+// A gap that shows as 0.0bp has no side: no sign, no green (lib/format.ts isFlatBp).
+const gapColor = (c: Palette, n: number | null) => (n == null || Math.abs(n) < 0.05 ? c.dim : n >= 0 ? c.pos : c.neg);
 
 function Mark({ px }: { px: number }) {
   return (
@@ -95,7 +96,7 @@ export const OG_SIZE = { width: 1200, height: 630 };
 
 const usd = (n: number | null) =>
   n == null ? '—' : `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const bp = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(1)}bp`);
+const bp = (n: number | null) => (n == null ? '—' : Math.abs(n) < 0.05 ? '0.0bp' : `${n >= 0 ? '+' : ''}${n.toFixed(1)}bp`);
 
 // Drawn by app/card/route.tsx, the one route behind every link preview and "Download card".
 /**

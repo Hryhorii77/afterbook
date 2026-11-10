@@ -4,7 +4,7 @@
 // Moved out of HomeClient.tsx (2026-10-29) unchanged; HomeClient owns the state and passes it in.
 import { useEffect, useState } from 'react';
 import type { TapeResult, TapeRow } from '@/lib/market/tape';
-import { bp, usd, usdCompact } from '@/lib/format';
+import { bp, bpClass, usd, usdCompact } from '@/lib/format';
 import { SymbolTile } from '../ui/SymbolTile';
 import { MiniSpark, sparkSummary } from './MiniSpark';
 
@@ -203,7 +203,7 @@ export function TapeRows({
             {row.cashStale && <span className="stale-tag">STALE</span>}
           </td>
           <td>{usd(row.onchainMidUsd)}</td>
-          <td className={`basis-cell ${row.basisBp != null ? (row.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
+          <td className={`basis-cell ${bpClass(row.basisBp)}`}>
             {bp(row.basisBp)}
           </td>
           <td className="depth-cell">
@@ -265,7 +265,7 @@ export function TapeCards({
                   <SymbolTile cashTicker={row.cashTicker} size="sm" />
                   <span className="symbol">{row.symbol}</span>
                 </span>
-                <span className={`tape-card-basis ${row.basisBp != null ? (row.basisBp >= 0 ? 'basis-pos' : 'basis-neg') : ''}`}>
+                <span className={`tape-card-basis ${bpClass(row.basisBp)}`}>
                   {bp(row.basisBp)}
                 </span>
               </div>

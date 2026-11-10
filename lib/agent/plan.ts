@@ -8,7 +8,7 @@ import type { TapeResult, TapeRow } from '../market/tape';
 import { todayReference } from '../market/todaySnapshot';
 import { TAPE_MAIN_DEPTH_USD } from '../market/liquidity';
 import { MAX_SWAP_USD, MAX_BUY_DEPTH_SHARE } from '../swap/swap';
-import { gapSizeText, usd, formatNextOpen } from '../format';
+import { gapSizeText, gapVsText, usd, formatNextOpen } from '../format';
 import { PLAN_LIMITS } from './limits';
 
 export { PLAN_LIMITS } from './limits';
@@ -142,7 +142,7 @@ export function screen(
       block(leg, 'skip', `The pool holds ${usd(row.depthUsd ?? 0, 0)}, under the ${usd(TAPE_MAIN_DEPTH_USD, 0)} this plan needs to size a trade.`);
       return leg;
     }
-    const gapText = `${gapSizeText(Math.abs(ref.bp))} ${ref.bp >= 0 ? 'above' : 'below'} the cash ${ref.word}`;
+    const gapText = `${gapVsText(ref.bp)} the cash ${ref.word}`;
     if (Math.abs(ref.bp) > PLAN_LIMITS.maxAbsGapBp) {
       // A gap this wide (BILIc read 9% below on 2026-11-08) is more often a stale pool or news than a
       // bargain: say so rather than let a discount pass as "inside your limit".

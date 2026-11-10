@@ -2,7 +2,7 @@
 // lib/market/tape), so the page on screen (HomeClient), the share snapshot (lib/share/shareSnapshot.ts) and the
 // card (lib/share/ogImage.tsx) compute the same number and the same words from the same tape.
 import type { TapeResult, TapeRow } from '../market/tape';
-import { gapSizeText } from '../format';
+import { gapVsText } from '../format';
 import { basketLabel, type BasketLeg } from '../build/customBasket';
 
 type Session = TapeResult['session'];
@@ -41,17 +41,17 @@ export function heroReferenceLabel(row: TapeRow | null | undefined, tape: Pick<T
 export function stockShareText(row: TapeRow | null | undefined, tape: Pick<TapeResult, 'rows' | 'session'>): string {
   const gap = heroGapBp(row, tape.session);
   return row && gap != null
-    ? `On Base, ${shortName(row)} is trading ${gapSizeText(gap)} ${gap >= 0 ? 'above' : 'below'} ${heroReferenceLabel(row, tape)}.`
+    ? `On Base, ${shortName(row)} is trading ${gapVsText(gap)} ${heroReferenceLabel(row, tape)}.`
     : 'Cash close vs the onchain price on Aero for Coinbase tokenized stocks on Base.';
 }
 
 /** `reference` ends "the cash …": "price", "close", "after-hours price" (todayReference's word). */
 export function todayShareText(symbol: string, gapBp: number, reference: string): string {
-  return `On Base, ${symbol} is trading ${gapSizeText(gapBp)} ${gapBp >= 0 ? 'above' : 'below'} the cash ${reference}.`;
+  return `On Base, ${symbol} is trading ${gapVsText(gapBp)} the cash ${reference}.`;
 }
 
 export function basketShareText(legs: BasketLeg[], gapBp: number | null, reference: string): string {
   return gapBp != null
-    ? `My custom basket (${basketLabel(legs)}) is trading ${gapSizeText(gapBp)} ${gapBp >= 0 ? 'above' : 'below'} ${reference} onchain.`
+    ? `My custom basket (${basketLabel(legs)}) is trading ${gapVsText(gapBp)} ${reference} onchain.`
     : `My custom basket of Base tokenized stocks: ${basketLabel(legs)}.`;
 }

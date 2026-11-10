@@ -7,7 +7,7 @@ import { unstable_cache } from 'next/cache';
 import { getTape } from '@/lib/market/tape';
 import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/market/liquidity';
 import { buildTodaySnapshot, todayReference } from '@/lib/market/todaySnapshot';
-import { bp, bpPct, usd, usdCompact, formatDuration, formatNextOpen, gapSizeText } from '@/lib/format';
+import { bp, bpPct, usd, usdCompact, formatDuration, formatNextOpen, gapVsText, bpClass } from '@/lib/format';
 import { STOCKS, getStock } from '@/lib/stocks/tokens';
 import { getBuyQuoter } from '@/lib/market/lotQuote';
 import { getOpenSnapStats, STATS_LOOKBACK_MS, type OpenSnapStats } from '@/lib/market/history';
@@ -138,13 +138,13 @@ export default async function TodayPage() {
                 <div className="today-stats">
                   <div className="stat-card stat-card-hero">
                     <div className="stat-label" style={{ marginTop: 0 }}>Onchain price vs cash price</div>
-                    <div className={`today-stat-value ${headlineBp != null && headlineBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>
+                    <div className={`today-stat-value ${bpClass(headlineBp)}`}>
                       {bpPct(headlineBp)}
                       {headlineBp != null && <span className="today-stat-bp">{bp(headlineBp)}</span>}
                     </div>
                     {headlineBp != null && (
                       <div className="hero-sentence">
-                        {`On Base, ${headline.symbol} is trading ${gapSizeText(headlineBp)} ${headlineBp >= 0 ? 'above' : 'below'} the cash ${ref?.word ?? 'close'}.`}
+                        {`On Base, ${headline.symbol} is trading ${gapVsText(headlineBp)} the cash ${ref?.word ?? 'close'}.`}
                       </div>
                     )}
                   </div>

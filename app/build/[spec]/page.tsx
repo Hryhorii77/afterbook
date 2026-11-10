@@ -10,7 +10,7 @@ import { isLiquid } from '@/lib/market/liquidity';
 import { STOCKS, getStock } from '@/lib/stocks/tokens';
 import { parseSpec, formatSpec, basketLabel, basketGapBp, basketReferenceLabel, legGapBp } from '@/lib/build/customBasket';
 import { getBasketCost, MAX_COST_BP } from '@/lib/build/basketCost';
-import { bp, usd, usdCompact, gapSizeText, formatNextOpen } from '@/lib/format';
+import { bp, usd, usdCompact, gapVsText, bpClass, formatNextOpen } from '@/lib/format';
 import { shareMetadata } from '@/lib/share/shareMeta';
 import { basketShareText } from '@/lib/share/shareText';
 import { getGeoInfo } from '@/lib/server/geo';
@@ -85,11 +85,11 @@ export default async function BuildPage({ params }: PageProps) {
             <div className="stat-label" style={{ marginTop: 0 }}>
               Onchain price vs cash price
             </div>
-            <div className={`today-stat-value ${gap != null && gap >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(gap)}</div>
+            <div className={`today-stat-value ${bpClass(gap)}`}>{bp(gap)}</div>
             <div className="stat-label">
               {gap == null
                 ? 'One of these stocks has no reading yet.'
-                : `Onchain this basket is ${gapSizeText(gap)} ${gap >= 0 ? 'above' : 'below'} ${reference}.`}
+                : `Onchain this basket is ${gapVsText(gap)} ${reference}.`}
               {!marketOpen && tape ? ` Cash reopens ${formatNextOpen(tape.session.nextOpenIso)}.` : ''} 100 bp = 1%.
             </div>
           </div>
@@ -160,7 +160,7 @@ export default async function BuildPage({ params }: PageProps) {
                 </div>
                 <div className="weight-meta">
                   <span>Gap</span>
-                  <span className={legGap != null && legGap >= 0 ? 'basis-pos' : 'basis-neg'}>{bp(legGap)}</span>
+                  <span className={bpClass(legGap)}>{bp(legGap)}</span>
                 </div>
                 <div className="weight-meta">
                   <span>Adds to basket gap</span>

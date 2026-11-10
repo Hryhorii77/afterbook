@@ -8,7 +8,14 @@ export const bpPct = (n: number | null) => {
   const pct = Math.abs(n / 100).toFixed(2);
   return pct === '0.00' ? '0.00%' : `${n >= 0 ? '+' : '-'}${pct}%`; // never "-0.00%"
 };
-export const bp = (n: number | null) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${n.toFixed(1)} bp`);
+export const bp = (n: number | null) => (n == null ? '—' : isFlatBp(n) ? '0.0 bp' : `${n >= 0 ? '+' : ''}${n.toFixed(1)} bp`);
+
+/** A gap that shows as 0.0 bp has no side: calling it "above", "+0.0 bp" or colouring it green
+ *  reads as a move that isn't there (GOOGLc on 2026-11-10 read "0.0 bp above the cash price"). */
+export const isFlatBp = (n: number) => Math.abs(n) < 0.05;
+
+/** The colour class for a gap or edge in bp: green above, red below, none when it shows as zero. */
+export const bpClass = (n: number | null) => (n == null || isFlatBp(n) ? '' : n > 0 ? 'basis-pos' : 'basis-neg');
 
 // Fee-APR window durations range from a fraction of an hour (the getLogs
 // cold-start estimate, lib/lp/feeApr.ts) up to several days (the real
@@ -61,4 +68,11 @@ export function pctOfBp(bpValue: number): string {
 export function gapSizeText(bpValue: number): string {
   const abs = Math.abs(bpValue);
   return abs >= 5 ? `${pctOfBp(bpValue)} (${abs.toFixed(1)} bp)` : `${abs.toFixed(1)} bp`;
+}
+
+/** The gap and its side, ready to sit before the reference: "2.9% (285.4 bp) above", "0.3 bp below",
+ *  or "level with" when it shows as 0.0 bp. */
+export function gapVsText(bpValue: number): string {
+  if (isFlatBp(bpValue)) return 'level with';
+  return `${gapSizeText(bpValue)} ${bpValue > 0 ? 'above' : 'below'}`;
 }
