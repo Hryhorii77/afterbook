@@ -1,7 +1,7 @@
 // The trade calculator's Carry tab (only while cash is closed and the gap is wide): what buying or
 // unwinding now and holding to the reopen would earn after fees, impact and gas.
 import { aerodromeSwapUrl, type CbStock } from '@/lib/stocks/tokens';
-import { bp, usd } from '@/lib/format';
+import { bp, bpClass, bpPct, usd } from '@/lib/format';
 import { GAS_ESTIMATE_USD, type computeCashAndCarryEdge } from '@/lib/market/arb';
 import { logOutboundClick } from './util';
 import type { QuoteResponse } from './types';
@@ -61,7 +61,7 @@ export function LotLabCarry({ arbEdge, carryDirection, setCarryDirection, active
       <div className="result-grid">
         <div className="result-cell">
           <div className="label">Gross basis edge</div>
-          <div className={`value ${arbEdge.grossEdgeBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(arbEdge.grossEdgeBp)}</div>
+          <div className={`value ${bpClass(arbEdge.grossEdgeBp)}`}>{bp(arbEdge.grossEdgeBp)}</div>
         </div>
         <div className="result-cell">
           <div className="label">Pool fee</div>
@@ -77,7 +77,7 @@ export function LotLabCarry({ arbEdge, carryDirection, setCarryDirection, active
         </div>
         <div className="result-cell">
           <div className="label">Net edge</div>
-          <div className={`value ${arbEdge.netEdgeBp >= 0 ? 'basis-pos' : 'basis-neg'}`}>{bp(arbEdge.netEdgeBp)}</div>
+          <div className={`value ${bpClass(arbEdge.netEdgeBp)}`}>{bp(arbEdge.netEdgeBp)}</div>
         </div>
       </div>
       {carryDirection === 'buy' ? (
@@ -98,8 +98,7 @@ export function LotLabCarry({ arbEdge, carryDirection, setCarryDirection, active
       )}
       <p className="geo-note">
         The annualized figure extrapolates the real {arbEdge.holdingDays.toFixed(1)}-day expected return (
-        {arbEdge.netEdgeBp >= 0 ? '+' : ''}
-        {(arbEdge.netEdgeBp / 100).toFixed(2)}%, from the net edge above) out to a full year for
+        {bpPct(arbEdge.netEdgeBp)}, from the net edge above) out to a full year for
         comparison — over a short window like this one, that extrapolation can look far larger than the
         real amount at stake. It isn&apos;t a claim you&apos;d gain or lose that much; the {arbEdge.holdingDays.toFixed(1)}-day
         figure is the one that actually applies here.

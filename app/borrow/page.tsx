@@ -11,7 +11,7 @@ import { getAaveStockLending } from '@/lib/lending/aave';
 import { AaveBorrowSection } from '@/app/components/lending/AaveBorrowSection';
 import { AaveLendSection } from '@/app/components/lending/AaveLendSection';
 import type { AaveReserve } from '@/lib/lending/aaveBorrow';
-import { bp, usdCompact } from '@/lib/format';
+import { bp, bpClass, usdCompact } from '@/lib/format';
 import { shareMetadata } from '@/lib/share/shareMeta';
 import { ShareButton } from '@/app/components/ui/ShareButton';
 import { aeroExit, borrowShareText, summarizeBorrow, venueName } from '@/lib/lending/borrowSummary';
@@ -204,7 +204,7 @@ export default async function BorrowPage() {
                     <div className="borrow-card-rule" aria-hidden="true" />
                     <div className="weight-meta">
                       <span>Aero vs oracle</span>
-                      <span className={m.aeroVsOracleBp >= 0 ? 'basis-pos' : 'basis-neg'}>{bp(m.aeroVsOracleBp)}</span>
+                      <span className={bpClass(m.aeroVsOracleBp)}>{bp(m.aeroVsOracleBp)}</span>
                     </div>
                     <div className="weight-meta">
                       <span>Aero exit</span>
