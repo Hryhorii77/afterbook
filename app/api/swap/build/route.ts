@@ -10,7 +10,7 @@ export const revalidate = 0;
 // The swap transaction for the connected wallet, built fresh and checked field by field in
 // lib/swap/swap.ts (buildSwap) before it is returned. The browser sends it as is; nothing here signs.
 // POST { symbol, side, amountIn, account, source?, slippageBps? } (source: 'basket' for a /build basket leg,
-// 'plan' for a swap made from /plan's panel (a buy or a sell), for the metrics only; slippageBps 10-100, default 50) or, for a meme buy, POST { meme, payWith, amountIn, account, slippageBps? }
+// 'plan' for a swap made from /plan's panel (a buy or a sell), 'rule' for one made from a due run on /rules, for the metrics only; slippageBps 10-100, default 50) or, for a meme buy, POST { meme, payWith, amountIn, account, slippageBps? }
 export async function POST(request: NextRequest) {
   const refused = await guardSwapRequest(request);
   if (refused) return refused;
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   try {
     const account = getAddress(body.account);
     const tx = await buildSwap(req, account);
-    const source = req.meme ? 'meme' : body.source === 'basket' ? 'basket' : body.source === 'plan' ? 'plan' : 'stock';
+    const source = req.meme ? 'meme' : body.source === 'basket' ? 'basket' : body.source === 'plan' ? 'plan' : body.source === 'rule' ? 'rule' : 'stock';
     await rememberBuiltSwap(tx, account, source);
     return NextResponse.json(tx);
   } catch (err) {

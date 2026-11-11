@@ -19,10 +19,11 @@ const BUILT = (data: Hex) => `swapbuild:${keccak256(data)}`;
 const BUILT_TTL_S = 2 * 60 * 60;
 
 /** Which panel built it: one stock's Buy/Sell, a /build basket bought in one go, a meme buy on /memes,
- *  or a buy reviewed from a trade plan on /plan. The label is the browser's claim, for the metrics only:
- *  a swap still counts only if it passes every check below, whatever it is labelled. */
-export type SwapSource = 'stock' | 'basket' | 'meme' | 'plan';
-export const SWAP_SOURCES: readonly SwapSource[] = ['stock', 'basket', 'meme', 'plan'];
+ *  a buy reviewed from a trade plan on /plan, or a due run of a personal stock rule on /rules. The label is
+ *  the browser's claim, for the metrics only: a swap still counts only if it passes every check below,
+ *  whatever it is labelled. */
+export type SwapSource = 'stock' | 'basket' | 'meme' | 'plan' | 'rule';
+export const SWAP_SOURCES: readonly SwapSource[] = ['stock', 'basket', 'meme', 'plan', 'rule'];
 
 interface BuiltSwap {
   account: string;

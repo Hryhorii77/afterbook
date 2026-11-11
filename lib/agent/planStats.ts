@@ -12,6 +12,9 @@ export interface PlanDay {
   made: number;
   claude: number;
   withBuy: number;
+  /** Personal stock rules (/rules): runs checked, and checks where the run passed. */
+  ruleChecks: number;
+  rulePassed: number;
 }
 
 /** Bookkeeping: never throws. One to three Redis commands per plan, plus the expiry once a day (on the
@@ -31,21 +34,51 @@ export async function countPlan(p: { explainedBy: 'claude' | 'fixed'; buys: numb
   }
 }
 
+/** A personal rule's run was checked (/api/agent/rule-check). Same day hash and rules as countPlan; no
+ *  input, symbol or wallet is stored. */
+export async function countRuleCheck(passed: boolean, now = Date.now()): Promise<void> {
+  if (!redis) return;
+  const key = KEY(new Date(now).toISOString().slice(0, 10));
+  try {
+    const pipe = redis.pipeline();
+    pipe.hincrby(key, 'ruleChecks', 1);
+    if (passed) pipe.hincrby(key, 'rulePassed', 1);
+    pipe.ttl(key);
+    const res = (await pipe.exec()) as number[];
+    // -1: the key has no expiry yet (no plan was made today before this check)
+    if (res[res.length - 1] === -1) await redis.expire(key, TTL_S);
+  } catch (err) {
+    console.error('plan stats: could not count a rule check', err instanceof Error ? err.message : err);
+  }
+}
+
+export async function countRuleCheckBriefly(passed: boolean, ms = 300): Promise<void> {
+  await Promise.race([countRuleCheck(passed), new Promise<void>((resolve) => setTimeout(resolve, ms))]);
+}
+
 export async function planStats(days: number, now = Date.now()): Promise<{ days: number; total: PlanDay; byDay: Record<string, PlanDay> } | null> {
   if (!redis) return null;
   const dayKeys = Array.from({ length: days }, (_, i) => new Date(now - i * 86_400_000).toISOString().slice(0, 10));
   const pipe = redis.pipeline();
   for (const d of dayKeys) pipe.hgetall(KEY(d));
   const rows = (await pipe.exec()) as (Record<string, string | number> | null)[];
-  const total: PlanDay = { made: 0, claude: 0, withBuy: 0 };
+  const total: PlanDay = { made: 0, claude: 0, withBuy: 0, ruleChecks: 0, rulePassed: 0 };
   const byDay: Record<string, PlanDay> = {};
   rows.forEach((r, i) => {
     if (!r) return;
-    const day: PlanDay = { made: Number(r.made ?? 0), claude: Number(r.claude ?? 0), withBuy: Number(r.withBuy ?? 0) };
+    const day: PlanDay = {
+      made: Number(r.made ?? 0),
+      claude: Number(r.claude ?? 0),
+      withBuy: Number(r.withBuy ?? 0),
+      ruleChecks: Number(r.ruleChecks ?? 0),
+      rulePassed: Number(r.rulePassed ?? 0),
+    };
     byDay[dayKeys[i]] = day;
     total.made += day.made;
     total.claude += day.claude;
     total.withBuy += day.withBuy;
+    total.ruleChecks += day.ruleChecks;
+    total.rulePassed += day.rulePassed;
   });
   return { days, total, byDay };
 }

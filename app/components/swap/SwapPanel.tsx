@@ -16,11 +16,34 @@ import { SlippageControl, useSlippage } from './slippage';
 // the router if needed, the swap with Afterbook's Builder Code) to useSwapWallet.ts. It never holds
 // funds or signs.
 
-/** `source` labels the build for the swap metrics only (lib/swap/swapLog.ts); it changes nothing in the trade. */
-export function SwapPanel({ stock, defaultUsd, source = 'stock' }: { stock: CbStock; defaultUsd?: number; source?: 'stock' | 'plan' }) {
+/** `source` labels the build for the swap metrics only (lib/swap/swapLog.ts); it changes nothing in the trade.
+ *  For /rules: `buyOnly` hides the Sell side, `maxUsd` refuses a buy over that much USDC (what is left of a
+ *  rule's run), and the callbacks keep the run history: `onBuySent` when the wallet has sent the swap,
+ *  `onBought` once it is mined, `onBuyReverted` if it was mined and reverted. They get the exact USDC
+ *  reviewed and the hash, and change nothing in the swap. */
+export function SwapPanel({
+  stock,
+  defaultUsd,
+  source = 'stock',
+  buyOnly = false,
+  maxUsd,
+  onBuySent,
+  onBought,
+  onBuyReverted,
+}: {
+  stock: CbStock;
+  defaultUsd?: number;
+  source?: 'stock' | 'plan' | 'rule';
+  buyOnly?: boolean;
+  maxUsd?: number;
+  onBuySent?: (usd: number, hash: Hex) => void;
+  onBought?: (usd: number, hash: Hex) => void;
+  onBuyReverted?: (hash: Hex) => void;
+}) {
   const { notify } = useNotify();
   const [side, setSide] = useState<SwapSide>('buy');
-  const [amount, setAmount] = useState(defaultUsd ? String(Math.round(defaultUsd)) : '');
+  // The exact amount (cents), not rounded up: a rule's last run can be $12.60 left on its cap.
+  const [amount, setAmount] = useState(defaultUsd ? String(Math.floor(defaultUsd * 100) / 100) : '');
   const slippageBps = useSlippage();
 
   const inToken = side === 'buy' ? { address: USDC.address, decimals: USDC.decimals, symbol: 'USDC' } : { address: stock.tokenAddress, decimals: stock.decimals, symbol: stock.symbol };
@@ -30,6 +53,9 @@ export function SwapPanel({ stock, defaultUsd, source = 'stock' }: { stock: CbSt
   // Amount in raw units of the token being sold, or null while the field is empty / not a number.
   const amountIn = parseAmount(amount, inToken.decimals);
   const overBalance = amountIn !== null && balance !== undefined && amountIn > balance;
+  // Exact cents (a rule's budget is floored to cents), no float rounding of raw units.
+  const maxRaw = maxUsd != null ? BigInt(Math.round(maxUsd * 100)) * BigInt(10 ** (USDC.decimals - 2)) : null;
+  const overMax = side === 'buy' && maxRaw !== null && amountIn !== null && amountIn > maxRaw;
   const amountKey = amountIn?.toString() ?? '';
   const { quote, quoteError, clearQuote } = useLiveQuote(amountKey ? `/api/swap/quote?symbol=${stock.symbol}&side=${side}&amountIn=${amountKey}` : null);
 
@@ -44,6 +70,12 @@ export function SwapPanel({ stock, defaultUsd, source = 'stock' }: { stock: CbSt
       approvalReverted: `The ${inToken.symbol} approval reverted onchain. Nothing was swapped.`,
       reverted: `The swap reverted onchain (price moved past the ${slippageBps / 100}% limit). Your funds did not move.`,
     },
+    onSent: (tx, hash) => {
+      if (tx.quote.side === 'buy') onBuySent?.(Number(formatUnits(BigInt(tx.quote.amountIn), USDC.decimals)), hash);
+    },
+    onSendFailed: (tx, hash) => {
+      if (tx.quote.side === 'buy') onBuyReverted?.(hash);
+    },
     onSwapped: (tx, hash) => {
       const text = side === 'buy'
         ? `Bought ${stock.symbol} with ${fmt(tx.quote.amountIn, USDC.decimals, 2)} USDC.`
@@ -53,6 +85,8 @@ export function SwapPanel({ stock, defaultUsd, source = 'stock' }: { stock: CbSt
       notify({ kind: 'tx', tone: 'success', title: side === 'buy' ? `Bought ${stock.symbol}` : `Sold ${stock.symbol}`, body: text });
       void refetchBalance();
       void logSwapHash(hash);
+      // The exact USDC reviewed and paid, not KyberSwap's USD estimate.
+      if (tx.quote.side === 'buy') onBought?.(Number(formatUnits(BigInt(tx.quote.amountIn), USDC.decimals)), hash);
     },
   });
 
@@ -85,6 +119,7 @@ export function SwapPanel({ stock, defaultUsd, source = 'stock' }: { stock: CbSt
 
   return (
     <div className="swap-panel">
+      {!buyOnly && (
       <div className="carry-direction-toggle swap-side-toggle" role="tablist" aria-label="Buy or sell">
         {(['buy', 'sell'] as const).map((s) => (
           <button
@@ -106,6 +141,7 @@ export function SwapPanel({ stock, defaultUsd, source = 'stock' }: { stock: CbSt
           </button>
         ))}
       </div>
+      )}
       <p className="geo-note" style={{ marginTop: 0 }}>
         Your wallet: {balance !== undefined ? `${fmt(balance, inToken.decimals)} ${inToken.symbol}` : '…'} on Base
       </p>
@@ -132,12 +168,13 @@ export function SwapPanel({ stock, defaultUsd, source = 'stock' }: { stock: CbSt
           Max
         </button>
         {!review && (
-          <button type="button" className="btn" onClick={startReview} disabled={busy !== null || !amountIn || overBalance || !quote}>
+          <button type="button" className="btn" onClick={startReview} disabled={busy !== null || !amountIn || overBalance || overMax || !quote}>
             {busy ? busyLabel[busy] : 'Review'}
           </button>
         )}
       </div>
       {overBalance && <p className="geo-note">That is more {inToken.symbol} than your wallet holds on Base.</p>}
+      {overMax && maxUsd != null && <p className="geo-note">This run is at most {usd(maxUsd)}.</p>}
       {!review && <SlippageControl disabled={busy !== null} />}
 
       {quote && !review && (

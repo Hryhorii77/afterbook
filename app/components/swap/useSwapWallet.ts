@@ -90,15 +90,20 @@ export function useSwapWallet() {
     if (receipt.status !== 'success') throw new Error(revertedMessage);
   };
 
-  /** Sends a checked router swap with the Builder Code and waits for it to be mined; returns its hash.
-   *  `onSigned` runs once the wallet has sent it. */
+  /** Sends a checked router swap with the Builder Code and waits for it to be mined; returns the hash that
+   *  was mined (a wallet's "Speed up" mines the same swap under a new hash). `onSigned` runs once the
+   *  wallet has sent it. A wallet "Cancel" is a failure (SWAP_CANCELLED), not a swap; another replacement
+   *  is reported as SWAP_REPLACED, since what it did is unknown. */
   const sendSwap = async (tx: SwapTx, revertedMessage: string, onSigned?: (hash: Hex) => void): Promise<Hex> => {
     if (getAddress(tx.to) !== KYBER_ROUTER) throw new Error('Refused: unexpected contract.');
     const hash = await sendTransactionAsync({ to: tx.to, data: concat([tx.data, BUILDER_CODE_SUFFIX]), value: BigInt(0), chainId: base.id });
     onSigned?.(hash);
-    const receipt = await client().waitForTransactionReceipt({ hash });
+    let replaced: 'cancelled' | 'replaced' | 'repriced' | null = null;
+    const receipt = await client().waitForTransactionReceipt({ hash, onReplaced: (r) => void (replaced = r.reason) });
+    if (replaced === 'cancelled') throw new Error(SWAP_CANCELLED);
+    if (replaced === 'replaced') throw new Error(SWAP_REPLACED);
     if (receipt.status !== 'success') throw new Error(revertedMessage);
-    return hash;
+    return receipt.transactionHash;
   };
 
   /** Sets the router's allowance for `token` back to zero (Portfolio's Revoke): approve(router, 0). */
@@ -117,6 +122,9 @@ export interface RunTexts {
   declinedBody: string;
   failedTitle: string;
 }
+
+export const SWAP_CANCELLED = 'The swap was cancelled in your wallet. Nothing was bought or sold.';
+export const SWAP_REPLACED = 'Your wallet replaced the swap with another transaction. Check your wallet activity to see what went through.';
 
 /** Busy label, error line and the try/catch every panel wraps a wallet run in. */
 export function useTxRun(texts: RunTexts) {
@@ -192,6 +200,10 @@ export function useReviewedSwap(opts: {
   sameTrade: (next: SwapTx, reviewed: SwapTx) => boolean;
   texts: RunTexts & { reverted: string; approvalReverted: string };
   onSwapped: (tx: SwapTx, hash: Hex) => void;
+  /** Bookkeeping only: the wallet has sent the swap (not yet mined). */
+  onSent?: (tx: SwapTx, hash: Hex) => void;
+  /** Bookkeeping only: a sent swap was mined and reverted, or cancelled in the wallet (nothing swapped). */
+  onSendFailed?: (tx: SwapTx, hash: Hex) => void;
 }) {
   const wallet = useSwapWallet();
   const { busy, setBusy, error, setError, run } = useTxRun(opts.texts);
@@ -231,10 +243,22 @@ export function useReviewedSwap(opts: {
       }
 
       setBusy('swap');
-      const hash = await wallet.sendSwap(tx, opts.texts.reverted, () => {
-        setReview(null);
-        setBusy('confirming');
-      });
+      let sent: Hex | null = null;
+      let hash: Hex;
+      try {
+        hash = await wallet.sendSwap(tx, opts.texts.reverted, (h) => {
+          sent = h;
+          setReview(null);
+          setBusy('confirming');
+          opts.onSent?.(tx, h);
+        });
+      } catch (e) {
+        // Only a mined revert or a wallet cancel is a failure; a receipt that couldn't be read, or an unknown
+        // replacement, may still have swapped.
+        const msg = (e as Error).message;
+        if (sent && (msg === opts.texts.reverted || msg === SWAP_CANCELLED)) opts.onSendFailed?.(tx, sent);
+        throw e;
+      }
       opts.onSwapped(tx, hash);
     });
 
