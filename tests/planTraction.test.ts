@@ -10,6 +10,7 @@ const r = vi.hoisted(() => {
     const p = {
       hincrby: (k: string, f: string, n: number) => (ops.push(() => { calls.push(`hincrby ${k} ${f}`); const h = (hashes.get(k) ?? {}); h[f] = (h[f] ?? 0) + n; hashes.set(k, h); return h[f]; }), p),
       hgetall: (k: string) => (ops.push(() => hashes.get(k) ?? null), p),
+      ttl: (k: string) => (ops.push(() => (calls.includes(`expire ${k}`) ? 100 : -1)), p),
       exec: async () => ops.map((o) => o()),
     };
     return p;
@@ -41,20 +42,20 @@ vi.mock('@/lib/swap/swapLog', async (orig) => ({
 
 import { NextRequest } from 'next/server';
 import { POST as build } from '../app/api/swap/build/route';
-import { countPlan, planStats } from '../lib/agent/planStats';
+import { countPlan, countRuleCheck, planStats } from '../lib/agent/planStats';
 import { swapStats } from '../lib/swap/swapLog';
 
 const ACCOUNT = '0x9b3F0000000000000000000000000000000006Ba';
 
 describe('swap build label', () => {
   beforeEach(() => (built.sources = []));
-  it('labels a plan buy "plan", a basket leg "basket", anything else "stock"', async () => {
-    for (const source of ['plan', 'basket', undefined, 'meme', 'anything']) {
+  it('labels a plan buy "plan", a rule run "rule", a basket leg "basket", anything else "stock"', async () => {
+    for (const source of ['plan', 'rule', 'basket', undefined, 'meme', 'anything']) {
       const res = await build(new NextRequest('http://local/api/swap/build', { method: 'POST', body: JSON.stringify({ symbol: 'NVDAc', side: 'buy', amountIn: '100000000', account: ACCOUNT, source }) }));
       expect(res.status).toBe(200);
     }
     // A stock swap can't claim to be a meme buy: only a meme request is labelled 'meme'.
-    expect(built.sources).toEqual(['plan', 'basket', 'stock', 'stock', 'stock']);
+    expect(built.sources).toEqual(['plan', 'rule', 'basket', 'stock', 'stock', 'stock']);
   });
 });
 
@@ -76,8 +77,17 @@ describe('plan counters', () => {
     // The expiry is set once per day key, on its first plan.
     expect(r.calls.filter((c) => c.startsWith('expire'))).toEqual(['expire stats:plans:2026-11-08', 'expire stats:plans:2026-11-09']);
     const s = await planStats(7, day + 86_400_000);
-    expect(s?.total).toEqual({ made: 3, claude: 2, withBuy: 1 });
-    expect(s?.byDay['2026-11-08']).toEqual({ made: 2, claude: 1, withBuy: 1 });
+    expect(s?.total).toEqual({ made: 3, claude: 2, withBuy: 1, ruleChecks: 0, rulePassed: 0 });
+    expect(s?.byDay['2026-11-08']).toEqual({ made: 2, claude: 1, withBuy: 1, ruleChecks: 0, rulePassed: 0 });
+  });
+  it('counts rule checks in the same day hash, setting the expiry only if the day had none', async () => {
+    const day = Date.parse('2026-11-12T12:00:00Z');
+    await countRuleCheck(true, day);
+    await countRuleCheck(false, day);
+    expect(r.calls.filter((c) => c.startsWith('expire'))).toEqual(['expire stats:plans:2026-11-12']);
+    await countPlan({ explainedBy: 'fixed', buys: 0 }, day);
+    const s = await planStats(1, day);
+    expect(s?.total).toEqual({ made: 1, claude: 0, withBuy: 0, ruleChecks: 2, rulePassed: 1 });
   });
   it('waits at most a moment for a slow Redis', async () => {
     const { countPlanBriefly } = await import('../lib/agent/planStats');

@@ -5,6 +5,7 @@
 // panel with that amount, behind the same region and eligibility checks as everywhere else; nothing is
 // sent without the person's signature. Past plans are kept in this browser only (owner choice).
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import type { TapeResult } from '@/lib/market/tape';
 import type { GeoInfo } from '@/lib/server/geo';
 import type { Plan, PlanLeg } from '@/lib/agent/plan';
@@ -372,6 +373,12 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
           </div>
         </section>
       )}
+
+      <p className="geo-note">
+        <Link href="/rules" className="page-link">
+          Buy on a schedule with stock rules<span className="arrow">→</span>
+        </Link>
+      </p>
     </main>
   );
 }

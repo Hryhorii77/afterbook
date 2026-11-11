@@ -13,5 +13,5 @@ export async function GET(request: NextRequest) {
   const days = Math.min(Math.max(Number(request.nextUrl.searchParams.get('days') ?? 30) || 30, 1), 365);
   const [plans, swaps] = await Promise.all([planStats(days), swapStats(days)]);
   if (!plans || !swaps) return NextResponse.json({ error: 'store unavailable' }, { status: 503 });
-  return NextResponse.json({ days, plans: plans.total, plansByDay: plans.byDay, planSwaps: swaps.bySource.plan, allSwaps: { swaps: swaps.swaps, traders: swaps.traders, volumeUsd: swaps.volumeUsd } });
+  return NextResponse.json({ days, plans: plans.total, plansByDay: plans.byDay, planSwaps: swaps.bySource.plan, ruleSwaps: swaps.bySource.rule, allSwaps: { swaps: swaps.swaps, traders: swaps.traders, volumeUsd: swaps.volumeUsd } });
 }

@@ -16,8 +16,20 @@ import { SlippageControl, useSlippage } from './slippage';
 // the router if needed, the swap with Afterbook's Builder Code) to useSwapWallet.ts. It never holds
 // funds or signs.
 
-/** `source` labels the build for the swap metrics only (lib/swap/swapLog.ts); it changes nothing in the trade. */
-export function SwapPanel({ stock, defaultUsd, source = 'stock' }: { stock: CbStock; defaultUsd?: number; source?: 'stock' | 'plan' }) {
+/** `source` labels the build for the swap metrics only (lib/swap/swapLog.ts); it changes nothing in the trade.
+ *  `onBought` tells the page a buy went through (for /rules' run history); it runs after the swap is
+ *  mined and changes nothing in it. */
+export function SwapPanel({
+  stock,
+  defaultUsd,
+  source = 'stock',
+  onBought,
+}: {
+  stock: CbStock;
+  defaultUsd?: number;
+  source?: 'stock' | 'plan' | 'rule';
+  onBought?: (usd: number, hash: Hex) => void;
+}) {
   const { notify } = useNotify();
   const [side, setSide] = useState<SwapSide>('buy');
   const [amount, setAmount] = useState(defaultUsd ? String(Math.round(defaultUsd)) : '');
@@ -53,6 +65,8 @@ export function SwapPanel({ stock, defaultUsd, source = 'stock' }: { stock: CbSt
       notify({ kind: 'tx', tone: 'success', title: side === 'buy' ? `Bought ${stock.symbol}` : `Sold ${stock.symbol}`, body: text });
       void refetchBalance();
       void logSwapHash(hash);
+      // The exact USDC reviewed and paid, not KyberSwap's USD estimate.
+      if (tx.quote.side === 'buy') onBought?.(Number(formatUnits(BigInt(tx.quote.amountIn), USDC.decimals)), hash);
     },
   });
 
