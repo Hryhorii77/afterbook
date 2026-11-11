@@ -95,6 +95,28 @@ describe('rule validation and backup', () => {
     expect(runs).toHaveLength(1);
     expect(runs[0].usd).toBe(80);
   });
+  it('a buy wins over a skip or a pending for the same run, whatever the order', () => {
+    const runs = cleanRuns([run({ outcome: 'skipped', usd: undefined, at: 9 }), run({ outcome: 'pending', at: 8 }), run({ at: 1 })]);
+    expect(runs).toHaveLength(1);
+    expect(runs[0].outcome).toBe('bought');
+  });
+  it('a pending buy counts toward the cap and makes the run handled', () => {
+    const capped = { ...base, capUsd: 60 };
+    const pending = [run({ outcome: 'pending', usd: 50 })];
+    expect(ruleState(capped, pending, '2026-11-17')).toMatchObject({ kind: 'done-today', outcome: 'pending' });
+    expect(runBudget(capped, pending)).toBe(10);
+  });
+  it('never trims a live rule’s buys, so its cap can’t reset', () => {
+    // 150 old buys of a capped rule and 300 newer skips of another rule: the buys all stay.
+    const buys = Array.from({ length: 150 }, (_, i) => run({ slot: `2020-01-01`.replace('2020', String(2000 + Math.floor(i / 12))).replace('-01-01', `-${String((i % 12) + 1).padStart(2, '0')}-01`), at: i + 1, usd: 50 }));
+    const skips = Array.from({ length: 300 }, (_, i) => ({ ruleId: 'rule_2', symbol: 'METAc', slot: `2030-01-${String((i % 28) + 1).padStart(2, '0')}`, at: 10_000 + i, outcome: 'skipped' as const, reason: `x${Math.floor(i / 28)}` }))
+      .map((r, i) => ({ ...r, slot: `${2030 + Math.floor(i / 28)}-01-${String((i % 28) + 1).padStart(2, '0')}` }));
+    const kept = cleanRuns([...buys, ...skips], new Set(['rule_1', 'rule_2']));
+    expect(kept.filter((r) => r.ruleId === 'rule_1')).toHaveLength(150);
+    expect(kept).toHaveLength(RULE_LIMITS.maxRuns);
+    // Once the rule is deleted its buys may be trimmed like anything else.
+    expect(cleanRuns([...buys, ...skips]).filter((r) => r.ruleId === 'rule_1')).toHaveLength(0);
+  });
   it('round-trips an export and merges an import', () => {
     const file = JSON.stringify(exportFile([base], [run({})], 9));
     const other = { ...base, id: 'rule_2', symbol: 'METAc' };
@@ -107,6 +129,14 @@ describe('rule validation and backup', () => {
     const withBad = JSON.stringify({ ...exportFile([base, { ...base, id: 'rule_3', symbol: 'XYZc' }], [], 9) });
     const res2 = importFile(withBad, { rules: [], runs: [] }, known);
     expect(typeof res2 !== 'string' && res2.skipped).toBe(1);
+  });
+  it('rebuilds rules and runs from their known fields only', () => {
+    const extra = { ...base, evil: '<img src=x>', cadence: { kind: 'weekly', weekday: 1, x: 1 } };
+    const res = importFile(JSON.stringify({ app: 'afterbook-rules', version: 1, rules: [extra], runs: [{ ...run({}), junk: 1 }] }), { rules: [], runs: [] }, known);
+    if (typeof res === 'string') throw new Error(res);
+    expect(Object.keys(res.rules[0])).not.toContain('evil');
+    expect(res.rules[0].cadence).toEqual({ kind: 'weekly', weekday: 1 });
+    expect(Object.keys(res.runs[0])).not.toContain('junk');
   });
   it('refuses files that aren’t an export', () => {
     expect(importFile('not json', { rules: [], runs: [] }, known)).toMatch(/isn’t JSON/);

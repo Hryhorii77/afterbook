@@ -8,7 +8,9 @@
 // with an export/import file for moving or backing them up.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import type { Hex } from 'viem';
+import { TransactionNotFoundError, TransactionReceiptNotFoundError, type Hex } from 'viem';
+import { usePublicClient } from 'wagmi';
+import { base } from 'wagmi/chains';
 import type { TapeResult } from '@/lib/market/tape';
 import type { GeoInfo } from '@/lib/server/geo';
 import type { PlanLeg } from '@/lib/agent/plan';
@@ -41,10 +43,8 @@ const known = (s: string) => !!getStock(s);
 
 function readStore(): { rules: Rule[]; runs: RuleRun[] } {
   try {
-    return {
-      rules: cleanRules(JSON.parse(localStorage.getItem(RULES_KEY) ?? '[]'), known),
-      runs: cleanRuns(JSON.parse(localStorage.getItem(RUNS_KEY) ?? '[]')),
-    };
+    const rules = cleanRules(JSON.parse(localStorage.getItem(RULES_KEY) ?? '[]'), known);
+    return { rules, runs: cleanRuns(JSON.parse(localStorage.getItem(RUNS_KEY) ?? '[]'), liveIds(rules)) };
   } catch {
     return { rules: [], runs: [] };
   }
@@ -60,6 +60,12 @@ function writeStore(rules: Rule[], runs: RuleRun[]): boolean {
     return false;
   }
 }
+
+const liveIds = (rules: Rule[]) => new Set(rules.map((r) => r.id));
+
+/** A pending buy whose transaction isn't found this long after it was sent can be marked as not gone
+ *  through by hand (a dropped transaction); before that, or once found, only the receipt decides. */
+const PENDING_GIVE_UP_MS = 30 * 60_000;
 
 const newId = () => `r${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
 
@@ -77,6 +83,8 @@ interface Check {
   leg: PlanLeg;
   session: { state: string; label: string; nextOpenIso: string };
   checkedAt: number;
+  /** What the run may spend (the run's amount, cut to what's left of the cap): the swap refuses more. */
+  budgetUsd: number;
 }
 
 /** A passed check opens the swap for this long; after it, or on a new day, or once the rule is paused,
@@ -113,6 +121,8 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
   const [check, setCheck] = useState<Check | null>(null);
   const [checkError, setCheckError] = useState<string | null>(null);
   const [eligible, setEligible] = useState(false);
+  const [justBought, setJustBought] = useState<{ symbol: string; usd: number; hash: Hex } | null>(null);
+  const [revertNote, setRevertNote] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [backupNote, setBackupNote] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -125,12 +135,23 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
     setToday(localDayKey());
     setNow(Date.now());
     setLoaded(true);
+    // Another tab changed the rules or runs: take its version (it may have bought a run this tab shows).
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== RULES_KEY && e.key !== RUNS_KEY && e.key !== null) return;
+      const next = readStore();
+      setRules(next.rules);
+      setRuns(next.runs);
+    };
+    window.addEventListener('storage', onStorage);
     // Keep "today" right across midnight, and a check's age, while the page stays open.
     const id = setInterval(() => {
       setToday(localDayKey());
       setNow(Date.now());
     }, 30_000);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('storage', onStorage);
+    };
   }, []);
 
   const save = useCallback((nextRules: Rule[], nextRuns: RuleRun[]) => {
@@ -144,7 +165,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
       // Read back first: another tab may have changed the store since this one loaded it.
       const s = readStore();
       const others = s.runs.filter((r) => !(r.ruleId === run.ruleId && r.slot === run.slot));
-      save(s.rules, cleanRuns([run, ...others]));
+      save(s.rules, cleanRuns([run, ...others], liveIds(s.rules)));
     },
     [save],
   );
@@ -196,6 +217,8 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
     if (state.kind !== 'due') return;
     setChecking(rule.id);
     setCheck(null);
+    setJustBought(null);
+    setRevertNote(null);
     setCheckError(null);
     try {
       const res = await fetch('/api/agent/rule-check', {
@@ -210,7 +233,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
       }
       const checkedAt = Date.now();
       setNow(checkedAt);
-      setCheck({ ruleId: rule.id, slot: state.slot, leg: body.leg, session: body.session, checkedAt });
+      setCheck({ ruleId: rule.id, slot: state.slot, leg: body.leg, session: body.session, checkedAt, budgetUsd: state.usd });
       requestAnimationFrame(() => checkRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     } catch {
       setCheckError('Couldn’t check the run just now. Try again in a moment.');
@@ -225,12 +248,89 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
     if (check?.ruleId === rule.id) setCheck(null);
   };
 
-  const bought = (rule: Rule, slot: string) => (paid: number, hash: Hex) => {
-    // A second buy in the same run (the panel stays open) adds to the first, so the cap counts both.
-    const before = readStore().runs.find((r) => r.ruleId === rule.id && r.slot === slot && r.outcome === 'bought');
-    const total = Math.round(((before?.usd ?? 0) + paid) * 100) / 100;
-    addRun({ ruleId: rule.id, symbol: rule.symbol, slot, at: Date.now(), outcome: 'bought', usd: total, hash });
+  // One buy per run. The run is saved as pending the moment the wallet sends the swap (a closed tab then
+  // can't make it look due again), becomes bought once mined, and the check closes so it can't be bought
+  // twice; a mined revert puts the run back to due.
+  const sent = (rule: Rule, slot: string) => (paid: number, hash: Hex) => {
+    addRun({ ruleId: rule.id, symbol: rule.symbol, slot, at: Date.now(), outcome: 'pending', usd: Math.round(paid * 100) / 100, hash });
   };
+  const bought = (rule: Rule, slot: string) => (paid: number, hash: Hex) => {
+    addRun({ ruleId: rule.id, symbol: rule.symbol, slot, at: Date.now(), outcome: 'bought', usd: Math.round(paid * 100) / 100, hash });
+    setCheck(null);
+    setEligible(false);
+    setJustBought({ symbol: rule.symbol, usd: Math.round(paid * 100) / 100, hash });
+  };
+  const dropRun = useCallback(
+    (ruleId: string, slot: string) => {
+      const s = readStore();
+      save(s.rules, s.runs.filter((r) => !(r.ruleId === ruleId && r.slot === slot)));
+    },
+    [save],
+  );
+  const reverted = (rule: Rule, slot: string) => () => {
+    dropRun(rule.id, slot);
+    setCheck(null);
+    setEligible(false);
+    setRevertNote(`The ${rule.symbol} buy reverted onchain or was cancelled in your wallet, so nothing was bought. The run is due again; check it again to retry.`);
+  };
+
+  // Settle pending buys from the chain:
+  // - a receipt: mined → bought; mined and reverted → the run is due again;
+  // - no receipt, but the node knows the transaction: remember its sender and nonce;
+  // - otherwise it stays pending, counted toward the cap, and any RPC error leaves it so. A hash the node
+  //   doesn't know, or whose nonce another transaction used (a replacement: a sped-up buy lands under a
+  //   new hash), can be marked as not gone through by hand 30 minutes on, after checking the wallet.
+  const publicClient = usePublicClient({ chainId: base.id });
+  const [unknownToNode, setUnknownToNode] = useState<Set<string>>(new Set());
+  const pendingKey = runs.filter((r) => r.outcome === 'pending').map((r) => r.hash).join(',');
+  useEffect(() => {
+    if (!publicClient || !pendingKey) return;
+    let alive = true;
+    void (async () => {
+      const unknown = new Set<string>();
+      // Write only if the stored run is still this pending hash: the tab's own `bought` (or another tab)
+      // may have settled it while these reads were in flight.
+      const stillPending = (run: RuleRun) =>
+        readStore().runs.some((r) => r.ruleId === run.ruleId && r.slot === run.slot && r.outcome === 'pending' && r.hash === run.hash);
+      for (const run of readStore().runs.filter((r) => r.outcome === 'pending' && r.hash)) {
+        const hash = run.hash as Hex;
+        try {
+          const receipt = await publicClient.getTransactionReceipt({ hash });
+          if (!alive) return;
+          if (!stillPending(run)) continue;
+          if (receipt.status === 'success') addRun({ ...run, outcome: 'bought' });
+          else dropRun(run.ruleId, run.slot);
+          continue;
+        } catch (e) {
+          if (!(e instanceof TransactionReceiptNotFoundError)) continue; // an RPC error proves nothing
+        }
+        let seen = run.from && run.nonce != null ? { from: run.from, nonce: run.nonce } : null;
+        try {
+          const tx = await publicClient.getTransaction({ hash });
+          seen = { from: tx.from, nonce: tx.nonce };
+          if (alive && (run.from !== tx.from || run.nonce !== tx.nonce) && stillPending(run)) addRun({ ...run, from: tx.from, nonce: tx.nonce });
+        } catch (e) {
+          if (!(e instanceof TransactionNotFoundError)) continue;
+          if (!seen) unknown.add(hash);
+        }
+        if (!seen) continue;
+        try {
+          const used = await publicClient.getTransactionCount({ address: seen.from as Hex, blockTag: 'latest' });
+          // The nonce is used and this hash has no receipt: it was replaced. A wallet's "Speed up" mines the
+          // same buy under another hash, so this is never dropped automatically; the person checks their
+          // wallet and can then mark it by hand.
+          if (used > seen.nonce) unknown.add(hash);
+        } catch {
+          // stays pending
+        }
+      }
+      if (alive) setUnknownToNode(unknown);
+    })();
+    return () => {
+      alive = false;
+    };
+    // re-read every 30 s while something is pending (`now` ticks)
+  }, [publicClient, pendingKey, addRun, dropRun, now]);
 
   const setPaused = (id: string, paused: boolean) => {
     const s = readStore();
@@ -271,8 +371,14 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
 
   const checkedRule = check ? rules.find((r) => r.id === check.ruleId) : undefined;
   const checkedStock = check ? getStock(check.leg.symbol) : undefined;
+  const checkPending = !!check && runs.some((r) => r.ruleId === check.ruleId && r.slot === check.slot && r.outcome === 'pending');
+  const checkedState = check ? states.get(check.ruleId) : null;
+  // The swap is shown only while the checked run is still due: once it is pending or bought (by this tab,
+  // another tab, or the chain check), a second buy for it is impossible.
+  const checkDue = !!check && checkedState?.kind === 'due' && checkedState.slot === check.slot;
+  // A swap already sent from this check stays on screen until it is mined, however old the check is.
   const checkStale =
-    !!check && (!checkedRule || checkedRule.paused || now - check.checkedAt > CHECK_FRESH_MS || (today !== '' && localDayKey(new Date(check.checkedAt)) !== today));
+    !!check && !checkPending && (!checkedRule || checkedRule.paused || now - check.checkedAt > CHECK_FRESH_MS || (today !== '' && localDayKey(new Date(check.checkedAt)) !== today));
 
   return (
     <main className="plan-page">
@@ -290,9 +396,18 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
       </p>
       {saveFailed && <p className="geo-note geo-note-blocked">This browser didn’t let the page save (a private window or blocked storage). Your rules will be lost when you close it.</p>}
 
-      {loaded && (due.length > 0 || (check && checkedRule)) && (
+      {loaded && (due.length > 0 || (check && checkedRule) || justBought) && (
         <section className="panel rules-due" aria-live="polite">
           <h2>Due now</h2>
+          {justBought && (
+            <p className="geo-note">
+              Bought {usd(justBought.usd, 2)} of {justBought.symbol} for this run ·{' '}
+              <a href={`https://basescan.org/tx/${justBought.hash}`} target="_blank" rel="noopener noreferrer" className="emph-link">
+                transaction&nbsp;<span className="ext-arrow">↗</span>
+              </a>
+            </p>
+          )}
+          {revertNote && <p className="geo-note geo-note-blocked">{revertNote}</p>}
           {due.length === 0 && <p className="plan-hint">Nothing else is due today.</p>}
           <ul className="plan-legs">
             {due.map((rule) => {
@@ -370,7 +485,19 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
                 </p>
               </div>
 
-              {checkStale ? (
+              {checkPending || !checkDue ? (
+                <p className="geo-note">
+                  {checkPending ? 'Your wallet sent this run’s buy; it’s waiting to confirm and counts toward the rule’s cap.' : 'This run is no longer due (bought, skipped or paused).'}{' '}
+                  {(() => {
+                    const h = runs.find((r) => r.ruleId === check.ruleId && r.slot === check.slot)?.hash;
+                    return h ? (
+                      <a href={`https://basescan.org/tx/${h}`} target="_blank" rel="noopener noreferrer" className="emph-link">
+                        Transaction&nbsp;<span className="ext-arrow">↗</span>
+                      </a>
+                    ) : null;
+                  })()}
+                </p>
+              ) : checkStale ? (
                 <p className="geo-note">
                   This check is from {new Date(check.checkedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                   {checkedRule?.paused ? ' and the rule is paused' : ''}. Prices move, so check the run again before buying.
@@ -381,8 +508,8 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
                     {check.leg.symbol} · this run: {usd(check.leg.usd ?? 0, 0)}
                   </h3>
                   <p className="geo-note">
-                    The swap below gets a fresh quote and runs the usual checks. It starts at this run’s amount; what you type in the box is what you buy, and
-                    that is what counts toward the rule’s cap. If needed, your wallet asks you to approve exactly the amount you review, then the swap.
+                    The swap below gets a fresh quote and runs the usual checks. It starts at this run’s amount and takes at most {usd(check.budgetUsd, 2)};
+                    one buy per run, counted toward the rule’s cap. If needed, your wallet asks you to approve exactly the amount you review, then the swap.
                   </p>
                   {geo.nonUs === true ? (
                     <>
@@ -396,7 +523,11 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
                           stock={checkedStock}
                           defaultUsd={check.leg.usd}
                           source="rule"
+                          buyOnly
+                          maxUsd={check.budgetUsd}
+                          onBuySent={sent(checkedRule, check.slot)}
                           onBought={bought(checkedRule, check.slot)}
+                          onBuyReverted={reverted(checkedRule, check.slot)}
                         />
                       ) : (
                         <p className="geo-note">Tick the box above to review the buy.</p>
@@ -428,9 +559,11 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
               const st = states.get(rule.id);
               const stock = getStock(rule.symbol);
               const spent = spentUsd(rule.id, runs);
+              const pendingRun = runs.find((r) => r.ruleId === rule.id && r.outcome === 'pending');
               const status =
                 !st ? '' :
                 st.kind === 'due' ? `Due now (${dayText(st.slot)})` :
+                st.kind === 'done-today' && st.outcome === 'pending' ? `Sent for ${dayText(st.slot)}, waiting for it to confirm` :
                 st.kind === 'done-today' ? `${st.outcome === 'bought' ? 'Bought' : 'Skipped'} for ${dayText(st.slot)} · next ${dayText(st.next)}` :
                 st.kind === 'waiting' ? `Next run ${dayText(st.next)}` :
                 st.kind === 'paused' ? 'Paused' :
@@ -451,11 +584,27 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
                     <span className={st?.kind === 'due' ? 'plan-verdict rules-due-pill' : 'plan-verdict'}>{status}</span>
                   </div>
                   <p className="plan-hint">
-                    Bought so far: {usd(spent, 2)}
+                    Spent so far: {usd(spent, 2)}
                     {rule.capUsd != null && ` of a ${usd(rule.capUsd, 0)} cap`}
                     {rule.capUsd != null && runBudget(rule, runs) > 0 && runBudget(rule, runs) < rule.usd && ` · the last run is ${usd(runBudget(rule, runs), 2)}`}
                   </p>
+                  {pendingRun && (
+                    <p className="plan-hint">
+                      Your wallet sent this run’s buy; it counts toward the cap until it confirms.
+                      {unknownToNode.has(pendingRun.hash ?? '') && now - pendingRun.at > PENDING_GIVE_UP_MS
+                        ? ' This transaction hasn’t been found. If you sped it up or cancelled it in your wallet, it may have gone through under another hash: check your wallet’s activity before marking it.'
+                        : ''}{' '}
+                      <a href={`https://basescan.org/tx/${pendingRun.hash}`} target="_blank" rel="noopener noreferrer" className="emph-link">
+                        Transaction&nbsp;<span className="ext-arrow">↗</span>
+                      </a>
+                    </p>
+                  )}
                   <div className="basket-row">
+                    {pendingRun && unknownToNode.has(pendingRun.hash ?? '') && now - pendingRun.at > PENDING_GIVE_UP_MS && (
+                      <button type="button" className="btn btn-secondary" onClick={() => dropRun(pendingRun.ruleId, pendingRun.slot)}>
+                        It didn’t go through
+                      </button>
+                    )}
                     {st?.kind !== 'finished' && (
                       <button type="button" className="btn btn-secondary" onClick={() => setPaused(rule.id, !rule.paused)}>
                         {rule.paused ? 'Resume' : 'Pause'}
@@ -583,9 +732,9 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
               <li key={`${r.ruleId}-${r.slot}`}>
                 <span className="plan-log-date">{dayText(r.slot)}</span>
                 <span className="plan-log-leg">
-                  {r.outcome === 'bought' ? (
+                  {r.outcome !== 'skipped' ? (
                     <>
-                      Bought {usd(r.usd ?? 0, 2)} of {r.symbol}
+                      {r.outcome === 'bought' ? 'Bought' : 'Sent (not confirmed yet):'} {usd(r.usd ?? 0, 2)} of {r.symbol}
                       {r.hash && (
                         <>
                           {' · '}

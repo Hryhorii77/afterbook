@@ -11,7 +11,8 @@
 
 export const RULE_LIMITS = {
   maxRules: 12,
-  /** Runs kept in the history (newest first). */
+  /** Runs kept in the history (newest first). A live rule's bought and pending runs are never trimmed:
+   *  its total cap is counted from them. */
   maxRuns: 200,
   minRunUsd: 10,
   /** Same as one swap's cap, MAX_SWAP_USD in lib/swap/swap.ts (a test keeps them equal). */
@@ -47,7 +48,10 @@ export interface Rule {
   createdAt: number;
 }
 
-export type RunOutcome = 'bought' | 'skipped';
+/** 'pending': the wallet sent the swap but this page hasn't seen it mined (saved before the receipt, so a
+ *  closed tab can't make the run look due again and invite a second buy). The page settles it from the
+ *  receipt on its next visit. */
+export type RunOutcome = 'bought' | 'pending' | 'skipped';
 
 export interface RuleRun {
   ruleId: string;
@@ -56,9 +60,14 @@ export interface RuleRun {
   slot: string;
   at: number;
   outcome: RunOutcome;
-  /** Bought: the USDC paid. */
+  /** Bought or pending: the exact USDC reviewed. */
   usd?: number;
   hash?: string;
+  /** Pending: the sender and nonce once the node has seen the transaction. When the sender's count passes
+   *  this nonce with no receipt for the hash, another transaction took the nonce and this one can never be
+   *  mined. */
+  from?: string;
+  nonce?: number;
   /** Skipped: why, in the page's words (the check's deciding reason, or "You skipped it"). */
   reason?: string;
 }
@@ -116,9 +125,9 @@ export function nextSlot(rule: Pick<Rule, 'cadence' | 'startKey'>, today: string
   return addDays(today, 62); // unreachable for valid cadences
 }
 
-/** USDC bought so far under a rule. */
+/** USDC spent so far under a rule; a pending buy counts until it is known to have failed. */
 export function spentUsd(ruleId: string, runs: RuleRun[]): number {
-  return runs.reduce((s, r) => s + (r.ruleId === ruleId && r.outcome === 'bought' ? (r.usd ?? 0) : 0), 0);
+  return runs.reduce((s, r) => s + (r.ruleId === ruleId && r.outcome !== 'skipped' ? (r.usd ?? 0) : 0), 0);
 }
 
 /** What a run may spend: the rule's amount, cut to what's left of its total cap. Below the minimum swap
@@ -206,27 +215,61 @@ export function isRuleRun(v: unknown): v is RuleRun {
     typeof r.symbol === 'string' && r.symbol.length <= 20 &&
     isDayKey(r.slot) &&
     isNum(r.at, 0, Number.MAX_SAFE_INTEGER) &&
-    (r.outcome === 'bought' || r.outcome === 'skipped') &&
+    (r.outcome === 'bought' || r.outcome === 'pending' || r.outcome === 'skipped') &&
     (r.usd === undefined || isNum(r.usd, 0, RULE_LIMITS.maxRunUsd)) &&
     (r.hash === undefined || (typeof r.hash === 'string' && HASH_RE.test(r.hash))) &&
+    (r.from === undefined || (typeof r.from === 'string' && /^0x[0-9a-fA-F]{40}$/.test(r.from))) &&
+    (r.nonce === undefined || isInt(r.nonce, 0, Number.MAX_SAFE_INTEGER)) &&
     (r.reason === undefined || (typeof r.reason === 'string' && r.reason.length <= 400))
   );
 }
 
-/** Keeps the good entries: rules by distinct id (at most maxRules), runs one per rule and day, newest first. */
+/** Keeps the good entries: rules by distinct id (at most maxRules). */
 export function cleanRules(rules: unknown, known: (symbol: string) => boolean): Rule[] {
   if (!Array.isArray(rules)) return [];
   const seen = new Set<string>();
-  return rules.filter((r): r is Rule => isRule(r, known) && !seen.has(r.id) && !!seen.add(r.id)).slice(0, RULE_LIMITS.maxRules);
+  return rules
+    .filter((r): r is Rule => isRule(r, known) && !seen.has(r.id) && !!seen.add(r.id))
+    .slice(0, RULE_LIMITS.maxRules)
+    .map(pickRule);
 }
-export function cleanRuns(runs: unknown): RuleRun[] {
+
+/** Rebuilt from the known fields only, so nothing extra from storage or an import file rides along. */
+function pickRule(r: Rule): Rule {
+  const cadence: Cadence = r.cadence.kind === 'monthly' ? { kind: 'monthly', day: r.cadence.day } : { kind: r.cadence.kind, weekday: r.cadence.weekday };
+  return {
+    id: r.id, symbol: r.symbol, usd: r.usd, cadence, capUsd: r.capUsd, maxPremiumBp: r.maxPremiumBp, maxCostBp: r.maxCostBp,
+    earningsDays: r.earningsDays, paused: r.paused, startKey: r.startKey, createdAt: r.createdAt,
+  };
+}
+function pickRun(r: RuleRun): RuleRun {
+  const out: RuleRun = { ruleId: r.ruleId, symbol: r.symbol, slot: r.slot, at: r.at, outcome: r.outcome };
+  if (r.usd !== undefined) out.usd = r.usd;
+  if (r.hash !== undefined) out.hash = r.hash;
+  if (r.reason !== undefined) out.reason = r.reason;
+  if (r.from !== undefined) out.from = r.from;
+  if (r.nonce !== undefined) out.nonce = r.nonce;
+  return out;
+}
+const RANK: Record<RunOutcome, number> = { bought: 0, pending: 1, skipped: 2 };
+
+/** Keeps the good runs, one per rule and day (a buy wins over a pending one, which wins over a skip; then
+ *  the newest), newest first. The history is trimmed to maxRuns, except the bought and pending runs of
+ *  the rules in `live`: a rule's total cap is counted from them, so dropping one would let it buy again. */
+export function cleanRuns(runs: unknown, live: ReadonlySet<string> = new Set()): RuleRun[] {
   if (!Array.isArray(runs)) return [];
-  const seen = new Set<string>();
-  return runs
-    .filter((r): r is RuleRun => isRuleRun(r))
-    .sort((a, b) => b.at - a.at)
-    .filter((r) => !seen.has(`${r.ruleId}|${r.slot}`) && !!seen.add(`${r.ruleId}|${r.slot}`))
-    .slice(0, RULE_LIMITS.maxRuns);
+  const best = new Map<string, RuleRun>();
+  for (const raw of runs) {
+    if (!isRuleRun(raw)) continue;
+    const r = pickRun(raw);
+    const key = `${r.ruleId}|${r.slot}`;
+    const had = best.get(key);
+    if (!had || RANK[r.outcome] < RANK[had.outcome] || (RANK[r.outcome] === RANK[had.outcome] && r.at > had.at)) best.set(key, r);
+  }
+  const sorted = [...best.values()].sort((a, b) => b.at - a.at);
+  const kept = (r: RuleRun) => live.has(r.ruleId) && r.outcome !== 'skipped';
+  let room = Math.max(0, RULE_LIMITS.maxRuns - sorted.filter(kept).length);
+  return sorted.filter((r) => kept(r) || (room-- > 0));
 }
 
 // ---- export / import ---------------------------------------------------------------------------------
@@ -266,6 +309,6 @@ export function importFile(
   const ids = new Set(incoming.map((r) => r.id));
   const rules = [...incoming, ...current.rules.filter((r) => !ids.has(r.id))];
   if (rules.length > RULE_LIMITS.maxRules) return `That would make ${rules.length} rules; the most is ${RULE_LIMITS.maxRules}. Delete some first.`;
-  const runs = cleanRuns([...cleanRuns(f.runs), ...current.runs]);
+  const runs = cleanRuns([...(Array.isArray(f.runs) ? f.runs : []), ...current.runs], new Set(rules.map((r) => r.id)));
   return { rules, runs, added: incoming.length, skipped: raw.length - incoming.length };
 }
