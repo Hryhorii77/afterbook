@@ -22,7 +22,7 @@ import { encodeAbiParameters, getAddress, keccak256, parseAbi } from 'viem';
 import { fetchCoinbaseStockList } from '../stocks/coinbaseStockList';
 import { getClient } from '../market/quote';
 import { redis } from '../server/redis';
-import { kyberBase, kyberHeaders } from '../swap/kyberClient';
+import { kyberBase, kyberHeaders, logKyberFailure } from '../swap/kyberClient';
 import { AERO_CL_FACTORY, CL_FACTORY, STOCKS, USDC, type CbStock } from '../stocks/tokens';
 
 export const UNISWAP_V3_FACTORY = '0x33128a8fC17869897dcE68Ed026d694621f6FDfD' as const;
@@ -225,6 +225,8 @@ async function hasSellRoute(meme: `0x${string}`, decimals: number, priceUsd: num
   const units = BigInt(Math.max(1, Math.floor((20 / priceUsd) * 10 ** Math.min(decimals, 18))));
   const params = new URLSearchParams({ tokenIn: meme, tokenOut: USDC.address, amountIn: units.toString() });
   const res = await fetch(`${kyberBase()}/routes?${params}`, { headers: kyberHeaders(), cache: 'no-store', signal: AbortSignal.timeout(8000) });
+  // A refused key or a rate limit would otherwise read as "no sell route" and quietly drop every meme.
+  logKyberFailure(res.status, `/routes?${params}`);
   const json = (await res.json().catch(() => null)) as { data?: { routeSummary?: { amountOut?: string } } } | null;
   return res.ok && BigInt(json?.data?.routeSummary?.amountOut ?? '0') > BigInt(0);
 }

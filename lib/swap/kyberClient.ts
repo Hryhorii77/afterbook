@@ -23,6 +23,16 @@ export function kyberHeaders(json = false): Record<string, string> {
   return { ...(key ? { 'x-api-key': key } : { 'x-client-id': KYBER_SOURCE }), ...(json ? { 'content-type': 'application/json' } : {}) };
 }
 
+/** A refused key, a wrong gateway path or a rate limit stops every swap and empties the meme board's
+ *  sell check, so it goes to the server log: the full URL path without the query, and the status; never
+ *  the key. Other statuses (KyberSwap finding no route for a trade, or another answer about the request
+ *  itself) stay quiet. A wrong key was checked live on 2026-11-12: 401 "invalid api key". */
+export function logKyberFailure(status: number, path: string): void {
+  if (![401, 403, 404, 429].includes(status)) return;
+  const url = new URL(`${kyberBase()}${path}`);
+  console.error(`kyberswap: ${status} from ${url.host}${url.pathname}`);
+}
+
 /** KyberSwap's error text is shown to the trader; if it ever quotes the key (a rejected or rate-limited
  *  key is the likely case), it is blanked out first. */
 export function redactKyber(message: string): string {

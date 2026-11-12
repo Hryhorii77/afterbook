@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { KYBER_GATEWAY, KYBER_PUBLIC, KYBER_SOURCE, kyberBase, kyberHeaders, redactKyber } from '../lib/swap/kyberClient';
+import { KYBER_GATEWAY, KYBER_PUBLIC, KYBER_SOURCE, kyberBase, kyberHeaders, logKyberFailure, redactKyber } from '../lib/swap/kyberClient';
 
 describe('KyberSwap client', () => {
   afterEach(() => vi.unstubAllEnvs());
@@ -32,5 +32,27 @@ describe('KyberSwap client', () => {
   it('never uses the key as the build source', () => {
     vi.stubEnv('KYBERSWAP_API_KEY', 'test-key-123');
     expect(KYBER_SOURCE).toBe('afterbook');
+  });
+});
+
+describe('logKyberFailure', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+  it('logs the full path and status for auth, path and rate-limit failures, never the key or query', () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubEnv('KYBERSWAP_API_KEY', 'test-key-123');
+    logKyberFailure(401, '/routes?tokenIn=0xabc&amountIn=1');
+    expect(err).toHaveBeenCalledWith('kyberswap: 401 from api.kyberswap.com/swap/base/api/v1/routes');
+    vi.stubEnv('KYBERSWAP_API_KEY', '');
+    logKyberFailure(429, '/route/build');
+    expect(err).toHaveBeenLastCalledWith('kyberswap: 429 from aggregator-api.kyberswap.com/base/api/v1/route/build');
+    expect(err.mock.calls.flat().join(' ')).not.toContain('test-key-123');
+  });
+  it('stays quiet on ordinary answers', () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    for (const s of [200, 400, 422, 500]) logKyberFailure(s, '/routes');
+    expect(err).not.toHaveBeenCalled();
   });
 });
