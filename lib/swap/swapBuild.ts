@@ -6,7 +6,7 @@ import 'server-only';
 import { getAddress, type Hex } from 'viem';
 import type { CbStock } from '../stocks/tokens';
 import { getCachedPoolState, poolDepth } from '../market/quote';
-import { KYBER_SOURCE, kyberBase, kyberHeaders, redactKyber } from './kyberClient';
+import { KYBER_SOURCE, kyberBase, kyberHeaders, logKyberFailure, redactKyber } from './kyberClient';
 import {
   checkSwapCalldata,
   KYBER_ROUTER,
@@ -36,9 +36,7 @@ async function kyber<T>(path: string, init?: { body: unknown }): Promise<T> {
     signal: AbortSignal.timeout(8000),
   });
   const json = (await res.json().catch(() => null)) as { code?: number; message?: string; data?: T } | null;
-  // A refused key, a wrong gateway path or a rate limit stops every swap; say so in the server log (the
-  // host and status only, never the key) so it is seen before a trader reports it.
-  if ([401, 403, 404, 429].includes(res.status)) console.error(`kyberswap: ${res.status} from ${new URL(kyberBase()).host}${path.split('?')[0]}`);
+  logKyberFailure(res.status, path);
   // KyberSwap's message describes our request (e.g. "route not found"); it is passed on, with the API key
   // blanked out in case an auth or rate-limit error ever quotes it.
   if (!res.ok || !json?.data) throw new SwapError(json?.message ? `KyberSwap: ${redactKyber(String(json.message)).slice(0, 120)}` : `KyberSwap answered ${res.status}`);
