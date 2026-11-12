@@ -5,7 +5,7 @@
 //
 // Why KyberSwap (spike, 2026-10-13, in the product plan): it routed all 12 then-tracked tokens (Aerodrome
 // plus prop AMMs, within about -5 to +8 bp of our Aerodrome-only quote), needed no account or API key
-// (a registered client id, KYBERSWAP_CLIENT_ID, came later: kyberClient.ts), takes no protocol fee on swaps, and supports an integrator fee.
+// (an API key for their keyed gateway, KYBERSWAP_API_KEY, came later: kyberClient.ts), takes no protocol fee on swaps, and supports an integrator fee.
 import { decodeFunctionData, getAddress, isAddress, parseAbi, type Hex } from 'viem';
 import { STOCKS, USDC, type CbStock } from '../stocks/tokens';
 import type { MemePool } from '../memes/memestocks';

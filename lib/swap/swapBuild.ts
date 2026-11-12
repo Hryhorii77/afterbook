@@ -1,12 +1,12 @@
 // The server half of in-app swaps: asks KyberSwap's aggregator for a route and a transaction (with
-// Afterbook's registered client id, kyberClient.ts) and checks it with checkSwapCalldata before any
-// browser sees it. Server-only, so neither the client id nor this code can end up in a browser bundle;
+// Afterbook's KyberSwap API key, kyberClient.ts) and checks it with checkSwapCalldata before any
+// browser sees it. Server-only, so neither the API key nor this code can end up in a browser bundle;
 // what browsers need (the router address, limits, types, the pure checks) stays in swap.ts.
 import 'server-only';
 import { getAddress, type Hex } from 'viem';
 import type { CbStock } from '../stocks/tokens';
 import { getCachedPoolState, poolDepth } from '../market/quote';
-import { KYBER_SOURCE, kyberHeaders, redactKyber } from './kyberClient';
+import { KYBER_SOURCE, kyberBase, kyberHeaders, redactKyber } from './kyberClient';
 import {
   checkSwapCalldata,
   KYBER_ROUTER,
@@ -22,15 +22,13 @@ import {
   type SwapTx,
 } from './swap';
 
-const KYBER_API = 'https://aggregator-api.kyberswap.com/base/api/v1';
-
 /** Afterbook's fee for this request: never on a meme buy (the owner has not decided one), else swapFee(). */
 function feeFor(req: SwapRequest): SwapFee | null {
   return req.meme ? null : swapFee();
 }
 
 async function kyber<T>(path: string, init?: { body: unknown }): Promise<T> {
-  const res = await fetch(`${KYBER_API}${path}`, {
+  const res = await fetch(`${kyberBase()}${path}`, {
     method: init ? 'POST' : 'GET',
     headers: kyberHeaders(Boolean(init)),
     body: init ? JSON.stringify(init.body) : undefined,
@@ -38,8 +36,11 @@ async function kyber<T>(path: string, init?: { body: unknown }): Promise<T> {
     signal: AbortSignal.timeout(8000),
   });
   const json = (await res.json().catch(() => null)) as { code?: number; message?: string; data?: T } | null;
-  // KyberSwap's message describes our request (e.g. "route not found"); it is passed on, with the client
-  // id blanked out in case an auth or rate-limit error ever quotes it.
+  // A refused key, a wrong gateway path or a rate limit stops every swap; say so in the server log (the
+  // host and status only, never the key) so it is seen before a trader reports it.
+  if ([401, 403, 404, 429].includes(res.status)) console.error(`kyberswap: ${res.status} from ${new URL(kyberBase()).host}${path.split('?')[0]}`);
+  // KyberSwap's message describes our request (e.g. "route not found"); it is passed on, with the API key
+  // blanked out in case an auth or rate-limit error ever quotes it.
   if (!res.ok || !json?.data) throw new SwapError(json?.message ? `KyberSwap: ${redactKyber(String(json.message)).slice(0, 120)}` : `KyberSwap answered ${res.status}`);
   return json.data;
 }

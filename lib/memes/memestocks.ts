@@ -22,7 +22,7 @@ import { encodeAbiParameters, getAddress, keccak256, parseAbi } from 'viem';
 import { fetchCoinbaseStockList } from '../stocks/coinbaseStockList';
 import { getClient } from '../market/quote';
 import { redis } from '../server/redis';
-import { kyberHeaders } from '../swap/kyberClient';
+import { kyberBase, kyberHeaders } from '../swap/kyberClient';
 import { AERO_CL_FACTORY, CL_FACTORY, STOCKS, USDC, type CbStock } from '../stocks/tokens';
 
 export const UNISWAP_V3_FACTORY = '0x33128a8fC17869897dcE68Ed026d694621f6FDfD' as const;
@@ -36,7 +36,6 @@ export const MEME_THIN_LIQUIDITY_USD = 1_000;
 
 const POOLS_KEY = 'memes:pools';
 const DEX = 'https://api.dexscreener.com';
-const KYBER = 'https://aggregator-api.kyberswap.com/base/api/v1';
 
 // Majors and stablecoins are the "money" side of a pool, never the meme.
 const NOT_MEMES = new Set(
@@ -225,7 +224,7 @@ async function hasSellRoute(meme: `0x${string}`, decimals: number, priceUsd: num
   if (!(priceUsd > 0)) return false;
   const units = BigInt(Math.max(1, Math.floor((20 / priceUsd) * 10 ** Math.min(decimals, 18))));
   const params = new URLSearchParams({ tokenIn: meme, tokenOut: USDC.address, amountIn: units.toString() });
-  const res = await fetch(`${KYBER}/routes?${params}`, { headers: kyberHeaders(), cache: 'no-store', signal: AbortSignal.timeout(8000) });
+  const res = await fetch(`${kyberBase()}/routes?${params}`, { headers: kyberHeaders(), cache: 'no-store', signal: AbortSignal.timeout(8000) });
   const json = (await res.json().catch(() => null)) as { data?: { routeSummary?: { amountOut?: string } } } | null;
   return res.ok && BigInt(json?.data?.routeSummary?.amountOut ?? '0') > BigInt(0);
 }
