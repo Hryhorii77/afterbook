@@ -4,18 +4,18 @@
 // contract a user is ever asked to call or approve is KYBER_ROUTER below.
 //
 // Why KyberSwap (spike, 2026-10-13, in the product plan): it routed all 12 then-tracked tokens (Aerodrome
-// plus prop AMMs, within about -5 to +8 bp of our Aerodrome-only quote), needs no account or API key
-// (so there is no new secret), takes no protocol fee on swaps, and supports an integrator fee.
+// plus prop AMMs, within about -5 to +8 bp of our Aerodrome-only quote), needed no account or API key
+// (a registered client id, KYBERSWAP_CLIENT_ID, came later: kyberClient.ts), takes no protocol fee on swaps, and supports an integrator fee.
 import { decodeFunctionData, getAddress, isAddress, parseAbi, type Hex } from 'viem';
 import { STOCKS, USDC, type CbStock } from '../stocks/tokens';
 import type { MemePool } from '../memes/memestocks';
 import { getCachedPoolState, poolDepth } from '../market/quote';
+import { KYBER_SOURCE, kyberHeaders, redactKyber } from './kyberClient';
 
 /** KyberSwap MetaAggregationRouterV2 on Base (verified source on Sourcify). The only contract a swap
  *  transaction may target and the only spender a swap approval may name. */
 export const KYBER_ROUTER = '0x6131B5fae19EA4f9D964eAc0408E4408b66337b5' as const;
 const KYBER_API = 'https://aggregator-api.kyberswap.com/base/api/v1';
-const CLIENT_ID = 'afterbook';
 /** Default slippage limit, 0.5%: the wallet's transaction reverts rather than fill below quote minus
  *  this. The trader may pick MIN_SLIPPAGE_BPS..MAX_SLIPPAGE_BPS (owner, 2026-11-03: 0.1-1%, default
  *  0.5%, the same for memes); the server builds and checks every swap with the request's value. */
@@ -112,14 +112,15 @@ export class SwapError extends Error {
 async function kyber<T>(path: string, init?: { body: unknown }): Promise<T> {
   const res = await fetch(`${KYBER_API}${path}`, {
     method: init ? 'POST' : 'GET',
-    headers: { 'x-client-id': CLIENT_ID, ...(init ? { 'content-type': 'application/json' } : {}) },
+    headers: kyberHeaders(Boolean(init)),
     body: init ? JSON.stringify(init.body) : undefined,
     cache: 'no-store',
     signal: AbortSignal.timeout(8000),
   });
   const json = (await res.json().catch(() => null)) as { code?: number; message?: string; data?: T } | null;
-  // KyberSwap's message describes our request (e.g. "route not found"), never a key: safe to pass on.
-  if (!res.ok || !json?.data) throw new SwapError(json?.message ? `KyberSwap: ${String(json.message).slice(0, 120)}` : `KyberSwap answered ${res.status}`);
+  // KyberSwap's message describes our request (e.g. "route not found"); it is passed on, with the client
+  // id blanked out in case an auth or rate-limit error ever quotes it.
+  if (!res.ok || !json?.data) throw new SwapError(json?.message ? `KyberSwap: ${redactKyber(String(json.message)).slice(0, 120)}` : `KyberSwap answered ${res.status}`);
   return json.data;
 }
 
@@ -232,7 +233,7 @@ export async function buildSwap(req: SwapRequest, account: `0x${string}`): Promi
   const { summary, quote } = await getRoute(req, fee);
   const built = await kyber<{ amountIn: string; amountOut: string; data: Hex; routerAddress: string; transactionValue: string }>(
     '/route/build',
-    { body: { routeSummary: summary, sender: account, recipient: account, slippageTolerance: req.slippageBps, source: CLIENT_ID } },
+    { body: { routeSummary: summary, sender: account, recipient: account, slippageTolerance: req.slippageBps, source: KYBER_SOURCE } },
   );
   if (getAddress(built.routerAddress) !== KYBER_ROUTER) throw new SwapError('unexpected router');
   if (built.transactionValue !== '0') throw new SwapError('swap must not send ETH');

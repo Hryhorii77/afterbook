@@ -173,7 +173,10 @@ check passes, say so in one short line; do not pad.
   `AERO_CL_FACTORY`, `aerodrome` against `CL_FACTORY`.
 
 **Secrets**
-- No `GLIDER_API_KEY`, `CRON_SECRET`, bot token, Redis token or private key
+- KyberSwap calls take their headers only from `kyberHeaders()` (`lib/swap/kyberClient.ts`), KyberSwap's
+  error text passes through `redactKyber()` before it reaches a response, and the build body's `source`
+  stays `KYBER_SOURCE` ('afterbook'), never the client id (it may end up in public calldata).
+- No `GLIDER_API_KEY`, `KYBERSWAP_CLIENT_ID`, `CRON_SECRET`, bot token, Redis token or private key
   is logged, returned in a response, put in an error message, committed, or
   sent to the client (`NEXT_PUBLIC_*` is public: only public ids belong
   there). Error messages returned to the browser do not echo upstream
