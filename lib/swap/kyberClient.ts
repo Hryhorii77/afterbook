@@ -1,3 +1,5 @@
+import 'server-only';
+
 // The header every KyberSwap aggregator call sends. KyberSwap gives a registered integrator its own
 // client id with its own rate limit (Afterbook's: 3 requests/s, offered by KyberSwap's team on
 // 2026-11-12); before that every call sent the unregistered name 'afterbook' and ran on the keyless

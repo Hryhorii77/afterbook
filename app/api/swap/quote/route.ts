@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardSwapRequest } from '@/lib/swap/swapGuard';
-import { parseSwapRequest, quoteSwap, SwapError } from '@/lib/swap/swap';
+import { parseSwapRequest, SwapError } from '@/lib/swap/swap';
+import { quoteSwap } from '@/lib/swap/swapBuild';
 import { parseMemeSwapRequest } from '@/lib/swap/memeSwap';
 
 export const revalidate = 0;

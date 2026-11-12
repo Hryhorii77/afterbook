@@ -1,24 +1,34 @@
 // Swap safety check (read-only: nothing is signed or broadcast). Run from the repo root:
-//   SWAP_FEE_BPS=20 SWAP_FEE_RECIPIENT=0x9b3F205E43dc9FcC1cc2Fe6d9dCD0357769A6Bae npx tsx .claude/skills/verify/swap-check.mts
+//   SWAP_FEE_BPS=20 SWAP_FEE_RECIPIENT=0x9b3F205E43dc9FcC1cc2Fe6d9dCD0357769A6Bae npx tsx --conditions=react-server .claude/skills/verify/swap-check.mts
+// (--conditions=react-server: lib/swap/swapBuild.ts is 'server-only', which refuses to load without it)
 // 1. Tamper: real KyberSwap calldata with one field changed at a time; checkSwapCalldata must refuse each.
 // 2. Simulate (eth_simulateV1 on mainnet.base.org): approve + the server-built swap with the Builder Code
-//    appended, from real holders (Morpho Blue for USDC, a market maker for NVDAc), for a buy and a sell; prints what the trader
+//    appended, from real holders (Morpho Blue for USDC, for NVDAc the first holder with enough: a market maker, else the NVDAc pool), for a buy and a sell; prints what the trader
 //    received and what reached the fee recipient. Unset the fee variables to check that nothing does.
 import { concat, decodeFunctionData, decodeFunctionResult, encodeFunctionData, erc20Abi, parseAbi, type Hex } from 'viem';
-import { buildSwap, checkSwapCalldata, KYBER_ROUTER, parseSwapRequest, quoteSwap, swapFee } from '../../../lib/swap/swap';
+import { checkSwapCalldata, KYBER_ROUTER, parseSwapRequest, swapFee } from '../../../lib/swap/swap';
+import { buildSwap, quoteSwap } from '../../../lib/swap/swapBuild';
+import { getCachedPoolState, getClient, poolDepth } from '../../../lib/market/quote';
 import { BUILDER_CODE_SUFFIX } from '../../../lib/wallet/builderCode';
-import { getStock, USDC } from '../../../lib/stocks/tokens';
+import { getStock, STOCKS, USDC } from '../../../lib/stocks/tokens';
 
 const stock = getStock('NVDAc')!;
 /** Spends USDC for buys: Morpho Blue's contract (it holds plenty; read-only simulation). Not the NVDAc pool
  *  itself, as it was until 2026-11-04: when KyberSwap routed the buy through that pool, the pool paid
  *  itself mid-swap and the simulation reverted (`swap 0x0`) while real swaps were fine. */
 const HOLDER = (process.env.USDC_HOLDER ?? '0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb') as Hex;
-/** A public wallet (no contract code) holding NVDAc, for sells and NVDAc-paid buys: ~79 NVDAc on
- *  2026-11-03. Holders drain (the previous one was empty by then and every sell simulated as a revert):
- *  when a sell fails with `swap 0x0`, check this balance first, then pick a new holder from recent
- *  NVDAc Transfer logs, or set STOCK_HOLDER. */
-const STOCK_HOLDER = (process.env.STOCK_HOLDER ?? '0xD0e2F1c6B4D604DA32AE5831E616d6553EFDCC7f') as Hex;
+/** Who holds the NVDAc a sell spends. Holders drain (0xD0e2…C7f was empty by 2026-11-12, and every sell
+ *  then simulated as a revert, `swap 0x0`), so the first of these with enough NVDAc is used: STOCK_HOLDER
+ *  if set, a market-maker wallet (~79 NVDAc on 2026-11-03), then the NVDAc pool itself (it always holds
+ *  NVDAc; fine for a sell, whose route takes NVDAc in, unlike the buy above). */
+const STOCK_HOLDERS = [process.env.STOCK_HOLDER, '0xD0e2F1c6B4D604DA32AE5831E616d6553EFDCC7f', stock.pool.address].filter(Boolean) as Hex[];
+async function stockHolder(amount: bigint): Promise<Hex> {
+  for (const who of STOCK_HOLDERS) {
+    const bal = await getClient().readContract({ address: stock.tokenAddress, abi: erc20Abi, functionName: 'balanceOf', args: [who] }).catch(() => BigInt(0));
+    if (bal >= amount) return who;
+  }
+  throw new Error('no NVDAc holder with enough balance: set STOCK_HOLDER');
+}
 const EVIL = '0x2222222222222222222222222222222222222222' as const;
 const fee = swapFee();
 const watch = (fee?.recipient ?? EVIL) as Hex;
@@ -62,9 +72,8 @@ async function tamper() {
 }
 
 async function simulate(side: 'buy' | 'sell', amountIn: string) {
-  // NVDAc is spent from a market maker's wallet, not the pool's own address: since the Aero move
-  // (2026-10-27) KyberSwap may route through that pool, and a pool paying itself mid-swap reverts.
-  const holder = (side === 'buy') ? HOLDER : STOCK_HOLDER;
+  // NVDAc comes from stockHolder() above (a market maker first; the NVDAc pool only as a fallback).
+  const holder = side === 'buy' ? HOLDER : await stockHolder(BigInt(amountIn));
   const req = parseSwapRequest({ symbol: 'NVDAc', side, amountIn });
   if (typeof req === 'string') throw new Error(req);
   const tx = await buildSwap(req, holder);
@@ -96,10 +105,24 @@ async function simulate(side: 'buy' | 'sell', amountIn: string) {
   return swapOk;
 }
 
-// The depth cap (MAX_BUY_DEPTH_SHARE): a buy over 10% of the cheapest-to-hit pool's depth is refused with
-// 400, one under it is quoted, and a sell of the same size is not depth-capped.
+// The depth cap (MAX_BUY_DEPTH_SHARE): a buy over 10% of the pool's depth is refused with 400 and one under
+// it is quoted. Run on a thin pool picked live (depth $20k-$150k, so $20,000 is over the cap and $500
+// under it): a fixed pick broke when SONYc's ~$51k pool fell to ~$51 on 2026-11-12.
 async function depthCap(): Promise<boolean> {
-  const thin = 'SONYc';
+  let thin = '';
+  for (const s of STOCKS) {
+    const state = await getCachedPoolState(s).catch(() => null);
+    const usd = state ? poolDepth(state, s).totalUsd : 0;
+    if (usd >= 20_000 && usd <= 150_000) {
+      thin = s.symbol;
+      console.log(`depth cap on ${thin} (pool ~$${Math.round(usd).toLocaleString('en-US')})`);
+      break;
+    }
+  }
+  if (!thin) {
+    console.log('FAIL depth cap: no tracked pool between $20k and $150k right now');
+    return false;
+  }
   const quote = (side: 'buy' | 'sell', amountIn: string) => {
     const req = parseSwapRequest({ symbol: thin, side, amountIn });
     if (typeof req === 'string') return Promise.resolve({ ok: false, status: 0, msg: req });

@@ -1,6 +1,6 @@
 ---
 name: real-money-reviewer
-description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/baskets/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/baskets/BasketPanel.tsx), in-app swaps (lib/swap/swap.ts, lib/swap/swapGuard.ts, lib/swap/swapLog.ts, app/api/swap/*, app/components/swap/useSwapWallet.ts and the panels that use it: SwapPanel.tsx, MemeBuyPanel.tsx, BasketBuyPanel.tsx, BasketSellPanel.tsx, RouterApprovals.tsx, and the pages that mount SwapPanel, including the trade plan app/components/agent/PlanClient.tsx and stock rules app/components/agent/RulesClient.tsx), in-app Aave borrowing and lending (lib/lending/aaveBorrow.ts, app/components/lending/AaveBorrowPanel.tsx, AaveBorrowSection.tsx, the loan rescue planner LoanRescue.tsx and lib/lending/rescue.ts, AaveLendPanel.tsx, AaveLendSection.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
+description: Read-only reviewer for changes that touch real money in afterbook - Glider baskets (lib/baskets/glider.ts, lib/baskets/*, app/api/baskets/*, app/api/cron/basket-tilt), the Baskets deposit panel (app/components/baskets/BasketPanel.tsx), in-app swaps (lib/swap/swap.ts, lib/swap/swapBuild.ts, lib/swap/kyberClient.ts, lib/swap/swapGuard.ts, lib/swap/swapLog.ts, app/api/swap/*, app/components/swap/useSwapWallet.ts and the panels that use it: SwapPanel.tsx, MemeBuyPanel.tsx, BasketBuyPanel.tsx, BasketSellPanel.tsx, RouterApprovals.tsx, and the pages that mount SwapPanel, including the trade plan app/components/agent/PlanClient.tsx and stock rules app/components/agent/RulesClient.tsx), in-app Aave borrowing and lending (lib/lending/aaveBorrow.ts, app/components/lending/AaveBorrowPanel.tsx, AaveBorrowSection.tsx, the loan rescue planner LoanRescue.tsx and lib/lending/rescue.ts, AaveLendPanel.tsx, AaveLendSection.tsx), wallet transactions, or the secrets/permission setup. Use it on the diff before opening a PR for any such change. It reports findings; it does not edit.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -68,6 +68,9 @@ check passes, say so in one short line; do not pad.
   and `/api/agent/stats` use `cronAuthorized`. The build's `source` label
   ('stock' | 'basket' | 'plan'; 'meme' only for a meme request) is for the metrics
   only and must never change what is built or checked.
+- `quoteSwap` and `buildSwap` live in `lib/swap/swapBuild.ts` (`import 'server-only'`, as is
+  `kyberClient.ts`): no client component may import either, directly or through another module; the
+  build fails if one does. Browser code takes constants, types and the pure checks from `swap.ts`.
 - `buildSwap` returns nothing the browser can send unless `checkSwapCalldata`
   passed: router = `KYBER_ROUTER`, `transactionValue` 0, input/output token,
   recipient = the requesting account, exact amount, minimum within

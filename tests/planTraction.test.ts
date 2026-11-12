@@ -31,8 +31,8 @@ vi.mock('../lib/server/redis', () => ({ redis: r.redis }));
 
 const built = vi.hoisted(() => ({ sources: [] as string[] }));
 vi.mock('@/lib/swap/swapGuard', () => ({ guardSwapRequest: async () => null }));
-vi.mock('@/lib/swap/swap', async (orig) => ({
-  ...(await orig<typeof import('../lib/swap/swap')>()),
+vi.mock('@/lib/swap/swapBuild', async (orig) => ({
+  ...(await orig<typeof import('../lib/swap/swapBuild')>()),
   buildSwap: async () => ({ data: '0x01', quote: { symbol: 'NVDAc', side: 'buy', feeBps: 0, amountInUsd: 100 } }),
 }));
 vi.mock('@/lib/swap/swapLog', async (orig) => ({

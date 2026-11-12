@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isAddress, getAddress } from 'viem';
 import { guardSwapRequest } from '@/lib/swap/swapGuard';
-import { buildSwap, parseSwapRequest, SwapError } from '@/lib/swap/swap';
+import { parseSwapRequest, SwapError } from '@/lib/swap/swap';
+import { buildSwap } from '@/lib/swap/swapBuild';
 import { rememberBuiltSwap } from '@/lib/swap/swapLog';
 import { parseMemeSwapRequest } from '@/lib/swap/memeSwap';
 
