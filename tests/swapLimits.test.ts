@@ -11,7 +11,8 @@ vi.mock('../lib/market/quote', () => ({
   poolDepth: vi.fn(() => ({ totalUsd: depth.usd })),
 }));
 
-const { quoteSwap, parseSwapRequest, KYBER_ROUTER, MAX_BUY_DEPTH_SHARE } = await import('../lib/swap/swap');
+const { parseSwapRequest, KYBER_ROUTER, MAX_BUY_DEPTH_SHARE } = await import('../lib/swap/swap');
+const { quoteSwap } = await import('../lib/swap/swapBuild');
 const { getStock, USDC } = await import('../lib/stocks/tokens');
 
 /** Answers KyberSwap's /routes the way the real API does, priced at `usd` for the input. */

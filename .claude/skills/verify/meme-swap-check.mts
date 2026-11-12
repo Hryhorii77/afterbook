@@ -1,5 +1,5 @@
 // Meme-buy safety check (read-only: nothing is signed or broadcast). Run from the repo root:
-//   SWAP_FEE_BPS=20 SWAP_FEE_RECIPIENT=0x9b3F205E43dc9FcC1cc2Fe6d9dCD0357769A6Bae npx tsx .claude/skills/verify/meme-swap-check.mts
+//   SWAP_FEE_BPS=20 SWAP_FEE_RECIPIENT=0x9b3F205E43dc9FcC1cc2Fe6d9dCD0357769A6Bae npx tsx --conditions=react-server .claude/skills/verify/meme-swap-check.mts
 // (the fee variables are set on purpose: a meme buy must carry no fee even when the stock fee is on).
 // 1. Tamper: real KyberSwap calldata for a BLUECHIP buy with one field changed at a time; checkSwapCalldata
 //    must refuse each (including any fee at all).
@@ -8,20 +8,30 @@
 // The allowlist and liquidity checks (lib/swap/memeSwap.ts) need the app's cache: test them through the
 // /api/swap routes on a local build instead (unknown meme, thin meme, wrong payWith, over $1,000).
 import { concat, decodeFunctionData, decodeFunctionResult, encodeFunctionData, erc20Abi, parseAbi, type Hex } from 'viem';
-import { buildSwap, checkSwapCalldata, KYBER_ROUTER, SLIPPAGE_BPS, type SwapRequest } from '../../../lib/swap/swap';
+import { checkSwapCalldata, KYBER_ROUTER, SLIPPAGE_BPS, type SwapRequest } from '../../../lib/swap/swap';
+import { buildSwap } from '../../../lib/swap/swapBuild';
 import { BUILDER_CODE_SUFFIX } from '../../../lib/wallet/builderCode';
 import { getStock, USDC } from '../../../lib/stocks/tokens';
+import { getClient } from '../../../lib/market/quote';
 import type { MemePool } from '../../../lib/memes/memestocks';
 
 const stock = getStock('NVDAc')!;
 /** Spends USDC for USDC-paid buys: Morpho Blue's contract (read-only simulation), not the NVDAc pool, which
  *  reverted whenever KyberSwap routed through that same pool (same fix as swap-check.mts, 2026-11-04). */
 const HOLDER = (process.env.USDC_HOLDER ?? '0xBBBBBbbBBb9cC5e90e3b3Af64bdAF62C37EEFFCb') as Hex;
-/** A public wallet (no contract code) holding NVDAc, for sells and NVDAc-paid buys: ~79 NVDAc on
- *  2026-11-03. Holders drain (the previous one was empty by then and every sell simulated as a revert):
- *  when a sell fails with `swap 0x0`, check this balance first, then pick a new holder from recent
- *  NVDAc Transfer logs, or set STOCK_HOLDER. */
-const STOCK_HOLDER = (process.env.STOCK_HOLDER ?? '0xD0e2F1c6B4D604DA32AE5831E616d6553EFDCC7f') as Hex;
+/** Who holds the NVDAc an NVDAc-paid buy spends: the first of these with enough. STOCK_HOLDER if set, a
+ *  market-maker wallet (~79 NVDAc on 2026-11-03, empty by 2026-11-12), then the NVDAc/USDC pool itself
+ *  (it always holds NVDAc; it reverts only if KyberSwap routes through that same pool, which an
+ *  NVDAc -> meme buy normally doesn't: it goes straight into the meme's NVDAc pool). */
+const STOCK_HOLDERS = [process.env.STOCK_HOLDER, '0xD0e2F1c6B4D604DA32AE5831E616d6553EFDCC7f', getStock('NVDAc')!.pool.address].filter(Boolean) as Hex[];
+async function stockHolder(amount: bigint): Promise<Hex> {
+  const nvda = getStock('NVDAc')!;
+  for (const who of STOCK_HOLDERS) {
+    const bal = await getClient().readContract({ address: nvda.tokenAddress, abi: erc20Abi, functionName: 'balanceOf', args: [who] }).catch(() => BigInt(0));
+    if (bal >= amount) return who;
+  }
+  throw new Error('no NVDAc holder with enough balance: set STOCK_HOLDER');
+}
 const EVIL = '0x2222222222222222222222222222222222222222' as const;
 const OTHER_MEME = '0xca18A528Ea897040f715edC92e6e4572780c5ca1'; // KAI, also on NVDAc
 const pool: MemePool = {
@@ -73,9 +83,8 @@ async function tamper() {
 }
 
 async function simulate(payWith: 'USDC' | 'stock', amountIn: string) {
-  // NVDAc is spent from a market maker's wallet, not the pool's own address: since the Aero move
-  // (2026-10-27) KyberSwap may route through that pool, and a pool paying itself mid-swap reverts.
-  const holder = (payWith === 'USDC') ? HOLDER : STOCK_HOLDER;
+  // NVDAc comes from stockHolder() above (a market maker first; the NVDAc pool only as a fallback).
+  const holder = payWith === 'USDC' ? HOLDER : await stockHolder(BigInt(amountIn));
   const r = req(payWith, amountIn);
   const tx = await buildSwap(r, holder);
   const inToken = payWith === 'USDC' ? USDC.address : stock.tokenAddress;
