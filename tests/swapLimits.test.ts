@@ -117,3 +117,29 @@ describe('route checks', () => {
     await expect(quoteSwap(req('NVDAc', 'buy', 100))).rejects.toThrow(/does not match the request/);
   });
 });
+
+describe('which KyberSwap host and header a quote uses', () => {
+  afterEach(() => vi.unstubAllEnvs());
+  const sent = () => {
+    const [url, init] = (fetch as unknown as { mock: { calls: [string, { headers: Record<string, string> }][] } }).mock.calls[0];
+    return { url, headers: init.headers };
+  };
+
+  it('with an API key: the keyed gateway, x-api-key only', async () => {
+    vi.stubEnv('KYBERSWAP_API_KEY', 'test-key-123');
+    mockKyber(100);
+    await quoteSwap(req('NVDAc', 'sell', 100));
+    const { url, headers } = sent();
+    expect(url.startsWith('https://api.kyberswap.com/swap/base/api/v1/routes?')).toBe(true);
+    expect(headers).toEqual({ 'x-api-key': 'test-key-123' });
+  });
+
+  it('without one: the public host with x-client-id afterbook', async () => {
+    vi.stubEnv('KYBERSWAP_API_KEY', '');
+    mockKyber(100);
+    await quoteSwap(req('NVDAc', 'sell', 100));
+    const { url, headers } = sent();
+    expect(url.startsWith('https://aggregator-api.kyberswap.com/base/api/v1/routes?')).toBe(true);
+    expect(headers).toEqual({ 'x-client-id': 'afterbook' });
+  });
+});
