@@ -13,7 +13,7 @@ export function callerIp(request: Request): string {
 /** null when this request may spend a Claude call, else why not (sent back as `fixedBecause`). */
 export async function whyNotExplain(request: Request): Promise<FixedWhy | null> {
   if (!explainerConfigured()) return 'not-configured';
-  if (!agentLimiter || !agentDailyLimiter) return 'not-configured';
+  if (!agentLimiter || !agentDailyLimiter) return 'no-limiter';
   const mine = await agentLimiter.limit(callerIp(request));
   if (!mine.success) return 'rate-limited';
   return (await agentDailyLimiter.limit('all')).success ? null : 'rate-limited';

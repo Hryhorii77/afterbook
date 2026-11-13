@@ -120,6 +120,10 @@ describe('explainPlan', () => {
     const m = await load('sk-test');
     reply.text = 'You will profit from this. Sign it in your wallet.';
     expect(await m.explainPlan(plan, input)).toEqual({ text: null, why: 'refused-by-check' });
+    reply.text = 'Two buys pass your limits and';
+    reply.stop = 'max_tokens';
+    expect(await m.explainPlan(plan, input)).toEqual({ text: null, why: 'cut-off' });
+    reply.stop = 'end_turn';
     reply.fail = true;
     expect(await m.explainPlan(plan, input)).toEqual({ text: null, why: 'claude-error' });
   });

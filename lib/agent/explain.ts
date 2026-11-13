@@ -106,7 +106,7 @@ export function planFacts(plan: Plan, input: PlanInput) {
 }
 
 /** Why the fixed words were shown instead of Claude's (returned by the routes as `fixedBecause`). */
-export type FixedWhy = 'not-configured' | 'rate-limited' | 'refused-by-check' | 'claude-error';
+export type FixedWhy = 'not-configured' | 'no-limiter' | 'rate-limited' | 'cut-off' | 'refused-by-check' | 'claude-error';
 export type Explained = { text: string } | { text: null; why: FixedWhy };
 
 export async function explainPlan(plan: Plan, input: PlanInput): Promise<Explained> {
@@ -155,14 +155,27 @@ export function briefFacts(brief: Brief) {
   };
 }
 
-/** Why the cash is more than asked, when whole-percent weights made it so ($1,000 with 10% asked keeps
- *  $118: 34/33/33 can't hold equal thirds, and no stock gets more than it was sized for). */
-function cashWhy(brief: Brief): string | null {
+/** Why the cash is at least $1 more than asked, with the real cause: a stock the cost limit or the swap
+ *  caps sized down (its unspent share stays as cash), else whole-percent weights and whole dollars
+ *  ($1,000 with 10% asked keeps $118: 34/33/33 can't hold equal thirds, and no stock gets more than it
+ *  was sized for). The first version always blamed the weights, even for a cost-limit cut (review of
+ *  PR #172, 2026-11-13). */
+export function cashWhy(brief: Brief): string | null {
   if (!brief.picks) return null;
   const asked = Math.round(brief.input.budgetUsd * brief.input.cashPct) / 100;
   if (brief.cashUsd - asked < 1) return null;
-  return `You asked to keep ${usdText(asked)} as cash; ${usdText(brief.cashUsd)} stays as cash because the weights are whole percents and no stock gets more than it was sized for.`;
+  const head = asked > 0 ? `You asked to keep ${usdText(asked)} as cash, and ${usdText(brief.cashUsd)} stays as cash` : `You kept no cash aside, but ${usdText(brief.cashUsd)} stays as cash`;
+  const by = (cause: BriefPickCause) => brief.picks!.filter((p) => p.sizedDownBy === cause).map((p) => `${p.symbol.replace(/c$/, '')} to ${usdText(p.usd)}`);
+  const causes = [
+    ...(by('cost limit').length ? [`your cost limit cut ${listText(by('cost limit'))}`] : []),
+    ...(by('swap caps').length ? [`the swap caps (one swap is at most $25,000 and 10% of the pool) cut ${listText(by('swap caps'))}`] : []),
+  ];
+  return causes.length
+    ? `${head} because ${causes.join(' and ')}, and what those stocks couldn’t take is not spent elsewhere.`
+    : `${head} because the weights are whole percents and the amount is rounded down to whole dollars, so no stock gets more than it was sized for.`;
 }
+type BriefPickCause = NonNullable<NonNullable<Brief['picks']>[number]['sizedDownBy']>;
+const listText = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 const usdText = (v: number) => `$${v.toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 })}`;
 
 export async function explainBrief(brief: Brief, note: string): Promise<Explained> {
@@ -252,7 +265,7 @@ async function ask(system: string, facts: string, note: string): Promise<Explain
     const text = res.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('');
     const accepted = acceptExplanation(text, res.stop_reason);
     if (!accepted) console.error('[agent] explanation not used', res.stop_reason, text.length);
-    return accepted ? { text: accepted } : { text: null, why: 'refused-by-check' };
+    return accepted ? { text: accepted } : { text: null, why: res.stop_reason === 'max_tokens' ? 'cut-off' : 'refused-by-check' };
   } catch (err) {
     // The cause goes to the server log only; the page falls back to fixed text.
     if (err instanceof Anthropic.RateLimitError) console.error('[agent] Claude rate limited');

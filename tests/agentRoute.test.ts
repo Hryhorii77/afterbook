@@ -72,7 +72,7 @@ describe('POST /api/agent/plan', () => {
     fx.allow = true;
     fx.limiters = false;
     body = await (await post({ symbols: ['NVDAc'], budgetUsd: 1000 })).json();
-    expect(body.fixedBecause).toBe('not-configured');
+    expect(body.fixedBecause).toBe('no-limiter');
     expect(fx.explainCalls).toBe(0);
   });
   it('holds one caller to 10 plans a minute', async () => {

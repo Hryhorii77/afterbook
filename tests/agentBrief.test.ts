@@ -316,7 +316,21 @@ describe('buildBrief', () => {
     expect(b.basket?.map((l) => l.weightPct)).toEqual([34, 33, 33]);
     const f = briefFacts(b);
     expect(f.dropped.find((d) => d.symbol === 'SKHYc')?.name).toBe('SK hynix Inc.');
-    expect(f.cashWhy).toBe(`You asked to keep $100 as cash; $${b.cashUsd.toLocaleString('en-US')} stays as cash because the weights are whole percents and no stock gets more than it was sized for.`);
+    expect(f.cashWhy).toBe(`You asked to keep $100 as cash, and $${b.cashUsd.toLocaleString('en-US')} stays as cash because the weights are whole percents and the amount is rounded down to whole dollars, so no stock gets more than it was sized for.`);
+    expect(b.picks?.every((p) => p.sizedDownBy === null)).toBe(true);
     expect(briefFacts(run(input({ cashPct: 10, minStocks: 4 }), steadyOf({}, 2_000_000))).cashWhy).toBeNull();
+  });
+
+  it('cash left by a cost-limit cut is blamed on the cost limit, not the weights', () => {
+    // NVDA fills over the limit above $100: sized down to $98 (0.98 of the size that fits).
+    const costs = costsFor();
+    costs.set('NVDAc', { estimate: (u: number) => ({ sharesOut: u / 100, impactBp: u > 100 ? 500 : 10 }), sizeForImpact: () => 100 });
+    const b = run(input({ minStocks: 4 }), steadyOf({ NVDAc: 2_000_000, MUc: 1_500_000, AMDc: 1_000_000, AVGOc: 900_000 }, 0), allRows(), costs);
+    const nvda = b.picks?.find((p) => p.symbol === 'NVDAc');
+    expect(nvda?.sizedDownBy).toBe('cost limit');
+    expect(b.picks?.filter((p) => p.symbol !== 'NVDAc').every((p) => p.sizedDownBy === null)).toBe(true);
+    const why = briefFacts(b).cashWhy!;
+    expect(why).toMatch(new RegExp(`^You kept no cash aside, but \\$${b.cashUsd} stays as cash because your cost limit cut NVDA to \\$${nvda!.usd}`));
+    expect(why).not.toMatch(/whole percents/);
   });
 });

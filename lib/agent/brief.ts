@@ -50,6 +50,8 @@ export interface BriefPick {
   depthUsd: number;
   depthAsOfMs: number;
   depthSinceMs: number | null;
+  /** Bought at less than its equal share, and why: the cost limit, or the swap caps ($25k, 10% of the pool). */
+  sizedDownBy: 'cost limit' | 'swap caps' | null;
 }
 
 export interface Brief {
@@ -330,6 +332,12 @@ export function buildBrief(
       depthUsd: l.depthUsd ?? 0,
       depthAsOfMs: d.asOfMs!,
       depthSinceMs: d.sinceMs ?? null,
+      // From the sizing's own reasons (lib/agent/plan.ts sizeLegs), so the cash sentence names the real cause.
+      sizedDownBy: l.reasons.some((r) => r.startsWith('Sized down from'))
+        ? 'cost limit'
+        : l.reasons.some((r) => r.startsWith('Capped at'))
+        ? 'swap caps'
+        : null,
     };
   });
   const assumptions = [
