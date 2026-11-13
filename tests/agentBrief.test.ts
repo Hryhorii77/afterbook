@@ -6,7 +6,7 @@ import type { TapeResult, TapeRow } from '../lib/market/tape';
 import { STOCKS } from '../lib/stocks/tokens';
 import { PROFILES } from '../lib/stocks/sectors';
 import { BRIEF_LIMITS } from '../lib/agent/limits';
-import { MAX_LEGS, MIN_LEGS } from '../lib/build/customBasket';
+import { MAX_LEGS, MIN_LEGS, normalizeLegs } from '../lib/build/customBasket';
 import { MAX_BASKET_USD, splitBasketUsdc } from '../lib/swap/basketBuy';
 
 const NOW = 1_800_000_000_000;
@@ -43,7 +43,7 @@ const steadyOf = (depths: Record<string, number | null>, fallback: number | null
   const m = new Map<string, SteadyDepth>();
   for (const s of STOCKS) {
     const usd = s.symbol in depths ? depths[s.symbol] : fallback;
-    m.set(s.symbol, usd == null ? { usd: null, asOfMs: null, samples: 0 } : { usd, asOfMs: NOW - 60_000, samples: 36 });
+    m.set(s.symbol, usd == null ? { usd: null, asOfMs: null, samples: 0, sinceMs: null } : { usd, asOfMs: NOW - 60_000, samples: 36, sinceMs: NOW - 3 * 3_600_000 });
   }
   return m;
 };
@@ -217,6 +217,59 @@ describe('buildBrief', () => {
     const b = run(input({ minStocks: 2, budgetUsd: 3_000, maxCostBp: 200 }), steadyOf({ NVDAc: 2_000_000, MUc: 1_500_000, AMDc: 1_000_000 }, 0), allRows(), costs);
     for (const p of b.picks ?? []) expect(p.usd).toBeGreaterThanOrEqual(10);
     expect(b.dropped.some((d) => /minimum for a swap/.test(d.why))).toBe(true);
+  });
+
+  it('whole-percent weights always add up to 100 (5/5/3/3 used to give 31/31/19/18)', () => {
+    const legs = (w: number[]) => normalizeLegs(w.map((weight, i) => ({ symbol: `S${i}`, weight })));
+    expect(legs([5, 5, 3, 3]).map((l) => l.weightPct)).toEqual([31, 31, 19, 19]);
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < 2000; i++) {
+      const w = Array.from({ length: 2 + Math.floor(rnd() * 3) }, () => 1 + rnd() * 10_000);
+      expect(legs(w).reduce((a, l) => a + l.weightPct, 0)).toBe(100);
+    }
+  });
+
+  it('fuzz: every pick is exactly what the basket buy splits, never more than it was sized for', () => {
+    let seed = 11;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < 400; i++) {
+      const caps = new Map(STOCKS.map((s) => [s.symbol, 10 + rnd() * 9_000] as const));
+      const costs = new Map(
+        STOCKS.map((s) => [s.symbol, { estimate: (u: number) => ({ sharesOut: u / 100, impactBp: u <= caps.get(s.symbol)! ? 5 : 500 }), sizeForImpact: () => caps.get(s.symbol)! } as CostModel]),
+      );
+      const budget = 10 + Math.floor(rnd() * 24_990);
+      const b = run(input({ theme: 'Any', minStocks: 2, budgetUsd: budget, cashPct: Math.floor(rnd() * 30), maxCostBp: 200 }), steadyOf({}, 2_000_000), allRows(), costs);
+      if (!b.picks) continue;
+      expect(b.basket!.reduce((a, l) => a + l.weightPct, 0)).toBe(100);
+      const split = splitBasketUsdc(BigInt(Math.round(b.investedUsd * 1e6)), b.basket!);
+      for (const p of b.picks) {
+        const leg = Number(split.find((x) => x.symbol === p.symbol)!.amountIn) / 1e6;
+        expect(Math.abs(leg - p.usd)).toBeLessThan(0.011);
+        expect(p.usd).toBeGreaterThanOrEqual(10);
+        expect(p.usd).toBeLessThanOrEqual(caps.get(p.symbol)! + 0.01);
+      }
+      expect(b.investedUsd + b.cashUsd).toBeCloseTo(budget, 2);
+    }
+  });
+
+  it('a small budget takes fewer stocks instead of “nothing meets this”', () => {
+    const steady = steadyOf({}, 2_000_000);
+    const two = run(input({ theme: 'Any', minStocks: 2, budgetUsd: 20 }), steady);
+    expect(two.picks?.map((p) => p.usd)).toEqual([10, 10]);
+    const short = run(input({ theme: 'Any', minStocks: 3, budgetUsd: 25 }), steady);
+    expect(short.picks).toBeNull();
+    expect(short.shortfall).toMatch(/too little for at least \$10 in each of 3 stocks/);
+    expect(short.suggestion).toEqual({ minStocks: 2, text: '2 passed. Spread over at least 2?' });
+  });
+
+  it('a stock the cost limit drops gives its share to the others', () => {
+    const costs = costsFor();
+    costs.set('NVDAc', { estimate: () => ({ sharesOut: 1, impactBp: 500 }), sizeForImpact: () => 1 });
+    const b = run(input({ minStocks: 2, budgetUsd: 900 }), steadyOf({ NVDAc: 2_000_000, MUc: 1_500_000, AMDc: 1_000_000 }, 0), allRows(), costs);
+    expect(b.picks?.map((p) => p.symbol)).toEqual(['MUc', 'AMDc']);
+    expect(b.investedUsd).toBe(900);
+    expect(b.dropped.find((d) => d.symbol === 'NVDAc')?.why).toMatch(/cost/);
   });
 
   it('no basket when sizing drops a leg below the spread asked for', () => {

@@ -38,14 +38,14 @@ describe('sampleFromRows', () => {
 describe('steadyDepth', () => {
   it('is the lowest good sample in the last 3 hours, with the newest sample time', () => {
     const samples = [at(200, { X: 10 }), at(170, { X: 49_000 }), at(60, { X: 254_000 }), at(5, { X: 260_000 })];
-    expect(steadyDepth(samples, 'X', NOW)).toEqual({ usd: 49_000, asOfMs: NOW - 5 * MIN, samples: 3 });
+    expect(steadyDepth(samples, 'X', NOW)).toEqual({ usd: 49_000, asOfMs: NOW - 5 * MIN, samples: 3, sinceMs: NOW - 170 * MIN });
   });
   it('a failed read is a missing sample, not a low one', () => {
     const samples = [at(20, { X: 300_000 }), at(10, { X: null }), at(5, { X: 310_000 })];
     expect(steadyDepth(samples, 'X', NOW).usd).toBe(300_000);
   });
   it('unknown when no good sample in the last 15 minutes: cold start or a stopped cron', () => {
-    expect(steadyDepth([], 'X', NOW)).toEqual({ usd: null, asOfMs: null, samples: 0 });
+    expect(steadyDepth([], 'X', NOW)).toEqual({ usd: null, asOfMs: null, samples: 0, sinceMs: null });
     expect(steadyDepth([at(16, { X: 500_000 })], 'X', NOW).usd).toBeNull();
     expect(steadyDepth([at(16, { X: 500_000 }), at(3, { X: null })], 'X', NOW).usd).toBeNull();
     expect(steadyDepth([at(3, { Y: 500_000 })], 'X', NOW).usd).toBeNull();

@@ -50,31 +50,35 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
 
   const toggleSector = (s: Sector) => setExclude((x) => (x.includes(s) ? x.filter((y) => y !== s) : [...x, s]));
 
-  const run = async (spread = minStocks) => {
+  /** The last brief sent: "Spread over at least N?" reruns that brief, not whatever the form says now. */
+  const lastBody = useRef<Record<string, unknown> | null>(null);
+
+  const run = async (spread = minStocks, from: Record<string, unknown> | null = null) => {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch('/api/agent/brief', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
+      const body = from
+        ? { ...from, minStocks: spread }
+        : {
           theme,
           exclude,
           minStocks: spread,
           budgetUsd: Number(budget),
           cashPct: Number(cashPct || 0),
-          maxPremiumBp: Number(premiumPct) * 100,
-          maxCostBp: Number(costPct) * 100,
+          // Rounded: Number('0.29') * 100 is 28.999…
+          maxPremiumBp: Math.round(Number(premiumPct) * 10_000) / 100,
+          maxCostBp: Math.round(Number(costPct) * 10_000) / 100,
           earningsDays,
           note,
-        }),
-      });
-      const body = await res.json().catch(() => null);
-      if (!res.ok || !body?.brief) {
-        setError(body?.error ? `Couldn’t build the basket: ${body.error}.` : 'Couldn’t build the basket just now. Try again in a moment.');
+        };
+      const res = await fetch('/api/agent/brief', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const out = await res.json().catch(() => null);
+      if (!res.ok || !out?.brief) {
+        setError(out?.error ? `Couldn’t build the basket: ${out.error}.` : 'Couldn’t build the basket just now. Try again in a moment.');
         return;
       }
-      setResult(body);
+      lastBody.current = body;
+      setResult(out);
       setRan(false);
       requestAnimationFrame(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     } catch {
@@ -91,6 +95,8 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
 
   const brief = result?.brief;
   const closed = brief?.session.state.startsWith('closed');
+  // Right after a deploy the depth history is minutes long, not 3 hours: say so rather than claim 3 hours.
+  const shortHistory = brief?.readingsSinceMs != null && brief.createdAt - brief.readingsSinceMs < 2.75 * 3_600_000;
   const stocks = (brief?.basket ?? []).map((l) => ({ symbol: l.symbol, decimals: getStock(l.symbol)?.decimals ?? 8 }));
 
   return (
@@ -184,7 +190,7 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
         <section className="panel plan-result" ref={resultRef} aria-live="polite">
           <h2>{brief.picks ? 'Your basket' : 'No basket this time'}</h2>
           <p className="plan-meta">
-            {brief.picks ? `${usd(brief.investedUsd, 0)} in ${brief.picks.length} stocks · ${usd(brief.cashUsd, 0)} kept as cash` : `${usd(brief.cashUsd, 0)} stays as cash`} ·{' '}
+            {brief.picks ? `${usd(brief.investedUsd, 0)} in ${brief.picks.length} stocks · ${usd(brief.cashUsd, 2)} kept as cash` : `${usd(brief.cashUsd, 0)} stays as cash`} ·{' '}
             {brief.session.label}
             {closed && ` · cash reopens ${formatNextOpen(brief.session.nextOpenIso)}`}
           </p>
@@ -196,6 +202,7 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
             {brief.steps.map((s) => (
               <li key={s.label}>
                 <strong>{s.symbols.length}</strong> {s.label}
+                {shortHistory && s.label.includes('every reading') && <span className="plan-hint"> (readings only since {time(brief.readingsSinceMs!)})</span>}
                 {s.symbols.length > 0 && s.symbols.length <= 12 && <span className="plan-hint"> ({s.symbols.map(ticker).join(', ')})</span>}
               </li>
             ))}
@@ -209,7 +216,7 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
                 disabled={busy || buying}
                 onClick={() => {
                   setMinStocks(brief.suggestion!.minStocks);
-                  void run(brief.suggestion!.minStocks);
+                  void run(brief.suggestion!.minStocks, lastBody.current);
                 }}
               >
                 {brief.suggestion.text}
@@ -238,7 +245,7 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
                     <dl className="plan-figures">
                       <div>
                         <dt>Buy</dt>
-                        <dd>{usd(p.usd, 0)}</dd>
+                        <dd>{usd(p.usd, 2)}</dd>
                       </div>
                       <div>
                         <dt>Gap vs cash {p.gapAgainst}</dt>
@@ -249,14 +256,14 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
                         <dd>{pct(p.costBp)}</dd>
                       </div>
                       <div>
-                        <dt>Pool, lowest in 3 h</dt>
+                        <dt>{shortHistory ? `Pool, lowest since ${time(brief.readingsSinceMs!)}` : 'Pool, lowest in 3 h'}</dt>
                         <dd>{usd(p.depthUsd, 0)}</dd>
                       </div>
                     </dl>
                     <ul className="plan-reasons">
                       {profile?.note && <li>{profile.note}</li>}
                       <li>
-                        Pool depth: the lowest Afterbook read in the last 3 hours, newest reading {time(p.depthAsOfMs)}. Prices: the pool and the cash market, read just now.
+                        Pool depth: the lowest Afterbook read {shortHistory ? `since ${time(brief.readingsSinceMs!)}` : 'in the last 3 hours'}, newest reading {time(p.depthAsOfMs)}. Prices: the pool and the cash market, read just now.
                       </li>
                     </ul>
                   </li>

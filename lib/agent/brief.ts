@@ -70,6 +70,8 @@ export interface Brief {
   basket: BasketLeg[] | null;
   assumptions: string[];
   session: { state: string; label: string; nextOpenIso: string };
+  /** The oldest depth reading behind the shortlist (under 3 hours ago right after a deploy); null if none. */
+  readingsSinceMs: number | null;
   createdAt: number;
 }
 
@@ -138,7 +140,7 @@ function shortlist(input: BriefInput, tape: Pick<TapeResult, 'rows' | 'session'>
       return false;
     }
     if (d.usd < TAPE_MAIN_DEPTH_USD) {
-      dropped.push({ symbol: sym, why: `Its pool held as little as ${usd(d.usd, 0)} in the last 3 hours, under the ${usd(TAPE_MAIN_DEPTH_USD, 0)} a basket needs.` });
+      dropped.push({ symbol: sym, why: `Its pool read as little as ${usd(d.usd, 0)} in the last 3 hours, under the ${usd(TAPE_MAIN_DEPTH_USD, 0)} a basket needs.` });
       return false;
     }
     return true;
@@ -184,10 +186,38 @@ export function buildBrief(
 ): Brief {
   const { dropped, themeLabel, themed, kept, deep, planInput, legs, chosen } = shortlist(input, tape, steady, earningsSyncedAt, now);
   const investedTarget = Math.floor(input.budgetUsd * (1 - input.cashPct / 100) * 100) / 100;
-  // Size the chosen legs with the plan's caps and the cost limit; an equal split of the invested amount.
-  if (chosen.length >= input.minStocks) sizeLegs(chosen, { ...planInput, budgetUsd: investedTarget }, costs, feeBps);
-  for (const l of chosen) if (l.verdict !== 'buy') dropped.push({ symbol: l.symbol, why: l.decidedBy ?? 'It didn’t pass your limits.' });
-  let sized = chosen.filter((l) => l.verdict === 'buy' && (l.usd ?? 0) > 0);
+  const skipLeg = (l: PlanLeg, why: string) => {
+    l.verdict = 'skip';
+    l.decidedBy = why;
+    l.reasons.push(why);
+    dropped.push({ symbol: l.symbol, why });
+  };
+
+  // A small budget takes fewer stocks (deepest first): each needs at least the $10 swap minimum, and
+  // taking 4 regardless split $20 into four $5 legs that were all dropped (external review, 2026-11-13).
+  const byBudget = Math.max(0, Math.floor(investedTarget / PLAN_LIMITS.minLegUsd));
+  for (const l of chosen.slice(byBudget)) {
+    skipLeg(l, `Your ${usd(investedTarget)} to invest covers at most ${byBudget} ${byBudget === 1 ? 'stock' : 'stocks'} at the ${usd(PLAN_LIMITS.minLegUsd, 0)} minimum each.`);
+  }
+  let current = chosen.slice(0, byBudget);
+  const budgetShort = byBudget < input.minStocks && chosen.length >= input.minStocks;
+
+  // Size with the plan's caps and the cost limit, equal shares. A stock the cost limit drops would leave
+  // its share idle (the others keep theirs), so size again without it (external review, 2026-11-13).
+  let sized: PlanLeg[] = [];
+  let sizedRan = false;
+  while (current.length >= input.minStocks) {
+    const trial = current.map((l) => ({ ...l, reasons: [...l.reasons] }));
+    sizeLegs(trial, { ...planInput, budgetUsd: investedTarget }, costs, feeBps);
+    const failed = trial.filter((l) => l.verdict !== 'buy' || !((l.usd ?? 0) > 0));
+    if (!failed.length) {
+      sized = trial;
+      sizedRan = true;
+      break;
+    }
+    for (const t of failed) skipLeg(current.find((l) => l.symbol === t.symbol)!, t.decidedBy ?? 'It didn’t pass your limits.');
+    current = current.filter((l) => l.verdict === 'buy');
+  }
   // The basket buy splits by whole-percent weights, so a stock that rounds to 0% would silently drop
   // out of it (real-money review, 2026-11-13): drop it here, with its reason, before anything is shown.
   while (sized.length) {
@@ -199,22 +229,25 @@ export function buildBrief(
     const tiny = zero.length ? [] : sized.filter((l) => Math.floor(total * w(l.symbol)) / 100 < PLAN_LIMITS.minLegUsd);
     if (!zero.length && !tiny.length) break;
     for (const l of zero.length ? zero : tiny.slice(0, 1)) {
-      l.verdict = 'skip';
-      l.decidedBy = zero.length
-        ? `Its ${usd(l.usd ?? 0, 0)} is under 1% of the basket, too small to be a whole-percent part of it.`
-        : `Its share of the basket would be under the ${usd(PLAN_LIMITS.minLegUsd, 0)} minimum for a swap.`;
-      l.reasons.push(l.decidedBy);
-      dropped.push({ symbol: l.symbol, why: l.decidedBy });
+      skipLeg(
+        l,
+        zero.length
+          ? `Its ${usd(l.usd ?? 0, 0)} is under 1% of the basket, too small to be a whole-percent part of it.`
+          : `Its share of the basket would be under the ${usd(PLAN_LIMITS.minLegUsd, 0)} minimum for a swap.`,
+      );
     }
     sized = sized.filter((l) => l.verdict === 'buy');
   }
 
   // What "passed": the sized legs once sizing ran, else the ones that passed the checks.
-  const passed = chosen.length >= input.minStocks ? sized : chosen;
+  const passed = sizedRan ? sized : current;
+  // The oldest depth reading behind the shortlist: right after a deploy it is minutes, not 3 hours.
+  const since = kept.map((sym) => steady.get(sym)?.sinceMs).filter((t): t is number => t != null);
+  const readingsSinceMs = since.length ? Math.min(...since) : null;
   const steps: BriefStep[] = [
     { label: `${themeLabel}: stocks on Afterbook`, symbols: themed },
     ...(input.exclude.length ? [{ label: 'after the sectors you left out', symbols: kept }] : []),
-    { label: `with a pool that held over ${usd(TAPE_MAIN_DEPTH_USD, 0)} for the last 3 hours`, symbols: deep },
+    { label: `with a pool over ${usd(TAPE_MAIN_DEPTH_USD, 0)} in every reading of the last 3 hours`, symbols: deep },
     { label: 'that pass your price, cost and earnings limits', symbols: passed.map((l) => l.symbol) },
   ];
 
@@ -224,6 +257,7 @@ export function buildBrief(
     dropped,
     legs,
     session: { state: tape.session.state, label: tape.session.label, nextOpenIso: tape.session.nextOpenIso },
+    readingsSinceMs,
     createdAt: now,
   };
 
@@ -235,6 +269,8 @@ export function buildBrief(
     const shortfall =
       n === 0 && noReadings
         ? 'Afterbook has no recent pool-depth readings just now, so it can’t tell which pools are deep enough. Try again in a few minutes.'
+        : budgetShort
+        ? `Your ${usd(investedTarget)} to invest is too little for at least ${usd(PLAN_LIMITS.minLegUsd, 0)} in each of ${input.minStocks} stocks. Raise the budget or keep less as cash.`
         : n === 0
         ? `No stock on Base meets this brief right now, so there is nothing to buy.`
         : `${n === 1 ? 'Only 1 stock passes' : `${n} stocks pass`} (${list(passed.map((l) => l.symbol))}), and you asked to spread over at least ${input.minStocks}, so there is no basket.`;

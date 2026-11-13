@@ -163,7 +163,7 @@ describe('sizeLegs', () => {
     // Pool cost may use only 20 - 10 = 10 bp: at most ~$5k.
     expect(leg.usd!).toBeLessThanOrEqual(5_000);
     expect(leg.costBp!).toBeLessThanOrEqual(20);
-    expect(leg.reasons.join(' ')).toMatch(/plus Afterbook’s 10 bp fee/);
+    expect(leg.reasons.join(' ')).toMatch(/plus Afterbook’s 0.1% fee/);
     const [over] = sizeLegs(screen(one, tape), { ...one, maxCostBp: 10 }, new Map([['NVDAc', linear]]), 10);
     expect(over.verdict).toBe('skip');
   });

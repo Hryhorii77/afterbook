@@ -106,8 +106,8 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
         body: JSON.stringify({
           symbols: picked,
           budgetUsd: Number(budget),
-          maxPremiumBp: Number(premiumPct) * 100,
-          maxCostBp: Number(costPct) * 100,
+          maxPremiumBp: Math.round(Number(premiumPct) * 10_000) / 100,
+          maxCostBp: Math.round(Number(costPct) * 10_000) / 100,
           earningsDays,
           note,
         }),

@@ -32,6 +32,8 @@ export interface SteadyDepth {
   asOfMs: number | null;
   /** How many good samples went into it. */
   samples: number;
+  /** The oldest good sample's time; null when unknown. */
+  sinceMs: number | null;
 }
 
 const slotOf = (ms: number) => Math.floor(ms / DEPTH_SLOT_MS);
@@ -57,10 +59,10 @@ export function steadyDepth(samples: DepthSample[], symbol: string, now: number,
       return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? [{ ts: s.ts, usd: v }] : [];
     });
   const newest = good.reduce<number | null>((m, s) => (m == null || s.ts > m ? s.ts : m), null);
-  if (newest == null || now - newest > DEPTH_FRESH_MS) return { usd: null, asOfMs: null, samples: good.length };
+  if (newest == null || now - newest > DEPTH_FRESH_MS) return { usd: null, asOfMs: null, samples: good.length, sinceMs: null };
   let lowest = Math.min(...good.map((s) => s.usd));
   if (liveUsd != null && Number.isFinite(liveUsd) && liveUsd >= 0) lowest = Math.min(lowest, liveUsd);
-  return { usd: lowest, asOfMs: newest, samples: good.length };
+  return { usd: lowest, asOfMs: newest, samples: good.length, sinceMs: Math.min(...good.map((s) => s.ts)) };
 }
 
 /** Called by the alerts cron only. Best effort: a dropped sample is a gap, never a failed cron. */

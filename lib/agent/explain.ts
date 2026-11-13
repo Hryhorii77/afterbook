@@ -145,7 +145,41 @@ export function briefFacts(brief: Brief) {
 }
 
 export async function explainBrief(brief: Brief, note: string): Promise<string | null> {
-  return ask(BRIEF_SYSTEM, `The basket, as JSON:\n${JSON.stringify(briefFacts(brief))}`, note);
+  const facts = briefFacts(brief);
+  const text = await ask(BRIEF_SYSTEM, `The basket, as JSON:\n${JSON.stringify(facts)}`, note);
+  if (text && !numbersAllowed(text, facts)) {
+    console.error('[agent] brief explanation not used: a number not in the facts');
+    return null;
+  }
+  return text;
+}
+
+const NUMBER = /\d[\d,]*(?:\.\d+)?(?:\s?([kKmM])\b)?/g;
+function numbersIn(text: string): number[] {
+  return [...text.matchAll(NUMBER)].map((m) => {
+    const n = Number(m[0].replace(/[,\s]|[kKmM]$/g, ''));
+    const unit = m[1]?.toLowerCase();
+    return unit === 'k' ? n * 1_000 : unit === 'm' ? n * 1_000_000 : n;
+  });
+}
+
+/** Every number in the text must be one of the facts' numbers (or a number written inside one of its
+ *  sentences), as given or rounded to 0-2 decimals; small whole numbers up to 10 (counts, "3 hours")
+ *  are allowed. The basket's amounts sit next to a Buy button, so an invented or altered figure throws
+ *  the reply away and the fixed words are shown (external review of PR #171, 2026-11-13). */
+export function numbersAllowed(text: string, facts: unknown): boolean {
+  const allowed: number[] = [];
+  const walk = (v: unknown): void => {
+    if (typeof v === 'number' && Number.isFinite(v)) allowed.push(Math.abs(v));
+    else if (typeof v === 'string') allowed.push(...numbersIn(v));
+    else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === 'object') Object.values(v).forEach(walk);
+  };
+  walk(facts);
+  const round = (v: number, d: number) => Math.round(v * 10 ** d) / 10 ** d;
+  return numbersIn(text).every(
+    (x) => (Number.isInteger(x) && x <= 10) || allowed.some((v) => [0, 1, 2].some((d) => Math.abs(round(v, d) - x) < 1e-9) || Math.abs(v - x) < 1e-9),
+  );
 }
 
 async function ask(system: string, facts: string, note: string): Promise<string | null> {
