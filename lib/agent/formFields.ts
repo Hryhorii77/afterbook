@@ -1,5 +1,5 @@
 // Reads a number typed into the trade plan's forms (/plan: budget, the % limits, cash to keep).
-// The inputs strip everything but digits and dots (a comma becomes a dot first, so "1,5" is 1.5, not
+// The inputs strip everything but digits and dots (in a % box a comma becomes a dot first, so "1,5" is 1.5, not
 // 15), which still lets through "", "1.2.3" or ".": Number() made those 0 or NaN, and NaN went out as
 // null, which the server read as "not given" and replaced with its default limit, so a typo silently
 // became a different limit (review of PR #171, 2026-11-13). A number of 310+ digits is Infinity, also
@@ -7,8 +7,12 @@
 
 const PLAIN = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
 
-/** What a number box keeps of what is typed: digits and one kind of separator, a comma read as a dot. */
-export const cleanNumberInput = (raw: string) => raw.replace(/,/g, '.').replace(/[^0-9.]/g, '');
+/** A dollar box (the budget): commas are thousands and dropped, so "25,000" is 25000, as in the basket
+ *  buy's own amount box. Reading them as a point made "25,000" a $25 basket (review of PR #173). */
+export const cleanAmountInput = (raw: string) => raw.replace(/[^0-9.]/g, '');
+
+/** A % box: nobody writes thousands there, so a comma is a decimal comma: "1,5" is 1.5, not 15. */
+export const cleanPercentInput = (raw: string) => raw.replace(/,/g, '.').replace(/[^0-9.]/g, '');
 
 /** The number, or a message naming the field. `emptyAs` lets an optional field be left blank. */
 export function readNumberField(raw: string, label: string, emptyAs?: number): number | string {

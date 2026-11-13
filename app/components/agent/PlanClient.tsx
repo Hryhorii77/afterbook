@@ -13,7 +13,7 @@ import { isLoggedPlan, type LoggedPlan } from '@/lib/agent/planLog';
 import { EARNINGS_OPTIONS, PLAN_LIMITS } from '@/lib/agent/limits';
 import { getStock } from '@/lib/stocks/tokens';
 import { TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
-import { cleanNumberInput, readNumberFields } from '@/lib/agent/formFields';
+import { cleanAmountInput, cleanPercentInput, readNumberFields } from '@/lib/agent/formFields';
 import { bpPct, formatNextOpen, usd } from '@/lib/format';
 import { SwapPanel } from '../swap/SwapPanel';
 import { SymbolTile } from '../ui/SymbolTile';
@@ -62,6 +62,8 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Bumped on each failed submit, so the alert line is new and a screen reader reads a repeated error again.
+  const [errorSeq, setErrorSeq] = useState(0);
   const [result, setResult] = useState<{ plan: Plan; explanation: string; explainedBy: 'claude' | 'fixed' } | null>(null);
   const [selected, setSelected] = useState<PlanLeg | null>(null);
   const [eligible, setEligible] = useState(false);
@@ -105,6 +107,7 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
     });
     if ('error' in read) {
       setError(`Check the form: ${read.error}.`);
+      setErrorSeq((n) => n + 1);
       (document.querySelector(`[name="plan-${read.field}"]`) as HTMLInputElement | null)?.focus();
       return;
     }
@@ -218,17 +221,17 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
         <div className="plan-grid">
           <label className="plan-field">
             <span>Budget (USDC)</span>
-            <input inputMode="decimal" name="plan-budget" value={budget} onChange={(e) => setBudget(cleanNumberInput(e.target.value))} aria-describedby="plan-budget-hint" />
+            <input inputMode="decimal" name="plan-budget" value={budget} onChange={(e) => setBudget(cleanAmountInput(e.target.value))} aria-describedby="plan-budget-hint" />
             <small id="plan-budget-hint">Split equally; one swap is at most $25,000 and 10% of its pool.</small>
           </label>
           <label className="plan-field">
             <span>Most I’ll pay over the real stock (%)</span>
-            <input inputMode="decimal" name="plan-premium" value={premiumPct} onChange={(e) => setPremiumPct(cleanNumberInput(e.target.value))} />
+            <input inputMode="decimal" name="plan-premium" value={premiumPct} onChange={(e) => setPremiumPct(cleanPercentInput(e.target.value))} />
             <small>A stock whose token trades further above its cash price waits.</small>
           </label>
           <label className="plan-field">
             <span>Most I’ll pay to trade (%)</span>
-            <input inputMode="decimal" name="plan-cost" value={costPct} onChange={(e) => setCostPct(cleanNumberInput(e.target.value))} />
+            <input inputMode="decimal" name="plan-cost" value={costPct} onChange={(e) => setCostPct(cleanPercentInput(e.target.value))} />
             <small>Price impact plus the pool fee; bigger buys are sized down to fit.</small>
           </label>
           <label className="plan-field">
@@ -259,7 +262,7 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
             {busy ? 'Checking…' : 'Make the plan'}
           </button>
         </div>
-        {error && <p className="geo-note geo-note-blocked" role="alert">{error}</p>}
+        {error && <p key={errorSeq} className="geo-note geo-note-blocked" role="alert">{error}</p>}
       </form>
 
       {result && (

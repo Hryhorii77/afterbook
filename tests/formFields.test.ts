@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanNumberInput, readNumberField, readNumberFields } from '../lib/agent/formFields';
+import { cleanAmountInput, cleanPercentInput, readNumberField, readNumberFields } from '../lib/agent/formFields';
 
 describe('readNumberField', () => {
   it('reads plain numbers', () => {
@@ -25,10 +25,16 @@ describe('readNumberField', () => {
     expect(readNumberField('9'.repeat(400), 'Most to pay to trade')).toBe('Most to pay to trade isn’t a number');
     expect(readNumberField('9'.repeat(300), 'X')).toBe(Number('9'.repeat(300)));
   });
-  it('a decimal comma is read as a point, so “1,5” is 1.5, not 15', () => {
-    expect(cleanNumberInput('1,5')).toBe('1.5');
-    expect(readNumberField(cleanNumberInput('1,5'), 'X')).toBe(1.5);
-    expect(cleanNumberInput('$1 000')).toBe('1000');
-    expect(readNumberField(cleanNumberInput('1,000.5'), 'X')).toBe('X isn’t a number');
+  it('in a % box a comma is a decimal comma, so “1,5” is 1.5, not 15', () => {
+    expect(cleanPercentInput('1,5')).toBe('1.5');
+    expect(readNumberField(cleanPercentInput('1,5'), 'X')).toBe(1.5);
+    expect(readNumberField(cleanPercentInput('0,25'), 'X')).toBe(0.25);
+    expect(readNumberField(cleanPercentInput('1,2,3'), 'X')).toBe('X isn’t a number');
+  });
+  it('in the budget box a comma is thousands, so “25,000” is $25,000, not $25 (recheck of PR #173)', () => {
+    expect(readNumberField(cleanAmountInput('25,000'), 'X')).toBe(25_000);
+    expect(readNumberField(cleanAmountInput('12,500'), 'X')).toBe(12_500);
+    expect(readNumberField(cleanAmountInput('100,000'), 'X')).toBe(100_000);
+    expect(readNumberField(cleanAmountInput('$1,000.50'), 'X')).toBe(1000.5);
   });
 });
