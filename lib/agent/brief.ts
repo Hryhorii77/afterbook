@@ -303,19 +303,22 @@ export function buildBrief(
   // Each step is a subset of the one before: the deepest stocks sized against the cost limit (in depth
   // order, the next one taking a dropped one's place), those within it, then those over the swap minimum.
   const triedSymbols = passingSymbols.filter((s) => tried.has(s));
-  // Nothing sized (a budget that covers no stock): no "the 0 with the deepest pools" step; the shortfall says why.
-  if (triedSymbols.length) addStep(
-    sizeDropped.length
-      ? `the ${triedSymbols.length} with the deepest pools, tried in turn against your cost limit`
-      : byBudget < BRIEF_LIMITS.maxStocks
-      ? `the ${triedSymbols.length} with the deepest pools that your budget covers at ${usd(PLAN_LIMITS.minLegUsd, 0)} or more each`
-      : `the ${triedSymbols.length} with the deepest pools (a basket holds at most ${BRIEF_LIMITS.maxStocks})`,
-    triedSymbols,
-  );
-  // An unreadable pool is not a cost-limit drop: its own step, so "within your cost limit" counts only those.
-  addStep('with a pool that could be read just now', triedSymbols.filter((s) => !unreadable.includes(s)));
-  addStep('within your cost limit', triedSymbols.filter((s) => !sizeDropped.includes(s)));
-  addStep(`over the ${usd(PLAN_LIMITS.minLegUsd, 0)} swap minimum`, passed.map((l) => l.symbol));
+  // Nothing sized (a budget that covers no stock): none of the sizing steps, which would read as "0 pools
+  // could be read" (review of PR #176); the shortfall says why.
+  if (triedSymbols.length) {
+    addStep(
+      sizeDropped.length
+        ? `the ${triedSymbols.length} with the deepest pools, tried in turn against your cost limit`
+        : byBudget < BRIEF_LIMITS.maxStocks
+        ? `the ${triedSymbols.length} with the deepest pools that your budget covers at ${usd(PLAN_LIMITS.minLegUsd, 0)} or more each`
+        : `the ${triedSymbols.length} with the deepest pools (a basket holds at most ${BRIEF_LIMITS.maxStocks})`,
+      triedSymbols,
+    );
+    // An unreadable pool is not a cost-limit drop: its own step, so "within your cost limit" counts only those.
+    addStep('with a pool that could be read just now', triedSymbols.filter((s) => !unreadable.includes(s)));
+    addStep('within your cost limit', triedSymbols.filter((s) => !sizeDropped.includes(s)));
+    addStep(`over the ${usd(PLAN_LIMITS.minLegUsd, 0)} swap minimum`, passed.map((l) => l.symbol));
+  }
 
   const base = {
     input: { theme: input.theme, exclude: input.exclude, minStocks: input.minStocks, budgetUsd: input.budgetUsd, cashPct: input.cashPct, maxPremiumBp: input.maxPremiumBp, maxCostBp: input.maxCostBp, earningsDays: input.earningsDays },
@@ -339,7 +342,7 @@ export function buildBrief(
         ? `Your ${usd(investedTarget)} to invest is too little for at least ${usd(PLAN_LIMITS.minLegUsd, 0)} in each of ${input.minStocks} stocks. Raise the budget or keep less as cash.${
             // Both reasons when both applied (review of PR #175: $36 with 29% cash, 7 of 8 also over the cost limit).
             costDropped.length ? ` Your ${pctText(input.maxCostBp)} cost limit also left out ${list(costDropped)}.` : ''
-          }`
+          }${unreadable.length ? ` The ${unreadable.length === 1 ? 'pool' : 'pools'} of ${list(unreadable)} couldn’t be read just now.` : ''}`
         : n === 0 && costDropped.length && feeBps >= input.maxCostBp
         ? `Afterbook’s ${pctText(feeBps)} swap fee alone is over your ${pctText(input.maxCostBp)} limit on what you’ll pay to trade, so there is no basket.`
         : n === 0 && costDropped.length
