@@ -48,6 +48,8 @@ export interface PlanLeg {
   /** For a wait or skip, the reason that decided it (one of `reasons`); the others are context only.
    *  Kept apart so Claude can't present a warning as the cause (it did, live, 2026-11-08). */
   decidedBy?: string;
+  /** Set by sizeLegs when the buy is less than its equal share: the cost limit, or the swap caps ($25k, 10% of the pool). */
+  cutBy?: 'cost limit' | 'swap caps';
   gapBp: number | null;
   /** "close", "price", "after-hours price"…: what the gap is measured against. */
   gapAgainst: string;
@@ -233,6 +235,7 @@ export function sizeLegs(legs: PlanLeg[], input: PlanInput, costs: Map<string, C
         ? `A ${usd(size, 0)} buy would cost about ${costPct(leg.costBp)}: ${costPct(est.impactBp)} of price impact and pool fee, plus Afterbook’s ${costPct(feeBps)} fee.`
         : `A ${usd(size, 0)} buy would cost about ${costPct(est.impactBp)} (price impact plus the pool fee; Afterbook charges no fee).`,
     );
+    leg.cutBy = shrunk ? 'cost limit' : capped ? 'swap caps' : undefined;
     if (shrunk) leg.reasons.push(`Sized down from ${usd(share, 0)} to stay inside your ${costPct(input.maxCostBp)} limit to trade.`);
     else if (capped) leg.reasons.push(`Capped at ${usd(size, 0)}: one swap is at most ${usd(MAX_SWAP_USD, 0)} and 10% of the pool.`);
   }

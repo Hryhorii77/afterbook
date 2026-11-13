@@ -23,7 +23,7 @@ vi.mock('../lib/agent/explain', () => ({
   explainerConfigured: () => fx.configured,
   explainPlan: async () => {
     fx.explainCalls++;
-    return fx.explained;
+    return fx.explained != null ? { text: fx.explained } : { text: null, why: 'refused-by-check' };
   },
 }));
 vi.mock('../lib/server/ratelimit', async (orig) => {
@@ -56,19 +56,23 @@ describe('POST /api/agent/plan', () => {
     const body = await (await post({ symbols: ['NVDAc'], budgetUsd: 1000 })).json();
     expect(body.plan.legs[0]).toMatchObject({ symbol: 'NVDAc', verdict: 'buy', usd: 1000 });
     expect(body.explainedBy).toBe('claude');
+    expect(body.fixedBecause).toBeNull();
   });
   it('falls back to fixed words when Claude returns nothing, is over its limits, or Redis is missing', async () => {
     let body = await (await post({ symbols: ['NVDAc'], budgetUsd: 1000 })).json();
     expect(body.explainedBy).toBe('fixed');
     expect(body.explanation).toMatch(/One buy passes your limits/);
+    expect(body.fixedBecause).toBe('refused-by-check');
     fx.allow = false;
     fx.explainCalls = 0;
     body = await (await post({ symbols: ['NVDAc'], budgetUsd: 1000 })).json();
     expect(body.explainedBy).toBe('fixed');
+    expect(body.fixedBecause).toBe('rate-limited');
     expect(fx.explainCalls).toBe(0);
     fx.allow = true;
     fx.limiters = false;
     body = await (await post({ symbols: ['NVDAc'], budgetUsd: 1000 })).json();
+    expect(body.fixedBecause).toBe('no-limiter');
     expect(fx.explainCalls).toBe(0);
   });
   it('holds one caller to 10 plans a minute', async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildBrief, parseBriefInput, type BriefInput } from '../lib/agent/brief';
+import { briefFacts, numbersAllowed } from '../lib/agent/explain';
 import type { CostModel } from '../lib/agent/plan';
 import type { SteadyDepth } from '../lib/market/depthSamples';
 import type { TapeResult, TapeRow } from '../lib/market/tape';
@@ -292,5 +293,70 @@ describe('buildBrief', () => {
     const b = run(input({ minStocks: 2 }), steadyOf({ NVDAc: 2_000_000, MUc: 1_000_000 }, 0), allRows(), costs);
     expect(b.picks).toBeNull();
     expect(b.shortfall).toMatch(/Only 1 stock passes \(NVDA\)/);
+  });
+
+  it('counts every stock that passed, then the cut to the 4 deepest as its own step', () => {
+    const b = run(input({ minStocks: 4 }), steadyOf({ NVDAc: 1_400_000, MUc: 500_000, AMDc: 400_000, AVGOc: 400_000, MRVLc: 300_000, SKHYc: 60_000, ARMc: 60_000 }));
+    expect(b.steps.map((s) => [s.symbols.length, s.label])).toEqual([
+      [7, 'Theme “AI chips”: stocks on Afterbook'],
+      [5, 'with a pool over $250,000 in every reading of the last 3 hours'],
+      [5, 'that pass your price and earnings limits'],
+      [4, 'the 4 with the deepest pools (a basket holds at most 4)'],
+    ]);
+    // A cut by the cost limit is a step of its own too.
+    const costs = costsFor();
+    costs.set('NVDAc', { estimate: () => ({ sharesOut: 1, impactBp: 500 }), sizeForImpact: () => 1 });
+    const c = run(input({ minStocks: 2, budgetUsd: 900 }), steadyOf({ NVDAc: 2_000_000, MUc: 1_500_000, AMDc: 1_000_000 }, 0), allRows(), costs);
+    expect(c.steps.map((s) => s.symbols.length)).toEqual([7, 3, 3, 2]);
+    expect(c.steps[3].label).toMatch(/cost limit/);
+  });
+
+  it('Claude gets each dropped stock’s name, and why the cash is more than asked', () => {
+    const b = run(input({ cashPct: 10 }), steadyOf({ NVDAc: 2_000_000, MUc: 1_500_000, AMDc: 1_000_000, SKHYc: 60_000 }, 0));
+    expect(b.basket?.map((l) => l.weightPct)).toEqual([34, 33, 33]);
+    const f = briefFacts(b);
+    expect(f.dropped.find((d) => d.symbol === 'SKHYc')?.name).toBe('SK hynix Inc.');
+    expect(f.cashWhy).toBe(`You asked to keep $100 as cash, and $${b.cashUsd.toLocaleString('en-US')} stays as cash because the weights are whole percents and the amount is rounded down to whole dollars, so no stock gets more than it was sized for.`);
+    expect(b.picks?.every((p) => p.sizedDownBy === null)).toBe(true);
+    expect(briefFacts(run(input({ cashPct: 10, minStocks: 4 }), steadyOf({}, 2_000_000))).cashWhy).toBeNull();
+  });
+
+  it('cash left by a cost-limit cut is blamed on the cost limit, not the weights', () => {
+    // NVDA fills over the limit above $100: sized down to $98 (0.98 of the size that fits).
+    const costs = costsFor();
+    costs.set('NVDAc', { estimate: (u: number) => ({ sharesOut: u / 100, impactBp: u > 100 ? 500 : 10 }), sizeForImpact: () => 100 });
+    const b = run(input({ minStocks: 4 }), steadyOf({ NVDAc: 2_000_000, MUc: 1_500_000, AMDc: 1_000_000, AVGOc: 900_000 }, 0), allRows(), costs);
+    const nvda = b.picks?.find((p) => p.symbol === 'NVDAc');
+    expect(nvda?.sizedDownBy).toBe('cost limit');
+    expect(b.picks?.filter((p) => p.symbol !== 'NVDAc').every((p) => p.sizedDownBy === null)).toBe(true);
+    const why = briefFacts(b).cashWhy!;
+    expect(why).toMatch(new RegExp(`^You kept no cash aside, but \\$${b.cashUsd} stays as cash because your cost limit cut NVDA to \\$${nvda!.usd}`));
+    expect(why).not.toMatch(/whole percents/);
+    expect(why).toMatch(/what that stock couldn’t take/);
+    expect(numbersAllowed(why, briefFacts(b))).toBe(true);
+  });
+
+  it('a sentence naming several cut stocks passes the number check (commas after amounts)', () => {
+    const costs = costsFor();
+    const capAt = (limit: number): CostModel => ({ estimate: (u: number) => ({ sharesOut: u / 100, impactBp: u > limit ? 500 : 10 }), sizeForImpact: () => limit });
+    costs.set('NVDAc', capAt(100));
+    costs.set('MUc', capAt(150));
+    costs.set('AMDc', capAt(200));
+    const b = run(input({ minStocks: 4 }), steadyOf({ NVDAc: 2_000_000, MUc: 1_500_000, AMDc: 1_000_000, AVGOc: 900_000 }, 0), allRows(), costs);
+    expect(b.picks?.filter((p) => p.sizedDownBy === 'cost limit').map((p) => p.symbol)).toEqual(['NVDAc', 'MUc', 'AMDc']);
+    const why = briefFacts(b).cashWhy!;
+    expect(why).toMatch(/cut NVDA to \$\d+(\.\d+)?, MU to \$\d+(\.\d+)? and AMD to \$\d+(\.\d+)?, and what those stocks/);
+    expect(numbersAllowed(why, briefFacts(b))).toBe(true);
+    // Claude rewording it with commas after the amounts passes too.
+    const [n, m] = b.picks!.filter((p) => p.sizedDownBy).map((p) => p.usd);
+    expect(numbersAllowed(`Your cost limit cut NVDA to $${n}, MU to $${m}, and the rest stays as cash.`, briefFacts(b))).toBe(true);
+  });
+
+  it('sizeLegs marks a cut leg itself, so a reworded reason can’t break sizedDownBy', () => {
+    const costs = costsFor();
+    costs.set('NVDAc', { estimate: (u: number) => ({ sharesOut: u / 100, impactBp: u > 100 ? 500 : 10 }), sizeForImpact: () => 100 });
+    const b = run(input({ minStocks: 4 }), steadyOf({ NVDAc: 2_000_000, MUc: 1_500_000, AMDc: 1_000_000, AVGOc: 900_000 }, 0), allRows(), costs);
+    expect(b.legs.find((l) => l.symbol === 'NVDAc')?.cutBy).toBe('cost limit');
+    expect(b.legs.filter((l) => l.symbol !== 'NVDAc' && l.verdict === 'buy').every((l) => l.cutBy === undefined)).toBe(true);
   });
 });

@@ -12,7 +12,7 @@ import { limitRead } from '@/lib/server/readGuard';
 import { parseBriefInput, briefShortlist, buildBrief, fallbackBriefExplanation } from '@/lib/agent/brief';
 import type { CostModel } from '@/lib/agent/plan';
 import { explainBrief } from '@/lib/agent/explain';
-import { mayExplain } from '@/lib/agent/explainGate';
+import { whyNotExplain } from '@/lib/agent/explainGate';
 import { countPlanBriefly } from '@/lib/agent/planStats';
 
 export const maxDuration = 60;
@@ -42,12 +42,15 @@ export async function POST(request: Request) {
       }),
     );
     const brief = buildBrief(input, tape, steady, costs, earningsSyncedAt, swapFee()?.bps ?? 0, now);
-    const explained = (await mayExplain(request)) ? await explainBrief(brief, input.note) : null;
-    await countPlanBriefly({ explainedBy: explained ? 'claude' : 'fixed', buys: brief.picks?.length ?? 0 });
+    const blocked = await whyNotExplain(request);
+    const explained = blocked ? { text: null, why: blocked } : await explainBrief(brief, input.note);
+    await countPlanBriefly({ explainedBy: explained.text != null ? 'claude' : 'fixed', buys: brief.picks?.length ?? 0 });
     return NextResponse.json({
       brief,
-      explanation: explained ?? fallbackBriefExplanation(brief),
-      explainedBy: explained ? 'claude' : 'fixed',
+      explanation: explained.text ?? fallbackBriefExplanation(brief),
+      explainedBy: explained.text != null ? 'claude' : 'fixed',
+      // Why the fixed words were used (a hit limit vs. a reply the checks refused), null when Claude explained it.
+      fixedBecause: explained.text != null ? null : explained.why,
     });
   } catch (err) {
     console.error('[/api/agent/brief]', err);

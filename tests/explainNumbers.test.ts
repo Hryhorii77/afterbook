@@ -55,6 +55,14 @@ describe('numbersAllowed', () => {
       expect(numbersAllowed(t, { ...facts, extra: 0.5 }), t).toBe(false);
     expect(numbersAllowed('About $4,925 in MSFT and a 0.2% cost.', facts)).toBe(true);
   });
+  it('a comma after a number ends the sentence part, it is not a decimal comma (recheck of PR #172)', () => {
+    const f = { ...facts, extra: 147 };
+    expect(numbersAllowed('MU to $147, and more.', f)).toBe(true);
+    expect(numbersAllowed('$5,515 stays as cash, and $14,485 is invested, with 2 stocks.', f)).toBe(true);
+    expect(numbersAllowed('MSFT is 34%, NVDA 33%.', f)).toBe(true);
+    expect(numbersAllowed('About 3,40 dollars, and more.', f)).toBe(false);
+    expect(numbersAllowed('MU to $148, and more.', f)).toBe(false);
+  });
 });
 
 describe('acceptExplanation forecasts', () => {
