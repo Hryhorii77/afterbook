@@ -54,7 +54,7 @@ export interface BriefPick {
 
 export interface Brief {
   input: Omit<BriefInput, 'note'>;
-  /** Candidates narrowing step by step: theme → sectors → steady depth → limits. */
+  /** Candidates narrowing step by step: theme → sectors → steady depth → limits → the 4 deepest → budget → cost limit (a later step only when it cuts). */
   steps: BriefStep[];
   /** Why each candidate that didn't make it was dropped, one sentence each. */
   dropped: { symbol: string; why: string }[];
@@ -185,7 +185,8 @@ export function buildBrief(
   feeBps = 0,
   now = Date.now(),
 ): Brief {
-  const { dropped, themeLabel, themed, kept, deep, planInput, legs, chosen } = shortlist(input, tape, steady, earningsSyncedAt, now);
+  const { dropped, themeLabel, themed, kept, deep, planInput, legs, passing, chosen } = shortlist(input, tape, steady, earningsSyncedAt, now);
+  const passingSymbols = passing.map((l) => l.symbol);
   // Whole cents first, so $19.99 with no cash is $19.99, not $19.98 (float error under the floor).
   const investedTarget = Math.floor(Math.round(input.budgetUsd * 100) * (1 - input.cashPct / 100) + 1e-6) / 100;
   const skipLeg = (l: PlanLeg, why: string) => {
@@ -264,12 +265,20 @@ export function buildBrief(
   // The shortest history behind the deep stocks (the newest first reading), so "since" is never overstated.
   const since = (deep.length ? deep : kept).map((sym) => steady.get(sym)?.sinceMs).filter((t): t is number => t != null);
   const readingsSinceMs = since.length ? Math.max(...since) : null;
+  // Every stock that passed the checks is counted, then each later cut gets its own step, so "4 passed"
+  // never stands for "15 passed and the 4 deepest were kept" (external review of the live page, 2026-11-13).
   const steps: BriefStep[] = [
     { label: `${themeLabel}: stocks on Afterbook`, symbols: themed },
     ...(input.exclude.length ? [{ label: 'after the sectors you left out', symbols: kept }] : []),
     { label: `with a pool over ${usd(TAPE_MAIN_DEPTH_USD, 0)} in every reading of the last 3 hours`, symbols: deep },
-    { label: 'that pass your price, cost and earnings limits', symbols: passed.map((l) => l.symbol) },
+    { label: 'that pass your price and earnings limits', symbols: passingSymbols },
   ];
+  const addStep = (label: string, symbols: string[]) => {
+    if (symbols.length !== steps[steps.length - 1].symbols.length) steps.push({ label, symbols });
+  };
+  addStep(`the ${BRIEF_LIMITS.maxStocks} with the deepest pools (a basket holds at most ${BRIEF_LIMITS.maxStocks})`, chosen.map((l) => l.symbol));
+  addStep(`that your budget covers at ${usd(PLAN_LIMITS.minLegUsd, 0)} or more each`, chosen.slice(0, byBudget).map((l) => l.symbol));
+  addStep(`within your cost limit and the ${usd(PLAN_LIMITS.minLegUsd, 0)} swap minimum`, passed.map((l) => l.symbol));
 
   const base = {
     input: { theme: input.theme, exclude: input.exclude, minStocks: input.minStocks, budgetUsd: input.budgetUsd, cashPct: input.cashPct, maxPremiumBp: input.maxPremiumBp, maxCostBp: input.maxCostBp, earningsDays: input.earningsDays },
