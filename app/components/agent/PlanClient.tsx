@@ -13,6 +13,7 @@ import { isLoggedPlan, type LoggedPlan } from '@/lib/agent/planLog';
 import { EARNINGS_OPTIONS, PLAN_LIMITS } from '@/lib/agent/limits';
 import { getStock } from '@/lib/stocks/tokens';
 import { TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
+import { readNumberFields } from '@/lib/agent/formFields';
 import { bpPct, formatNextOpen, usd } from '@/lib/format';
 import { SwapPanel } from '../swap/SwapPanel';
 import { SymbolTile } from '../ui/SymbolTile';
@@ -96,8 +97,17 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true);
     setError(null);
+    const read = readNumberFields({
+      budget: [budget, 'The budget'],
+      premium: [premiumPct, 'Most I’ll pay over the real stock'],
+      cost: [costPct, 'Most I’ll pay to trade'],
+    });
+    if ('error' in read) {
+      setError(`Check the form: ${read.error}.`);
+      return;
+    }
+    setBusy(true);
     setSelected(null);
     try {
       const res = await fetch('/api/agent/plan', {
@@ -105,9 +115,9 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           symbols: picked,
-          budgetUsd: Number(budget),
-          maxPremiumBp: Math.round(Number(premiumPct) * 10_000) / 100,
-          maxCostBp: Math.round(Number(costPct) * 10_000) / 100,
+          budgetUsd: read.values.budget,
+          maxPremiumBp: Math.round(read.values.premium * 10_000) / 100,
+          maxCostBp: Math.round(read.values.cost * 10_000) / 100,
           earningsDays,
           note,
         }),

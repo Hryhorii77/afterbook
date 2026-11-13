@@ -84,6 +84,10 @@ export function BasketBuyPanel({
   const plan = totalRaw ? splitBasketUsdc(totalRaw, legs) : null;
   const problem = totalRaw ? basketAmountProblem(totalRaw, legs) : null;
   const overBalance = totalRaw !== null && balance !== undefined && totalRaw > balance;
+  // The trade plan sized its basket to the person's cost limit at `defaultUsd`: more than that is
+  // allowed (the swap checks still apply) but no longer what the plan checked, so say so.
+  const sizedRaw = defaultUsd != null && Number.isFinite(defaultUsd) && defaultUsd > 0 ? parseAmount(String(Math.floor(defaultUsd * 100) / 100), USDC.decimals) : null;
+  const overSized = totalRaw !== null && sizedRaw !== null && totalRaw > sizedRaw;
 
   const buildLeg = async (leg: BasketLegAmount): Promise<SwapTx> => {
     const tx = await buildSwap({ symbol: leg.symbol, side: 'buy', amountIn: leg.amountIn.toString(), account: address, source: 'basket', slippageBps });
@@ -206,6 +210,11 @@ export function BasketBuyPanel({
         )}
       </div>
       {overBalance && <p className="geo-note">That is more USDC than your wallet holds on Base.</p>}
+      {overSized && (
+        <p className="geo-note">
+          That is more than the {usd(Number(sizedRaw) / 1e6)} the plan sized, so a stock may cost more to trade than your limit. The review below shows each swap’s minimum before you sign.
+        </p>
+      )}
       {!review && <SlippageControl disabled={busy !== null} />}
       {problem && <p className="geo-note">{problem}</p>}
       {plan && !problem && !review && (

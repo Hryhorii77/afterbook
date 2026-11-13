@@ -12,6 +12,7 @@ import { BRIEF_LIMITS, EARNINGS_OPTIONS, PLAN_LIMITS } from '@/lib/agent/limits'
 import { PROFILES, SECTORS, THEMES, type Sector } from '@/lib/stocks/sectors';
 import { getStock } from '@/lib/stocks/tokens';
 import { formatSpec } from '@/lib/build/customBasket';
+import { readNumberFields } from '@/lib/agent/formFields';
 import { bpPct, formatNextOpen, usd } from '@/lib/format';
 import { BasketBuyPanel } from '../baskets/BasketBuyPanel';
 import { SymbolTile } from '../ui/SymbolTile';
@@ -54,8 +55,20 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
   const lastBody = useRef<Record<string, unknown> | null>(null);
 
   const run = async (spread = minStocks, from: Record<string, unknown> | null = null) => {
-    setBusy(true);
     setError(null);
+    const read = from
+      ? null
+      : readNumberFields({
+          budget: [budget, 'The budget'],
+          cash: [cashPct, 'Keep as cash', 0],
+          premium: [premiumPct, 'Most above the real stock’s price'],
+          cost: [costPct, 'Most to pay to trade'],
+        });
+    if (read && 'error' in read) {
+      setError(`Check the form: ${read.error}.`);
+      return;
+    }
+    setBusy(true);
     try {
       const body = from
         ? { ...from, minStocks: spread }
@@ -63,11 +76,11 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
           theme,
           exclude,
           minStocks: spread,
-          budgetUsd: Number(budget),
-          cashPct: Number(cashPct || 0),
-          // Rounded: Number('0.29') * 100 is 28.999…
-          maxPremiumBp: Math.round(Number(premiumPct) * 10_000) / 100,
-          maxCostBp: Math.round(Number(costPct) * 10_000) / 100,
+          budgetUsd: read!.values.budget,
+          cashPct: read!.values.cash,
+          // Rounded: 0.29 * 100 is 28.999…
+          maxPremiumBp: Math.round(read!.values.premium * 10_000) / 100,
+          maxCostBp: Math.round(read!.values.cost * 10_000) / 100,
           earningsDays,
           note,
         };
