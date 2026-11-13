@@ -12,7 +12,7 @@ import { BRIEF_LIMITS, EARNINGS_OPTIONS, PLAN_LIMITS } from '@/lib/agent/limits'
 import { PROFILES, SECTORS, THEMES, type Sector } from '@/lib/stocks/sectors';
 import { getStock } from '@/lib/stocks/tokens';
 import { formatSpec } from '@/lib/build/customBasket';
-import { readNumberFields } from '@/lib/agent/formFields';
+import { cleanNumberInput, readNumberFields } from '@/lib/agent/formFields';
 import { bpPct, formatNextOpen, usd } from '@/lib/format';
 import { BasketBuyPanel } from '../baskets/BasketBuyPanel';
 import { SymbolTile } from '../ui/SymbolTile';
@@ -59,13 +59,14 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
     const read = from
       ? null
       : readNumberFields({
-          budget: [budget, 'The budget'],
+          budget: [budget, 'the budget'],
           cash: [cashPct, 'Keep as cash', 0],
           premium: [premiumPct, 'Most above the real stock’s price'],
           cost: [costPct, 'Most to pay to trade'],
         });
     if (read && 'error' in read) {
       setError(`Check the form: ${read.error}.`);
+      (document.querySelector(`[name="brief-${read.field}"]`) as HTMLInputElement | null)?.focus();
       return;
     }
     setBusy(true);
@@ -154,22 +155,22 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
           </label>
           <label className="plan-field">
             <span>Budget (USDC)</span>
-            <input inputMode="decimal" value={budget} onChange={(e) => setBudget(e.target.value.replace(/[^0-9.]/g, ''))} />
+            <input inputMode="decimal" name="brief-budget" value={budget} onChange={(e) => setBudget(cleanNumberInput(e.target.value))} />
             <small>Up to {usd(BRIEF_LIMITS.maxBudgetUsd, 0)}, the most one basket buy can be.</small>
           </label>
           <label className="plan-field">
             <span>Keep as cash (%)</span>
-            <input inputMode="decimal" value={cashPct} onChange={(e) => setCashPct(e.target.value.replace(/[^0-9.]/g, ''))} />
+            <input inputMode="decimal" name="brief-cash" value={cashPct} onChange={(e) => setCashPct(cleanNumberInput(e.target.value))} />
             <small>Stays in your wallet as USDC. Up to {BRIEF_LIMITS.maxCashPct}%.</small>
           </label>
           <label className="plan-field">
             <span>Most above the real stock’s price (%)</span>
-            <input inputMode="decimal" value={premiumPct} onChange={(e) => setPremiumPct(e.target.value.replace(/[^0-9.]/g, ''))} />
+            <input inputMode="decimal" name="brief-premium" value={premiumPct} onChange={(e) => setPremiumPct(cleanNumberInput(e.target.value))} />
             <small>A token priced further above its stock is left out.</small>
           </label>
           <label className="plan-field">
             <span>Most to pay to trade (%)</span>
-            <input inputMode="decimal" value={costPct} onChange={(e) => setCostPct(e.target.value.replace(/[^0-9.]/g, ''))} />
+            <input inputMode="decimal" name="brief-cost" value={costPct} onChange={(e) => setCostPct(cleanNumberInput(e.target.value))} />
             <small>Price impact plus the pool fee; a stock is bought for less to fit.</small>
           </label>
           <label className="plan-field">
@@ -197,7 +198,7 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
         {ran && !buying && (
           <p className="plan-hint">Building a new basket clears the buy below. Anything it left approved for the router is listed on Portfolio, with a Revoke button.</p>
         )}
-        {error && <p className="geo-note geo-note-blocked">{error}</p>}
+        {error && <p className="geo-note geo-note-blocked" role="alert">{error}</p>}
       </form>
 
       {result && brief && (

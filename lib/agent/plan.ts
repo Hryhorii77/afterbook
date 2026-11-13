@@ -69,6 +69,11 @@ export interface Plan {
   createdAt: number;
 }
 
+/** An optional field: the default only when it is missing. An explicit null is refused like any bad
+ *  value: the page sends NaN or Infinity as null, and taking the default made a typo a different limit
+ *  (review of PR #173, 2026-11-13). */
+export const given = (v: unknown, fallback: number): unknown => (v === undefined ? fallback : v);
+
 /** Parses the request body; returns the input or a message for a 400. */
 export function parsePlanInput(body: unknown, known: (symbol: string) => boolean): PlanInput | string {
   if (!body || typeof body !== 'object') return 'expected a JSON object';
@@ -87,11 +92,11 @@ export function parsePlanInput(body: unknown, known: (symbol: string) => boolean
   };
   const budgetUsd = num(b.budgetUsd, PLAN_LIMITS.minBudgetUsd, PLAN_LIMITS.maxBudgetUsd, `the budget must be between $${PLAN_LIMITS.minBudgetUsd} and $${PLAN_LIMITS.maxBudgetUsd.toLocaleString('en-US')}`);
   if (typeof budgetUsd === 'string') return budgetUsd;
-  const maxPremiumBp = num(b.maxPremiumBp ?? 50, 0, PLAN_LIMITS.maxPremiumBp, `the most you'll pay over the real stock must be between 0% and ${PLAN_LIMITS.maxPremiumBp / 100}%`);
+  const maxPremiumBp = num(given(b.maxPremiumBp, 50), 0, PLAN_LIMITS.maxPremiumBp, `the most you'll pay over the real stock must be between 0% and ${PLAN_LIMITS.maxPremiumBp / 100}%`);
   if (typeof maxPremiumBp === 'string') return maxPremiumBp;
-  const maxCostBp = num(b.maxCostBp ?? 30, 1, PLAN_LIMITS.maxCostBp, `the most you'll pay to trade must be between 0.01% and ${PLAN_LIMITS.maxCostBp / 100}%`);
+  const maxCostBp = num(given(b.maxCostBp, 30), 1, PLAN_LIMITS.maxCostBp, `the most you'll pay to trade must be between 0.01% and ${PLAN_LIMITS.maxCostBp / 100}%`);
   if (typeof maxCostBp === 'string') return maxCostBp;
-  const earningsDays = num(b.earningsDays ?? 2, 0, PLAN_LIMITS.maxEarningsDays, `the earnings wait must be between 0 and ${PLAN_LIMITS.maxEarningsDays} days`);
+  const earningsDays = num(given(b.earningsDays, 2), 0, PLAN_LIMITS.maxEarningsDays, `the earnings wait must be between 0 and ${PLAN_LIMITS.maxEarningsDays} days`);
   if (typeof earningsDays === 'string') return earningsDays;
   const note = b.note ?? '';
   if (typeof note !== 'string') return 'the note must be text';

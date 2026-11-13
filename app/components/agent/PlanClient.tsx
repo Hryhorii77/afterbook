@@ -13,7 +13,7 @@ import { isLoggedPlan, type LoggedPlan } from '@/lib/agent/planLog';
 import { EARNINGS_OPTIONS, PLAN_LIMITS } from '@/lib/agent/limits';
 import { getStock } from '@/lib/stocks/tokens';
 import { TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
-import { readNumberFields } from '@/lib/agent/formFields';
+import { cleanNumberInput, readNumberFields } from '@/lib/agent/formFields';
 import { bpPct, formatNextOpen, usd } from '@/lib/format';
 import { SwapPanel } from '../swap/SwapPanel';
 import { SymbolTile } from '../ui/SymbolTile';
@@ -99,12 +99,13 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
     e.preventDefault();
     setError(null);
     const read = readNumberFields({
-      budget: [budget, 'The budget'],
+      budget: [budget, 'the budget'],
       premium: [premiumPct, 'Most I’ll pay over the real stock'],
       cost: [costPct, 'Most I’ll pay to trade'],
     });
     if ('error' in read) {
       setError(`Check the form: ${read.error}.`);
+      (document.querySelector(`[name="plan-${read.field}"]`) as HTMLInputElement | null)?.focus();
       return;
     }
     setBusy(true);
@@ -217,17 +218,17 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
         <div className="plan-grid">
           <label className="plan-field">
             <span>Budget (USDC)</span>
-            <input inputMode="decimal" value={budget} onChange={(e) => setBudget(e.target.value.replace(/[^0-9.]/g, ''))} aria-describedby="plan-budget-hint" />
+            <input inputMode="decimal" name="plan-budget" value={budget} onChange={(e) => setBudget(cleanNumberInput(e.target.value))} aria-describedby="plan-budget-hint" />
             <small id="plan-budget-hint">Split equally; one swap is at most $25,000 and 10% of its pool.</small>
           </label>
           <label className="plan-field">
             <span>Most I’ll pay over the real stock (%)</span>
-            <input inputMode="decimal" value={premiumPct} onChange={(e) => setPremiumPct(e.target.value.replace(/[^0-9.]/g, ''))} />
+            <input inputMode="decimal" name="plan-premium" value={premiumPct} onChange={(e) => setPremiumPct(cleanNumberInput(e.target.value))} />
             <small>A stock whose token trades further above its cash price waits.</small>
           </label>
           <label className="plan-field">
             <span>Most I’ll pay to trade (%)</span>
-            <input inputMode="decimal" value={costPct} onChange={(e) => setCostPct(e.target.value.replace(/[^0-9.]/g, ''))} />
+            <input inputMode="decimal" name="plan-cost" value={costPct} onChange={(e) => setCostPct(cleanNumberInput(e.target.value))} />
             <small>Price impact plus the pool fee; bigger buys are sized down to fit.</small>
           </label>
           <label className="plan-field">
@@ -258,7 +259,7 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
             {busy ? 'Checking…' : 'Make the plan'}
           </button>
         </div>
-        {error && <p className="geo-note geo-note-blocked">{error}</p>}
+        {error && <p className="geo-note geo-note-blocked" role="alert">{error}</p>}
       </form>
 
       {result && (
