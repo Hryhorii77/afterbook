@@ -154,32 +154,51 @@ export async function explainBrief(brief: Brief, note: string): Promise<string |
   return text;
 }
 
-const NUMBER = /\d[\d,]*(?:\.\d+)?(?:\s?([kKmM])\b)?/g;
-function numbersIn(text: string): number[] {
+// A number as written: an optional sign, $, digits or a leading dot, and an optional % or k/m after it.
+const NUMBER = /([-+−]?)(\$?)(\d[\d,]*(?:\.\d+)?|\.\d+)(\s?%|\s?[kKmM]\b)?/g;
+interface Num {
+  value: number;
+  signed: boolean;
+  money: boolean;
+  pct: boolean;
+}
+function numbersIn(text: string): Num[] {
   return [...text.matchAll(NUMBER)].map((m) => {
-    const n = Number(m[0].replace(/[,\s]|[kKmM]$/g, ''));
-    const unit = m[1]?.toLowerCase();
-    return unit === 'k' ? n * 1_000 : unit === 'm' ? n * 1_000_000 : n;
+    const unit = m[4]?.trim().toLowerCase();
+    const n = Number(m[3].replace(/,/g, '')) * (unit === 'k' ? 1_000 : unit === 'm' ? 1_000_000 : 1);
+    const neg = m[1] === '-' || m[1] === '−';
+    return { value: neg ? -n : n, signed: !!m[1], money: m[2] === '$', pct: unit === '%' };
   });
 }
+/** Scale words, and spelled-out numbers used as amounts or percents: not checkable, so not allowed. */
+const WORDY = [
+  /\b(?:hundred|thousand|million|billion|trillion)s?\b/i,
+  /\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\s-]*(?:percent|per\s*cent|dollars?|usdc?|%)/i,
+];
 
 /** Every number in the text must be one of the facts' numbers (or a number written inside one of its
- *  sentences), as given or rounded to 0-2 decimals; small whole numbers up to 10 (counts, "3 hours")
- *  are allowed. The basket's amounts sit next to a Buy button, so an invented or altered figure throws
- *  the reply away and the fixed words are shown (external review of PR #171, 2026-11-13). */
+ *  sentences), as given or rounded to 0-2 decimals, with its sign if it has one. Small whole numbers up
+ *  to 10 are allowed as counts ("3 stocks", "3 hours"), never as an amount ($) or a percent. Spelled-out
+ *  amounts and scale words are refused. The basket's amounts sit next to a Buy button, so an invented or
+ *  altered figure throws the reply away and the fixed words are shown (external review of PR #171,
+ *  2026-11-13). It can't tell which stock a right number is said about: the page's own figures sit below. */
 export function numbersAllowed(text: string, facts: unknown): boolean {
+  if (WORDY.some((re) => re.test(text))) return false;
   const allowed: number[] = [];
   const walk = (v: unknown): void => {
-    if (typeof v === 'number' && Number.isFinite(v)) allowed.push(Math.abs(v));
-    else if (typeof v === 'string') allowed.push(...numbersIn(v));
+    if (typeof v === 'number' && Number.isFinite(v)) allowed.push(v);
+    else if (typeof v === 'string') allowed.push(...numbersIn(v).map((n) => n.value));
     else if (Array.isArray(v)) v.forEach(walk);
     else if (v && typeof v === 'object') Object.values(v).forEach(walk);
   };
   walk(facts);
   const round = (v: number, d: number) => Math.round(v * 10 ** d) / 10 ** d;
-  return numbersIn(text).every(
-    (x) => (Number.isInteger(x) && x <= 10) || allowed.some((v) => [0, 1, 2].some((d) => Math.abs(round(v, d) - x) < 1e-9) || Math.abs(v - x) < 1e-9),
-  );
+  const same = (v: number, x: number) => [0, 1, 2].some((d) => Math.abs(round(v, d) - x) < 1e-9) || Math.abs(v - x) < 1e-9;
+  return numbersIn(text).every((n) => {
+    if (!n.money && !n.pct && !n.signed && Number.isInteger(n.value) && n.value >= 0 && n.value <= 10) return true;
+    // A sign written in the text must match; an unsigned number may be either ("0.12% below the close").
+    return allowed.some((v) => (n.signed ? same(v, n.value) : same(Math.abs(v), Math.abs(n.value))));
+  });
 }
 
 async function ask(system: string, facts: string, note: string): Promise<string | null> {

@@ -27,4 +27,14 @@ describe('numbersAllowed', () => {
     // Strict on purpose: an amount rounded to thousands is not one of the basket's figures.
     expect(numbersAllowed('About $14.5k in all.', facts)).toBe(false);
   });
+  it('refuses the ways around it a review found', () => {
+    expect(numbersAllowed('About five thousand dollars in MSFT.', facts)).toBe(false);
+    expect(numbersAllowed('MSFT gets $9 million.', facts)).toBe(false);
+    expect(numbersAllowed('NVDA gets twenty percent.', facts)).toBe(false);
+    expect(numbersAllowed('NVDA is 8% of the basket.', facts)).toBe(false); // a small number as a percent is not a count
+    expect(numbersAllowed('A $5 buy of NVDA.', facts)).toBe(false);
+    expect(numbersAllowed('A cost of .9% here.', facts)).toBe(false);
+    expect(numbersAllowed('MSFT trades +0.12% over its close.', facts)).toBe(false);
+    expect(numbersAllowed('MSFT trades -0.12% under its close, one swap per stock.', facts)).toBe(true);
+  });
 });

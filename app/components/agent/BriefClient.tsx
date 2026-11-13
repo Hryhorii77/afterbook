@@ -304,7 +304,11 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
               <p className="geo-note">
                 One approval of exactly the total, then one swap per stock, each rebuilt and checked before you sign. The box starts at the basket’s total, which splits into
                 the amounts above; if you change it, the split follows the same weights. What you type in the box is what you buy.{' '}
-                <Link href={`/build/${formatSpec(brief.basket)}`} className="emph-link">
+                <Link
+                  // Explicit weights unless all equal: /build would re-split 33/34/33 as 34/33/33 (review, 2026-11-13).
+                  href={`/build/${brief.basket.every((l) => l.weightPct === brief.basket![0].weightPct) ? formatSpec(brief.basket) : brief.basket.map((l) => `${l.symbol}-${l.weightPct}`).join('_')}`}
+                  className="emph-link"
+                >
                   Open this basket on its own page
                 </Link>
               </p>

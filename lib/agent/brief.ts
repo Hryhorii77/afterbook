@@ -206,9 +206,11 @@ export function buildBrief(
   // its share idle (the others keep theirs), so size again without it (external review, 2026-11-13).
   let sized: PlanLeg[] = [];
   let sizedRan = false;
+  let lastTrial: PlanLeg[] = [];
   while (current.length >= input.minStocks) {
     const trial = current.map((l) => ({ ...l, reasons: [...l.reasons] }));
     sizeLegs(trial, { ...planInput, budgetUsd: investedTarget }, costs, feeBps);
+    lastTrial = trial;
     const failed = trial.filter((l) => l.verdict !== 'buy' || !((l.usd ?? 0) > 0));
     if (!failed.length) {
       sized = trial;
@@ -239,6 +241,11 @@ export function buildBrief(
     sized = sized.filter((l) => l.verdict === 'buy');
   }
 
+  // Sizing ran on copies: write the outcome back, so the legs the API returns say what was sized or dropped.
+  for (const t of lastTrial) {
+    const l = legs.find((x) => x.symbol === t.symbol);
+    if (l) Object.assign(l, { verdict: t.verdict, decidedBy: t.decidedBy, reasons: t.reasons, usd: t.usd, shares: t.shares, costBp: t.costBp });
+  }
   // What "passed": the sized legs once sizing ran, else the ones that passed the checks.
   const passed = sizedRan ? sized : current;
   // The oldest depth reading behind the shortlist: right after a deploy it is minutes, not 3 hours.

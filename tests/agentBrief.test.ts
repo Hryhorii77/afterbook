@@ -103,6 +103,8 @@ describe('buildBrief', () => {
     expect(b.dropped.find((d) => d.symbol === 'ARMc')?.why).toMatch(/as little as \$60,000/);
     expect(b.investedUsd).toBe(1000);
     expect(b.cashUsd).toBe(0);
+    // The returned legs say what was sized, not the unsized shortlist.
+    expect(b.legs.filter((l) => l.verdict === 'buy').map((l) => l.usd)).toEqual([250, 250, 250, 250]);
     expect(b.picks?.every((p) => p.depthAsOfMs === NOW - 60_000)).toBe(true);
   });
 
