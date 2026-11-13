@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTape, recordTapeSamples } from '@/lib/market/tape';
+import { recordDepthSample } from '@/lib/market/depthSamples';
 import { splitByLiquidity } from '@/lib/market/liquidity';
 import { getAllChatIds, getRules, setRules, nextBasisState, type AlertRule } from '@/lib/alerts/alerts';
 import { sendTelegramMessage } from '@/lib/alerts/telegram';
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   const tape = await getTape().catch(() => null);
   if (!tape) return NextResponse.json({ ok: false, reason: 'tape unavailable' });
-  await recordTapeSamples(tape.rows);
+  await Promise.all([recordTapeSamples(tape.rows), recordDepthSample(tape.rows)]);
 
   const marketClosed = tape.session.state !== 'open';
   const { liquid } = splitByLiquidity(tape.rows);

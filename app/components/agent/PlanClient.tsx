@@ -10,12 +10,13 @@ import type { TapeResult } from '@/lib/market/tape';
 import type { GeoInfo } from '@/lib/server/geo';
 import type { Plan, PlanLeg } from '@/lib/agent/plan';
 import { isLoggedPlan, type LoggedPlan } from '@/lib/agent/planLog';
-import { PLAN_LIMITS } from '@/lib/agent/limits';
+import { EARNINGS_OPTIONS, PLAN_LIMITS } from '@/lib/agent/limits';
 import { getStock } from '@/lib/stocks/tokens';
 import { TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
 import { bpPct, formatNextOpen, usd } from '@/lib/format';
 import { SwapPanel } from '../swap/SwapPanel';
 import { SymbolTile } from '../ui/SymbolTile';
+import { BriefClient } from './BriefClient';
 
 const LOG_KEY = 'afterbook-plans';
 const LOG_MAX = 20;
@@ -44,11 +45,6 @@ function writeLog(list: LoggedPlan[]) {
 
 const VERDICT_LABEL: Record<PlanLeg['verdict'], string> = { buy: 'Passes your limits', wait: 'Wait', skip: 'Skip' };
 
-const EARNINGS_OPTIONS = [
-  { days: 0, label: 'Ignore earnings' },
-  { days: 2, label: 'Wait within 2 days' },
-  { days: 7, label: 'Wait within 7 days' },
-];
 
 export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo: GeoInfo }) {
   const [tape, setTape] = useState(initialTape);
@@ -69,6 +65,7 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
   const [selected, setSelected] = useState<PlanLeg | null>(null);
   const [eligible, setEligible] = useState(false);
   const [log, setLog] = useState<LoggedPlan[]>([]);
+  const [mode, setMode] = useState<'pick' | 'brief'>('pick');
   const resultRef = useRef<HTMLElement>(null);
   const swapRef = useRef<HTMLDivElement>(null);
 
@@ -157,6 +154,32 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
         depth and what the trade would cost, then Claude explains the result. Nothing is bought until you review a buy and sign it in your
         own wallet. This is a tool for your own decisions, not financial advice.
       </p>
+
+      <div className="carry-direction-toggle swap-side-toggle plan-mode" role="tablist" aria-label="How to choose stocks">
+        {(
+          [
+            ['pick', 'Pick stocks'],
+            ['brief', 'Describe a basket'],
+          ] as const
+        ).map(([m, label]) => (
+          <button
+            key={m}
+            type="button"
+            role="tab"
+            aria-selected={mode === m}
+            className={mode === m ? 'carry-direction-tab carry-direction-tab-active' : 'carry-direction-tab'}
+            onClick={() => setMode(m)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Both stay mounted (hidden, not removed), so a buy in progress in either is never lost. */}
+      <div hidden={mode !== 'brief'}>
+        <BriefClient geo={geo} />
+      </div>
+      <div hidden={mode !== 'pick'} className="plan-pick">
 
       <form className="panel plan-form" onSubmit={submit}>
         <h2>What you want</h2>
@@ -321,6 +344,8 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
           )}
         </section>
       )}
+
+      </div>
 
       {log.length > 0 && (
         <section className="panel plan-log">

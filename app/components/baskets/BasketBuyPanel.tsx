@@ -42,7 +42,18 @@ interface Review {
   legs: { plan: BasketLegAmount; tx: SwapTx }[];
 }
 
-export function BasketBuyPanel({ legs, stocks, onBusy }: { legs: BasketLeg[]; stocks: StockInfo[]; onBusy?: (busy: boolean) => void }) {
+export function BasketBuyPanel({
+  legs,
+  stocks,
+  onBusy,
+  defaultUsd,
+}: {
+  legs: BasketLeg[];
+  stocks: StockInfo[];
+  onBusy?: (busy: boolean) => void;
+  /** Prefills the amount box (the trade plan's basket); what the person types is what they buy. */
+  defaultUsd?: number;
+}) {
   const { notify } = useNotify();
   const wallet = useSwapWallet();
   const { address } = wallet;
@@ -53,7 +64,7 @@ export function BasketBuyPanel({ legs, stocks, onBusy }: { legs: BasketLeg[]; st
     failedTitle: 'Basket buy stopped',
   });
 
-  const [amount, setAmount] = useState('100');
+  const [amount, setAmount] = useState(defaultUsd != null && Number.isFinite(defaultUsd) && defaultUsd > 0 ? String(Math.floor(defaultUsd * 100) / 100) : '100');
   const slippageBps = useSlippage();
   const [review, setReview] = useState<Review | null>(null);
   const [progress, setProgress] = useState<Progress[] | null>(null);
