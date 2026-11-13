@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildBrief, parseBriefInput, type BriefInput } from '../lib/agent/brief';
-import { briefFacts } from '../lib/agent/explain';
+import { briefFacts, numbersAllowed } from '../lib/agent/explain';
 import type { CostModel } from '../lib/agent/plan';
 import type { SteadyDepth } from '../lib/market/depthSamples';
 import type { TapeResult, TapeRow } from '../lib/market/tape';
@@ -332,5 +332,31 @@ describe('buildBrief', () => {
     const why = briefFacts(b).cashWhy!;
     expect(why).toMatch(new RegExp(`^You kept no cash aside, but \\$${b.cashUsd} stays as cash because your cost limit cut NVDA to \\$${nvda!.usd}`));
     expect(why).not.toMatch(/whole percents/);
+    expect(why).toMatch(/what that stock couldn’t take/);
+    expect(numbersAllowed(why, briefFacts(b))).toBe(true);
+  });
+
+  it('a sentence naming several cut stocks passes the number check (commas after amounts)', () => {
+    const costs = costsFor();
+    const capAt = (limit: number): CostModel => ({ estimate: (u: number) => ({ sharesOut: u / 100, impactBp: u > limit ? 500 : 10 }), sizeForImpact: () => limit });
+    costs.set('NVDAc', capAt(100));
+    costs.set('MUc', capAt(150));
+    costs.set('AMDc', capAt(200));
+    const b = run(input({ minStocks: 4 }), steadyOf({ NVDAc: 2_000_000, MUc: 1_500_000, AMDc: 1_000_000, AVGOc: 900_000 }, 0), allRows(), costs);
+    expect(b.picks?.filter((p) => p.sizedDownBy === 'cost limit').map((p) => p.symbol)).toEqual(['NVDAc', 'MUc', 'AMDc']);
+    const why = briefFacts(b).cashWhy!;
+    expect(why).toMatch(/cut NVDA to \$\d+(\.\d+)?, MU to \$\d+(\.\d+)? and AMD to \$\d+(\.\d+)?, and what those stocks/);
+    expect(numbersAllowed(why, briefFacts(b))).toBe(true);
+    // Claude rewording it with commas after the amounts passes too.
+    const [n, m] = b.picks!.filter((p) => p.sizedDownBy).map((p) => p.usd);
+    expect(numbersAllowed(`Your cost limit cut NVDA to $${n}, MU to $${m}, and the rest stays as cash.`, briefFacts(b))).toBe(true);
+  });
+
+  it('sizeLegs marks a cut leg itself, so a reworded reason can’t break sizedDownBy', () => {
+    const costs = costsFor();
+    costs.set('NVDAc', { estimate: (u: number) => ({ sharesOut: u / 100, impactBp: u > 100 ? 500 : 10 }), sizeForImpact: () => 100 });
+    const b = run(input({ minStocks: 4 }), steadyOf({ NVDAc: 2_000_000, MUc: 1_500_000, AMDc: 1_000_000, AVGOc: 900_000 }, 0), allRows(), costs);
+    expect(b.legs.find((l) => l.symbol === 'NVDAc')?.cutBy).toBe('cost limit');
+    expect(b.legs.filter((l) => l.symbol !== 'NVDAc' && l.verdict === 'buy').every((l) => l.cutBy === undefined)).toBe(true);
   });
 });

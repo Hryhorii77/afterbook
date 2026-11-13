@@ -259,7 +259,7 @@ export function buildBrief(
   // Sizing ran on copies: write the outcome back, so the legs the API returns say what was sized or dropped.
   for (const t of lastTrial) {
     const l = legs.find((x) => x.symbol === t.symbol);
-    if (l) Object.assign(l, { verdict: t.verdict, decidedBy: t.decidedBy, reasons: t.reasons, usd: t.usd, shares: t.shares, costBp: t.costBp });
+    if (l) Object.assign(l, { verdict: t.verdict, decidedBy: t.decidedBy, reasons: t.reasons, usd: t.usd, shares: t.shares, costBp: t.costBp, cutBy: t.cutBy });
   }
   // What "passed": the sized legs once sizing ran, else the ones that passed the checks.
   const passed = sizedRan ? sized : current;
@@ -332,12 +332,8 @@ export function buildBrief(
       depthUsd: l.depthUsd ?? 0,
       depthAsOfMs: d.asOfMs!,
       depthSinceMs: d.sinceMs ?? null,
-      // From the sizing's own reasons (lib/agent/plan.ts sizeLegs), so the cash sentence names the real cause.
-      sizedDownBy: l.reasons.some((r) => r.startsWith('Sized down from'))
-        ? 'cost limit'
-        : l.reasons.some((r) => r.startsWith('Capped at'))
-        ? 'swap caps'
-        : null,
+      // Set by sizeLegs itself (not read back from its wording), so the cash sentence names the real cause.
+      sizedDownBy: l.cutBy ?? null,
     };
   });
   const assumptions = [

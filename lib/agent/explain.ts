@@ -170,8 +170,9 @@ export function cashWhy(brief: Brief): string | null {
     ...(by('cost limit').length ? [`your cost limit cut ${listText(by('cost limit'))}`] : []),
     ...(by('swap caps').length ? [`the swap caps (one swap is at most $25,000 and 10% of the pool) cut ${listText(by('swap caps'))}`] : []),
   ];
+  const cut = brief.picks.filter((p) => p.sizedDownBy).length;
   return causes.length
-    ? `${head} because ${causes.join(' and ')}, and what those stocks couldn’t take is not spent elsewhere.`
+    ? `${head} because ${causes.join(' and ')}, and what ${cut === 1 ? 'that stock' : 'those stocks'} couldn’t take is not spent elsewhere.`
     : `${head} because the weights are whole percents and the amount is rounded down to whole dollars, so no stock gets more than it was sized for.`;
 }
 type BriefPickCause = NonNullable<NonNullable<Brief['picks']>[number]['sizedDownBy']>;
@@ -190,7 +191,7 @@ export async function explainBrief(brief: Brief, note: string): Promise<Explaine
 
 // A number as written: an optional sign, $, digits or a leading dot, and an optional unit after it
 // (%, k/m, or a word: percent, bps, dollars…).
-const NUMBER = /([-+−]?)(\$?)(\d[\d,]*(?:\.\d+)?|\.\d+)(\s?%|\s?[kKmM]\b|\s?(?:percent|per\s*cent|pct|bps?|basis\s+points?|dollars?|usdc?|cents?)\b)?/gi;
+const NUMBER = /([-+−]?)(\$?)(\d(?:[\d,]*\d)?(?:\.\d+)?|\.\d+)(\s?%|\s?[kKmM]\b|\s?(?:percent|per\s*cent|pct|bps?|basis\s+points?|dollars?|usdc?|cents?)\b)?/gi;
 interface Num {
   value: number;
   signed: boolean;
