@@ -13,7 +13,7 @@ import { STOCKS } from '../stocks/tokens';
 import { PROFILES, SECTORS, THEMES, type Sector, type Theme } from '../stocks/sectors';
 import { usd } from '../format';
 import { BRIEF_LIMITS, PLAN_LIMITS } from './limits';
-import { screen, sizeLegs, type CostModel, type PlanInput, type PlanLeg } from './plan';
+import { given, screen, sizeLegs, type CostModel, type PlanInput, type PlanLeg } from './plan';
 
 export { BRIEF_LIMITS } from './limits';
 
@@ -90,18 +90,18 @@ export function parseBriefInput(body: unknown): BriefInput | string {
     const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
     return Number.isFinite(n) && n >= lo && n <= hi ? n : message;
   };
-  const minStocks = num(b.minStocks ?? 3, BRIEF_LIMITS.minStocks, BRIEF_LIMITS.maxStocks, `spread over ${BRIEF_LIMITS.minStocks} to ${BRIEF_LIMITS.maxStocks} stocks`);
+  const minStocks = num(given(b.minStocks, 3), BRIEF_LIMITS.minStocks, BRIEF_LIMITS.maxStocks, `spread over ${BRIEF_LIMITS.minStocks} to ${BRIEF_LIMITS.maxStocks} stocks`);
   if (typeof minStocks === 'string') return minStocks;
   if (!Number.isInteger(minStocks)) return `spread over ${BRIEF_LIMITS.minStocks} to ${BRIEF_LIMITS.maxStocks} stocks`;
   const budgetUsd = num(b.budgetUsd, PLAN_LIMITS.minBudgetUsd, BRIEF_LIMITS.maxBudgetUsd, `the budget must be between $${PLAN_LIMITS.minBudgetUsd} and $${BRIEF_LIMITS.maxBudgetUsd.toLocaleString('en-US')} (the most one basket buy can be)`);
   if (typeof budgetUsd === 'string') return budgetUsd;
-  const cashPct = num(b.cashPct ?? 0, 0, BRIEF_LIMITS.maxCashPct, `the cash to keep must be between 0% and ${BRIEF_LIMITS.maxCashPct}%`);
+  const cashPct = num(given(b.cashPct, 0), 0, BRIEF_LIMITS.maxCashPct, `the cash to keep must be between 0% and ${BRIEF_LIMITS.maxCashPct}%`);
   if (typeof cashPct === 'string') return cashPct;
-  const maxPremiumBp = num(b.maxPremiumBp ?? 50, 0, PLAN_LIMITS.maxPremiumBp, `the most over the real stock's price must be between 0% and ${PLAN_LIMITS.maxPremiumBp / 100}%`);
+  const maxPremiumBp = num(given(b.maxPremiumBp, 50), 0, PLAN_LIMITS.maxPremiumBp, `the most over the real stock's price must be between 0% and ${PLAN_LIMITS.maxPremiumBp / 100}%`);
   if (typeof maxPremiumBp === 'string') return maxPremiumBp;
-  const maxCostBp = num(b.maxCostBp ?? 30, 1, PLAN_LIMITS.maxCostBp, `the most to pay to trade must be between 0.01% and ${PLAN_LIMITS.maxCostBp / 100}%`);
+  const maxCostBp = num(given(b.maxCostBp, 30), 1, PLAN_LIMITS.maxCostBp, `the most to pay to trade must be between 0.01% and ${PLAN_LIMITS.maxCostBp / 100}%`);
   if (typeof maxCostBp === 'string') return maxCostBp;
-  const earningsDays = num(b.earningsDays ?? 2, 0, PLAN_LIMITS.maxEarningsDays, `the earnings wait must be between 0 and ${PLAN_LIMITS.maxEarningsDays} days`);
+  const earningsDays = num(given(b.earningsDays, 2), 0, PLAN_LIMITS.maxEarningsDays, `the earnings wait must be between 0 and ${PLAN_LIMITS.maxEarningsDays} days`);
   if (typeof earningsDays === 'string') return earningsDays;
   const note = b.note ?? '';
   if (typeof note !== 'string') return 'the note must be text';

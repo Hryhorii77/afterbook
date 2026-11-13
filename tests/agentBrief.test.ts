@@ -77,6 +77,12 @@ describe('BRIEF_LIMITS', () => {
 });
 
 describe('parseBriefInput', () => {
+  it('a missing limit takes its default; an explicit null (NaN or Infinity from the page) is refused', () => {
+    expect(parseBriefInput({ budgetUsd: 100 })).toMatchObject({ maxCostBp: 30, maxPremiumBp: 50, cashPct: 0, minStocks: 3, earningsDays: 2 });
+    for (const k of ['maxCostBp', 'maxPremiumBp', 'cashPct', 'minStocks', 'earningsDays'])
+      expect(typeof parseBriefInput({ budgetUsd: 100, [k]: null }), k).toBe('string');
+    expect(parseBriefInput(JSON.parse(JSON.stringify({ budgetUsd: 100, maxCostBp: Infinity })))).toMatch(/most to pay to trade/);
+  });
   it('takes 2 to 4 stocks, whole numbers only; 2 is the minimum', () => {
     for (const n of [2, 3, 4]) expect(parseBriefInput({ budgetUsd: 100, minStocks: n })).toMatchObject({ minStocks: n });
     for (const n of [0, 1, 5, 2.5, 'x']) expect(typeof parseBriefInput({ budgetUsd: 100, minStocks: n })).toBe('string');

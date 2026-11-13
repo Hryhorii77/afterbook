@@ -12,6 +12,7 @@ import { BRIEF_LIMITS, EARNINGS_OPTIONS, PLAN_LIMITS } from '@/lib/agent/limits'
 import { PROFILES, SECTORS, THEMES, type Sector } from '@/lib/stocks/sectors';
 import { getStock } from '@/lib/stocks/tokens';
 import { formatSpec } from '@/lib/build/customBasket';
+import { cleanAmountInput, cleanPercentInput, readNumberFields } from '@/lib/agent/formFields';
 import { bpPct, formatNextOpen, usd } from '@/lib/format';
 import { BasketBuyPanel } from '../baskets/BasketBuyPanel';
 import { SymbolTile } from '../ui/SymbolTile';
@@ -41,6 +42,8 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Bumped on each failed submit, so the alert line is new and a screen reader reads a repeated error again.
+  const [errorSeq, setErrorSeq] = useState(0);
   const [result, setResult] = useState<Result | null>(null);
   const [eligible, setEligible] = useState(false);
   const [buying, setBuying] = useState(false);
@@ -54,8 +57,22 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
   const lastBody = useRef<Record<string, unknown> | null>(null);
 
   const run = async (spread = minStocks, from: Record<string, unknown> | null = null) => {
-    setBusy(true);
     setError(null);
+    const read = from
+      ? null
+      : readNumberFields({
+          budget: [budget, 'the budget'],
+          cash: [cashPct, 'Keep as cash', 0],
+          premium: [premiumPct, 'Most above the real stock’s price'],
+          cost: [costPct, 'Most to pay to trade'],
+        });
+    if (read && 'error' in read) {
+      setError(`Check the form: ${read.error}.`);
+      setErrorSeq((n) => n + 1);
+      (document.querySelector(`[name="brief-${read.field}"]`) as HTMLInputElement | null)?.focus();
+      return;
+    }
+    setBusy(true);
     try {
       const body = from
         ? { ...from, minStocks: spread }
@@ -63,11 +80,11 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
           theme,
           exclude,
           minStocks: spread,
-          budgetUsd: Number(budget),
-          cashPct: Number(cashPct || 0),
-          // Rounded: Number('0.29') * 100 is 28.999…
-          maxPremiumBp: Math.round(Number(premiumPct) * 10_000) / 100,
-          maxCostBp: Math.round(Number(costPct) * 10_000) / 100,
+          budgetUsd: read!.values.budget,
+          cashPct: read!.values.cash,
+          // Rounded: 0.29 * 100 is 28.999…
+          maxPremiumBp: Math.round(read!.values.premium * 10_000) / 100,
+          maxCostBp: Math.round(read!.values.cost * 10_000) / 100,
           earningsDays,
           note,
         };
@@ -141,22 +158,22 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
           </label>
           <label className="plan-field">
             <span>Budget (USDC)</span>
-            <input inputMode="decimal" value={budget} onChange={(e) => setBudget(e.target.value.replace(/[^0-9.]/g, ''))} />
+            <input inputMode="decimal" name="brief-budget" value={budget} onChange={(e) => setBudget(cleanAmountInput(e.target.value))} />
             <small>Up to {usd(BRIEF_LIMITS.maxBudgetUsd, 0)}, the most one basket buy can be.</small>
           </label>
           <label className="plan-field">
             <span>Keep as cash (%)</span>
-            <input inputMode="decimal" value={cashPct} onChange={(e) => setCashPct(e.target.value.replace(/[^0-9.]/g, ''))} />
+            <input inputMode="decimal" name="brief-cash" value={cashPct} onChange={(e) => setCashPct(cleanPercentInput(e.target.value))} />
             <small>Stays in your wallet as USDC. Up to {BRIEF_LIMITS.maxCashPct}%.</small>
           </label>
           <label className="plan-field">
             <span>Most above the real stock’s price (%)</span>
-            <input inputMode="decimal" value={premiumPct} onChange={(e) => setPremiumPct(e.target.value.replace(/[^0-9.]/g, ''))} />
+            <input inputMode="decimal" name="brief-premium" value={premiumPct} onChange={(e) => setPremiumPct(cleanPercentInput(e.target.value))} />
             <small>A token priced further above its stock is left out.</small>
           </label>
           <label className="plan-field">
             <span>Most to pay to trade (%)</span>
-            <input inputMode="decimal" value={costPct} onChange={(e) => setCostPct(e.target.value.replace(/[^0-9.]/g, ''))} />
+            <input inputMode="decimal" name="brief-cost" value={costPct} onChange={(e) => setCostPct(cleanPercentInput(e.target.value))} />
             <small>Price impact plus the pool fee; a stock is bought for less to fit.</small>
           </label>
           <label className="plan-field">
@@ -184,7 +201,7 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
         {ran && !buying && (
           <p className="plan-hint">Building a new basket clears the buy below. Anything it left approved for the router is listed on Portfolio, with a Revoke button.</p>
         )}
-        {error && <p className="geo-note geo-note-blocked">{error}</p>}
+        {error && <p key={errorSeq} className="geo-note geo-note-blocked" role="alert">{error}</p>}
       </form>
 
       {result && brief && (

@@ -49,6 +49,10 @@ describe('parsePlanInput', () => {
     expect(parsePlanInput({ symbols: ['XYZc'], budgetUsd: 500 }, known)).toMatch(/unknown symbol/);
     expect(parsePlanInput({ budgetUsd: 5 }, known)).toBe('the budget must be between $10 and $100,000');
     expect(parsePlanInput({ budgetUsd: 500, maxCostBp: 0 }, known)).toMatch(/^the most you'll pay to trade/);
+    // An explicit null (NaN or Infinity from the page) is refused, not replaced by the default.
+    expect(parsePlanInput({ budgetUsd: 500, maxCostBp: null }, known)).toMatch(/^the most you'll pay to trade/);
+    expect(parsePlanInput({ budgetUsd: 500, maxPremiumBp: null }, known)).toMatch(/^the most you'll pay over/);
+    expect(parsePlanInput({ budgetUsd: 500, earningsDays: null }, known)).toMatch(/earnings wait/);
     expect(parsePlanInput({ budgetUsd: 500, note: 'x'.repeat(281) }, known)).toBe('the note must be at most 280 characters');
     expect(parsePlanInput(null, known)).toMatch(/JSON object/);
   });
