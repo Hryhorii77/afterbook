@@ -120,9 +120,10 @@ export function parseBriefInput(body: unknown): BriefInput | string {
 }
 
 const list = (syms: string[]) => syms.map((s) => s.replace(/c$/, '')).join(', ');
+const pctText = (bp: number) => `${Number((bp / 100).toFixed(3))}%`;
 
-/** Steps 1-4: theme, sectors, steady depth, the plan's checks, the 4 deepest. Shared by the route
- *  (which reads cost models for `chosen` only) and buildBrief. */
+/** Steps 1-4: theme, sectors, steady depth, the plan's checks, then the 8 deepest that passed as the
+ *  candidates. Shared by the route (which reads cost models for `candidates` only) and buildBrief. */
 function shortlist(input: BriefInput, tape: Pick<TapeResult, 'rows' | 'session'>, steady: Map<string, SteadyDepth>, earningsSyncedAt: number | null, now: number) {
   const dropped: Brief['dropped'] = [];
   const themeLabel = input.theme === 'Any' ? 'Any theme' : `Theme “${input.theme}”`;
@@ -161,20 +162,19 @@ function shortlist(input: BriefInput, tape: Pick<TapeResult, 'rows' | 'session'>
   const passing = legs
     .filter((l) => l.verdict === 'buy')
     .sort((a, b) => (b.depthUsd ?? 0) - (a.depthUsd ?? 0) || a.symbol.localeCompare(b.symbol));
-  for (const l of passing.slice(BRIEF_LIMITS.maxStocks)) {
-    l.verdict = 'skip';
-    l.decidedBy = `A basket holds at most ${BRIEF_LIMITS.maxStocks} stocks, and ${BRIEF_LIMITS.maxStocks} with deeper pools passed.`;
-    l.reasons.push(l.decidedBy);
-    dropped.push({ symbol: l.symbol, why: l.decidedBy });
-  }
-  const chosen = passing.slice(0, BRIEF_LIMITS.maxStocks);
+  // The basket is built from the deepest of these, in order: the 4 it holds plus as many again, so a
+  // stock the cost limit drops is replaced by the next deepest (review of PR #172, 2026-11-13). The
+  // route reads cost models for exactly these; buildBrief says why each one past them is left out.
+  const candidates = passing.slice(0, BRIEF_LIMITS.maxCandidates);
 
-  return { dropped, themeLabel, themed, kept, deep, planInput, legs, passing, chosen };
+  return { dropped, themeLabel, themed, kept, deep, planInput, legs, passing, candidates };
 }
+
+const CAP_WHY = `A basket holds at most ${BRIEF_LIMITS.maxStocks} stocks, and ${BRIEF_LIMITS.maxStocks} with deeper pools made it.`;
 
 /** The stocks the route needs cost models for. */
 export function briefShortlist(input: BriefInput, tape: Pick<TapeResult, 'rows' | 'session'>, steady: Map<string, SteadyDepth>, earningsSyncedAt: number | null, now = Date.now()): string[] {
-  return shortlist(input, tape, steady, earningsSyncedAt, now).chosen.map((l) => l.symbol);
+  return shortlist(input, tape, steady, earningsSyncedAt, now).candidates.map((l) => l.symbol);
 }
 
 /** Builds the basket. `steady` maps symbol → steady depth (missing = unknown). */
@@ -187,7 +187,7 @@ export function buildBrief(
   feeBps = 0,
   now = Date.now(),
 ): Brief {
-  const { dropped, themeLabel, themed, kept, deep, planInput, legs, passing, chosen } = shortlist(input, tape, steady, earningsSyncedAt, now);
+  const { dropped, themeLabel, themed, kept, deep, planInput, legs, passing, candidates } = shortlist(input, tape, steady, earningsSyncedAt, now);
   const passingSymbols = passing.map((l) => l.symbol);
   // Whole cents first, so $19.99 with no cash is $19.99, not $19.98 (float error under the floor).
   const investedTarget = Math.floor(Math.round(input.budgetUsd * 100) * (1 - input.cashPct / 100) + 1e-6) / 100;
@@ -211,30 +211,52 @@ export function buildBrief(
   };
   let byBudget = Math.min(BRIEF_LIMITS.maxStocks, Math.max(0, Math.floor(investedTarget / PLAN_LIMITS.minLegUsd)));
   while (byBudget > 0 && !covers(byBudget)) byBudget--;
-  for (const l of chosen.slice(byBudget)) {
-    skipLeg(l, `Your ${usd(investedTarget)} to invest covers at most ${byBudget} ${byBudget === 1 ? 'stock' : 'stocks'} at the ${usd(PLAN_LIMITS.minLegUsd, 0)} minimum each.`);
-  }
-  let current = chosen.slice(0, byBudget);
-  const budgetShort = byBudget < input.minStocks && chosen.length >= input.minStocks;
+  const budgetWhy = `Your ${usd(investedTarget)} to invest covers at most ${byBudget} ${byBudget === 1 ? 'stock' : 'stocks'} at the ${usd(PLAN_LIMITS.minLegUsd, 0)} minimum each.`;
+  const budgetShort = byBudget < input.minStocks && candidates.length >= input.minStocks;
 
-  // Size with the plan's caps and the cost limit, equal shares. A stock the cost limit drops would leave
-  // its share idle (the others keep theirs), so size again without it (external review, 2026-11-13).
+  // Size with the plan's caps and the cost limit, equal shares, deepest first. A stock the sizing drops
+  // (the cost limit, or a pool that couldn't be read) is replaced by the next deepest candidate and the
+  // basket is sized again, so it isn't left smaller than it could be (review of PR #172, 2026-11-13).
+  const queue = [...candidates];
+  let current: PlanLeg[] = [];
+  /** Dropped by the sizing: over the cost limit (a cost model was read), or with no readable pool. */
+  const sizeDropped: string[] = [];
+  const costDropped: string[] = [];
+  const tried = new Map<string, PlanLeg>();
   let sized: PlanLeg[] = [];
   let sizedRan = false;
-  let lastTrial: PlanLeg[] = [];
-  while (current.length >= input.minStocks) {
+  for (;;) {
+    while (current.length < byBudget && queue.length) current.push(queue.shift()!);
+    // Sized even when fewer are left than the spread asked for, so a shortfall only names stocks that fit.
+    if (!current.length) break;
     const trial = current.map((l) => ({ ...l, reasons: [...l.reasons] }));
     sizeLegs(trial, { ...planInput, budgetUsd: investedTarget }, costs, feeBps);
-    lastTrial = trial;
+    for (const t of trial) tried.set(t.symbol, t);
     const failed = trial.filter((l) => l.verdict !== 'buy' || !((l.usd ?? 0) > 0));
     if (!failed.length) {
       sized = trial;
       sizedRan = true;
       break;
     }
-    for (const t of failed) skipLeg(current.find((l) => l.symbol === t.symbol)!, t.decidedBy ?? 'It didn’t pass your limits.');
+    for (const t of failed) {
+      skipLeg(current.find((l) => l.symbol === t.symbol)!, t.decidedBy ?? 'It didn’t pass your limits.');
+      sizeDropped.push(t.symbol);
+      if (costs.get(t.symbol)) costDropped.push(t.symbol);
+    }
     current = current.filter((l) => l.verdict === 'buy');
   }
+  // Stocks never sized. With the basket full, it was the cap or the budget. Otherwise every candidate was
+  // tried, and these are past the deepest few the cost limit is tried on; never say "deeper pools made it"
+  // when none did (caught on live data with a 0.01% limit).
+  const unreadable = sizeDropped.filter((s) => !costDropped.includes(s));
+  // Full, or the budget alone decided (it covers fewer than 4 and nothing was dropped by sizing, or none at all).
+  const full = (sizedRan && sized.length >= byBudget) || byBudget === 0 || (byBudget < BRIEF_LIMITS.maxStocks && !sizeDropped.length);
+  const fullWhy = byBudget < BRIEF_LIMITS.maxStocks ? budgetWhy : CAP_WHY;
+  for (const l of queue) skipLeg(l, fullWhy);
+  for (const l of passing.slice(BRIEF_LIMITS.maxCandidates)) {
+    skipLeg(l, full ? fullWhy : `Only the ${BRIEF_LIMITS.maxCandidates} deepest stocks that passed are tried against your cost limit; this one comes after them.`);
+  }
+  const lastTrial = [...tried.values()];
   // The basket buy splits by whole-percent weights, so a stock that rounds to 0% would silently drop
   // out of it (real-money review, 2026-11-13): drop it here, with its reason, before anything is shown.
   while (sized.length) {
@@ -278,9 +300,21 @@ export function buildBrief(
   const addStep = (label: string, symbols: string[]) => {
     if (symbols.length !== steps[steps.length - 1].symbols.length) steps.push({ label, symbols });
   };
-  addStep(`the ${BRIEF_LIMITS.maxStocks} with the deepest pools (a basket holds at most ${BRIEF_LIMITS.maxStocks})`, chosen.map((l) => l.symbol));
-  addStep(`that your budget covers at ${usd(PLAN_LIMITS.minLegUsd, 0)} or more each`, chosen.slice(0, byBudget).map((l) => l.symbol));
-  addStep(`within your cost limit and the ${usd(PLAN_LIMITS.minLegUsd, 0)} swap minimum`, passed.map((l) => l.symbol));
+  // Each step is a subset of the one before: the deepest stocks sized against the cost limit (in depth
+  // order, the next one taking a dropped one's place), those within it, then those over the swap minimum.
+  const triedSymbols = passingSymbols.filter((s) => tried.has(s));
+  addStep(
+    sizeDropped.length
+      ? `the ${triedSymbols.length} with the deepest pools, tried in turn against your cost limit`
+      : byBudget < BRIEF_LIMITS.maxStocks
+      ? `the ${triedSymbols.length} with the deepest pools that your budget covers at ${usd(PLAN_LIMITS.minLegUsd, 0)} or more each`
+      : `the ${triedSymbols.length} with the deepest pools (a basket holds at most ${BRIEF_LIMITS.maxStocks})`,
+    triedSymbols,
+  );
+  // An unreadable pool is not a cost-limit drop: its own step, so "within your cost limit" counts only those.
+  addStep('with a pool that could be read just now', triedSymbols.filter((s) => !unreadable.includes(s)));
+  addStep('within your cost limit', triedSymbols.filter((s) => !sizeDropped.includes(s)));
+  addStep(`over the ${usd(PLAN_LIMITS.minLegUsd, 0)} swap minimum`, passed.map((l) => l.symbol));
 
   const base = {
     input: { theme: input.theme, exclude: input.exclude, minStocks: input.minStocks, budgetUsd: input.budgetUsd, cashPct: input.cashPct, maxPremiumBp: input.maxPremiumBp, maxCostBp: input.maxCostBp, earningsDays: input.earningsDays },
@@ -302,9 +336,16 @@ export function buildBrief(
         ? 'Afterbook has no recent pool-depth readings just now, so it can’t tell which pools are deep enough. Try again in a few minutes.'
         : budgetShort
         ? `Your ${usd(investedTarget)} to invest is too little for at least ${usd(PLAN_LIMITS.minLegUsd, 0)} in each of ${input.minStocks} stocks. Raise the budget or keep less as cash.`
+        : n === 0 && costDropped.length && feeBps >= input.maxCostBp
+        ? `Afterbook’s ${pctText(feeBps)} swap fee alone is over your ${pctText(input.maxCostBp)} limit on what you’ll pay to trade, so there is no basket.`
+        : n === 0 && costDropped.length
+        ? // Not "no stock meets this brief": the person's own cost limit is what stopped it (review of PR #172).
+          costDropped.length === sizeDropped.length
+          ? `Your ${pctText(input.maxCostBp)} limit on what you’ll pay to trade leaves out every stock it was tried on (${list(costDropped)}): even a ${usd(PLAN_LIMITS.minLegUsd, 0)} buy in each would cost more than that. A higher limit lets more through.`
+          : `Your ${pctText(input.maxCostBp)} limit on what you’ll pay to trade leaves out ${list(costDropped)}, and the pools of ${list(unreadable)} couldn’t be read just now, so there is no basket.`
         : n === 0
         ? `No stock on Base meets this brief right now, so there is nothing to buy.`
-        : `${n === 1 ? 'Only 1 stock passes' : `${n} stocks pass`} (${list(passed.map((l) => l.symbol))}), and you asked to spread over at least ${input.minStocks}, so there is no basket.`;
+        : `${n === 1 ? 'Only 1 stock passes' : `${n} stocks pass`} (${list(passed.map((l) => l.symbol))})${costDropped.length ? `, your ${pctText(input.maxCostBp)} cost limit left out ${list(costDropped)},` : ''} and you asked to spread over at least ${input.minStocks}, so there is no basket.`;
     const suggestion = n >= BRIEF_LIMITS.minStocks ? { minStocks: n, text: `${n} passed. Spread over at least ${n}?` } : null;
     return { ...base, picks: null, shortfall, suggestion, investedUsd: 0, cashUsd: input.budgetUsd, basket: null, assumptions: [] };
   }

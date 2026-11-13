@@ -32,4 +32,7 @@ export const BRIEF_LIMITS = {
   /** "Spread over at least N stocks": the basket buy takes MIN_LEGS..MAX_LEGS (2..4); tested equal too. */
   minStocks: 2,
   maxStocks: 4,
+  /** The deepest stocks a basket may be built from: the 4 it holds and as many again, to replace one
+   *  the cost limit drops. The route reads a cost model for each of these (cached pool reads). */
+  maxCandidates: 8,
 } as const;
