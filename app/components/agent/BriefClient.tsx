@@ -96,7 +96,8 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
   const brief = result?.brief;
   const closed = brief?.session.state.startsWith('closed');
   // Right after a deploy the depth history is minutes long, not 3 hours: say so rather than claim 3 hours.
-  const shortHistory = brief?.readingsSinceMs != null && brief.createdAt - brief.readingsSinceMs < 2.75 * 3_600_000;
+  const short = (since: number | null | undefined) => !!brief && since != null && brief.createdAt - since < 2.75 * 3_600_000;
+  const shortHistory = short(brief?.readingsSinceMs);
   const stocks = (brief?.basket ?? []).map((l) => ({ symbol: l.symbol, decimals: getStock(l.symbol)?.decimals ?? 8 }));
 
   return (
@@ -256,14 +257,14 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
                         <dd>{pct(p.costBp)}</dd>
                       </div>
                       <div>
-                        <dt>{shortHistory ? `Pool, lowest since ${time(brief.readingsSinceMs!)}` : 'Pool, lowest in 3 h'}</dt>
+                        <dt>{short(p.depthSinceMs) ? `Pool, lowest since ${time(p.depthSinceMs!)}` : 'Pool, lowest in 3 h'}</dt>
                         <dd>{usd(p.depthUsd, 0)}</dd>
                       </div>
                     </dl>
                     <ul className="plan-reasons">
                       {profile?.note && <li>{profile.note}</li>}
                       <li>
-                        Pool depth: the lowest Afterbook read {shortHistory ? `since ${time(brief.readingsSinceMs!)}` : 'in the last 3 hours'}, newest reading {time(p.depthAsOfMs)}. Prices: the pool and the cash market, read just now.
+                        Pool depth: the lowest Afterbook read {short(p.depthSinceMs) ? `since ${time(p.depthSinceMs!)}` : 'in the last 3 hours'}, newest reading {time(p.depthAsOfMs)}. Prices: the pool and the cash market, read just now.
                       </li>
                     </ul>
                   </li>

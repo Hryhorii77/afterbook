@@ -18,6 +18,9 @@ const MAX_TOKENS = 400;
  *  Each pattern starts at a word boundary and ends without needing a space after it, so "will rise."
  *  and "will rise," match too (the first version needed a space: an external review, 2026-11-08). */
 const FORBIDDEN: RegExp[] = [
+  // "could double", "may rise", "NVDA could rise 2x" (external review of PR #171, 2026-11-13).
+  /\b(?:could|may|might|can)\s+(?:rise|fall|drop|climb|double|triple|soar|surge|jump|rally|crash|tank|dip|gain|grow|rebound|recover|go\s+(?:up|down|higher|lower)|move\s+(?:up|down|higher|lower))/i,
+  /\b\d+(?:\.\d+)?\s?x\b/i,
   /\bwill\s+(?:rise|fall|drop|climb|moon|pump|jump|soar|surge|rally|crash|tank|dip|gain|increase|decrease|recover|rebound|outperform|underperform|double|go\s+(?:up|down|higher|lower)|move\s+(?:up|down|higher|lower)|keep\s+(?:rising|falling|climbing|dropping))/i,
   /\b(?:going|headed|heading|poised|likely|expected)\s+(?:to\s+(?:rise|fall|climb|drop|go\s+(?:up|down))|up|down|higher|lower)\b/i,
   /\bshould\s+(?:buy|sell|hold|get|grab|add|load|ape)\b/i,
@@ -154,35 +157,46 @@ export async function explainBrief(brief: Brief, note: string): Promise<string |
   return text;
 }
 
-// A number as written: an optional sign, $, digits or a leading dot, and an optional % or k/m after it.
-const NUMBER = /([-+−]?)(\$?)(\d[\d,]*(?:\.\d+)?|\.\d+)(\s?%|\s?[kKmM]\b)?/g;
+// A number as written: an optional sign, $, digits or a leading dot, and an optional unit after it
+// (%, k/m, or a word: percent, bps, dollars…).
+const NUMBER = /([-+−]?)(\$?)(\d[\d,]*(?:\.\d+)?|\.\d+)(\s?%|\s?[kKmM]\b|\s?(?:percent|per\s*cent|pct|bps?|basis\s+points?|dollars?|usdc?|cents?)\b)?/gi;
 interface Num {
   value: number;
   signed: boolean;
-  money: boolean;
-  pct: boolean;
+  /** Written with $ or %, or a word unit: an amount, never a count. */
+  unit: boolean;
+  /** Not a plain number (a decimal comma such as "3,40"): never allowed. */
+  bad: boolean;
 }
 function numbersIn(text: string): Num[] {
   return [...text.matchAll(NUMBER)].map((m) => {
     const unit = m[4]?.trim().toLowerCase();
-    const n = Number(m[3].replace(/,/g, '')) * (unit === 'k' ? 1_000 : unit === 'm' ? 1_000_000 : 1);
+    const digits = m[3];
+    const bad = digits.includes(',') && !/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(digits);
+    const n = Number(digits.replace(/,/g, '')) * (unit === 'k' ? 1_000 : unit === 'm' ? 1_000_000 : 1);
     const neg = m[1] === '-' || m[1] === '−';
-    return { value: neg ? -n : n, signed: !!m[1], money: m[2] === '$', pct: unit === '%' };
+    return { value: neg ? -n : n, signed: !!m[1], unit: m[2] === '$' || !!unit, bad };
   });
 }
-/** Scale words, and spelled-out numbers used as amounts or percents: not checkable, so not allowed. */
+/** Scale words, multiples, exponents and spelled-out amounts: not checkable, so not allowed. */
 const WORDY = [
   /\b(?:hundred|thousand|million|billion|trillion)s?\b/i,
-  /\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\s-]*(?:percent|per\s*cent|dollars?|usdc?|%)/i,
+  /\b(?:double|doubles|doubled|triple|tripled|twice|thrice)\b|\b\d+\s*times\b/i,
+  /\d[eE][+-]?\d/,
+  /\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[\s-]*(?:percent|per\s*cent|pct|bps?|dollars?|usdc?|cents?|%)/i,
 ];
 
 /** Every number in the text must be one of the facts' numbers (or a number written inside one of its
- *  sentences), as given or rounded to 0-2 decimals, with its sign if it has one. Small whole numbers up
- *  to 10 are allowed as counts ("3 stocks", "3 hours"), never as an amount ($) or a percent. Spelled-out
- *  amounts and scale words are refused. The basket's amounts sit next to a Buy button, so an invented or
- *  altered figure throws the reply away and the fixed words are shown (external review of PR #171,
+ *  sentences), as given or rounded (to whole numbers only from 10 up, to one decimal only from 0.1 up,
+ *  so "$1" can't stand for 0.5), with its sign if it has one. Small whole numbers up to 10 are allowed as
+ *  counts ("3 stocks", "3 hours"), never with $, % or a unit word. The text is NFKC-normalised first and
+ *  any other digits (full-width, Arabic-Indic…) are refused, as are decimal commas, scale words,
+ *  multiples and spelled-out amounts. The basket's amounts sit next to a Buy button, so an invented or
+ *  altered figure throws the reply away and the fixed words are shown (external reviews of PR #171,
  *  2026-11-13). It can't tell which stock a right number is said about: the page's own figures sit below. */
-export function numbersAllowed(text: string, facts: unknown): boolean {
+export function numbersAllowed(raw: string, facts: unknown): boolean {
+  const text = raw.normalize('NFKC');
+  if (/[^\P{Nd}0-9]/u.test(text)) return false;
   if (WORDY.some((re) => re.test(text))) return false;
   const allowed: number[] = [];
   const walk = (v: unknown): void => {
@@ -193,9 +207,12 @@ export function numbersAllowed(text: string, facts: unknown): boolean {
   };
   walk(facts);
   const round = (v: number, d: number) => Math.round(v * 10 ** d) / 10 ** d;
-  const same = (v: number, x: number) => [0, 1, 2].some((d) => Math.abs(round(v, d) - x) < 1e-9) || Math.abs(v - x) < 1e-9;
+  const minFor = [10, 0.1, 0];
+  const same = (v: number, x: number) =>
+    Math.abs(v - x) < 1e-9 || [0, 1, 2].some((d) => Math.abs(v) >= minFor[d] && Math.abs(round(v, d) - x) < 1e-9);
   return numbersIn(text).every((n) => {
-    if (!n.money && !n.pct && !n.signed && Number.isInteger(n.value) && n.value >= 0 && n.value <= 10) return true;
+    if (n.bad) return false;
+    if (!n.unit && !n.signed && Number.isInteger(n.value) && n.value >= 0 && n.value <= 10) return true;
     // A sign written in the text must match; an unsigned number may be either ("0.12% below the close").
     return allowed.some((v) => (n.signed ? same(v, n.value) : same(Math.abs(v), Math.abs(n.value))));
   });

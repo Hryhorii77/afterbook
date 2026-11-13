@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { numbersAllowed } from '../lib/agent/explain';
+import { acceptExplanation, numbersAllowed } from '../lib/agent/explain';
 
 const facts = {
   steps: [{ step: 'with a pool over $250,000 in every reading of the last 3 hours', count: 10 }],
@@ -36,5 +36,30 @@ describe('numbersAllowed', () => {
     expect(numbersAllowed('A cost of .9% here.', facts)).toBe(false);
     expect(numbersAllowed('MSFT trades +0.12% over its close.', facts)).toBe(false);
     expect(numbersAllowed('MSFT trades -0.12% under its close, one swap per stock.', facts)).toBe(true);
+  });
+  it('refuses the second review’s ways around it', () => {
+    for (const t of [
+      'MSFT gets $１０００.', // full-width digits
+      'NVDA is ٤٠% of it.', // Arabic-Indic digits
+      'About 5 percent in NVDA.',
+      'A 9 bps cost.',
+      'Only 8 dollars.',
+      'Roughly 6 pct.',
+      'A $1 cost.', // would match 0.5 rounded to 0 decimals
+      'About 3,40 dollars.',
+      'MSFT could double.',
+      'Twice the amount.',
+      'NVDA, 4 times over.',
+      'About 1e3 in all.',
+    ])
+      expect(numbersAllowed(t, { ...facts, extra: 0.5 }), t).toBe(false);
+    expect(numbersAllowed('About $4,925 in MSFT and a 0.2% cost.', facts)).toBe(true);
+  });
+});
+
+describe('acceptExplanation forecasts', () => {
+  it('refuses “could double”, “may rise”, “2x”', () => {
+    for (const t of ['Your basket holds four stocks and MSFT could double over time.', 'Your basket holds four stocks, and NVDA may rise after this.', 'Your basket holds four stocks; NVDA could rise 2x from here on.'])
+      expect(acceptExplanation(t, 'end_turn'), t).toBeNull();
   });
 });

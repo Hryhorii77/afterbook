@@ -46,9 +46,10 @@ export interface BriefPick {
   costBp: number;
   gapBp: number | null;
   gapAgainst: string;
-  /** Steady depth (lowest over the window) and the time of its newest sample. */
+  /** Steady depth (lowest over the window), the time of its newest sample and of its oldest. */
   depthUsd: number;
   depthAsOfMs: number;
+  depthSinceMs: number | null;
 }
 
 export interface Brief {
@@ -185,7 +186,8 @@ export function buildBrief(
   now = Date.now(),
 ): Brief {
   const { dropped, themeLabel, themed, kept, deep, planInput, legs, chosen } = shortlist(input, tape, steady, earningsSyncedAt, now);
-  const investedTarget = Math.floor(input.budgetUsd * (1 - input.cashPct / 100) * 100) / 100;
+  // Whole cents first, so $19.99 with no cash is $19.99, not $19.98 (float error under the floor).
+  const investedTarget = Math.floor(Math.round(input.budgetUsd * 100) * (1 - input.cashPct / 100) + 1e-6) / 100;
   const skipLeg = (l: PlanLeg, why: string) => {
     l.verdict = 'skip';
     l.decidedBy = why;
@@ -195,7 +197,17 @@ export function buildBrief(
 
   // A small budget takes fewer stocks (deepest first): each needs at least the $10 swap minimum, and
   // taking 4 regardless split $20 into four $5 legs that were all dropped (external review, 2026-11-13).
-  const byBudget = Math.max(0, Math.floor(investedTarget / PLAN_LIMITS.minLegUsd));
+  // The same split the basket uses (equal shares, whole-percent weights, the total lowered to fit them):
+  // $30 over 3 is 34/33/33 of $29, under $10 for two of them, so it covers 2 (external review).
+  const covers = (n: number) => {
+    if (n < 1) return true;
+    const share = Math.floor(investedTarget / n);
+    const w = normalizeLegs(Array.from({ length: n }, (_, i) => ({ symbol: String(i), weight: 1 }))).map((l) => l.weightPct);
+    const total = Math.floor(Math.min(...w.map((x) => (share * 100) / x)));
+    return Math.min(...w.map((x) => Math.floor(total * x) / 100)) >= PLAN_LIMITS.minLegUsd;
+  };
+  let byBudget = Math.min(BRIEF_LIMITS.maxStocks, Math.max(0, Math.floor(investedTarget / PLAN_LIMITS.minLegUsd)));
+  while (byBudget > 0 && !covers(byBudget)) byBudget--;
   for (const l of chosen.slice(byBudget)) {
     skipLeg(l, `Your ${usd(investedTarget)} to invest covers at most ${byBudget} ${byBudget === 1 ? 'stock' : 'stocks'} at the ${usd(PLAN_LIMITS.minLegUsd, 0)} minimum each.`);
   }
@@ -249,8 +261,9 @@ export function buildBrief(
   // What "passed": the sized legs once sizing ran, else the ones that passed the checks.
   const passed = sizedRan ? sized : current;
   // The oldest depth reading behind the shortlist: right after a deploy it is minutes, not 3 hours.
-  const since = kept.map((sym) => steady.get(sym)?.sinceMs).filter((t): t is number => t != null);
-  const readingsSinceMs = since.length ? Math.min(...since) : null;
+  // The shortest history behind the deep stocks (the newest first reading), so "since" is never overstated.
+  const since = (deep.length ? deep : kept).map((sym) => steady.get(sym)?.sinceMs).filter((t): t is number => t != null);
+  const readingsSinceMs = since.length ? Math.max(...since) : null;
   const steps: BriefStep[] = [
     { label: `${themeLabel}: stocks on Afterbook`, symbols: themed },
     ...(input.exclude.length ? [{ label: 'after the sectors you left out', symbols: kept }] : []),
@@ -307,6 +320,7 @@ export function buildBrief(
       gapAgainst: l.gapAgainst,
       depthUsd: l.depthUsd ?? 0,
       depthAsOfMs: d.asOfMs!,
+      depthSinceMs: d.sinceMs ?? null,
     };
   });
   const assumptions = [

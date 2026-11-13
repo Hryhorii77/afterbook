@@ -265,6 +265,18 @@ describe('buildBrief', () => {
     expect(short.suggestion).toEqual({ minStocks: 2, text: '2 passed. Spread over at least 2?' });
   });
 
+  it('$30 over 3 is a budget problem (34/33/33 cuts two under $10), and cents survive', () => {
+    const steady = steadyOf({}, 2_000_000);
+    const b = run(input({ theme: 'Any', minStocks: 3, budgetUsd: 30 }), steady);
+    expect(b.picks).toBeNull();
+    expect(b.shortfall).toMatch(/too little for at least \$10 in each of 3 stocks/);
+    expect(b.suggestion?.minStocks).toBe(2);
+    const c = run(input({ theme: 'Any', minStocks: 2, budgetUsd: 19.99 }), steady);
+    expect(c.picks?.length).toBeUndefined(); // $19.99 can't make two $10 legs
+    const d = run(input({ theme: 'Any', minStocks: 2, budgetUsd: 20.01 }), steady);
+    expect(d.picks?.map((p) => p.usd)).toEqual([10, 10]);
+  });
+
   it('a stock the cost limit drops gives its share to the others', () => {
     const costs = costsFor();
     costs.set('NVDAc', { estimate: () => ({ sharesOut: 1, impactBp: 500 }), sizeForImpact: () => 1 });
