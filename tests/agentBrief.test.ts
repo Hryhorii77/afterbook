@@ -463,5 +463,16 @@ describe('refilling the basket', () => {
     expect(b.picks).toBeNull();
     expect(b.shortfall).toMatch(/too little/);
     expect(b.dropped.some((d) => /tried against your cost limit/.test(d.why))).toBe(false);
+    expect(b.steps.some((s) => /^the 0 /.test(s.label))).toBe(false);
+  });
+
+  it('too small a budget and the cost limit both: the message names both (review of PR #175)', () => {
+    const costs = costsFor(over);
+    costs.set('MRVLc', linear);
+    const b = run(input({ minStocks: 3, budgetUsd: 25 }), steadyOf(aiChips, 0), allRows(), costs);
+    expect(b.picks).toBeNull();
+    expect(b.shortfall).toBe(
+      'Your $25.00 to invest is too little for at least $10 in each of 3 stocks. Raise the budget or keep less as cash. Your 0.3% cost limit also left out NVDA, MU, AMD, AVGO.',
+    );
   });
 });

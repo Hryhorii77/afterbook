@@ -17,6 +17,18 @@ import { countPlanBriefly } from '@/lib/agent/planStats';
 
 export const maxDuration = 60;
 
+// Each of the (up to 8) pool reads gets this long; one the RPC is slow on counts as unreadable (the
+// brief then says so, or the next deepest stock takes its place), so a slow RPC can't hold the page
+// until Vercel cuts it off (review of PR #175).
+const QUOTE_TIMEOUT_MS = 8_000;
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('timed out')), ms);
+  });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
+}
+
 export async function POST(request: Request) {
   // The same 10-a-minute bucket as the plan: a brief is a deliberate click, not a poll.
   const limited = limitRead(request, 'agent-plan', 'lots');
@@ -38,7 +50,7 @@ export async function POST(request: Request) {
     await Promise.all(
       briefShortlist(input, tape, steady, earningsSyncedAt, now).map(async (sym) => {
         const stock = getStock(sym);
-        costs.set(sym, stock ? await getBuyQuoter(stock).catch(() => null) : null);
+        costs.set(sym, stock ? await withTimeout(getBuyQuoter(stock), QUOTE_TIMEOUT_MS).catch(() => null) : null);
       }),
     );
     const brief = buildBrief(input, tape, steady, costs, earningsSyncedAt, swapFee()?.bps ?? 0, now);

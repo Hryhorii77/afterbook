@@ -3,7 +3,7 @@ import type { TapeRow } from '../lib/market/tape';
 
 // Offline: the tape, the pools, the depth readings, Claude and the limiters are fakes.
 vi.mock('server-only', () => ({}));
-const fx = vi.hoisted(() => ({ explained: null as string | null, why: 'refused-by-check', explainCalls: 0, configured: true, limiters: true, allow: true }));
+const fx = vi.hoisted(() => ({ hang: null as string | null, explained: null as string | null, why: 'refused-by-check', explainCalls: 0, configured: true, limiters: true, allow: true }));
 const row = (symbol: string): TapeRow => ({
   symbol, cashTicker: symbol.replace(/c$/, ''), name: symbol, cashLastUsd: 100, cashAsOfMs: 0, cashPriceType: 'regular', cashStale: false,
   closeUsd: 100, closeAsOfMs: 0, onchainMidUsd: 100.1, tick: 0, basisBp: 10, depthUsd: 5_000_000, depthShares: 0, multiplier: 1, nextEarningsDate: null,
@@ -16,7 +16,8 @@ vi.mock('../lib/market/tape', () => ({
   }),
 }));
 vi.mock('../lib/market/lotQuote', () => ({
-  getBuyQuoter: async () => ({ estimate: (u: number) => ({ sharesOut: u / 100, impactBp: 5 }), sizeForImpact: () => 1e9 }),
+  getBuyQuoter: (stock: { symbol: string }) =>
+    stock.symbol === fx.hang ? new Promise(() => {}) : Promise.resolve({ estimate: (u: number) => ({ sharesOut: u / 100, impactBp: 5 }), sizeForImpact: () => 1e9 }),
 }));
 vi.mock('../lib/market/depthSamples', () => ({
   getRecentDepthSamples: async () => [],
@@ -48,7 +49,7 @@ const post = (body: unknown) =>
 const brief = { theme: 'AI chips', budgetUsd: 900, minStocks: 3 };
 
 describe('POST /api/agent/brief', () => {
-  beforeEach(() => Object.assign(fx, { explained: null, why: 'refused-by-check', explainCalls: 0, configured: true, limiters: true, allow: true }));
+  beforeEach(() => Object.assign(fx, { hang: null, explained: null, why: 'refused-by-check', explainCalls: 0, configured: true, limiters: true, allow: true }));
 
   it('answers a plain-language 400 for bad input', async () => {
     const res = await post({ theme: 'Crypto', budgetUsd: 900 });
@@ -81,5 +82,19 @@ describe('POST /api/agent/brief', () => {
     expect(body.fixedBecause).toBe('not-configured');
     expect(fx.explainCalls).toBe(0);
     expect(body.explanation).toMatch(/Nothing is bought until you review the basket/);
+  });
+  it('a pool read that hangs counts as unreadable after 8 seconds, not a stuck page', async () => {
+    vi.useFakeTimers();
+    try {
+      fx.hang = 'NVDAc';
+      fx.explained = 'Your basket holds two stocks. Nothing is bought until you sign each step in your own wallet.';
+      const pending = post({ ...brief, minStocks: 2 });
+      await vi.advanceTimersByTimeAsync(8_000);
+      const body = await (await pending).json();
+      expect(body.brief.picks.map((p: { symbol: string }) => p.symbol)).toEqual(['AMDc', 'MUc']);
+      expect(body.brief.dropped.find((d: { symbol: string }) => d.symbol === 'NVDAc')?.why).toMatch(/couldn’t be read/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -303,7 +303,8 @@ export function buildBrief(
   // Each step is a subset of the one before: the deepest stocks sized against the cost limit (in depth
   // order, the next one taking a dropped one's place), those within it, then those over the swap minimum.
   const triedSymbols = passingSymbols.filter((s) => tried.has(s));
-  addStep(
+  // Nothing sized (a budget that covers no stock): no "the 0 with the deepest pools" step; the shortfall says why.
+  if (triedSymbols.length) addStep(
     sizeDropped.length
       ? `the ${triedSymbols.length} with the deepest pools, tried in turn against your cost limit`
       : byBudget < BRIEF_LIMITS.maxStocks
@@ -335,7 +336,10 @@ export function buildBrief(
       n === 0 && noReadings
         ? 'Afterbook has no recent pool-depth readings just now, so it can’t tell which pools are deep enough. Try again in a few minutes.'
         : budgetShort
-        ? `Your ${usd(investedTarget)} to invest is too little for at least ${usd(PLAN_LIMITS.minLegUsd, 0)} in each of ${input.minStocks} stocks. Raise the budget or keep less as cash.`
+        ? `Your ${usd(investedTarget)} to invest is too little for at least ${usd(PLAN_LIMITS.minLegUsd, 0)} in each of ${input.minStocks} stocks. Raise the budget or keep less as cash.${
+            // Both reasons when both applied (review of PR #175: $36 with 29% cash, 7 of 8 also over the cost limit).
+            costDropped.length ? ` Your ${pctText(input.maxCostBp)} cost limit also left out ${list(costDropped)}.` : ''
+          }`
         : n === 0 && costDropped.length && feeBps >= input.maxCostBp
         ? `Afterbook’s ${pctText(feeBps)} swap fee alone is over your ${pctText(input.maxCostBp)} limit on what you’ll pay to trade, so there is no basket.`
         : n === 0 && costDropped.length
