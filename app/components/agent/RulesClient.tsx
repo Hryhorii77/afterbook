@@ -34,6 +34,7 @@ import {
 import { getStock } from '@/lib/stocks/tokens';
 import { TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
 import { bpPct, formatNextOpen, usd } from '@/lib/format';
+import { cleanAmountInput, cleanPercentInput } from '@/lib/agent/formFields';
 import { SwapPanel } from '../swap/SwapPanel';
 import { SymbolTile } from '../ui/SymbolTile';
 
@@ -648,7 +649,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
           </label>
           <label className="plan-field">
             <span>Each run (USDC)</span>
-            <input inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))} />
+            <input inputMode="decimal" value={amount} onChange={(e) => setAmount(cleanAmountInput(e.target.value))} />
             <small>
               {usd(RULE_LIMITS.minRunUsd, 0)} to {usd(RULE_LIMITS.maxRunUsd, 0)}; also at most 10% of the pool.
             </small>
@@ -691,17 +692,17 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
         <div className="plan-grid">
           <label className="plan-field">
             <span>Total cap (USDC, optional)</span>
-            <input inputMode="decimal" value={cap} placeholder="No cap" onChange={(e) => setCap(e.target.value.replace(/[^0-9.]/g, ''))} />
+            <input inputMode="decimal" value={cap} placeholder="No cap" onChange={(e) => setCap(cleanAmountInput(e.target.value))} />
             <small>The rule stops once it has bought this much.</small>
           </label>
           <label className="plan-field">
             <span>Most I’ll pay over the real stock (%)</span>
-            <input inputMode="decimal" value={premiumPct} onChange={(e) => setPremiumPct(e.target.value.replace(/[^0-9.]/g, ''))} />
+            <input inputMode="decimal" value={premiumPct} onChange={(e) => setPremiumPct(cleanPercentInput(e.target.value))} />
             <small>Above this, the run waits.</small>
           </label>
           <label className="plan-field">
             <span>Most I’ll pay to trade (%)</span>
-            <input inputMode="decimal" value={costPct} onChange={(e) => setCostPct(e.target.value.replace(/[^0-9.]/g, ''))} />
+            <input inputMode="decimal" value={costPct} onChange={(e) => setCostPct(cleanPercentInput(e.target.value))} />
             <small>Price impact plus the pool fee; a run is sized down to fit.</small>
           </label>
           <label className="plan-field">
@@ -721,7 +722,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
             Save the rule
           </button>
         </div>
-        {formError && <p className="geo-note geo-note-blocked">{formError}</p>}
+        {formError && <p className="geo-note geo-note-blocked" role="alert">{formError}</p>}
       </form>
 
       {loaded && runs.length > 0 && (
