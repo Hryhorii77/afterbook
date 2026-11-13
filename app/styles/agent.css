@@ -50,3 +50,12 @@
 .rules-due .plan-leg-head { flex-wrap: wrap; }
 .rules-item .plan-leg-name, .rules-due .plan-leg-name { flex: 1 1 180px; }
 .rules-due .plan-leg-name span { white-space: normal; }
+
+/* "Describe a basket" on /plan (BriefClient.tsx). */
+.plan-mode { margin: 0 0 16px; max-width: 420px; }
+.brief-subhead { font-size: 14px; margin: 16px 0 8px; }
+.brief-steps { margin: 0; padding-left: 20px; font-size: 14px; display: grid; gap: 4px; }
+.brief-steps strong { font-variant-numeric: tabular-nums; }
+.brief-dropped { margin-top: 16px; font-size: 14px; }
+.brief-dropped summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--text); }
+.plan-leg-name .brief-sector { white-space: normal; overflow: visible; }

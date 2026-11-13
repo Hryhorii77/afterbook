@@ -7,26 +7,12 @@ import { getStock } from '@/lib/stocks/tokens';
 import { swapFee } from '@/lib/swap/swap';
 import { getEarningsSyncedAt } from '@/lib/stocks/earningsCalendar';
 import { limitRead } from '@/lib/server/readGuard';
-import { agentLimiter, agentDailyLimiter } from '@/lib/server/ratelimit';
 import { parsePlanInput, screen, sizeLegs, summarize, fallbackExplanation, type CostModel } from '@/lib/agent/plan';
-import { explainPlan, explainerConfigured } from '@/lib/agent/explain';
+import { explainPlan } from '@/lib/agent/explain';
+import { mayExplain } from '@/lib/agent/explainGate';
 import { countPlanBriefly } from '@/lib/agent/planStats';
 
 export const maxDuration = 60;
-
-function callerIp(request: Request): string {
-  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-}
-
-/** May this request spend a Claude call? Without Redis there is no cap that holds across instances, so no:
- *  the plan is then explained in fixed words. */
-async function mayExplain(request: Request): Promise<boolean> {
-  if (!explainerConfigured()) return false;
-  if (!agentLimiter || !agentDailyLimiter) return false;
-  const mine = await agentLimiter.limit(callerIp(request));
-  if (!mine.success) return false;
-  return (await agentDailyLimiter.limit('all')).success;
-}
 
 export async function POST(request: Request) {
   // The 10-a-minute bucket: a plan is a deliberate click, not a poll.

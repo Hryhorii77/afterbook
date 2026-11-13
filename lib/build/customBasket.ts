@@ -25,7 +25,11 @@ function apportion(raw: number[], total: number): number[] {
   const exact = raw.map((r) => (r / sum) * total);
   const out = exact.map(Math.floor);
   const order = exact.map((e, i) => [e - Math.floor(e), i] as const).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
-  for (let k = 0; k < total - out.reduce((a, b) => a + b, 0); k++) out[order[k][1]]++;
+  // The leftover is worked out once: re-reading it inside the loop handed out only about half of it, so
+  // 5/5/3/3 came out as 31/31/19/18 (99%) and the basket buy gave the missing 1% to the biggest stock
+  // (external review of PR #171, 2026-11-13).
+  const rest = total - out.reduce((a, b) => a + b, 0);
+  for (let k = 0; k < rest; k++) out[order[k][1]]++;
   return out;
 }
 

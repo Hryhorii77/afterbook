@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTape, recordTapeSamples } from '@/lib/market/tape';
+import { recordDepthSample } from '@/lib/market/depthSamples';
 import { splitByLiquidity } from '@/lib/market/liquidity';
 import { getAllChatIds, getRules, setRules, nextBasisState, type AlertRule } from '@/lib/alerts/alerts';
 import { sendTelegramMessage } from '@/lib/alerts/telegram';
@@ -22,7 +23,9 @@ export async function GET(request: NextRequest) {
 
   const tape = await getTape().catch(() => null);
   if (!tape) return NextResponse.json({ ok: false, reason: 'tape unavailable' });
-  await recordTapeSamples(tape.rows);
+  // A tape with `error` is the last good one, carried over after a failed fetch: its depths are not a
+  // new reading, so no depth sample (a stale "fresh" reading would keep a pool in a basket).
+  await Promise.all([recordTapeSamples(tape.rows), tape.error ? null : recordDepthSample(tape.rows, tape.fetchedAt)]);
 
   const marketClosed = tape.session.state !== 'open';
   const { liquid } = splitByLiquidity(tape.rows);

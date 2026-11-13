@@ -11,6 +11,9 @@ import { MAX_SWAP_USD, MAX_BUY_DEPTH_SHARE } from '../swap/swap';
 import { gapSizeText, gapVsText, usd, formatNextOpen } from '../format';
 import { PLAN_LIMITS } from './limits';
 
+/** A cost in bp as the person typed it on the form: a percent ("0.3%"), not bp (external review, 2026-11-13). */
+const costPct = (bp: number) => `${Number((bp / 100).toFixed(3))}%`;
+
 export { PLAN_LIMITS } from './limits';
 
 export interface PlanInput {
@@ -195,7 +198,7 @@ export function sizeLegs(legs: PlanLeg[], input: PlanInput, costs: Map<string, C
   }
   if (feeBps >= input.maxCostBp) {
     for (const leg of buys) {
-      block(leg, 'skip', `Afterbook’s ${feeBps} bp swap fee alone is over your ${input.maxCostBp} bp limit.`);
+      block(leg, 'skip', `Afterbook’s ${costPct(feeBps)} swap fee alone is over your ${costPct(input.maxCostBp)} limit.`);
     }
     return legs;
   }
@@ -217,7 +220,7 @@ export function sizeLegs(legs: PlanLeg[], input: PlanInput, costs: Map<string, C
       shrunk = true;
     }
     if (size < PLAN_LIMITS.minLegUsd || est.impactBp > poolLimitBp) {
-      block(leg, 'skip', `Even a ${usd(PLAN_LIMITS.minLegUsd, 0)} buy would cost more than your ${input.maxCostBp} bp limit in this pool.`);
+      block(leg, 'skip', `Even a ${usd(PLAN_LIMITS.minLegUsd, 0)} buy would cost more than your ${costPct(input.maxCostBp)} limit to trade in this pool.`);
       continue;
     }
     size = Math.floor(size);
@@ -227,10 +230,10 @@ export function sizeLegs(legs: PlanLeg[], input: PlanInput, costs: Map<string, C
     leg.costBp = est.impactBp + feeBps;
     leg.reasons.push(
       feeBps > 0
-        ? `A ${usd(size, 0)} buy would cost about ${leg.costBp.toFixed(1)} bp: ${est.impactBp.toFixed(1)} bp of price impact and pool fee, plus Afterbook’s ${feeBps} bp fee.`
-        : `A ${usd(size, 0)} buy would cost about ${est.impactBp.toFixed(1)} bp (price impact plus the pool fee; Afterbook charges no fee).`,
+        ? `A ${usd(size, 0)} buy would cost about ${costPct(leg.costBp)}: ${costPct(est.impactBp)} of price impact and pool fee, plus Afterbook’s ${costPct(feeBps)} fee.`
+        : `A ${usd(size, 0)} buy would cost about ${costPct(est.impactBp)} (price impact plus the pool fee; Afterbook charges no fee).`,
     );
-    if (shrunk) leg.reasons.push(`Sized down from ${usd(share, 0)} to stay inside your ${input.maxCostBp} bp limit.`);
+    if (shrunk) leg.reasons.push(`Sized down from ${usd(share, 0)} to stay inside your ${costPct(input.maxCostBp)} limit to trade.`);
     else if (capped) leg.reasons.push(`Capped at ${usd(size, 0)}: one swap is at most ${usd(MAX_SWAP_USD, 0)} and 10% of the pool.`);
   }
   return legs;
