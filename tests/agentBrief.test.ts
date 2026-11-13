@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildBrief, parseBriefInput, type BriefInput } from '../lib/agent/brief';
+import { briefShortlist, buildBrief, parseBriefInput, type BriefInput } from '../lib/agent/brief';
 import { briefFacts, numbersAllowed } from '../lib/agent/explain';
 import type { CostModel } from '../lib/agent/plan';
 import type { SteadyDepth } from '../lib/market/depthSamples';
@@ -364,5 +364,104 @@ describe('buildBrief', () => {
     const b = run(input({ minStocks: 4 }), steadyOf({ NVDAc: 2_000_000, MUc: 1_500_000, AMDc: 1_000_000, AVGOc: 900_000 }, 0), allRows(), costs);
     expect(b.legs.find((l) => l.symbol === 'NVDAc')?.cutBy).toBe('cost limit');
     expect(b.legs.filter((l) => l.symbol !== 'NVDAc' && l.verdict === 'buy').every((l) => l.cutBy === undefined)).toBe(true);
+  });
+});
+
+describe('refilling the basket', () => {
+  const over: CostModel = { estimate: (u: number) => ({ sharesOut: u / 100, impactBp: 500 }), sizeForImpact: () => 1 };
+  const aiChips = { NVDAc: 2_000_000, MUc: 1_500_000, AMDc: 1_000_000, AVGOc: 900_000, MRVLc: 800_000, SKHYc: 60_000, ARMc: 60_000 };
+
+  it('a stock the cost limit drops is replaced by the next deepest that passed', () => {
+    const costs = costsFor();
+    costs.set('NVDAc', over);
+    const b = run(input({ minStocks: 4 }), steadyOf(aiChips, 0), allRows(), costs);
+    expect(b.picks?.map((p) => p.symbol)).toEqual(['MUc', 'AMDc', 'AVGOc', 'MRVLc']);
+    expect(b.picks?.map((p) => p.usd)).toEqual([250, 250, 250, 250]);
+    expect(b.dropped.find((d) => d.symbol === 'NVDAc')?.why).toMatch(/cost more than your/);
+    expect(b.dropped.some((d) => d.symbol === 'MRVLc')).toBe(false);
+    expect(b.steps.map((s) => [s.symbols.length, s.label])).toEqual([
+      [7, 'Theme “AI chips”: stocks on Afterbook'],
+      [5, 'with a pool over $250,000 in every reading of the last 3 hours'],
+      [5, 'that pass your price and earnings limits'],
+      [4, 'within your cost limit'],
+    ]);
+  });
+
+  it('when the cost limit drops every stock, it says so instead of “no stock meets this brief”', () => {
+    const b = run(input({ minStocks: 2 }), steadyOf(aiChips, 0), allRows(), costsFor(over));
+    expect(b.picks).toBeNull();
+    expect(b.shortfall).toBe(
+      'Your 0.3% limit on what you’ll pay to trade leaves out every stock it was tried on (NVDA, MU, AMD, AVGO, MRVL): even a $10 buy in each would cost more than that. A higher limit lets more through.',
+    );
+    expect(b.shortfall).not.toMatch(/No stock on Base/);
+    expect(b.steps.at(-1)).toMatchObject({ label: 'within your cost limit', symbols: [] });
+  });
+
+  it('too few left after the cost limit: names what it left out', () => {
+    const costs = costsFor();
+    costs.set('NVDAc', over);
+    costs.set('MUc', over);
+    const b = run(input({ minStocks: 2 }), steadyOf({ NVDAc: 2_000_000, MUc: 1_500_000, AMDc: 1_000_000 }, 0), allRows(), costs);
+    expect(b.shortfall).toBe('Only 1 stock passes (AMD), your 0.3% cost limit left out NVDA, MU, and you asked to spread over at least 2, so there is no basket.');
+    expect(b.suggestion).toBeNull();
+  });
+
+  it('builds only from the stocks the route read cost models for, and lists every other one once', () => {
+    const steady = steadyOf({}, 2_000_000); // every stock deep: Any theme, ties by symbol
+    const i = input({ theme: 'Any', minStocks: 4 });
+    const short = briefShortlist(i, tape(allRows()), steady, NOW, NOW);
+    expect(short).toHaveLength(BRIEF_LIMITS.maxCandidates);
+    // As the route does: cost models for the shortlist only. The 4 deepest are over the limit.
+    const costs = new Map<string, CostModel | null>(short.map((s, k) => [s, k < 4 ? over : linear]));
+    const b = buildBrief(i, tape(allRows()), steady, costs, NOW, 0, NOW);
+    expect(b.picks?.map((p) => p.symbol)).toEqual(short.slice(4, 8));
+    expect(b.dropped.filter((d) => /couldn’t be read/.test(d.why))).toEqual([]);
+    const seen = b.dropped.map((d) => d.symbol);
+    expect(new Set(seen).size).toBe(seen.length);
+    expect([...seen, ...b.picks!.map((p) => p.symbol)].sort()).toEqual(STOCKS.map((s) => s.symbol).sort());
+  });
+
+  it('a small budget still takes fewer stocks, and unused candidates say it was the budget', () => {
+    const b = run(input({ theme: 'Any', minStocks: 2, budgetUsd: 20 }), steadyOf({}, 2_000_000));
+    expect(b.picks).toHaveLength(2);
+    const unused = b.dropped.filter((d) => /covers at most 2 stocks/.test(d.why));
+    expect(unused).toHaveLength(STOCKS.length - 2);
+    expect(b.steps.at(-1)?.label).toBe('the 2 with the deepest pools that your budget covers at $10 or more each');
+  });
+
+  it('when the cost limit empties the basket, untried stocks aren’t said to be “within” it or beaten by deeper pools', () => {
+    // Caught on live data with a 0.01% limit: 13 passed, the 8 deepest were all over it.
+    const b = run(input({ theme: 'Any', minStocks: 4 }), steadyOf({}, 2_000_000), allRows(), costsFor(over));
+    expect(b.picks).toBeNull();
+    expect(b.steps.slice(-2).map((s) => [s.symbols.length, s.label])).toEqual([
+      [BRIEF_LIMITS.maxCandidates, `the ${BRIEF_LIMITS.maxCandidates} with the deepest pools, tried in turn against your cost limit`],
+      [0, 'within your cost limit'],
+    ]);
+    expect(b.dropped.some((d) => /deeper pools made it/.test(d.why))).toBe(false);
+    expect(b.dropped.filter((d) => /are tried against your cost limit; this one comes after them/.test(d.why))).toHaveLength(STOCKS.length - BRIEF_LIMITS.maxCandidates);
+    expect(b.shortfall).toMatch(/^Your 0.3% limit on what you’ll pay to trade leaves out every stock it was tried on/);
+  });
+
+  it('an unreadable pool is its own step, not a cost-limit drop (real-money review of the refill)', () => {
+    const costs = costsFor(over);
+    costs.set('MUc', null);
+    const b = run(input({ minStocks: 2 }), steadyOf({ NVDAc: 2_000_000, MUc: 1_500_000, AMDc: 1_000_000 }, 0), allRows(), costs);
+    expect(b.steps.slice(-2).map((s) => [s.symbols.length, s.label])).toEqual([
+      [2, 'with a pool that could be read just now'],
+      [0, 'within your cost limit'],
+    ]);
+    expect(b.shortfall).toBe('Your 0.3% limit on what you’ll pay to trade leaves out NVDA, AMD, and the pools of MU couldn’t be read just now, so there is no basket.');
+  });
+
+  it('a swap fee over the limit is named as the cause, not the pools', () => {
+    const b = buildBrief(input({ minStocks: 2, maxCostBp: 20 }), tape(allRows()), steadyOf({ NVDAc: 2_000_000, MUc: 1_500_000 }, 0), costsFor(), NOW, 25, NOW);
+    expect(b.shortfall).toBe('Afterbook’s 0.25% swap fee alone is over your 0.2% limit on what you’ll pay to trade, so there is no basket.');
+  });
+
+  it('a budget too small for any stock gives every stock the budget reason', () => {
+    const b = run(input({ theme: 'Any', minStocks: 2, budgetUsd: 10, cashPct: 50 }), steadyOf({}, 2_000_000));
+    expect(b.picks).toBeNull();
+    expect(b.shortfall).toMatch(/too little/);
+    expect(b.dropped.some((d) => /tried against your cost limit/.test(d.why))).toBe(false);
   });
 });
