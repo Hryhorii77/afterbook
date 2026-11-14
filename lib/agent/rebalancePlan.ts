@@ -131,7 +131,7 @@ export function planRebalance(
     // Not "the run is under N × $10": a lopsided basket ($35 at 80/10/10) drops a stock with more than that.
     if (tooSmall.length)
       notes.push(
-        `This run is too small to give each of the ${bought + tooSmall.length} stocks ${usd(PLAN_LIMITS.minLegUsd, 0)} or more at your target weights, so ${listJoin(tooSmall)} ${tooSmall.length === 1 ? 'sits' : 'sit'} it out; later runs add ${tooSmall.length === 1 ? 'it' : 'them'}.`,
+        `This run is too small to give each of the ${failed.length ? 'other ' : ''}${bought + tooSmall.length} stocks ${usd(PLAN_LIMITS.minLegUsd, 0)} or more at your target weights, so ${listJoin(tooSmall)} ${tooSmall.length === 1 ? 'sits' : 'sit'} it out; later runs add ${tooSmall.length === 1 ? 'it' : 'them'}.`,
       );
     return notes.length ? notes.join(' ') : null;
   };
@@ -162,8 +162,9 @@ export function planRebalance(
     // money went into a stock far over target).
     const recheckSmall = () => {
       for (const sym of small.keys()) {
+        // Replace the leg whole: assigning over it would keep the minimum's decidedBy (owner review of #178).
         const base = screened.find((l) => l.symbol === sym)!;
-        Object.assign(legs.find((l) => l.symbol === sym)!, { ...base, reasons: [...base.reasons] });
+        legs[legs.findIndex((l) => l.symbol === sym)] = { ...base, reasons: [...base.reasons] };
       }
       small.clear();
     };

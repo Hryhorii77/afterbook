@@ -311,6 +311,37 @@ describe('planRebalance', () => {
     expect(p.cashWhy).toMatch(/^: \$[\d.,]+ because NVDA can’t be bought this run; \$[\d.,]+ is rounding$/);
   });
 
+  it('fuzz: a stock’s row gives the same reason as the plan (a stock put back after the minimum, then failing, owner review of #178)', () => {
+    let seed = 41;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const syms4 = ['NVDAc', 'MSFTc', 'AAPLc', 'AMDc'];
+    for (let k = 0; k < 3000; k++) {
+      const n = 2 + Math.floor(rnd() * 3);
+      const syms = syms4.slice(0, n);
+      const w = syms.map(() => 1 + Math.floor(rnd() * 40));
+      const sumW = w.reduce((a, b) => a + b, 0);
+      const pct = w.map((x) => Math.max(1, Math.floor((x * 100) / sumW)));
+      pct[0] += 100 - pct.reduce((a, b) => a + b, 0);
+      if (pct.some((x) => x < 1)) continue;
+      const targets = syms.map((symbol, i) => ({ symbol, weightPct: pct[i] }));
+      const budgetUsd = [19, 25, 37, 50][k % 4];
+      const costs = costsFor(flat);
+      // Each stock passes up to a random size, so a stock put back with a bigger share can fail sizing.
+      for (const s of syms) {
+        const cap = 8 + rnd() * 30;
+        costs.set(s, { estimate: (u) => ({ sharesOut: u / 100, impactBp: u <= cap ? 5 : 500 }), sizeForImpact: () => cap });
+      }
+      const p = run(input({ targets, budgetUsd }), deep(), costs);
+      const failedNamed = p.firstRunNote?.split(' didn’t pass')[1] != null ? p.firstRunNote.split(' didn’t pass')[0] : '';
+      for (const nb of p.notBought) {
+        const leg = p.legs.find((l) => l.symbol === nb.symbol)!;
+        if (leg.verdict !== 'buy') expect(leg.decidedBy).toBe(nb.why);
+        // Named as failing its checks, so its row must not give the $10 minimum as the reason.
+        if (failedNamed.split(/, | and /).includes(nb.symbol.replace(/c$/, ''))) expect(nb.why).not.toMatch(/minimum for a swap/);
+      }
+    }
+  });
+
   it('nothing passes: no buy, every reason given', () => {
     const p = run(input(), tape(), costsFor(over));
     expect(p.picks).toBeNull();
