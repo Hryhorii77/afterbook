@@ -49,9 +49,9 @@ export interface RebalancePlan {
   /** What this run leaves in the wallet: rounding, a stock sized down by the cost limit or the caps, or
    *  money held back because the stocks under target can't be bought this run. */
   cashUsd: number;
-  /** Why `cashUsd` stays in the wallet ("because …", or "for these reasons: $x because …; …"), or null. */
+  /** Why `cashUsd` stays in the wallet ("because …", or ": $x because …; $y is rounding"), or null. */
   cashWhy: string | null;
-  /** Nothing held yet and a stock failed its checks: says the others were bought at their weights. */
+  /** Nothing held yet and a stock failed its checks or sits the run out for the $10 minimum: says so. */
   firstRunNote: string | null;
   /** How much of the run the whole-percent split alone leaves unspent. */
   roundingUsd: number;
@@ -121,6 +121,20 @@ export function planRebalance(
     overNow(sym)
       ? 'It’s at or over its target now, and its small share of this run would have left much of the run unspent in the basket buy’s whole-percent split, so the run goes to the others.'
       : 'Its share of this run is so small that the basket buy’s whole-percent split would have left much of the run unspent, so the run goes to the others.';
+
+  const firstRun = (failed: string[], tooSmall: string[], bought: number): string | null => {
+    const notes: string[] = [];
+    if (failed.length)
+      notes.push(
+        `${listJoin(failed)} didn’t pass ${failed.length === 1 ? 'its' : 'their'} checks. With nothing held yet, this run buys ${tooSmall.length ? 'what it can of the rest' : 'the others'} at their weights, and later runs put more into ${listJoin(failed)}.`,
+      );
+    // Not "the run is under N × $10": a lopsided basket ($35 at 80/10/10) drops a stock with more than that.
+    if (tooSmall.length)
+      notes.push(
+        `This run is too small to give each of the ${bought + tooSmall.length} stocks ${usd(PLAN_LIMITS.minLegUsd, 0)} or more at your target weights, so ${listJoin(tooSmall)} ${tooSmall.length === 1 ? 'sits' : 'sit'} it out; later runs add ${tooSmall.length === 1 ? 'it' : 'them'}.`,
+      );
+    return notes.length ? notes.join(' ') : null;
+  };
 
   /** Split, size each stock at its share, and split again without any that fail, until stable. */
   const attempt = (outStart: Map<string, string>): RebalancePlan => {
@@ -210,23 +224,20 @@ export function planRebalance(
       const roundedOut = syms.filter((sym) => out.get(sym) === roundingWhy(sym) && underAfter(sym)).map(ticker);
       // Cents lost to flooring the split count as rounding, not as money held back.
       const held = !fresh && (failedUnder.length || roundedOut.length || splitLeft >= 1) ? splitLeft : 0;
+      // Short clauses (owner, after #177: the two-part reason ran about 8 lines on a 320px phone).
       if (held >= 0.01) {
         const who = [
-          failedUnder.length ? `${listJoin(failedUnder)} ${failedUnder.length === 1 ? 'is' : 'are'} under target but can’t be bought this run` : '',
-          roundedOut.length ? `${listJoin(roundedOut)} ${roundedOut.length === 1 ? 'was' : 'were'} left out so the whole-percent split could spend more` : '',
+          failedUnder.length ? `${listJoin(failedUnder)} can’t be bought this run` : '',
+          roundedOut.length === 1 ? `${roundedOut[0]}’s share was too small to split in whole percents` : roundedOut.length ? `the shares of ${listJoin(roundedOut)} were too small to split in whole percents` : '',
         ].filter(Boolean);
-        parts.push({
-          usd: held,
-          text: who.length
-            ? `${who.join(', and ')}, and this run puts money only into stocks under their target share`
-            : 'this run puts money only into stocks under their target share',
-        });
+        parts.push({ usd: held, text: who.length ? `because ${who.join(' and ')}` : 'because this run buys only stocks under target' });
       }
       // Only what sizing really cut (cost limit or swap caps); cents lost to whole dollars count as rounding.
       const cut = cents(trials.filter((t) => t.cutBy).reduce((s2, t) => s2 + (split.find((x) => x.symbol === t.symbol)!.usd - t.usd!), 0));
-      if (cut >= 0.01) parts.push({ usd: cut, text: `${listJoin(trials.filter((t) => t.cutBy).map((t) => ticker(t.symbol)))} ${trials.filter((t) => t.cutBy).length === 1 ? 'was' : 'were'} cut to fit your cost limit or the swap caps` });
+      const cutSyms = trials.filter((t) => t.cutBy).map((t) => ticker(t.symbol));
+      if (cut >= 0.01) parts.push({ usd: cut, text: `because ${listJoin(cutSyms)} ${cutSyms.length === 1 ? 'was' : 'were'} cut to fit your cost limit or the swap caps` });
       const rounded = cents(cashUsd - Math.max(0, held) - Math.max(0, cut));
-      if (rounded >= 0.01) parts.push({ usd: rounded, text: 'amounts are rounded down to whole dollars and the basket buy splits in whole percents, so no stock gets more than it was sized for' });
+      if (rounded >= 0.01) parts.push({ usd: rounded, text: 'is rounding' });
       parts.sort((x, y) => y.usd - x.usd);
       return {
         drift,
@@ -236,17 +247,18 @@ export function planRebalance(
         basket: whole.basket,
         investedUsd: whole.investedUsd,
         cashUsd,
+        // One part: "because …" (rounding alone: "because of rounding …"). Several: ": $x because …; $y is rounding".
         cashWhy:
           cashUsd < 0.01
             ? null
             : parts.length > 1
-              ? `for these reasons: ${parts.map((x) => `${usd(x.usd, 2)} because ${x.text}`).join('; ')}`
-              : `because ${parts[0]?.text ?? 'amounts are rounded down, so no stock gets more than it was sized for'}`,
-        // Nothing held yet and a stock failed its checks: the run went to the others at their weights.
-        firstRunNote:
-          fresh && failedUnder.length
-            ? `${listJoin(failedUnder)} didn’t pass ${failedUnder.length === 1 ? 'its' : 'their'} checks. With nothing held yet, this run buys the others at their weights, and later runs put more into ${listJoin(failedUnder)}.`
-            : null,
+              ? `: ${parts.map((x) => `${usd(x.usd, 2)} ${x.text}`).join('; ')}`
+              : !parts.length || parts[0].text === 'is rounding'
+                ? 'because of rounding to whole dollars and whole percents'
+                : parts[0].text,
+        // Nothing held yet: a stock that failed its checks, or a run too small to give every stock the $10
+        // minimum (owner, after #177: a $25 first run at 40/30/30 bought only NVDA with no word why).
+        firstRunNote: fresh ? firstRun(failedUnder, syms.filter((sym) => small.has(sym)).map(ticker), picks.length) : null,
         // Only what the whole-percent split loses (not whole-dollar cents): this decides the retry below.
         roundingUsd: cents(trials.reduce((s2, t) => s2 + t.usd!, 0) - whole.investedUsd),
         shortfall: null,

@@ -122,7 +122,7 @@ describe('planRebalance', () => {
       ['AAPLc', 80],
     ]);
     expect(p.cashUsd).toBe(140);
-    expect(p.cashWhy).toMatch(/^because NVDA is under target but can’t be bought this run/);
+    expect(p.cashWhy).toMatch(/^because NVDA can’t be bought this run$/);
     expect(p.firstRunNote).toBeNull();
   });
 
@@ -205,8 +205,8 @@ describe('planRebalance', () => {
       const p = run(input({ targets, budgetUsd, balances }), deep(), costsFor(flat));
       if (!p.picks) continue;
       if (!held) expect(p.cashUsd).toBeLessThanOrEqual(Math.max(1.01, budgetUsd * 0.08));
-      if (p.cashWhy?.startsWith('for these reasons')) {
-        const amounts = [...p.cashWhy.matchAll(/\$([\d,]+\.\d\d) because/g)].map((m) => Number(m[1].replace(/,/g, '')));
+      if (p.cashWhy?.startsWith(':')) {
+        const amounts = [...p.cashWhy.matchAll(/\$([\d,]+\.\d\d) (?:because|is rounding)/g)].map((m) => Number(m[1].replace(/,/g, '')));
         expect(Math.round(amounts.reduce((a, b) => a + b, 0) * 100)).toBe(Math.round(p.cashUsd * 100));
       }
       expect(p.cashWhy ?? '').not.toMatch(/cut to fit/);
@@ -284,8 +284,8 @@ describe('planRebalance', () => {
       const held = p.drift.reduce((s, d) => s + d.valueUsd, 0);
       if (!p.picks) continue;
       expect(p.investedUsd).toBeLessThanOrEqual(budgetUsd);
-      if (p.cashWhy?.startsWith('for these reasons')) {
-        const amounts = [...p.cashWhy.matchAll(/\$([\d,]+\.\d\d) because/g)].map((m) => Number(m[1].replace(/,/g, '')));
+      if (p.cashWhy?.startsWith(':')) {
+        const amounts = [...p.cashWhy.matchAll(/\$([\d,]+\.\d\d) (?:because|is rounding)/g)].map((m) => Number(m[1].replace(/,/g, '')));
         expect(Math.round(amounts.reduce((a, b) => a + b, 0) * 100)).toBe(Math.round(p.cashUsd * 100));
       }
       if (held < Math.max(1, budgetUsd * 0.01)) continue; // nothing held: the run goes at the target weights
@@ -296,6 +296,19 @@ describe('planRebalance', () => {
       }
     }
     expect(checked).toBeGreaterThan(1000);
+  });
+
+  it('a small first run that can only buy one stock says why (owner, after #177)', () => {
+    const p = run(input({ budgetUsd: 25 }), deep(), costsFor(flat));
+    expect(p.picks?.map((x) => x.symbol)).toEqual(['NVDAc']);
+    expect(p.firstRunNote).toBe('This run is too small to give each of the 3 stocks $10 or more at your target weights, so MSFT and AAPL sit it out; later runs add them.');
+    const big = run(input({ budgetUsd: 300 }), deep(), costsFor(flat));
+    expect(big.firstRunNote).toBeNull();
+  });
+
+  it('a two-part cash reason is short: "$x because …; $y is rounding" (owner, after #177)', () => {
+    const p = run(input({ balances: { NVDAc: raw('NVDAc', 1), MSFTc: raw('MSFTc', 1), AAPLc: raw('AAPLc', 1) }, budgetUsd: 301 }), tape({ NVDAc: { basisBp: 120 } }));
+    expect(p.cashWhy).toMatch(/^: \$[\d.,]+ because NVDA can’t be bought this run; \$[\d.,]+ is rounding$/);
   });
 
   it('nothing passes: no buy, every reason given', () => {
