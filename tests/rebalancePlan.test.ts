@@ -75,10 +75,15 @@ describe('planRebalance', () => {
     expect(p.notBought).toEqual([{ symbol: 'NVDAc', why: 'It’s at or over its target, so this run puts nothing into it.' }]);
   });
 
-  it('a stock over the price limit sits this run out, and the rest is split again', () => {
+  it('a stock over the price limit sits this run out; the others get their target share and the rest stays as cash', () => {
     const p = run(input(), tape({ NVDAc: { basisBp: 120 } }));
-    expect(p.picks?.map((x) => x.symbol)).toEqual(['MSFTc', 'AAPLc']);
-    expect(p.investedUsd).toBe(300);
+    expect(p.picks?.map((x) => [x.symbol, x.usd])).toEqual([
+      ['MSFTc', 90],
+      ['AAPLc', 90],
+    ]);
+    expect(p.investedUsd).toBe(180);
+    expect(p.cashUsd).toBe(120);
+    expect(p.cashWhy).toMatch(/^because NVDA is under target but can’t be bought this run/);
     expect(p.legs.find((l) => l.symbol === 'NVDAc')?.verdict).not.toBe('buy');
   });
 
@@ -91,10 +96,54 @@ describe('planRebalance', () => {
     expect(p.investedUsd).toBeLessThanOrEqual(300);
   });
 
+  it('review repro: 34/33/33 holding $372/$5,406/$5,687 with $5,000 spends nearly all of it', () => {
+    const T3: Target[] = [
+      { symbol: 'NVDAc', weightPct: 34 },
+      { symbol: 'MSFTc', weightPct: 33 },
+      { symbol: 'AAPLc', weightPct: 33 },
+    ];
+    const big: CostModel = { estimate: (u) => ({ sharesOut: u / 100, impactBp: 5 }), sizeForImpact: () => 1e9 };
+    const tp = tape(Object.fromEntries(['NVDAc', 'MSFTc', 'AAPLc'].map((s) => [s, { depthUsd: 1e8 }])));
+    const p = run(input({ targets: T3, budgetUsd: 5000, balances: { NVDAc: raw('NVDAc', 3.72), MSFTc: raw('MSFTc', 54.06), AAPLc: raw('AAPLc', 56.87) } }), tp, costsFor(big));
+    expect(p.investedUsd).toBeGreaterThanOrEqual(4950);
+    expect(p.picks?.map((x) => x.symbol)).toEqual(['NVDAc']);
+    expect(p.notBought.find((n) => n.symbol === 'MSFTc')?.why).toMatch(/^It’s at or over its target now, and its small share of this run would have left much of the run unspent/);
+  });
+
+  it('review repro: 50/50 holding $900/$100, MSFT fails its gap check: nothing goes into NVDA', () => {
+    const T2: Target[] = [
+      { symbol: 'NVDAc', weightPct: 50 },
+      { symbol: 'MSFTc', weightPct: 50 },
+    ];
+    const p = run(input({ targets: T2, budgetUsd: 500, balances: { NVDAc: raw('NVDAc', 9), MSFTc: raw('MSFTc', 1) } }), tape({ MSFTc: { basisBp: 120 } }));
+    expect(p.picks).toBeNull();
+    expect(p.cashUsd).toBe(500);
+    expect(p.shortfall).toMatch(/stays in your wallet/);
+    expect(p.shortfall).toMatch(/NVDA: It’s at or over its target share after this run/);
+  });
+
+  it('fuzz: rounding leaves at most a few percent of the run unspent', () => {
+    let seed = 5;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const big: CostModel = { estimate: (u) => ({ sharesOut: u / 100, impactBp: 5 }), sizeForImpact: () => 1e9 };
+    const tp = tape(Object.fromEntries(T.map((t) => [t.symbol, { depthUsd: 1e8 }])));
+    const lost: number[] = [];
+    for (let k = 0; k < 1000; k++) {
+      const budgetUsd = 50 + Math.floor(rnd() * 5000);
+      const balances = Object.fromEntries(T.map((t) => [t.symbol, raw(t.symbol, rnd() * 60)]));
+      const p = run(input({ budgetUsd, balances }), tp, costsFor(big));
+      if (!p.picks) continue;
+      lost.push(p.roundingUsd / budgetUsd);
+    }
+    lost.sort((a, b) => a - b);
+    expect(lost[Math.floor(lost.length * 0.9)]).toBeLessThan(0.02);
+    expect(lost[lost.length - 1]).toBeLessThan(0.1);
+  });
+
   it('nothing passes: no buy, every reason given', () => {
     const p = run(input(), tape(), costsFor(over));
     expect(p.picks).toBeNull();
-    expect(p.shortfall).toMatch(/^Nothing can be bought for this run right now\. NVDA: Even a \$10 buy/);
+    expect(p.shortfall).toMatch(/^Nothing can be bought for this run right now, so the run stays in your wallet\. NVDA: Even a \$10 buy/);
     expect(p.cashUsd).toBe(300);
   });
 

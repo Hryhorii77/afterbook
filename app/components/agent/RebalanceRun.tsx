@@ -1,8 +1,8 @@
 'use client';
 
 // One due run of a rebalance rule on /rules (lib/agent/rebalance.ts, owner 2026-11-14): where the wallet's
-// basket stands against its targets (read onchain when the run was checked), what this run would buy (the
-// stocks below target, in proportion to how far below), and the normal basket buy to review and sign it,
+// basket stands against its targets (read onchain when the run was checked), what this run would buy
+// (toward each stock's target share of the basket after this run, in proportion to how far below it is), and the normal basket buy to review and sign it,
 // behind the same region and eligibility checks. Buy-only: nothing is sold. The drift view also links to
 // /build for anyone who wants to rebalance by hand.
 import Link from 'next/link';
@@ -64,6 +64,12 @@ export function RebalanceRun({
   const { plan } = check;
   const held = plan.drift.reduce((s, d) => s + d.valueUsd, 0);
   const targets = rule.targets ?? [];
+  // Each stock's share once this run is bought, so the view shows what the split aims at, not only where it starts.
+  const after = (sym: string, valueUsd: number) => {
+    const total = held + (plan.picks ? plan.investedUsd : 0);
+    const bought = plan.picks?.find((p) => p.symbol === sym)?.usd ?? 0;
+    return total > 0 ? ((valueUsd + bought) / total) * 100 : null;
+  };
   const time = (ms: number) => new Date(ms).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
   return (
@@ -74,6 +80,7 @@ export function RebalanceRun({
           <li key={d.symbol}>
             <strong>{ticker(d.symbol)}</strong> {usd(d.valueUsd, 2)}
             {d.currentPct != null ? ` · ${pct(d.currentPct)} now vs ${d.targetPct}% target (${pts(d.driftPts!)})` : ` · ${d.targetPct}% target`}
+            {plan.picks && after(d.symbol, d.valueUsd) != null ? ` · ${pct(after(d.symbol, d.valueUsd)!)} after this run` : ''}
           </li>
         ))}
       </ul>
@@ -84,7 +91,8 @@ export function RebalanceRun({
         {check.session.state.startsWith('closed') && ` · cash reopens ${formatNextOpen(check.session.nextOpenIso)}`}
       </p>
       <p className="plan-hint">
-        A rule run only buys. To sell what is over target, rebalance by hand on{' '}
+        A rule run only buys. It aims at each stock’s target share of the basket after this run, so a stock a little over its target now can
+        still get a small part. To sell what is over target, rebalance by hand on{' '}
         <Link href={`/build/${formatSpec(targets)}`} className="emph-link">
           this basket’s page
         </Link>
@@ -104,8 +112,8 @@ export function RebalanceRun({
           </ul>
           {plan.cashUsd >= 0.01 && (
             <p className="plan-hint">
-              {usd(plan.cashUsd, 2)} of this run’s {usd(check.budgetUsd, 2)} stays in your wallet: weights are whole percents
-              {plan.picks.some((p) => p.sizedDownBy) ? ', and a stock was cut to fit your limits' : ''}.
+              {usd(plan.cashUsd, 2)} of this run’s {usd(check.budgetUsd, 2)} stays in your wallet
+              {plan.cashWhy ? ` ${plan.cashWhy}.` : '.'}
             </p>
           )}
         </>

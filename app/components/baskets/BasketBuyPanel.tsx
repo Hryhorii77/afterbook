@@ -89,6 +89,8 @@ export function BasketBuyPanel({
   const [rest, setRest] = useState<BasketLegAmount[] | null>(null);
   /** This run approved the router: if it then stops before every leg is bought, say what is left approved. */
   const [approvedFor, setApprovedFor] = useState<BasketLegAmount[] | null>(null);
+  /** A swap was sent whose outcome couldn't be read (it may have bought): the run isn't "nothing bought". */
+  const [maybeSent, setMaybeSent] = useState(false);
   // Lets the page lock its Buy/Sell switch and eligibility box while a run is asking the wallet.
   useEffect(() => onBusy?.(busy !== null), [busy, onBusy]);
   // A review is only valid for the slippage limit it was built with.
@@ -133,6 +135,7 @@ export function BasketBuyPanel({
       const allowance = await wallet.routerAllowance(USDC.address);
       setRest(null);
       setApprovedFor(null);
+      setMaybeSent(false);
       if (allowance < total) {
         // From the moment it is signed the router may spend the total, so a stop before any leg is bought still says so.
         await wallet.approveExact(USDC.address, total, 'The USDC approval reverted onchain. Nothing was bought.', () => setApprovedFor(review.legs.map((l) => l.plan)));
@@ -187,6 +190,7 @@ export function BasketBuyPanel({
           const msg = (e as Error).message;
           const failedForSure = msg === reverted || msg === SWAP_CANCELLED;
           const maybe = sentThis && !failedForSure ? (sentThis as Hex) : null;
+          if (maybe) setMaybeSent(true);
           if (minedHashes.length || maybe) {
             onRunDone?.({
               paidUsd: Number(paidRaw + (maybe ? leg.amountIn : BigInt(0))) / 1e6,
@@ -343,11 +347,17 @@ export function BasketBuyPanel({
           Reviewing this basket again uses it, or you can revoke it on <Link href="/portfolio#approvals" className="emph-link">Portfolio</Link>.
         </p>
       )}
-      {rest && rest.length > 0 && !review && noRest && (
+      {rest && rest.length > 0 && !review && noRest && (bought.length > 0 || maybeSent) && (
         <p className="geo-note">
           {bought.length > 0 ? 'You hold what was bought above. ' : ''}Not bought this run: {rest.map((l) => l.symbol).join(', ')}. A rule run is one buy, so the rest
           isn’t bought now; the next run tops up again. The router may still be approved to spend that USDC; you can revoke it on{' '}
           <Link href="/portfolio#approvals" className="emph-link">Portfolio</Link>.
+        </p>
+      )}
+      {rest && rest.length > 0 && !review && noRest && bought.length === 0 && !maybeSent && (
+        <p className="geo-note">
+          Nothing was bought, so this run is still due: press Review above to try it again, or skip the run. The router may still be approved to
+          spend that USDC; reviewing again uses it, or you can revoke it on <Link href="/portfolio#approvals" className="emph-link">Portfolio</Link>.
         </p>
       )}
       {rest && rest.length > 0 && !review && !noRest && (

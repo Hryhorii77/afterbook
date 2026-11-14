@@ -459,7 +459,10 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
           const receipt = await publicClient.getTransactionReceipt({ hash });
           if (!alive) return;
           if (!stillPending(run)) continue;
-          if (receipt.status === 'success') addRun({ ...run, outcome: 'bought' });
+          // A basket run settled here (the page closed or reloaded mid-buy) is known only by its first swap:
+          // the run's whole total is counted (the safe side for the cap), but say what's confirmed.
+          if (receipt.status === 'success')
+            addRun({ ...run, outcome: 'bought', ...(readStore().rules.some((r) => r.id === run.ruleId && isRebalance(r)) && !run.note ? { note: 'only the first swap is confirmed here; check your wallet for the rest' } : {}) });
           else dropRun(run.ruleId, run.slot);
           continue;
         } catch (e) {
@@ -565,7 +568,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
       </header>
       <p className="plan-intro">
         Set a rule once, for example $50 of NVDA every Monday, at most 0.5% over the real stock, or a basket with target weights that each run tops up
-        where it is under target. When a run is due, Afterbook checks it with the trade plan’s checks (gap, earnings, pool depth and cost). A run that passes
+        toward its targets. When a run is due, Afterbook checks it with the trade plan’s checks (gap, earnings, pool depth and cost). A run that passes
         opens the normal swap or basket buy for you to review and sign. Nothing buys on its own.
         This is a tool for your own decisions, not financial advice.
       </p>
@@ -601,7 +604,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
                       <strong>{isRebalance(rule) ? `${usd(st.usd, 0)} top-up of ${ruleLabel(rule)}` : `${usd(st.usd, 0)} of ${rule.symbol}`}</strong>
                       <span>
                         {cadenceText(rule.cadence)} · run for {dayText(st.slot)}
-                        {isRebalance(rule) ? ' · buys what is under target' : ''}
+                        {isRebalance(rule) ? ' · tops up toward the targets' : ''}
                       </span>
                     </div>
                   </div>
@@ -782,7 +785,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
                       <span>
                         At most {(rule.maxPremiumBp / 100).toFixed(2)}% over the real stock and {(rule.maxCostBp / 100).toFixed(2)}% to trade
                         {rule.earningsDays > 0 ? ` · pause within ${rule.earningsDays} days of earnings` : ''}
-                        {isRebalance(rule) ? ' · buys what is under target, never sells' : ''}
+                        {isRebalance(rule) ? ' · tops up toward the targets, never sells' : ''}
                       </span>
                     </div>
                     <span className={st?.kind === 'due' ? 'plan-verdict rules-due-pill' : 'plan-verdict'}>{status}</span>
@@ -861,8 +864,9 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
           <>
             <p className="plan-hint">
               Set target weights for {REBALANCE_LIMITS.minTargets} to {REBALANCE_LIMITS.maxTargets} stocks. Each run reads what your wallet holds of them and puts
-              the run’s USDC into the ones under target, in proportion to how far under each is (at the target weights if none is under). It only buys,
-              never sells, and each run is one basket buy you sign.
+              the run’s USDC into the ones under their target share of the basket after this run, in proportion to how far under each is (with nothing held
+              yet, at the target weights). If the ones under target can’t be bought that run, the rest stays in your wallet. It only buys, never sells, and
+              each run is one basket buy you sign.
             </p>
             <div className="rules-targets">
               {targetRows.map((t, i) => (

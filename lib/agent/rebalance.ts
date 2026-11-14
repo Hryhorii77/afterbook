@@ -1,7 +1,8 @@
 // Rebalance rules on /rules (owner, 2026-11-14): a rule holds target weights for 2-4 stocks, and each
 // scheduled run tops the basket up with new USDC, buy-only, never selling. The run's amount goes to the
-// stocks below target, in proportion to how far each is below; if none is below (or the ones below can't
-// be bought right now), it is split by the target weights. The wallet's holdings are read onchain at run
+// stocks below their target share of the basket after this run, in proportion to how far each is below
+// (with nothing held, that is the target weights). Money that would only go past a stock's target share
+// (when the ones below can't be bought right now) stays as cash. The wallet's holdings are read onchain at run
 // time by the page; the server prices them and runs the plan's own checks (app/api/agent/rebalance-check).
 // Sell-and-buy rebalancing is for after the quest. Pure and browser-safe: no server imports.
 
@@ -56,59 +57,101 @@ export function driftRows(targets: Target[], valuesUsd: Record<string, number>):
 
 /**
  * How a run's `budgetUsd` is split over `among` (the targets that can be bought now). Each stock's
- * shortfall is how far it is below its target share of (holdings + this run); the run goes to those
- * below, in proportion to the shortfall, so no stock ends up above its target from this run. When the
- * shortfalls add up to less than the run, each is filled and the rest goes by target weight (with none
- * below target: all of it by target weight).
+ * shortfall is how far it is below its target share of (holdings + this run). Over all the targets the
+ * shortfalls add up to at least the run, so with every target buyable the run goes to those below, in
+ * proportion to the shortfall (with nothing held, or exactly on target, that is the target weights).
+ * When some targets can't be bought now, each buyable stock gets at most its own shortfall and the rest
+ * stays as cash: the run never goes into a stock beyond its target share (review, 2026-11-14: a run whose
+ * under-target stocks failed their checks went all into the one already over, making the drift worse).
  */
-export function topUpSplit(targets: Target[], valuesUsd: Record<string, number>, budgetUsd: number, among: string[] = targets.map((t) => t.symbol)): { symbol: string; usd: number }[] {
+export function topUpSplit(
+  targets: Target[],
+  valuesUsd: Record<string, number>,
+  budgetUsd: number,
+  among: string[] = targets.map((t) => t.symbol),
+  /** Money from stocks left out only for the $10 swap minimum: spread over `among` by target weight, on top. */
+  spreadUsd = 0,
+): { symbol: string; usd: number }[] {
   const total = targets.reduce((s, t) => s + (valuesUsd[t.symbol] ?? 0), 0) + budgetUsd;
   const pool = targets.filter((t) => among.includes(t.symbol));
   if (!pool.length || budgetUsd <= 0) return [];
-  const short = pool.map((t) => Math.max(0, (t.weightPct / 100) * total - (valuesUsd[t.symbol] ?? 0)));
+  const short = pool.map((t) => shortfallUsd(t, valuesUsd, total));
   const sumShort = short.reduce((s, x) => s + x, 0);
   const sumW = pool.reduce((s, t) => s + t.weightPct, 0);
-  // Shortfalls bigger than the run: the run in proportion to them. Smaller (some targets can't be bought
-  // now, or none is below target): fill each shortfall, then the rest by target weight.
-  const rest = Math.max(0, budgetUsd - sumShort);
-  return pool.map((t, i) => {
-    const share = sumShort >= budgetUsd ? (budgetUsd * short[i]) / sumShort : short[i] + (rest * t.weightPct) / sumW;
-    return { symbol: t.symbol, usd: Math.floor(share * 100) / 100 };
-  });
+  const base = pool.map((_, i) => (sumShort > budgetUsd ? (budgetUsd * short[i]) / sumShort : short[i]));
+  const spread = Math.max(0, Math.min(spreadUsd, budgetUsd - base.reduce((s, x) => s + x, 0)));
+  return pool.map((t, i) => ({ symbol: t.symbol, usd: Math.floor((base[i] + (spread * t.weightPct) / sumW) * 100) / 100 }));
+}
+
+/** How far a stock is below its target share of `totalAfterUsd` (holdings + this run), 0 if it isn't. */
+export function shortfallUsd(t: Target, valuesUsd: Record<string, number>, totalAfterUsd: number): number {
+  return Math.max(0, (t.weightPct / 100) * totalAfterUsd - (valuesUsd[t.symbol] ?? 0));
 }
 
 /**
- * The split, with every stock at the swap minimum: a stock whose share is under $10 is left out and the
- * run is split again over the rest (deepest shortfall first keeps its place). Returns the legs (at least
+ * The split, with every stock at the swap minimum: a stock whose share is under $10 is left out, its money
+ * goes to the rest by target weight, and the run is split again (deepest shortfall first keeps its place). Returns the legs (at least
  * one) and the stocks left out for being too small.
  */
 export function topUpLegs(targets: Target[], valuesUsd: Record<string, number>, budgetUsd: number, among: string[]): { legs: { symbol: string; usd: number }[]; tooSmall: string[] } {
   let pool = [...among];
   const tooSmall: string[] = [];
+  let spreadUsd = 0;
   for (;;) {
-    const legs = topUpSplit(targets, valuesUsd, budgetUsd, pool).filter((l) => l.usd > 0);
+    const legs = topUpSplit(targets, valuesUsd, budgetUsd, pool, spreadUsd).filter((l) => l.usd > 0);
     const small = legs.filter((l) => l.usd < PLAN_LIMITS.minLegUsd);
     if (!small.length) return { legs, tooSmall };
-    // Drop the smallest one and split again; the money it had goes to the others.
+    // Drop the smallest one and split again. It didn't fail a check, only the minimum, so the money it had
+    // goes to the others by target weight (at most $10 a dropped stock past their target share).
     const smallest = small.reduce((a, b) => (b.usd < a.usd ? b : a));
     tooSmall.push(smallest.symbol);
+    spreadUsd += smallest.usd;
     pool = pool.filter((s) => s !== smallest.symbol);
     if (!pool.length) return { legs: [], tooSmall };
   }
 }
 
 /**
+ * Whole-percent weights for sized amounts that let the basket buy spend the most without giving any stock
+ * more than it was sized for: the largest whole-dollar total T for which every stock still gets at least
+ * 1% with floor(100 × usd / T) percent, the percents trimmed (from the largest) to add to exactly 100.
+ * Rounding to the nearest percent instead could leave much of a lopsided run unspent (99.5/0.5 → 99/1
+ * spends at most 100× the small stock).
+ */
+export function bestWholePercents(sized: { symbol: string; usd: number }[]): BasketLeg[] {
+  const total = Math.floor(sized.reduce((s, l) => s + l.usd, 0));
+  const pctAt = (t: number) => sized.map((l) => Math.floor((l.usd * 100) / t + 1e-9));
+  const fits = (t: number) => {
+    const p = pctAt(t);
+    return p.every((x) => x >= 1) && p.reduce((s, x) => s + x, 0) >= 100;
+  };
+  let lo = 1;
+  let hi = Math.max(1, total);
+  if (!fits(lo)) return normalizeLegs(sized.map((l) => ({ symbol: l.symbol, weight: l.usd })));
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (fits(mid)) lo = mid;
+    else hi = mid - 1;
+  }
+  const pcts = pctAt(lo);
+  for (let extra = pcts.reduce((s, x) => s + x, 0) - 100; extra > 0; extra--) {
+    const i = pcts.reduce((b, x, j) => (x > pcts[b] ? j : b), 0);
+    pcts[i] -= 1;
+  }
+  return sized.map((l, i) => ({ symbol: l.symbol, weightPct: pcts[i] }));
+}
+
+/**
  * Sized legs → the basket buy's whole-percent weights and the total it may spend, so that the buy's split
  * gives no stock more than it was sized for (the same rule as "Describe a basket"). A stock that would
- * round to 0% or fall under the swap minimum after the split is returned in `dropped`; the caller drops
- * it and calls again.
+ * fall under the swap minimum after the split is returned in `dropped`; the caller drops it and calls again.
  */
 export function wholePercentBasket(sized: { symbol: string; usd: number }[]): { basket: BasketLeg[]; investedUsd: number; legUsd: Record<string, number>; dropped: string[] } {
-  const basket = normalizeLegs(sized.map((l) => ({ symbol: l.symbol, weight: l.usd })));
-  const zero = sized.filter((l) => !basket.some((b) => b.symbol === l.symbol)).map((l) => l.symbol);
+  const basket = bestWholePercents(sized);
+  const zero = sized.filter((l) => !basket.some((b) => b.symbol === l.symbol && b.weightPct > 0)).map((l) => l.symbol);
   if (zero.length) return { basket, investedUsd: 0, legUsd: {}, dropped: zero };
   const w = (s: string) => basket.find((b) => b.symbol === s)!.weightPct;
-  const investedUsd = Math.floor(Math.min(...sized.map((l) => (l.usd * 100) / w(l.symbol))));
+  const investedUsd = Math.floor(Math.min(...sized.map((l) => (l.usd * 100) / w(l.symbol))) + 1e-9);
   const legUsd = Object.fromEntries(sized.map((l) => [l.symbol, Math.floor(investedUsd * w(l.symbol)) / 100]));
   const tiny = sized.filter((l) => legUsd[l.symbol] < PLAN_LIMITS.minLegUsd).sort((a, b) => a.usd - b.usd);
   return { basket, investedUsd, legUsd, dropped: tiny.length ? [tiny[0].symbol] : [] };

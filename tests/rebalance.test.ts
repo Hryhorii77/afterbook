@@ -1,5 +1,6 @@
+import { normalizeLegs } from '../lib/build/customBasket';
 import { describe, expect, it } from 'vitest';
-import { driftRows, isTargets, topUpLegs, topUpSplit, wholePercentBasket, type Target } from '../lib/agent/rebalance';
+import { bestWholePercents, driftRows, isTargets, shortfallUsd, topUpLegs, topUpSplit, wholePercentBasket, type Target } from '../lib/agent/rebalance';
 import { cleanRules, cleanRuns, isRule, REBALANCE_SYMBOL, ruleLabel, runSymbol, type Rule } from '../lib/agent/rules';
 import { STOCKS } from '../lib/stocks/tokens';
 import { splitBasketUsdc } from '../lib/swap/basketBuy';
@@ -49,14 +50,22 @@ describe('topUpSplit (owner, 2026-11-14)', () => {
   it('every stock already at target: the run goes at the target weights', () => {
     expect(topUpSplit(T, { NVDAc: 400, MSFTc: 300, AAPLc: 300 }, 100).map((x) => x.usd)).toEqual([40, 30, 30]);
   });
-  it('only some can be bought: fill their shortfall, the rest by target weight', () => {
-    // AAPL can't be bought now. NVDA 100 under, MSFT 0 under; 200 to spend: 100 to NVDA, then 100 split 40:30.
+  it('only some can be bought: each gets at most its shortfall, the rest stays as cash (review, 2026-11-14)', () => {
+    // AAPL can't be bought now. Total after = 1300: NVDA 520 target (140 under), MSFT 390 (0 under). 200 to spend: 140 to NVDA, nothing to MSFT.
     const s = topUpSplit(T, { NVDAc: 380, MSFTc: 390, AAPLc: 330 }, 200, ['NVDAc', 'MSFTc']);
-    expect(s.map((x) => x.symbol)).toEqual(['NVDAc', 'MSFTc']);
-    expect(sum(s)).toBeLessThanOrEqual(200);
-    expect(s[0].usd).toBeGreaterThan(s[1].usd);
+    expect(s).toEqual([
+      { symbol: 'NVDAc', usd: 140 },
+      { symbol: 'MSFTc', usd: 0 },
+    ]);
   });
-  it('fuzz: never spends more than the run, never negative', () => {
+  it('the under-target stock fails: nothing goes into the one already over (review repro)', () => {
+    const T2: Target[] = [
+      { symbol: 'NVDAc', weightPct: 50 },
+      { symbol: 'MSFTc', weightPct: 50 },
+    ];
+    expect(topUpSplit(T2, { NVDAc: 900, MSFTc: 100 }, 500, ['NVDAc'])).toEqual([{ symbol: 'NVDAc', usd: 0 }]);
+  });
+  it('fuzz: never more than the run or a stock’s shortfall; all of the run when every target can be bought', () => {
     let seed = 7;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
     for (let k = 0; k < 2000; k++) {
@@ -64,9 +73,14 @@ describe('topUpSplit (owner, 2026-11-14)', () => {
       const budget = 10 + Math.floor(rnd() * 3000);
       const among = T.map((t) => t.symbol).filter(() => rnd() > 0.2);
       const s = topUpSplit(T, vals, budget, among.length ? among : ['NVDAc']);
+      const totalAfter = vals.NVDAc + vals.MSFTc + vals.AAPLc + budget;
       expect(sum(s)).toBeLessThanOrEqual(budget);
-      expect(s.every((x) => x.usd >= 0)).toBe(true);
-      expect(sum(s)).toBeGreaterThan(budget - 0.05);
+      for (const x of s) {
+        expect(x.usd).toBeGreaterThanOrEqual(0);
+        expect(x.usd).toBeLessThanOrEqual(shortfallUsd(T.find((t) => t.symbol === x.symbol)!, vals, totalAfter) + 0.01);
+      }
+      const all = topUpSplit(T, vals, budget);
+      expect(sum(all)).toBeGreaterThan(budget - 0.05);
     }
   });
 });
@@ -85,6 +99,39 @@ describe('topUpLegs', () => {
 });
 
 describe('wholePercentBasket', () => {
+  it('a lopsided split spends nearly all of it (99.5/0.5 used to round to 99/1 and spend $2,570 of $5,000)', () => {
+    const w = wholePercentBasket([
+      { symbol: 'NVDAc', usd: 4974.2 },
+      { symbol: 'MSFTc', usd: 25.7 },
+    ]);
+    // Keeping both stocks, MSFT at 1% caps the total at 100 × $25.70: the plan then tries without it.
+    expect(w.investedUsd).toBe(2570);
+    const two = wholePercentBasket([
+      { symbol: 'NVDAc', usd: 3000 },
+      { symbol: 'MSFTc', usd: 1990 },
+    ]);
+    expect(two.investedUsd).toBeGreaterThanOrEqual(4974);
+  });
+  it('fuzz: best whole percents add to 100, each at least 1, never more than sized', () => {
+    let seed = 3;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let k = 0; k < 2000; k++) {
+      const n = 2 + Math.floor(rnd() * 3);
+      const sized = ['NVDAc', 'MSFTc', 'AAPLc', 'METAc'].slice(0, n).map((symbol) => ({ symbol, usd: 10 + Math.floor(rnd() * 500000) / 100 }));
+      const b = bestWholePercents(sized);
+      expect(b.reduce((s, x) => s + x.weightPct, 0)).toBe(100);
+      expect(b.every((x) => x.weightPct >= 1)).toBe(true);
+      const w = wholePercentBasket(sized);
+      const split = splitBasketUsdc(BigInt(Math.round(w.investedUsd * 1e6)), w.basket);
+      for (const leg of split) expect(Number(leg.amountIn) / 1e6).toBeLessThanOrEqual(sized.find((s) => s.symbol === leg.symbol)!.usd + 1e-6);
+      // Never worse than rounding to the nearest percent.
+      const near = normalizeLegs(sized.map((l) => ({ symbol: l.symbol, weight: l.usd })));
+      if (near.length === sized.length) {
+        const naive = Math.floor(Math.min(...sized.map((l) => (l.usd * 100) / near.find((x) => x.symbol === l.symbol)!.weightPct)));
+        expect(w.investedUsd).toBeGreaterThanOrEqual(naive);
+      }
+    }
+  });
   it('no stock gets more than it was sized for, to the cent', () => {
     const sized = [
       { symbol: 'NVDAc', usd: 66 },
