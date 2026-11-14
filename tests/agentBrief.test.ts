@@ -463,5 +463,31 @@ describe('refilling the basket', () => {
     expect(b.picks).toBeNull();
     expect(b.shortfall).toMatch(/too little/);
     expect(b.dropped.some((d) => /tried against your cost limit/.test(d.why))).toBe(false);
+    expect(b.steps.some((s) => /^the 0 /.test(s.label))).toBe(false);
+  });
+
+  it('a budget that covers no stock shows no sizing steps at all (review of PR #176)', () => {
+    const b = run(input({ minStocks: 2, budgetUsd: 10, cashPct: 50 }), steadyOf(aiChips, 0));
+    expect(b.picks).toBeNull();
+    expect(b.steps.map((s) => s.symbols.length)).toEqual([7, 5, 5]);
+    expect(b.steps.at(-1)?.label).toBe('that pass your price and earnings limits');
+    expect(b.shortfall).toMatch(/^Your \$5\.00 to invest is too little/);
+  });
+
+  it('the budget message also names a pool that couldn’t be read', () => {
+    const costs = costsFor();
+    costs.set('NVDAc', null);
+    const b = run(input({ minStocks: 3, budgetUsd: 25 }), steadyOf(aiChips, 0), allRows(), costs);
+    expect(b.shortfall).toMatch(/Raise the budget or keep less as cash\. The pool of NVDA couldn’t be read just now\.$/);
+  });
+
+  it('too small a budget and the cost limit both: the message names both (review of PR #175)', () => {
+    const costs = costsFor(over);
+    costs.set('MRVLc', linear);
+    const b = run(input({ minStocks: 3, budgetUsd: 25 }), steadyOf(aiChips, 0), allRows(), costs);
+    expect(b.picks).toBeNull();
+    expect(b.shortfall).toBe(
+      'Your $25.00 to invest is too little for at least $10 in each of 3 stocks. Raise the budget or keep less as cash. Your 0.3% cost limit also left out NVDA, MU, AMD, AVGO.',
+    );
   });
 });
