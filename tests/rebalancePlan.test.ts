@@ -75,16 +75,37 @@ describe('planRebalance', () => {
     expect(p.notBought).toEqual([{ symbol: 'NVDAc', why: 'It’s at or over its target, so this run puts nothing into it.' }]);
   });
 
-  it('a stock over the price limit sits this run out; the others get their target share and the rest stays as cash', () => {
+  it('nothing held and a stock fails: the whole run goes to the others at their weights, and the page says so (owner, 2026-11-14)', () => {
     const p = run(input(), tape({ NVDAc: { basisBp: 120 } }));
     expect(p.picks?.map((x) => [x.symbol, x.usd])).toEqual([
-      ['MSFTc', 90],
-      ['AAPLc', 90],
+      ['MSFTc', 150],
+      ['AAPLc', 150],
     ]);
-    expect(p.investedUsd).toBe(180);
-    expect(p.cashUsd).toBe(120);
+    expect(p.cashUsd).toBe(0);
+    expect(p.firstRunNote).toBe('NVDA didn’t pass its checks. With nothing held yet, this run buys the others at their weights, and later runs put more into NVDA.');
+  });
+
+  it('nothing held and a stock fails: leftover cents are rounding, never "held back for" it', () => {
+    const T2: Target[] = [
+      { symbol: 'NVDAc', weightPct: 43 },
+      { symbol: 'MSFTc', weightPct: 31 },
+      { symbol: 'AAPLc', weightPct: 26 },
+    ];
+    const p = run(input({ targets: T2, budgetUsd: 100 }), tape({ NVDAc: { basisBp: 120 } }));
+    expect(p.firstRunNote).toMatch(/^NVDA didn’t pass/);
+    expect(p.cashWhy ?? '').not.toMatch(/under target/);
+  });
+
+  it('something held and an under-target stock fails: the others get their target share, the rest stays as cash', () => {
+    // $100 each held; +$300 → $600: NVDA target $240 (140 under, fails), MSFT/AAPL $180 (80 under each).
+    const p = run(input({ balances: { NVDAc: raw('NVDAc', 1), MSFTc: raw('MSFTc', 1), AAPLc: raw('AAPLc', 1) } }), tape({ NVDAc: { basisBp: 120 } }));
+    expect(p.picks?.map((x) => [x.symbol, x.usd])).toEqual([
+      ['MSFTc', 80],
+      ['AAPLc', 80],
+    ]);
+    expect(p.cashUsd).toBe(140);
     expect(p.cashWhy).toMatch(/^because NVDA is under target but can’t be bought this run/);
-    expect(p.legs.find((l) => l.symbol === 'NVDAc')?.verdict).not.toBe('buy');
+    expect(p.firstRunNote).toBeNull();
   });
 
   it('a stock over the cost limit is left out with its reason, the rest split again', () => {
@@ -120,6 +141,58 @@ describe('planRebalance', () => {
     expect(p.cashUsd).toBe(500);
     expect(p.shortfall).toMatch(/stays in your wallet/);
     expect(p.shortfall).toMatch(/NVDA: It’s at or over its target share after this run/);
+  });
+
+  const flat: CostModel = { estimate: (u) => ({ sharesOut: u / 100, impactBp: 5 }), sizeForImpact: () => 1e9 };
+  const deep = () => tape(Object.fromEntries(STOCKS.map((s) => [s.symbol, { depthUsd: 1e8 }])));
+
+  it('recheck repros: a small run spends what the $10 minimum allows', () => {
+    const a = run(input({ budgetUsd: 25 }), deep(), costsFor(flat));
+    expect(a.investedUsd).toBeGreaterThanOrEqual(24);
+    const T2: Target[] = [
+      { symbol: 'NVDAc', weightPct: 32 },
+      { symbol: 'MSFTc', weightPct: 68 },
+    ];
+    const b = run(input({ targets: T2, budgetUsd: 25 }), deep(), costsFor(flat));
+    expect(b.investedUsd).toBeGreaterThanOrEqual(24);
+  });
+
+  it('recheck repro: no "cut" reason when nothing was cut; the reasons add up to the cash', () => {
+    const T4: Target[] = [
+      { symbol: 'NVDAc', weightPct: 35 },
+      { symbol: 'MSFTc', weightPct: 31 },
+      { symbol: 'AAPLc', weightPct: 26 },
+      { symbol: 'METAc', weightPct: 8 },
+    ];
+    const p = run(input({ targets: T4, budgetUsd: 37 }), deep(), costsFor(flat));
+    expect(p.picks?.some((x) => x.sizedDownBy)).toBe(false);
+    expect(p.cashWhy ?? '').not.toMatch(/cut/);
+  });
+
+  it('fuzz: small runs (nothing failing) leave little in the wallet; every reason’s amounts add up to the cash', () => {
+    let seed = 17;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let k = 0; k < 1500; k++) {
+      const n = 2 + Math.floor(rnd() * 3);
+      const syms = ['NVDAc', 'MSFTc', 'AAPLc', 'METAc'].slice(0, n);
+      const w = syms.map(() => 1 + Math.floor(rnd() * 40));
+      const sumW = w.reduce((a, b) => a + b, 0);
+      const pct = w.map((x) => Math.max(1, Math.floor((x * 100) / sumW)));
+      pct[0] += 100 - pct.reduce((a, b) => a + b, 0);
+      if (pct.some((x) => x < 1)) continue;
+      const targets = syms.map((symbol, i) => ({ symbol, weightPct: pct[i] }));
+      const budgetUsd = [25, 37, 50, 75, 120][k % 5];
+      const held = rnd() < 0.5;
+      const balances = Object.fromEntries(syms.map((s) => [s, held ? raw(s, rnd() * 5) : BigInt(0)]));
+      const p = run(input({ targets, budgetUsd, balances }), deep(), costsFor(flat));
+      if (!p.picks) continue;
+      if (!held) expect(p.cashUsd).toBeLessThanOrEqual(Math.max(1.01, budgetUsd * 0.08));
+      if (p.cashWhy?.startsWith('for these reasons')) {
+        const amounts = [...p.cashWhy.matchAll(/\$([\d,]+\.\d\d) because/g)].map((m) => Number(m[1].replace(/,/g, '')));
+        expect(Math.round(amounts.reduce((a, b) => a + b, 0) * 100)).toBe(Math.round(p.cashUsd * 100));
+      }
+      expect(p.cashWhy ?? '').not.toMatch(/cut to fit/);
+    }
   });
 
   it('fuzz: rounding leaves at most a few percent of the run unspent', () => {

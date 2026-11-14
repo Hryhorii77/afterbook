@@ -14,6 +14,8 @@ import { PLAN_LIMITS } from './limits';
 import { driftRows, shortfallUsd, topUpLegs, wholePercentBasket, type DriftRow, type Target } from './rebalance';
 
 const ticker = (s: string) => s.replace(/c$/, '');
+/** "NVDA", "NVDA and MSFT", "NVDA, MSFT and AMD". */
+const listJoin = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
 
 export interface RebalanceInput {
   targets: Target[];
@@ -49,6 +51,8 @@ export interface RebalancePlan {
   cashUsd: number;
   /** Why `cashUsd` stays in the wallet ("because …", or "for these reasons: $x because …; …"), or null. */
   cashWhy: string | null;
+  /** Nothing held yet and a stock failed its checks: says the others were bought at their weights. */
+  firstRunNote: string | null;
   /** How much of the run the whole-percent split alone leaves unspent. */
   roundingUsd: number;
   /** Why there is nothing to buy this run, or null. */
@@ -93,7 +97,7 @@ export function planRebalance(
   }
   const drift = driftRows(input.targets, valuesUsd);
   const none = (legs: PlanLeg[], shortfall: string, notBought: RebalancePlan['notBought'] = []): RebalancePlan => ({
-    drift, legs, picks: null, basket: null, investedUsd: 0, cashUsd: input.budgetUsd, cashWhy: null, roundingUsd: 0, shortfall, unpriced, notBought,
+    drift, legs, picks: null, basket: null, investedUsd: 0, cashUsd: input.budgetUsd, cashWhy: null, firstRunNote: null, roundingUsd: 0, shortfall, unpriced, notBought,
   });
   if (unpriced.length) {
     return none([], `The price of ${unpriced.map(ticker).join(', ')} couldn’t be read just now, so where your basket stands can’t be worked out. Check the run again in a moment.`);
@@ -119,7 +123,8 @@ export function planRebalance(
 
   /** Split, size each stock at its share, and split again without any that fail, until stable. */
   const attempt = (outStart: Map<string, string>): RebalancePlan => {
-    const out = new Map(outStart);
+    const out = new Map(outStart); // failed a check (or left out for rounding): its money isn't spread
+    const small = new Map<string, string>(); // left out only for the $10 minimum: its money goes to the others
     const legs: PlanLeg[] = screened.map((l) => ({ ...l, reasons: [...l.reasons] }));
     const skip = (l: PlanLeg, why: string) => {
       l.verdict = 'skip';
@@ -131,13 +136,19 @@ export function planRebalance(
       const l = legs.find((x) => x.symbol === sym);
       if (l && l.verdict === 'buy') skip(l, why);
     }
+    const tooSmallFor = (l: PlanLeg, why: string) => {
+      l.verdict = 'skip';
+      l.decidedBy = why;
+      l.reasons.push(why);
+      small.set(l.symbol, why);
+    };
     for (;;) {
-      const among = syms.filter((s) => !out.has(s));
+      const among = syms.filter((s) => !out.has(s) && !small.has(s));
       if (!among.length) break;
-      const { legs: split, tooSmall } = topUpLegs(input.targets, valuesUsd, input.budgetUsd, among);
+      const { legs: split, tooSmall } = topUpLegs(input.targets, valuesUsd, input.budgetUsd, among, [...small.keys()]);
       for (const sym of tooSmall) {
         const l = legs.find((x) => x.symbol === sym);
-        if (l) skip(l, smallWhy(sym, false));
+        if (l) tooSmallFor(l, smallWhy(sym, false));
       }
       if (!split.length) break;
       const trials = split.map((s) => {
@@ -153,7 +164,7 @@ export function planRebalance(
       }
       const whole = wholePercentBasket(trials.map((t) => ({ symbol: t.symbol, usd: t.usd! })));
       if (whole.dropped.length) {
-        for (const sym of whole.dropped) skip(legs.find((l) => l.symbol === sym)!, smallWhy(sym, true));
+        for (const sym of whole.dropped) tooSmallFor(legs.find((l) => l.symbol === sym)!, smallWhy(sym, true));
         continue;
       }
       // Write the sized outcome back, so the legs say what was bought.
@@ -174,29 +185,37 @@ export function planRebalance(
       // A stock that passed but got no share is at or over its target share after this run.
       const notBought = syms
         .filter((sym) => !picks.some((p) => p.symbol === sym))
-        .map((sym) => ({ symbol: sym, why: out.get(sym) ?? 'It’s at or over its target, so this run puts nothing into it.' }));
+        .map((sym) => ({ symbol: sym, why: out.get(sym) ?? small.get(sym) ?? 'It’s at or over its target, so this run puts nothing into it.' }));
       const cents = (v: number) => Math.round(v * 100) / 100;
       const splitUsd = split.reduce((s, x) => s + x.usd, 0);
-      const sizedUsd = trials.reduce((s, t) => s + t.usd!, 0);
       const cashUsd = cents(input.budgetUsd - whole.investedUsd);
-      // Why money stays in the wallet, biggest part first.
+      // Why money stays in the wallet, biggest part first. The parts add up to the cash exactly.
       const parts: { usd: number; text: string }[] = [];
-      const held = cents(input.budgetUsd - splitUsd);
-      if (held >= 1) {
-        const under = input.targets
-          .filter((t) => !picks.some((p) => p.symbol === t.symbol) && shortfallUsd(t, valuesUsd, totalAfter) > 0)
-          .map((t) => ticker(t.symbol));
+      const splitLeft = cents(input.budgetUsd - splitUsd);
+      const underAfter = (sym: string) => shortfallUsd(input.targets.find((t) => t.symbol === sym)!, valuesUsd, totalAfter) > 0;
+      // Failed a check, versus left out by the outer loop only to spend more of the run (whole-percent rounding).
+      const failedUnder = syms.filter((sym) => out.has(sym) && out.get(sym) !== roundingWhy(sym) && underAfter(sym)).map(ticker);
+      const roundedOut = syms.filter((sym) => out.get(sym) === roundingWhy(sym) && underAfter(sym)).map(ticker);
+      const nothingHeld = drift.every((d) => d.valueUsd === 0);
+      // Cents lost to flooring the split count as rounding, not as money held back.
+      const held = !nothingHeld && (failedUnder.length || roundedOut.length || splitLeft >= 1) ? splitLeft : 0;
+      if (held >= 0.01) {
+        const who = [
+          failedUnder.length ? `${listJoin(failedUnder)} ${failedUnder.length === 1 ? 'is' : 'are'} under target but can’t be bought this run` : '',
+          roundedOut.length ? `${listJoin(roundedOut)} ${roundedOut.length === 1 ? 'was' : 'were'} left out so the whole-percent split could spend more` : '',
+        ].filter(Boolean);
         parts.push({
           usd: held,
-          text: under.length
-            ? `${under.join(' and ')} ${under.length === 1 ? 'is' : 'are'} under target but can’t be bought this run, and the others get no more than their target share after this run (apart from a few dollars from a stock too small to buy)`
-            : 'the others get no more than their target share after this run (apart from a few dollars from a stock too small to buy)',
+          text: who.length
+            ? `${who.join(', and ')}, and the others get no more than their target share after this run`
+            : 'the others get no more than their target share after this run',
         });
       }
-      const cut = cents(splitUsd - sizedUsd);
-      if (cut >= 1) parts.push({ usd: cut, text: 'a stock was cut to fit your cost limit or the swap caps' });
-      const rounded = cents(sizedUsd - whole.investedUsd);
-      if (rounded >= 0.01) parts.push({ usd: rounded, text: 'the basket buy splits in whole percents, so the total is lowered until no stock gets more than it was sized for' });
+      // Only what sizing really cut (cost limit or swap caps); cents lost to whole dollars count as rounding.
+      const cut = cents(trials.filter((t) => t.cutBy).reduce((s2, t) => s2 + (split.find((x) => x.symbol === t.symbol)!.usd - t.usd!), 0));
+      if (cut >= 0.01) parts.push({ usd: cut, text: `${listJoin(trials.filter((t) => t.cutBy).map((t) => ticker(t.symbol)))} ${trials.filter((t) => t.cutBy).length === 1 ? 'was' : 'were'} cut to fit your cost limit or the swap caps` });
+      const rounded = cents(cashUsd - Math.max(0, held) - Math.max(0, cut));
+      if (rounded >= 0.01) parts.push({ usd: rounded, text: 'amounts are rounded down to whole dollars and the basket buy splits in whole percents, so no stock gets more than it was sized for' });
       parts.sort((x, y) => y.usd - x.usd);
       return {
         drift,
@@ -212,7 +231,13 @@ export function planRebalance(
             : parts.length > 1
               ? `for these reasons: ${parts.map((x) => `${usd(x.usd, 2)} because ${x.text}`).join('; ')}`
               : `because ${parts[0]?.text ?? 'amounts are rounded down, so no stock gets more than it was sized for'}`,
-        roundingUsd: rounded,
+        // Nothing held yet and a stock failed its checks: the run went to the others at their weights.
+        firstRunNote:
+          nothingHeld && failedUnder.length
+            ? `${listJoin(failedUnder)} didn’t pass ${failedUnder.length === 1 ? 'its' : 'their'} checks. With nothing held yet, this run buys the others at their weights, and later runs put more into ${listJoin(failedUnder)}.`
+            : null,
+        // Only what the whole-percent split loses (not whole-dollar cents): this decides the retry below.
+        roundingUsd: cents(trials.reduce((s2, t) => s2 + t.usd!, 0) - whole.investedUsd),
         shortfall: null,
         unpriced,
       };

@@ -102,6 +102,7 @@ export function RebalanceRun({
       {plan.picks ? (
         <>
           <h3>This run: {usd(plan.investedUsd, 2)}</h3>
+          {plan.firstRunNote && <p className="plan-hint">{plan.firstRunNote}</p>}
           <ul className="plan-reasons">
             {plan.picks.map((p) => (
               <li key={p.symbol}>

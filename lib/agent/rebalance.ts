@@ -78,7 +78,11 @@ export function topUpSplit(
   const short = pool.map((t) => shortfallUsd(t, valuesUsd, total));
   const sumShort = short.reduce((s, x) => s + x, 0);
   const sumW = pool.reduce((s, t) => s + t.weightPct, 0);
-  const base = pool.map((_, i) => (sumShort > budgetUsd ? (budgetUsd * short[i]) / sumShort : short[i]));
+  // Nothing held yet (owner, 2026-11-14): there is no balance to keep in line, and money left in the wallet
+  // isn't carried to later runs, so the whole run goes to the buyable stocks at their target weights; the
+  // next runs put more into any that sat this one out, since they're then the most under target.
+  const nothingHeld = total <= budgetUsd;
+  const base = pool.map((t, i) => (nothingHeld ? (budgetUsd * t.weightPct) / sumW : sumShort > budgetUsd ? (budgetUsd * short[i]) / sumShort : short[i]));
   const spread = Math.max(0, Math.min(spreadUsd, budgetUsd - base.reduce((s, x) => s + x, 0)));
   return pool.map((t, i) => ({ symbol: t.symbol, usd: Math.floor((base[i] + (spread * t.weightPct) / sumW) * 100) / 100 }));
 }
@@ -93,11 +97,25 @@ export function shortfallUsd(t: Target, valuesUsd: Record<string, number>, total
  * goes to the rest by target weight, and the run is split again (deepest shortfall first keeps its place). Returns the legs (at least
  * one) and the stocks left out for being too small.
  */
-export function topUpLegs(targets: Target[], valuesUsd: Record<string, number>, budgetUsd: number, among: string[]): { legs: { symbol: string; usd: number }[]; tooSmall: string[] } {
-  let pool = [...among];
+export function topUpLegs(
+  targets: Target[],
+  valuesUsd: Record<string, number>,
+  budgetUsd: number,
+  among: string[],
+  /** Stocks already left out for the $10 minimum at a later stage (after sizing or the percent split):
+   *  their share of the split is spread over the rest, the same as one dropped here. */
+  preDropped: string[] = [],
+): { legs: { symbol: string; usd: number }[]; tooSmall: string[] } {
   const tooSmall: string[] = [];
-  let spreadUsd = 0;
+  let pool = [...among];
+  if (!pool.length) return { legs: [], tooSmall };
   for (;;) {
+    // What the dropped stocks would get in a plain split with them in (no spread on top), so a spread
+    // share is never counted twice when a second stock is dropped (review, 2026-11-14).
+    const dropped = [...preDropped, ...tooSmall];
+    const spreadUsd = dropped.length
+      ? topUpSplit(targets, valuesUsd, budgetUsd, [...pool, ...dropped]).filter((l) => dropped.includes(l.symbol)).reduce((s, l) => s + l.usd, 0)
+      : 0;
     const legs = topUpSplit(targets, valuesUsd, budgetUsd, pool, spreadUsd).filter((l) => l.usd > 0);
     const small = legs.filter((l) => l.usd < PLAN_LIMITS.minLegUsd);
     if (!small.length) return { legs, tooSmall };
@@ -105,7 +123,6 @@ export function topUpLegs(targets: Target[], valuesUsd: Record<string, number>, 
     // goes to the others by target weight (at most $10 a dropped stock past their target share).
     const smallest = small.reduce((a, b) => (b.usd < a.usd ? b : a));
     tooSmall.push(smallest.symbol);
-    spreadUsd += smallest.usd;
     pool = pool.filter((s) => s !== smallest.symbol);
     if (!pool.length) return { legs: [], tooSmall };
   }

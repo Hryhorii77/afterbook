@@ -462,7 +462,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
           // A basket run settled here (the page closed or reloaded mid-buy) is known only by its first swap:
           // the run's whole total is counted (the safe side for the cap), but say what's confirmed.
           if (receipt.status === 'success')
-            addRun({ ...run, outcome: 'bought', ...(readStore().rules.some((r) => r.id === run.ruleId && isRebalance(r)) && !run.note ? { note: 'only the first swap is confirmed here; check your wallet for the rest' } : {}) });
+            addRun({ ...run, outcome: 'bought', ...(readStore().rules.some((r) => r.id === run.ruleId && isRebalance(r)) && !run.note ? { note: 'settled from its first swap after the page closed; check your wallet for what else was bought' } : {}) });
           else dropRun(run.ruleId, run.slot);
           continue;
         } catch (e) {
@@ -865,7 +865,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
             <p className="plan-hint">
               Set target weights for {REBALANCE_LIMITS.minTargets} to {REBALANCE_LIMITS.maxTargets} stocks. Each run reads what your wallet holds of them and puts
               the run’s USDC into the ones under their target share of the basket after this run, in proportion to how far under each is (with nothing held
-              yet, at the target weights). If the ones under target can’t be bought that run, the rest stays in your wallet. It only buys, never sells, and
+              yet, at the target weights). Once you hold some, if the ones under target can’t be bought that run, the rest stays in your wallet. It only buys, never sells, and
               each run is one basket buy you sign.
             </p>
             <div className="rules-targets">

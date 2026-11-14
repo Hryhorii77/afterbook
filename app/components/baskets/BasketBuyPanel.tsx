@@ -354,6 +354,17 @@ export function BasketBuyPanel({
           <Link href="/portfolio#approvals" className="emph-link">Portfolio</Link>.
         </p>
       )}
+      {noRest && error && !busy && review && !progress && (
+        <p className="geo-note">
+          Nothing was bought, so this run is still due: press Buy to try again, or Cancel and skip the run.
+          {approvedFor && (
+            <>
+              {' '}The router may still be approved to spend {fmt(approvedFor.reduce((s, l) => s + l.amountIn, BigInt(0)), USDC.decimals, 2)} USDC; buying again uses it, or you can revoke it on{' '}
+              <Link href="/portfolio#approvals" className="emph-link">Portfolio</Link>.
+            </>
+          )}
+        </p>
+      )}
       {rest && rest.length > 0 && !review && noRest && bought.length === 0 && !maybeSent && (
         <p className="geo-note">
           Nothing was bought, so this run is still due: press Review above to try it again, or skip the run. The router may still be approved to
