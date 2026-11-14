@@ -85,6 +85,24 @@ describe('planRebalance', () => {
     expect(p.firstRunNote).toBe('NVDA didn’t pass its checks. With nothing held yet, this run buys the others at their weights, and later runs put more into NVDA.');
   });
 
+  it('recheck repro: dust (1 wei, or under $1 / 1% of the run) counts as nothing held', () => {
+    const one = run(input({ balances: { MSFTc: BigInt(1) } }), tape({ NVDAc: { basisBp: 120 } }));
+    expect(one.picks?.map((x) => [x.symbol, x.usd])).toEqual([
+      ['MSFTc', 150],
+      ['AAPLc', 150],
+    ]);
+    expect(one.cashUsd).toBe(0);
+    expect(one.drift.every((d) => d.currentPct == null && d.driftPts == null)).toBe(true);
+    expect(one.firstRunNote).toMatch(/^NVDA didn’t pass/);
+    // $2.50 on a $300 run is under 1% ($3): still nothing held. $5 is held: the strict rule.
+    const small = run(input({ balances: { MSFTc: raw('MSFTc', 0.025) } }), tape({ NVDAc: { basisBp: 120 } }));
+    expect(small.cashUsd).toBe(0);
+    const real = run(input({ balances: { MSFTc: raw('MSFTc', 0.05) } }), tape({ NVDAc: { basisBp: 120 } }));
+    expect(real.cashUsd).toBeGreaterThan(0);
+    expect(real.firstRunNote).toBeNull();
+    expect(real.drift[1].currentPct).toBe(100);
+  });
+
   it('nothing held and a stock fails: leftover cents are rounding, never "held back for" it', () => {
     const T2: Target[] = [
       { symbol: 'NVDAc', weightPct: 43 },

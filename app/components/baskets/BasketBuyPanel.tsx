@@ -138,7 +138,14 @@ export function BasketBuyPanel({
       setMaybeSent(false);
       if (allowance < total) {
         // From the moment it is signed the router may spend the total, so a stop before any leg is bought still says so.
-        await wallet.approveExact(USDC.address, total, 'The USDC approval reverted onchain. Nothing was bought.', () => setApprovedFor(review.legs.map((l) => l.plan)));
+        const approvalReverted = 'The USDC approval reverted onchain. Nothing was bought.';
+        try {
+          await wallet.approveExact(USDC.address, total, approvalReverted, () => setApprovedFor(review.legs.map((l) => l.plan)));
+        } catch (e) {
+          // A mined revert means the router was never approved: don't say it may still spend the USDC.
+          if ((e as Error).message === approvalReverted) setApprovedFor(null);
+          throw e;
+        }
       }
 
       const status: Progress[] = review.legs.map((l) => ({ symbol: l.plan.symbol, status: 'waiting' }));

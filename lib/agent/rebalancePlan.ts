@@ -11,7 +11,7 @@ import type { BasketLeg } from '../build/customBasket';
 import { usd } from '../format';
 import { screen, sizeLegs, type CostModel, type PlanInput, type PlanLeg } from './plan';
 import { PLAN_LIMITS } from './limits';
-import { driftRows, shortfallUsd, topUpLegs, wholePercentBasket, type DriftRow, type Target } from './rebalance';
+import { driftRows, nothingHeld, shortfallUsd, topUpLegs, wholePercentBasket, type DriftRow, type Target } from './rebalance';
 
 const ticker = (s: string) => s.replace(/c$/, '');
 /** "NVDA", "NVDA and MSFT", "NVDA, MSFT and AMD". */
@@ -95,7 +95,8 @@ export function planRebalance(
     }
     valuesUsd[sym] = (Number(raw) / 10 ** tok.decimals) * (row.multiplier ?? 1) * row.onchainMidUsd;
   }
-  const drift = driftRows(input.targets, valuesUsd);
+  const drift = driftRows(input.targets, valuesUsd, input.budgetUsd);
+  const fresh = nothingHeld(drift.reduce((s, d) => s + d.valueUsd, 0), input.budgetUsd);
   const none = (legs: PlanLeg[], shortfall: string, notBought: RebalancePlan['notBought'] = []): RebalancePlan => ({
     drift, legs, picks: null, basket: null, investedUsd: 0, cashUsd: input.budgetUsd, cashWhy: null, firstRunNote: null, roundingUsd: 0, shortfall, unpriced, notBought,
   });
@@ -196,9 +197,8 @@ export function planRebalance(
       // Failed a check, versus left out by the outer loop only to spend more of the run (whole-percent rounding).
       const failedUnder = syms.filter((sym) => out.has(sym) && out.get(sym) !== roundingWhy(sym) && underAfter(sym)).map(ticker);
       const roundedOut = syms.filter((sym) => out.get(sym) === roundingWhy(sym) && underAfter(sym)).map(ticker);
-      const nothingHeld = drift.every((d) => d.valueUsd === 0);
       // Cents lost to flooring the split count as rounding, not as money held back.
-      const held = !nothingHeld && (failedUnder.length || roundedOut.length || splitLeft >= 1) ? splitLeft : 0;
+      const held = !fresh && (failedUnder.length || roundedOut.length || splitLeft >= 1) ? splitLeft : 0;
       if (held >= 0.01) {
         const who = [
           failedUnder.length ? `${listJoin(failedUnder)} ${failedUnder.length === 1 ? 'is' : 'are'} under target but can’t be bought this run` : '',
@@ -233,7 +233,7 @@ export function planRebalance(
               : `because ${parts[0]?.text ?? 'amounts are rounded down, so no stock gets more than it was sized for'}`,
         // Nothing held yet and a stock failed its checks: the run went to the others at their weights.
         firstRunNote:
-          nothingHeld && failedUnder.length
+          fresh && failedUnder.length
             ? `${listJoin(failedUnder)} didn’t pass ${failedUnder.length === 1 ? 'its' : 'their'} checks. With nothing held yet, this run buys the others at their weights, and later runs put more into ${listJoin(failedUnder)}.`
             : null,
         // Only what the whole-percent split loses (not whole-dollar cents): this decides the retry below.

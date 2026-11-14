@@ -35,6 +35,14 @@ export function isTargets(v: unknown, known: (symbol: string) => boolean): v is 
   return (v as Target[]).reduce((s, t) => s + t.weightPct, 0) === 100;
 }
 
+/**
+ * Holdings worth less than this count as nothing held (recheck, 2026-11-14): a 1-wei airdrop or the dust
+ * a partial sell leaves must not switch a first run to the strict rule or show "100% now". One rule, used
+ * by the split, the plan and the drift view.
+ */
+export const dustUsd = (budgetUsd: number) => Math.max(1, budgetUsd * 0.01);
+export const nothingHeld = (heldUsd: number, budgetUsd: number) => heldUsd < dustUsd(budgetUsd);
+
 export interface DriftRow {
   symbol: string;
   valueUsd: number;
@@ -45,12 +53,14 @@ export interface DriftRow {
   driftPts: number | null;
 }
 
-/** Where the holdings stand against the targets (the drift view each run shows). */
-export function driftRows(targets: Target[], valuesUsd: Record<string, number>): DriftRow[] {
+/** Where the holdings stand against the targets (the drift view each run shows). Dust (`nothingHeld`)
+ *  has no percentages: it counts as nothing held. */
+export function driftRows(targets: Target[], valuesUsd: Record<string, number>, budgetUsd = 0): DriftRow[] {
   const total = targets.reduce((s, t) => s + (valuesUsd[t.symbol] ?? 0), 0);
+  const dust = budgetUsd > 0 ? nothingHeld(total, budgetUsd) : total <= 0;
   return targets.map((t) => {
     const valueUsd = valuesUsd[t.symbol] ?? 0;
-    const currentPct = total > 0 ? (valueUsd / total) * 100 : null;
+    const currentPct = !dust && total > 0 ? (valueUsd / total) * 100 : null;
     return { symbol: t.symbol, valueUsd, currentPct, targetPct: t.weightPct, driftPts: currentPct == null ? null : currentPct - t.weightPct };
   });
 }
@@ -72,7 +82,8 @@ export function topUpSplit(
   /** Money from stocks left out only for the $10 swap minimum: spread over `among` by target weight, on top. */
   spreadUsd = 0,
 ): { symbol: string; usd: number }[] {
-  const total = targets.reduce((s, t) => s + (valuesUsd[t.symbol] ?? 0), 0) + budgetUsd;
+  const heldUsd = targets.reduce((s, t) => s + (valuesUsd[t.symbol] ?? 0), 0);
+  const total = heldUsd + budgetUsd;
   const pool = targets.filter((t) => among.includes(t.symbol));
   if (!pool.length || budgetUsd <= 0) return [];
   const short = pool.map((t) => shortfallUsd(t, valuesUsd, total));
@@ -81,8 +92,8 @@ export function topUpSplit(
   // Nothing held yet (owner, 2026-11-14): there is no balance to keep in line, and money left in the wallet
   // isn't carried to later runs, so the whole run goes to the buyable stocks at their target weights; the
   // next runs put more into any that sat this one out, since they're then the most under target.
-  const nothingHeld = total <= budgetUsd;
-  const base = pool.map((t, i) => (nothingHeld ? (budgetUsd * t.weightPct) / sumW : sumShort > budgetUsd ? (budgetUsd * short[i]) / sumShort : short[i]));
+  const fresh = nothingHeld(heldUsd, budgetUsd);
+  const base = pool.map((t, i) => (fresh ? (budgetUsd * t.weightPct) / sumW : sumShort > budgetUsd ? (budgetUsd * short[i]) / sumShort : short[i]));
   const spread = Math.max(0, Math.min(spreadUsd, budgetUsd - base.reduce((s, x) => s + x, 0)));
   return pool.map((t, i) => ({ symbol: t.symbol, usd: Math.floor((base[i] + (spread * t.weightPct) / sumW) * 100) / 100 }));
 }

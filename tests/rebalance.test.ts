@@ -85,6 +85,27 @@ describe('topUpSplit (owner, 2026-11-14)', () => {
   });
 });
 
+describe('topUpSplit with dust', () => {
+  it('fuzz: holdings under $1 or 1% of the run count as nothing held: target weights, within the run', () => {
+    let seed = 23;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let k = 0; k < 2000; k++) {
+      const budget = 10 + Math.floor(rnd() * 3000);
+      const cap = Math.max(1, budget * 0.01) * 0.99;
+      const a = rnd() * cap;
+      const vals = { NVDAc: a * rnd(), MSFTc: a * rnd() * 0.5, AAPLc: 0 };
+      if (vals.NVDAc + vals.MSFTc >= cap) continue;
+      const among = T.map((t) => t.symbol).filter(() => rnd() > 0.3);
+      const pool = among.length ? among : ['MSFTc'];
+      const s = topUpSplit(T, vals, budget, pool);
+      const sumW = T.filter((t) => pool.includes(t.symbol)).reduce((x, t) => x + t.weightPct, 0);
+      expect(sum(s)).toBeLessThanOrEqual(budget);
+      expect(sum(s)).toBeGreaterThan(budget - 0.05);
+      for (const x of s) expect(x.usd).toBeLessThanOrEqual((budget * T.find((t) => t.symbol === x.symbol)!.weightPct) / sumW + 0.01);
+    }
+  });
+});
+
 describe('topUpLegs', () => {
   it('a share under $10 is left out and the run is split again', () => {
     // $50 at targets 40/30/30, but NVDA is far over target: MSFT and AAPL are under.

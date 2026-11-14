@@ -63,6 +63,8 @@ export function RebalanceRun({
 }) {
   const { plan } = check;
   const held = plan.drift.reduce((s, d) => s + d.valueUsd, 0);
+  // Dust (under $1 or 1% of the run) counts as nothing held: no percentages for it (lib/agent/rebalance.ts).
+  const fresh = plan.drift.every((d) => d.currentPct == null);
   const targets = rule.targets ?? [];
   // Each stock's share once this run is bought, so the view shows what the split aims at, not only where it starts.
   const after = (sym: string, valueUsd: number) => {
@@ -78,7 +80,7 @@ export function RebalanceRun({
       <ul className="plan-reasons rebalance-drift">
         {plan.drift.map((d) => (
           <li key={d.symbol}>
-            <strong>{ticker(d.symbol)}</strong> {usd(d.valueUsd, 2)}
+            <strong>{ticker(d.symbol)}</strong> {fresh && d.valueUsd > 0 ? '—' : usd(d.valueUsd, 2)}
             {d.currentPct != null ? ` · ${pct(d.currentPct)} now vs ${d.targetPct}% target (${pts(d.driftPts!)})` : ` · ${d.targetPct}% target`}
             {plan.picks && after(d.symbol, d.valueUsd) != null ? ` · ${pct(after(d.symbol, d.valueUsd)!)} after this run` : ''}
           </li>
@@ -86,7 +88,7 @@ export function RebalanceRun({
       </ul>
       <p className="plan-hint">
         Holdings read onchain at {time(check.readAtMs)} (Base block {Number(check.blockNumber).toLocaleString('en-US')}) for {check.address.slice(0, 6)}…{check.address.slice(-4)}, valued at
-        the pool prices. {held > 0 ? '' : 'You hold none of these yet, so this run buys at the target weights. '}
+        the pool prices. {!fresh ? '' : held > 0 ? 'You hold only dust of these (under $1 or 1% of the run), counted as nothing, so this run buys at the target weights. ' : 'You hold none of these yet, so this run buys at the target weights. '}
         {check.session.label}
         {check.session.state.startsWith('closed') && ` · cash reopens ${formatNextOpen(check.session.nextOpenIso)}`}
       </p>
