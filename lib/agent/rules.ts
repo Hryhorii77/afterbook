@@ -6,8 +6,13 @@
 // Rules and their history live only in the person's browser (localStorage, owner choice): nothing about
 // them reaches the server except one check's inputs. Export/import moves them between browsers.
 //
+// A rule is either one stock ("buy $50 of NVDA every Monday") or, since 2026-11-14, a rebalance rule:
+// target weights for 2-4 stocks, topped up each run with new USDC (buy-only, lib/agent/rebalance.ts).
+//
 // Pure and browser-safe: no server imports. Dates are calendar days ('YYYY-MM-DD') in the person's own
 // time zone; the page passes in today's key, so the maths here never reads the clock.
+
+import { isTargets, type Target } from './rebalance';
 
 export const RULE_LIMITS = {
   maxRules: 12,
@@ -32,7 +37,13 @@ export type Cadence =
 
 export interface Rule {
   id: string;
+  /** The stock; for a rebalance rule REBALANCE_SYMBOL, which isn't a stock, so a page from before
+   *  rebalance rules leaves it out instead of reading it as a one-stock rule. */
   symbol: string;
+  /** Absent: a one-stock rule. */
+  kind?: 'rebalance';
+  /** A rebalance rule's stocks and whole-percent target weights (sum 100). */
+  targets?: Target[];
   /** USDC per run. */
   usd: number;
   cadence: Cadence;
@@ -70,7 +81,21 @@ export interface RuleRun {
   nonce?: number;
   /** Skipped: why, in the page's words (the check's deciding reason, or "You skipped it"). */
   reason?: string;
+  /** A rebalance run: every swap's hash (`hash` is the first, which settles a pending run). */
+  hashes?: string[];
+  /** Bought: anything the history should say (a rebalance run that stopped part way). */
+  note?: string;
 }
+
+export const REBALANCE_SYMBOL = 'basket';
+
+export const isRebalance = (r: Pick<Rule, 'kind'>) => r.kind === 'rebalance';
+/** "NVDA 40 · MSFT 30 · AAPL 30", or the stock. */
+export const ruleLabel = (r: Pick<Rule, 'kind' | 'targets' | 'symbol'>) =>
+  r.kind === 'rebalance' && r.targets ? r.targets.map((t) => `${t.symbol.replace(/c$/, '')} ${t.weightPct}`).join(' · ') : r.symbol;
+/** A run's short label (at most 40 characters): the tickers, or the stock. */
+export const runSymbol = (r: Pick<Rule, 'kind' | 'targets' | 'symbol'>) =>
+  r.kind === 'rebalance' && r.targets ? r.targets.map((t) => t.symbol.replace(/c$/, '')).join('/') : r.symbol;
 
 export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 
@@ -190,9 +215,13 @@ export function isCadence(v: unknown): v is Cadence {
 export function isRule(v: unknown, known: (symbol: string) => boolean): v is Rule {
   if (!v || typeof v !== 'object') return false;
   const r = v as Record<string, unknown>;
+  const shape =
+    r.kind === 'rebalance'
+      ? r.symbol === REBALANCE_SYMBOL && isTargets(r.targets, known)
+      : r.kind === undefined && r.targets === undefined && typeof r.symbol === 'string' && known(r.symbol);
   return (
+    shape &&
     typeof r.id === 'string' && ID_RE.test(r.id) &&
-    typeof r.symbol === 'string' && known(r.symbol) &&
     isNum(r.usd, RULE_LIMITS.minRunUsd, RULE_LIMITS.maxRunUsd) &&
     isCadence(r.cadence) &&
     (r.capUsd === null || isNum(r.capUsd, RULE_LIMITS.minRunUsd, RULE_LIMITS.maxCapUsd)) &&
@@ -212,7 +241,7 @@ export function isRuleRun(v: unknown): v is RuleRun {
   const r = v as Record<string, unknown>;
   return (
     typeof r.ruleId === 'string' && ID_RE.test(r.ruleId) &&
-    typeof r.symbol === 'string' && r.symbol.length <= 20 &&
+    typeof r.symbol === 'string' && r.symbol.length <= 40 &&
     isDayKey(r.slot) &&
     isNum(r.at, 0, Number.MAX_SAFE_INTEGER) &&
     (r.outcome === 'bought' || r.outcome === 'pending' || r.outcome === 'skipped') &&
@@ -220,7 +249,9 @@ export function isRuleRun(v: unknown): v is RuleRun {
     (r.hash === undefined || (typeof r.hash === 'string' && HASH_RE.test(r.hash))) &&
     (r.from === undefined || (typeof r.from === 'string' && /^0x[0-9a-fA-F]{40}$/.test(r.from))) &&
     (r.nonce === undefined || isInt(r.nonce, 0, Number.MAX_SAFE_INTEGER)) &&
-    (r.reason === undefined || (typeof r.reason === 'string' && r.reason.length <= 400))
+    (r.reason === undefined || (typeof r.reason === 'string' && r.reason.length <= 400)) &&
+    (r.hashes === undefined || (Array.isArray(r.hashes) && r.hashes.length <= 4 && r.hashes.every((h) => typeof h === 'string' && HASH_RE.test(h)))) &&
+    (r.note === undefined || (typeof r.note === 'string' && r.note.length <= 400))
   );
 }
 
@@ -237,10 +268,15 @@ export function cleanRules(rules: unknown, known: (symbol: string) => boolean): 
 /** Rebuilt from the known fields only, so nothing extra from storage or an import file rides along. */
 function pickRule(r: Rule): Rule {
   const cadence: Cadence = r.cadence.kind === 'monthly' ? { kind: 'monthly', day: r.cadence.day } : { kind: r.cadence.kind, weekday: r.cadence.weekday };
-  return {
+  const out: Rule = {
     id: r.id, symbol: r.symbol, usd: r.usd, cadence, capUsd: r.capUsd, maxPremiumBp: r.maxPremiumBp, maxCostBp: r.maxCostBp,
     earningsDays: r.earningsDays, paused: r.paused, startKey: r.startKey, createdAt: r.createdAt,
   };
+  if (r.kind === 'rebalance' && r.targets) {
+    out.kind = 'rebalance';
+    out.targets = r.targets.map((t) => ({ symbol: t.symbol, weightPct: t.weightPct }));
+  }
+  return out;
 }
 function pickRun(r: RuleRun): RuleRun {
   const out: RuleRun = { ruleId: r.ruleId, symbol: r.symbol, slot: r.slot, at: r.at, outcome: r.outcome };
@@ -249,6 +285,8 @@ function pickRun(r: RuleRun): RuleRun {
   if (r.reason !== undefined) out.reason = r.reason;
   if (r.from !== undefined) out.from = r.from;
   if (r.nonce !== undefined) out.nonce = r.nonce;
+  if (r.hashes !== undefined) out.hashes = [...r.hashes];
+  if (r.note !== undefined) out.note = r.note;
   return out;
 }
 const RANK: Record<RunOutcome, number> = { bought: 0, pending: 1, skipped: 2 };
