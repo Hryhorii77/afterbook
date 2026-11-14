@@ -10,7 +10,7 @@ import { basketAmountProblem, legFloor, splitBasketUsdc, type BasketLegAmount } 
 import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { useNotify } from '../notifications/notify';
 import { fmt, logSwapHash, usd, venueNames } from '../swap/swapClient';
-import { buildSwap, parseAmount, useSwapWallet, useTokenBalance, useTxRun } from '../swap/useSwapWallet';
+import { SWAP_CANCELLED, buildSwap, parseAmount, useSwapWallet, useTokenBalance, useTxRun } from '../swap/useSwapWallet';
 import { SlippageControl, useSlippage } from '../swap/slippage';
 
 // Buy a /build basket in one go: one USDC amount, split by the basket's weights, one KyberSwap swap
@@ -47,12 +47,29 @@ export function BasketBuyPanel({
   stocks,
   onBusy,
   defaultUsd,
+  maxUsd,
+  onRunSent,
+  onRunDone,
+  onRunNothing,
+  noRest,
 }: {
   legs: BasketLeg[];
   stocks: StockInfo[];
   onBusy?: (busy: boolean) => void;
   /** Prefills the amount box (the trade plan's basket); what the person types is what they buy. */
   defaultUsd?: number;
+  /** A /rules rebalance run: the most it may spend; a bigger total can't be reviewed. */
+  maxUsd?: number;
+  /** Bookkeeping for a rule run (nothing here changes what is built, approved or signed). The wallet
+   *  sent the run's first swap: the run is pending from here, so a closed tab can't invite a second. */
+  onRunSent?: (totalUsd: number, hash: Hex) => void;
+  /** The run ended with at least one swap mined: what was paid (a swap sent but not known to have failed
+   *  counts), every hash, and the stocks not bought. */
+  onRunDone?: (r: { paidUsd: number; hashes: Hex[]; notBought: string[] }) => void;
+  /** The run's first swap was mined and reverted, or cancelled in the wallet: nothing was bought. */
+  onRunNothing?: () => void;
+  /** A rule run is one buy: no "Review the rest" after it stops. */
+  noRest?: boolean;
 }) {
   const { notify } = useNotify();
   const wallet = useSwapWallet();
@@ -88,6 +105,9 @@ export function BasketBuyPanel({
   // allowed (the swap checks still apply) but no longer what the plan checked, so say so.
   const sizedRaw = defaultUsd != null && Number.isFinite(defaultUsd) && defaultUsd > 0 ? parseAmount(String(Math.floor(defaultUsd * 100) / 100), USDC.decimals) : null;
   const overSized = totalRaw !== null && sizedRaw !== null && totalRaw > sizedRaw;
+  // A rule run's cap, in raw USDC (whole cents, as SwapPanel's maxUsd).
+  const maxRaw = maxUsd != null && Number.isFinite(maxUsd) && maxUsd > 0 ? BigInt(Math.round(maxUsd * 100)) * BigInt(10 ** (USDC.decimals - 2)) : null;
+  const overMax = totalRaw !== null && maxRaw !== null && totalRaw > maxRaw;
 
   const buildLeg = async (leg: BasketLegAmount): Promise<SwapTx> => {
     const tx = await buildSwap({ symbol: leg.symbol, side: 'buy', amountIn: leg.amountIn.toString(), account: address, source: 'basket', slippageBps });
@@ -121,10 +141,16 @@ export function BasketBuyPanel({
       const status: Progress[] = review.legs.map((l) => ({ symbol: l.plan.symbol, status: 'waiting' }));
       setProgress([...status]);
       const legsLeft = () => review.legs.filter((_, j) => status[j].status !== 'done').map((l) => l.plan);
+      // Rule-run bookkeeping only (onRunSent / onRunDone / onRunNothing): what was sent and mined.
+      let firstSent: Hex | null = null;
+      const minedHashes: Hex[] = [];
+      let paidRaw = BigInt(0);
       for (let i = 0; i < review.legs.length; i++) {
         const { plan: leg, tx: reviewed } = review.legs[i];
         status[i] = { ...status[i], status: 'sending' };
         setProgress([...status]);
+        let sentThis: Hex | null = null;
+        const reverted = `${leg.symbol}'s swap reverted onchain (its price moved past the limit); that USDC did not move.`;
         try {
           // Rebuilt just before signing (prices move between legs). Sent only if it is the same trade
           // with a minimum at or above the review card's "at least" figure for this leg.
@@ -133,7 +159,16 @@ export function BasketBuyPanel({
           if (BigInt(tx.minAmountOut) < legFloor(BigInt(reviewed.minAmountOut))) {
             throw new Error(`${leg.symbol}'s price moved below the "at least" amount since your review, so it was not bought.`);
           }
-          const hash = await wallet.sendSwap(tx, `${leg.symbol}'s swap reverted onchain (its price moved past the limit); that USDC did not move.`, () => setBusy(`confirm-${i}`));
+          const hash = await wallet.sendSwap(tx, reverted, (h) => {
+            setBusy(`confirm-${i}`);
+            sentThis = h;
+            if (!firstSent) {
+              firstSent = h;
+              onRunSent?.(Number(total) / 1e6, h);
+            }
+          });
+          minedHashes.push(hash);
+          paidRaw += leg.amountIn;
           status[i] = { symbol: leg.symbol, status: 'done', hash, text: `${fmt(tx.quote.amountOut, decimalsOf(leg.symbol))} ${leg.symbol} for ${fmt(leg.amountIn, USDC.decimals, 2)} USDC` };
           setProgress([...status]);
           void logSwapHash(hash);
@@ -147,9 +182,24 @@ export function BasketBuyPanel({
           setRest(legsLeft());
           setReview(null);
           void refetchBalance();
+          // Only a mined revert or a wallet cancel is known to have bought nothing; a receipt that couldn't
+          // be read, or an unknown replacement, may still swap, so it counts as paid (and its hash is kept).
+          const msg = (e as Error).message;
+          const failedForSure = msg === reverted || msg === SWAP_CANCELLED;
+          const maybe = sentThis && !failedForSure ? (sentThis as Hex) : null;
+          if (minedHashes.length || maybe) {
+            onRunDone?.({
+              paidUsd: Number(paidRaw + (maybe ? leg.amountIn : BigInt(0))) / 1e6,
+              hashes: maybe ? [...minedHashes, maybe] : minedHashes,
+              notBought: legsLeft().map((l) => l.symbol).filter((s) => !(maybe && s === leg.symbol)),
+            });
+          } else if (firstSent && failedForSure) {
+            onRunNothing?.();
+          }
           throw e;
         }
       }
+      onRunDone?.({ paidUsd: Number(paidRaw) / 1e6, hashes: minedHashes, notBought: [] });
       setReview(null);
       setApprovedFor(null);
       void refetchBalance();
@@ -204,13 +254,14 @@ export function BasketBuyPanel({
           Max
         </button>
         {!review && (
-          <button type="button" className="btn" onClick={() => plan && startReview(plan)} disabled={busy !== null || !plan || !!problem || overBalance}>
+          <button type="button" className="btn" onClick={() => plan && startReview(plan)} disabled={busy !== null || !plan || !!problem || overBalance || overMax}>
             {label ?? 'Review'}
           </button>
         )}
       </div>
       {overBalance && <p className="geo-note">That is more USDC than your wallet holds on Base.</p>}
-      {overSized && (
+      {overMax && maxUsd != null && <p className="geo-note">This run is at most {usd(maxUsd)}.</p>}
+      {overSized && !overMax && (
         <p className="geo-note">
           That is more than the {usd(Number(sizedRaw) / 1e6)} the plan sized, so a stock may cost more to trade than your limit. The review below shows each swap’s minimum before you sign.
         </p>
@@ -235,7 +286,7 @@ export function BasketBuyPanel({
             ))}
             <dt>You pay</dt>
             <dd>
-              {fmt(reviewTotal, USDC.decimals, 2)} USDC in {legCount} swaps
+              {fmt(reviewTotal, USDC.decimals, 2)} USDC in {legCount} {legCount === 1 ? 'swap' : 'swaps'}
             </dd>
             <dt>Slippage limit</dt>
             <dd>{slippageBps / 100}% per swap. The &ldquo;at least&rdquo; amounts above allow another 0.5% for prices moving between swaps.</dd>
@@ -249,13 +300,13 @@ export function BasketBuyPanel({
             </dd>
           </dl>
           <p className="geo-note">
-            Your wallet asks to approve exactly {fmt(reviewTotal, USDC.decimals, 2)} USDC for this router (skipped if it already can), then for {legCount} swaps,
+            Your wallet asks to approve exactly {fmt(reviewTotal, USDC.decimals, 2)} USDC for this router (skipped if it already can), then for {legCount} {legCount === 1 ? 'swap' : 'swaps'},
             one per stock. Each is rebuilt just before you sign it and is only sent if you still get at least the amount above. If one stops, you keep what
             was already bought and can buy the rest. You need a little ETH on Base for network fees.
           </p>
           <div className="basket-row">
             <button type="button" className="btn" onClick={confirm} disabled={busy !== null}>
-              {label ?? `Buy ${legCount} stocks`}
+              {label ?? `Buy ${legCount} ${legCount === 1 ? 'stock' : 'stocks'}`}
             </button>
             <button type="button" className="btn btn-secondary" onClick={() => setReview(null)} disabled={busy !== null}>
               Cancel
@@ -292,7 +343,14 @@ export function BasketBuyPanel({
           Reviewing this basket again uses it, or you can revoke it on <Link href="/portfolio#approvals" className="emph-link">Portfolio</Link>.
         </p>
       )}
-      {rest && rest.length > 0 && !review && (
+      {rest && rest.length > 0 && !review && noRest && (
+        <p className="geo-note">
+          {bought.length > 0 ? 'You hold what was bought above. ' : ''}Not bought this run: {rest.map((l) => l.symbol).join(', ')}. A rule run is one buy, so the rest
+          isn’t bought now; the next run tops up again. The router may still be approved to spend that USDC; you can revoke it on{' '}
+          <Link href="/portfolio#approvals" className="emph-link">Portfolio</Link>.
+        </p>
+      )}
+      {rest && rest.length > 0 && !review && !noRest && (
         <>
           <p className="geo-note">
             {bought.length > 0 ? `You hold what was bought above. ` : ''}Not bought: {rest.map((l) => `${l.symbol} (${fmt(l.amountIn, USDC.decimals, 2)} USDC)`).join(', ')}. The

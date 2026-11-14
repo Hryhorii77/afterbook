@@ -8,8 +8,8 @@
 // with an export/import file for moving or backing them up.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { TransactionNotFoundError, TransactionReceiptNotFoundError, type Hex } from 'viem';
-import { usePublicClient } from 'wagmi';
+import { TransactionNotFoundError, TransactionReceiptNotFoundError, erc20Abi, type Hex } from 'viem';
+import { useAccount, usePublicClient } from 'wagmi';
 import { base } from 'wagmi/chains';
 import type { TapeResult } from '@/lib/market/tape';
 import type { GeoInfo } from '@/lib/server/geo';
@@ -21,6 +21,10 @@ import {
   cleanRules,
   cleanRuns,
   dayText,
+  isRebalance,
+  ruleLabel,
+  runSymbol,
+  REBALANCE_SYMBOL,
   exportFile,
   importFile,
   localDayKey,
@@ -35,6 +39,10 @@ import { getStock } from '@/lib/stocks/tokens';
 import { TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
 import { bpPct, formatNextOpen, usd } from '@/lib/format';
 import { cleanAmountInput, cleanPercentInput } from '@/lib/agent/formFields';
+import { REBALANCE_LIMITS, isTargets, type Target } from '@/lib/agent/rebalance';
+import type { RebalancePlan } from '@/lib/agent/rebalancePlan';
+import { WalletConnectButton } from '../layout/WalletConnectButton';
+import { RebalanceRun, type RebalanceCheck } from './RebalanceRun';
 import { SwapPanel } from '../swap/SwapPanel';
 import { SymbolTile } from '../ui/SymbolTile';
 
@@ -115,14 +123,40 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
   const [premiumPct, setPremiumPct] = useState('0.5');
   const [costPct, setCostPct] = useState('0.3');
   const [earningsDays, setEarningsDays] = useState(2);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormErrorText] = useState<string | null>(null);
+  // Bumped on each failed save, so the alert is a new element and a screen reader reads a repeated error.
+  const [errorSeq, setErrorSeq] = useState(0);
+  /** A message for the form, with focus moved to the field it is about (`rules-<field>` names). */
+  const setFormError = (msg: string | null, field?: string) => {
+    setFormErrorText(msg);
+    if (!msg) return;
+    setErrorSeq((n) => n + 1);
+    if (field) (document.querySelector(`[name="rules-${field}"]`) as HTMLInputElement | null)?.focus();
+  };
+  // A rebalance rule: 2-4 stocks with whole-percent targets (lib/agent/rebalance.ts).
+  const [ruleKind, setRuleKind] = useState<'one' | 'rebalance'>('one');
+  const [targetRows, setTargetRows] = useState<{ symbol: string; pct: string }[]>(() => [
+    { symbol: rows[0]?.symbol ?? '', pct: '50' },
+    { symbol: rows[1]?.symbol ?? '', pct: '50' },
+  ]);
 
   // A due run being checked or bought
   const [checking, setChecking] = useState<string | null>(null);
   const [check, setCheck] = useState<Check | null>(null);
+  const [rbCheck, setRbCheck] = useState<RebalanceCheck | null>(null);
+  const { address: account } = useAccount();
   const [checkError, setCheckError] = useState<string | null>(null);
   const [eligible, setEligible] = useState(false);
-  const [justBought, setJustBought] = useState<{ symbol: string; usd: number; hash: Hex } | null>(null);
+  const [justBought, setJustBought] = useState<{ symbol: string; usd: number; hash: Hex; note?: string } | null>(null);
+  /** `ruleId|slot` of the rebalance run this tab is buying right now: its basket buy stays on screen until
+   *  the run ends, although the run is pending from the first swap (unmounting it would stop the rest). */
+  const [rbActive, setRbActive] = useState<string | null>(null);
+  // The same, for the chain-settling effect below: a run this tab is buying is settled by its own basket
+  // buy when it ends (every hash, what was paid), not from its first swap's receipt mid-run.
+  const rbActiveRef = useRef<string | null>(null);
+  useEffect(() => {
+    rbActiveRef.current = rbActive;
+  }, [rbActive]);
   const [revertNote, setRevertNote] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [backupNote, setBackupNote] = useState<string | null>(null);
@@ -180,26 +214,46 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
     const s = readStore();
     if (s.rules.length >= RULE_LIMITS.maxRules) return setFormError(`You can keep up to ${RULE_LIMITS.maxRules} rules. Delete one first.`);
     const runUsd = Number(amount);
-    if (!Number.isFinite(runUsd) || runUsd < RULE_LIMITS.minRunUsd || runUsd > RULE_LIMITS.maxRunUsd) {
-      return setFormError(`Each run must be between ${usd(RULE_LIMITS.minRunUsd, 0)} and ${usd(RULE_LIMITS.maxRunUsd, 0)}.`);
+    if (amount.trim() === '' || !Number.isFinite(runUsd) || runUsd < RULE_LIMITS.minRunUsd || runUsd > RULE_LIMITS.maxRunUsd) {
+      return setFormError(`Each run must be between ${usd(RULE_LIMITS.minRunUsd, 0)} and ${usd(RULE_LIMITS.maxRunUsd, 0)}.`, 'amount');
     }
     const capUsd = cap.trim() === '' ? null : Number(cap);
     if (capUsd !== null && (!Number.isFinite(capUsd) || capUsd < runUsd || capUsd > RULE_LIMITS.maxCapUsd)) {
-      return setFormError(`The total cap must be at least one run (${usd(runUsd, 0)}) and at most ${usd(RULE_LIMITS.maxCapUsd, 0)}, or empty for no cap.`);
+      return setFormError(`The total cap must be at least one run (${usd(runUsd, 0)}) and at most ${usd(RULE_LIMITS.maxCapUsd, 0)}, or empty for no cap.`, 'cap');
     }
     const maxPremiumBp = Math.round(Number(premiumPct) * 100);
     if (!Number.isFinite(maxPremiumBp) || premiumPct.trim() === '' || maxPremiumBp < 0 || maxPremiumBp > RULE_LIMITS.maxPremiumBp) {
-      return setFormError(`The most over the real stock must be between 0% and ${RULE_LIMITS.maxPremiumBp / 100}%.`);
+      return setFormError(`The most over the real stock must be between 0% and ${RULE_LIMITS.maxPremiumBp / 100}%.`, 'premium');
     }
     const maxCostBp = Math.round(Number(costPct) * 100);
     if (!Number.isFinite(maxCostBp) || maxCostBp < 1 || maxCostBp > RULE_LIMITS.maxCostBp) {
-      return setFormError(`The most to trade must be between 0.01% and ${RULE_LIMITS.maxCostBp / 100}%.`);
+      return setFormError(`The most to trade must be between 0.01% and ${RULE_LIMITS.maxCostBp / 100}%.`, 'cost');
     }
-    if (!known(symbol)) return setFormError('Pick a stock.');
+    let targets: Target[] | undefined;
+    if (ruleKind === 'rebalance') {
+      const seen = new Set<string>();
+      for (let i = 0; i < targetRows.length; i++) {
+        const t = targetRows[i];
+        if (!known(t.symbol)) return setFormError(`Pick stock ${i + 1}.`, `stock-${i}`);
+        if (seen.has(t.symbol)) return setFormError(`${t.symbol} is in the basket twice; pick a different stock.`, `stock-${i}`);
+        seen.add(t.symbol);
+        const w = Number(t.pct);
+        if (!/^\d+$/.test(t.pct.trim()) || !Number.isInteger(w) || w < 1 || w > 99) {
+          return setFormError(`Each target is a whole percent from 1 to 99 (stock ${i + 1}).`, `weight-${i}`);
+        }
+      }
+      targets = targetRows.map((t) => ({ symbol: t.symbol, weightPct: Number(t.pct) }));
+      const sum = targets.reduce((a, t) => a + t.weightPct, 0);
+      if (sum !== 100) return setFormError(`The targets add up to ${sum}%; make them add up to 100%.`, 'weight-0');
+      if (!isTargets(targets, known)) return setFormError('Check the basket’s stocks and targets.', 'stock-0');
+    } else if (!known(symbol)) {
+      return setFormError('Pick a stock.', 'stock');
+    }
     const cadence: Cadence = kind === 'monthly' ? { kind, day: monthDay } : { kind, weekday };
     const rule: Rule = {
       id: newId(),
-      symbol,
+      symbol: targets ? REBALANCE_SYMBOL : symbol,
+      ...(targets ? { kind: 'rebalance' as const, targets } : {}),
       usd: Math.floor(runUsd * 100) / 100,
       cadence,
       capUsd,
@@ -214,10 +268,12 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
   };
 
   const runCheck = async (rule: Rule) => {
+    if (isRebalance(rule)) return runRebalanceCheck(rule);
     const state = ruleState(rule, runs, today);
     if (state.kind !== 'due') return;
     setChecking(rule.id);
     setCheck(null);
+    setRbCheck(null);
     setJustBought(null);
     setRevertNote(null);
     setCheckError(null);
@@ -243,10 +299,113 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
     }
   };
 
+  // A rebalance run: read what the connected wallet holds of the rule's stocks, all at one Base block, then
+  // let the server price them and run the plan's checks. Only the balances go to the server, never the
+  // address or the rule.
+  const runRebalanceCheck = async (rule: Rule) => {
+    const state = ruleState(rule, runs, today);
+    if (state.kind !== 'due' || !rule.targets) return;
+    setCheck(null);
+    setRbCheck(null);
+    setJustBought(null);
+    setRevertNote(null);
+    setCheckError(null);
+    if (!account) return setCheckError('Connect your wallet first: the run reads what it holds of these stocks.');
+    if (!publicClient) return setCheckError('Base isn’t reachable right now. Try again in a moment.');
+    setChecking(rule.id);
+    try {
+      const blockNumber = await publicClient.getBlockNumber();
+      const held = await publicClient.multicall({
+        contracts: rule.targets.map((t) => ({ address: getStock(t.symbol)!.tokenAddress, abi: erc20Abi, functionName: 'balanceOf' as const, args: [account] as const })),
+        blockNumber,
+        allowFailure: false,
+      });
+      const readAtMs = Date.now();
+      const balances = Object.fromEntries(rule.targets.map((t, i) => [t.symbol, (held[i] as bigint).toString()]));
+      const res = await fetch('/api/agent/rebalance-check', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ targets: rule.targets, usd: state.usd, maxPremiumBp: rule.maxPremiumBp, maxCostBp: rule.maxCostBp, earningsDays: rule.earningsDays, balances }),
+      });
+      const body = (await res.json().catch(() => null)) as { plan?: RebalancePlan; session?: Check['session']; checkedAt?: number; error?: string } | null;
+      if (!res.ok || !body?.plan || !body.session) {
+        setCheckError(body?.error ? `Couldn’t check the run: ${body.error}.` : 'Couldn’t check the run just now. Try again in a moment.');
+        return;
+      }
+      const checkedAt = Date.now();
+      setNow(checkedAt);
+      setRbCheck({ ruleId: rule.id, slot: state.slot, plan: body.plan, session: body.session, checkedAt, readAtMs, blockNumber: blockNumber.toString(), address: account, budgetUsd: state.usd });
+      requestAnimationFrame(() => checkRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    } catch {
+      setCheckError('Couldn’t read your holdings or check the run just now. Try again in a moment.');
+    } finally {
+      setChecking(null);
+    }
+  };
+
+  // A rebalance run's bookkeeping (the basket buy's callbacks): pending at the first signed swap, then
+  // bought with what was paid, or due again if that first swap reverted or was cancelled.
+  const rbSent = (rule: Rule, slot: string) => (totalUsd: number, hash: Hex) => {
+    rbActiveRef.current = `${rule.id}|${slot}`; // before the pending run is saved, so the settling effect skips it
+    setRbActive(`${rule.id}|${slot}`);
+    addRun({ ruleId: rule.id, symbol: runSymbol(rule), slot, at: Date.now(), outcome: 'pending', usd: Math.round(totalUsd * 100) / 100, hash, hashes: [hash] });
+  };
+  const rbDone = (rule: Rule, slot: string) => (r: { paidUsd: number; hashes: Hex[]; notBought: string[] }) => {
+    const paid = Math.round(r.paidUsd * 100) / 100;
+    addRun({
+      ruleId: rule.id,
+      symbol: runSymbol(rule),
+      slot,
+      at: Date.now(),
+      outcome: 'bought',
+      usd: paid,
+      hash: r.hashes[0],
+      hashes: r.hashes,
+      ...(r.notBought.length ? { note: `Stopped part way: ${r.notBought.map((x) => x.replace(/c$/, '')).join(', ')} not bought this run.` } : {}),
+    });
+    // The run is over: the basket buy leaves the screen, so it can't be reviewed a second time.
+    rbActiveRef.current = null;
+    setRbActive(null);
+    setRbCheck(null);
+    setEligible(false);
+    setJustBought({
+      symbol: runSymbol(rule),
+      usd: paid,
+      hash: r.hashes[0],
+      ...(r.notBought.length ? { note: `${r.notBought.map((x) => x.replace(/c$/, '')).join(', ')} wasn’t bought; the next run tops up again.` } : {}),
+    });
+  };
+  // The run is active from the moment its basket buy is busy (preparing the review, the approval, the
+  // first wallet prompt), not only from the first signed swap: until it ends nothing on the page may
+  // unmount the panel (untick, skip, pause, delete, another check), which would leave its run going
+  // with no screen and let a fresh panel offer a second buy (real-money review, 2026-11-14).
+  const rbBusy = (rule: Rule, slot: string) => (busy: boolean) => {
+    const key = `${rule.id}|${slot}`;
+    if (busy && rbActiveRef.current !== key) {
+      rbActiveRef.current = key;
+      setRbActive(key);
+    } else if (!busy && rbActiveRef.current === key) {
+      rbActiveRef.current = null;
+      setRbActive(null);
+    }
+  };
+
+  const rbNothing = (rule: Rule, slot: string) => () => {
+    rbActiveRef.current = null;
+    setRbActive(null);
+    dropRun(rule.id, slot);
+    setRbCheck(null);
+    setEligible(false);
+    setRevertNote(`The first swap of the ${runSymbol(rule)} run reverted onchain or was cancelled in your wallet, so nothing was bought. The run is due again; check it again to retry.`);
+  };
+
   const skip = (rule: Rule, slot: string) => {
     const decided = check?.ruleId === rule.id && check.leg.verdict !== 'buy' ? (check.leg.decidedBy ?? check.leg.reasons[0]) : undefined;
-    addRun({ ruleId: rule.id, symbol: rule.symbol, slot, at: Date.now(), outcome: 'skipped', reason: decided ? `Skipped: ${decided}` : 'You skipped it.' });
+    const rbDecided = rbCheck?.ruleId === rule.id && !rbCheck.plan.picks ? rbCheck.plan.shortfall : null;
+    const why = decided ?? rbDecided;
+    addRun({ ruleId: rule.id, symbol: runSymbol(rule), slot, at: Date.now(), outcome: 'skipped', reason: why ? `Skipped: ${why}`.slice(0, 400) : 'You skipped it.' });
     if (check?.ruleId === rule.id) setCheck(null);
+    if (rbCheck?.ruleId === rule.id) setRbCheck(null);
   };
 
   // One buy per run. The run is saved as pending the moment the wallet sends the swap (a closed tab then
@@ -294,6 +453,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
       const stillPending = (run: RuleRun) =>
         readStore().runs.some((r) => r.ruleId === run.ruleId && r.slot === run.slot && r.outcome === 'pending' && r.hash === run.hash);
       for (const run of readStore().runs.filter((r) => r.outcome === 'pending' && r.hash)) {
+        if (rbActiveRef.current === `${run.ruleId}|${run.slot}`) continue;
         const hash = run.hash as Hex;
         try {
           const receipt = await publicClient.getTransactionReceipt({ hash });
@@ -343,6 +503,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
     save(s.rules.filter((r) => r.id !== id), s.runs);
     setConfirmDelete(null);
     if (check?.ruleId === id) setCheck(null);
+    if (rbCheck?.ruleId === id) setRbCheck(null);
   };
 
   const doExport = () => {
@@ -381,14 +542,31 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
   const checkStale =
     !!check && !checkPending && (!checkedRule || checkedRule.paused || now - check.checkedAt > CHECK_FRESH_MS || (today !== '' && localDayKey(new Date(check.checkedAt)) !== today));
 
+  // The rebalance run on screen: buy while due and fresh (and for the same wallet), or while this tab is
+  // in the middle of buying it; otherwise say why not.
+  const rbRule = rbCheck ? rules.find((r) => r.id === rbCheck.ruleId) : undefined;
+  const rbKey = rbCheck ? `${rbCheck.ruleId}|${rbCheck.slot}` : '';
+  const rbPending = !!rbCheck && runs.some((r) => r.ruleId === rbCheck.ruleId && r.slot === rbCheck.slot && r.outcome === 'pending');
+  const rbState = rbCheck ? states.get(rbCheck.ruleId) : null;
+  const rbDue = !!rbCheck && rbState?.kind === 'due' && rbState.slot === rbCheck.slot;
+  const rbStale =
+    !!rbCheck &&
+    (!rbRule ||
+      rbRule.paused ||
+      now - rbCheck.checkedAt > CHECK_FRESH_MS ||
+      (today !== '' && localDayKey(new Date(rbCheck.checkedAt)) !== today) ||
+      account?.toLowerCase() !== rbCheck.address.toLowerCase());
+  const rbMode: 'buy' | 'pending' | 'gone' | 'stale' = rbActive === rbKey ? 'buy' : rbPending ? 'pending' : !rbDue ? 'gone' : rbStale ? 'stale' : 'buy';
+
   return (
     <main className="plan-page">
       <header className="top">
         <h1>Stock rules</h1>
       </header>
       <p className="plan-intro">
-        Set a rule once, for example $50 of NVDA every Monday, at most 0.5% over the real stock. When a run is due, Afterbook checks it with the trade plan’s
-        checks (gap, earnings, pool depth and cost). A run that passes opens the normal swap for you to review and sign. Nothing buys on its own.
+        Set a rule once, for example $50 of NVDA every Monday, at most 0.5% over the real stock, or a basket with target weights that each run tops up
+        where it is under target. When a run is due, Afterbook checks it with the trade plan’s checks (gap, earnings, pool depth and cost). A run that passes
+        opens the normal swap or basket buy for you to review and sign. Nothing buys on its own.
         This is a tool for your own decisions, not financial advice.
       </p>
       <p className="geo-note">
@@ -397,12 +575,12 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
       </p>
       {saveFailed && <p className="geo-note geo-note-blocked">This browser didn’t let the page save (a private window or blocked storage). Your rules will be lost when you close it.</p>}
 
-      {loaded && (due.length > 0 || (check && checkedRule) || justBought) && (
+      {loaded && (due.length > 0 || (check && checkedRule) || (rbCheck && rbRule) || justBought) && (
         <section className="panel rules-due" aria-live="polite">
           <h2>Due now</h2>
           {justBought && (
             <p className="geo-note">
-              Bought {usd(justBought.usd, 2)} of {justBought.symbol} for this run ·{' '}
+              Bought {usd(justBought.usd, 2)} of {justBought.symbol} for this run{justBought.note ? ` (${justBought.note})` : ''} ·{' '}
               <a href={`https://basescan.org/tx/${justBought.hash}`} target="_blank" rel="noopener noreferrer" className="emph-link">
                 transaction&nbsp;<span className="ext-arrow">↗</span>
               </a>
@@ -418,21 +596,24 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
               return (
                 <li key={rule.id} className="plan-leg">
                   <div className="plan-leg-head">
-                    <SymbolTile cashTicker={stock?.cashTicker ?? rule.symbol} />
+                    <SymbolTile cashTicker={isRebalance(rule) ? (rule.targets?.[0] ? getStock(rule.targets[0].symbol)?.cashTicker ?? 'B' : 'B') : (stock?.cashTicker ?? rule.symbol)} />
                     <div className="plan-leg-name">
-                      <strong>
-                        {usd(st.usd, 0)} of {rule.symbol}
-                      </strong>
+                      <strong>{isRebalance(rule) ? `${usd(st.usd, 0)} top-up of ${ruleLabel(rule)}` : `${usd(st.usd, 0)} of ${rule.symbol}`}</strong>
                       <span>
                         {cadenceText(rule.cadence)} · run for {dayText(st.slot)}
+                        {isRebalance(rule) ? ' · buys what is under target' : ''}
                       </span>
                     </div>
                   </div>
                   <div className="basket-row">
-                    <button type="button" className="btn" disabled={checking !== null} onClick={() => runCheck(rule)}>
-                      {checking === rule.id ? 'Checking…' : check?.ruleId === rule.id ? 'Check again' : 'Check this run'}
-                    </button>
-                    <button type="button" className="btn btn-secondary" onClick={() => skip(rule, st.slot)}>
+                    {isRebalance(rule) && !account ? (
+                      <WalletConnectButton />
+                    ) : (
+                      <button type="button" className="btn" disabled={checking !== null || rbActive !== null} onClick={() => runCheck(rule)}>
+                        {checking === rule.id ? 'Checking…' : check?.ruleId === rule.id || rbCheck?.ruleId === rule.id ? 'Check again' : 'Check this run'}
+                      </button>
+                    )}
+                    <button type="button" className="btn btn-secondary" disabled={rbActive !== null} onClick={() => skip(rule, st.slot)}>
                       Skip this run
                     </button>
                   </div>
@@ -441,6 +622,27 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
             })}
           </ul>
           {checkError && <p className="geo-note geo-note-blocked">{checkError}</p>}
+          {due.some((r) => isRebalance(r)) && !account && (
+            <p className="plan-hint">A basket top-up reads what your wallet holds of its stocks, so connect the wallet you buy with first.</p>
+          )}
+
+          {rbCheck && rbRule && (
+            <div ref={checkRef}>
+              <RebalanceRun
+                check={rbCheck}
+                rule={rbRule}
+                geo={geo}
+                eligible={eligible}
+                setEligible={setEligible}
+                mode={rbMode}
+                onRunSent={rbSent(rbRule, rbCheck.slot)}
+                onRunDone={rbDone(rbRule, rbCheck.slot)}
+                onRunNothing={rbNothing(rbRule, rbCheck.slot)}
+                onBusy={rbBusy(rbRule, rbCheck.slot)}
+                locked={rbActive !== null}
+              />
+            </div>
+          )}
 
           {check && checkedRule && (
             <div className="plan-swap" ref={checkRef}>
@@ -572,14 +774,15 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
               return (
                 <li key={rule.id} className="rules-item">
                   <div className="plan-leg-head">
-                    <SymbolTile cashTicker={stock?.cashTicker ?? rule.symbol} />
+                    <SymbolTile cashTicker={isRebalance(rule) ? (rule.targets?.[0] ? getStock(rule.targets[0].symbol)?.cashTicker ?? 'B' : 'B') : (stock?.cashTicker ?? rule.symbol)} />
                     <div className="plan-leg-name">
                       <strong>
-                        {usd(rule.usd, 0)} of {rule.symbol} · {cadenceText(rule.cadence)}
+                        {isRebalance(rule) ? `${usd(rule.usd, 0)} top-up of ${ruleLabel(rule)}` : `${usd(rule.usd, 0)} of ${rule.symbol}`} · {cadenceText(rule.cadence)}
                       </strong>
                       <span>
                         At most {(rule.maxPremiumBp / 100).toFixed(2)}% over the real stock and {(rule.maxCostBp / 100).toFixed(2)}% to trade
                         {rule.earningsDays > 0 ? ` · pause within ${rule.earningsDays} days of earnings` : ''}
+                        {isRebalance(rule) ? ' · buys what is under target, never sells' : ''}
                       </span>
                     </div>
                     <span className={st?.kind === 'due' ? 'plan-verdict rules-due-pill' : 'plan-verdict'}>{status}</span>
@@ -607,13 +810,13 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
                       </button>
                     )}
                     {st?.kind !== 'finished' && (
-                      <button type="button" className="btn btn-secondary" onClick={() => setPaused(rule.id, !rule.paused)}>
+                      <button type="button" className="btn btn-secondary" disabled={rbActive !== null} onClick={() => setPaused(rule.id, !rule.paused)}>
                         {rule.paused ? 'Resume' : 'Pause'}
                       </button>
                     )}
                     {confirmDelete === rule.id ? (
                       <>
-                        <button type="button" className="btn" onClick={() => remove(rule.id)}>
+                        <button type="button" className="btn" disabled={rbActive !== null} onClick={() => remove(rule.id)}>
                           Delete the rule
                         </button>
                         <button type="button" className="btn btn-secondary" onClick={() => setConfirmDelete(null)}>
@@ -621,7 +824,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
                         </button>
                       </>
                     ) : (
-                      <button type="button" className="btn btn-secondary" onClick={() => setConfirmDelete(rule.id)}>
+                      <button type="button" className="btn btn-secondary" disabled={rbActive !== null} onClick={() => setConfirmDelete(rule.id)}>
                         Delete
                       </button>
                     )}
@@ -635,23 +838,101 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
 
       <form className="panel plan-form" onSubmit={submit}>
         <h2>{rules.length ? 'Add a rule' : 'Your first rule'}</h2>
-        <div className="plan-grid">
-          <label className="plan-field">
-            <span>Stock</span>
-            <select value={symbol} onChange={(e) => setSymbol(e.target.value)}>
-              {rows.map((r) => (
-                <option key={r.symbol} value={r.symbol}>
-                  {r.cashTicker} · {r.name}
-                </option>
+        <div className="carry-direction-toggle swap-side-toggle plan-mode" role="tablist" aria-label="What the rule buys">
+          {(
+            [
+              ['one', 'One stock'],
+              ['rebalance', 'Top up a basket'],
+            ] as const
+          ).map(([m, label]) => (
+            <button
+              key={m}
+              type="button"
+              role="tab"
+              aria-selected={ruleKind === m}
+              className={ruleKind === m ? 'carry-direction-tab carry-direction-tab-active' : 'carry-direction-tab'}
+              onClick={() => setRuleKind(m)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {ruleKind === 'rebalance' && (
+          <>
+            <p className="plan-hint">
+              Set target weights for {REBALANCE_LIMITS.minTargets} to {REBALANCE_LIMITS.maxTargets} stocks. Each run reads what your wallet holds of them and puts
+              the run’s USDC into the ones under target, in proportion to how far under each is (at the target weights if none is under). It only buys,
+              never sells, and each run is one basket buy you sign.
+            </p>
+            <div className="rules-targets">
+              {targetRows.map((t, i) => (
+                <div className="plan-grid" key={i}>
+                  <label className="plan-field">
+                    <span>Stock {i + 1}</span>
+                    <select
+                      name={`rules-stock-${i}`}
+                      value={t.symbol}
+                      onChange={(e) => setTargetRows((rs) => rs.map((r, j) => (j === i ? { ...r, symbol: e.target.value } : r)))}
+                    >
+                      {rows.map((r) => (
+                        <option key={r.symbol} value={r.symbol}>
+                          {r.cashTicker} · {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="plan-field">
+                    <span>Target (%)</span>
+                    <input
+                      inputMode="numeric"
+                      name={`rules-weight-${i}`}
+                      value={t.pct}
+                      onChange={(e) => setTargetRows((rs) => rs.map((r, j) => (j === i ? { ...r, pct: e.target.value.replace(/[^0-9]/g, '') } : r)))}
+                    />
+                  </label>
+                </div>
               ))}
-            </select>
-            <small>Pools of at least {usd(TAPE_MAIN_DEPTH_USD, 0)}.</small>
-          </label>
+            </div>
+            <p className="plan-hint">
+              Targets add up to {targetRows.reduce((a, t) => a + (Number(t.pct) || 0), 0)}% (they must make 100%).
+            </p>
+            <div className="basket-row">
+              {targetRows.length < REBALANCE_LIMITS.maxTargets && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setTargetRows((rs) => [...rs, { symbol: rows.find((r) => !rs.some((x) => x.symbol === r.symbol))?.symbol ?? rows[0]?.symbol ?? '', pct: '' }])}
+                >
+                  Add a stock
+                </button>
+              )}
+              {targetRows.length > REBALANCE_LIMITS.minTargets && (
+                <button type="button" className="btn btn-secondary" onClick={() => setTargetRows((rs) => rs.slice(0, -1))}>
+                  Remove the last stock
+                </button>
+              )}
+            </div>
+          </>
+        )}
+        <div className="plan-grid">
+          {ruleKind === 'one' && (
+            <label className="plan-field">
+              <span>Stock</span>
+              <select name="rules-stock" value={symbol} onChange={(e) => setSymbol(e.target.value)}>
+                {rows.map((r) => (
+                  <option key={r.symbol} value={r.symbol}>
+                    {r.cashTicker} · {r.name}
+                  </option>
+                ))}
+              </select>
+              <small>Pools of at least {usd(TAPE_MAIN_DEPTH_USD, 0)}.</small>
+            </label>
+          )}
           <label className="plan-field">
             <span>Each run (USDC)</span>
-            <input inputMode="decimal" value={amount} onChange={(e) => setAmount(cleanAmountInput(e.target.value))} />
+            <input inputMode="decimal" name="rules-amount" value={amount} onChange={(e) => setAmount(cleanAmountInput(e.target.value))} />
             <small>
-              {usd(RULE_LIMITS.minRunUsd, 0)} to {usd(RULE_LIMITS.maxRunUsd, 0)}; also at most 10% of the pool.
+              {usd(RULE_LIMITS.minRunUsd, 0)} to {usd(RULE_LIMITS.maxRunUsd, 0)}; also at most 10% of {ruleKind === 'rebalance' ? 'each stock’s' : 'the'} pool.
             </small>
           </label>
           <label className="plan-field">
@@ -692,17 +973,17 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
         <div className="plan-grid">
           <label className="plan-field">
             <span>Total cap (USDC, optional)</span>
-            <input inputMode="decimal" value={cap} placeholder="No cap" onChange={(e) => setCap(cleanAmountInput(e.target.value))} />
+            <input inputMode="decimal" name="rules-cap" value={cap} placeholder="No cap" onChange={(e) => setCap(cleanAmountInput(e.target.value))} />
             <small>The rule stops once it has bought this much.</small>
           </label>
           <label className="plan-field">
             <span>Most I’ll pay over the real stock (%)</span>
-            <input inputMode="decimal" value={premiumPct} onChange={(e) => setPremiumPct(cleanPercentInput(e.target.value))} />
+            <input inputMode="decimal" name="rules-premium" value={premiumPct} onChange={(e) => setPremiumPct(cleanPercentInput(e.target.value))} />
             <small>Above this, the run waits.</small>
           </label>
           <label className="plan-field">
             <span>Most I’ll pay to trade (%)</span>
-            <input inputMode="decimal" value={costPct} onChange={(e) => setCostPct(cleanPercentInput(e.target.value))} />
+            <input inputMode="decimal" name="rules-cost" value={costPct} onChange={(e) => setCostPct(cleanPercentInput(e.target.value))} />
             <small>Price impact plus the pool fee; a run is sized down to fit.</small>
           </label>
           <label className="plan-field">
@@ -722,7 +1003,11 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
             Save the rule
           </button>
         </div>
-        {formError && <p className="geo-note geo-note-blocked" role="alert">{formError}</p>}
+        {formError && (
+          <p key={errorSeq} className="geo-note geo-note-blocked" role="alert">
+            {formError}
+          </p>
+        )}
       </form>
 
       {loaded && runs.length > 0 && (
@@ -736,6 +1021,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
                   {r.outcome !== 'skipped' ? (
                     <>
                       {r.outcome === 'bought' ? 'Bought' : 'Sent (not confirmed yet):'} {usd(r.usd ?? 0, 2)} of {r.symbol}
+                      {r.note ? ` (${r.note})` : ''}
                       {r.hash && (
                         <>
                           {' · '}
@@ -768,7 +1054,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
           <button type="button" className="btn btn-secondary" disabled={!loaded} onClick={doExport}>
             Export
           </button>
-          <button type="button" className="btn btn-secondary" disabled={!loaded} onClick={() => fileRef.current?.click()}>
+          <button type="button" className="btn btn-secondary" disabled={!loaded || rbActive !== null} onClick={() => fileRef.current?.click()}>
             Import
           </button>
           <input ref={fileRef} type="file" accept="application/json,.json" hidden onChange={(e) => void doImport(e.target.files?.[0])} />

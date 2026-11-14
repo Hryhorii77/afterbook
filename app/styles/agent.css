@@ -43,6 +43,11 @@
 .rules-item .basket-row { margin-top: 12px; }
 .rules-item .plan-leg-name span { white-space: normal; }
 .rules-due-pill { color: var(--accent); border-color: var(--accent); }
+/* Rebalance rules: the target editor and a due run's drift view */
+.rules-targets { display: grid; gap: 4px; margin: 8px 0 0; }
+.rebalance-run h3 { margin: 16px 0 8px; }
+.rebalance-run h3:first-child { margin-top: 0; }
+.rebalance-drift li strong { margin-right: 4px; }
 
 /* Phones (320–390px): cards never wider than the screen, and a rule's name keeps its width. */
 .plan-legs, .rules-list { grid-template-columns: minmax(0, 1fr); }
