@@ -79,7 +79,8 @@ export function topUpSplit(
   valuesUsd: Record<string, number>,
   budgetUsd: number,
   among: string[] = targets.map((t) => t.symbol),
-  /** Money from stocks left out only for the $10 swap minimum: spread over `among` by target weight, on top. */
+  /** Money from stocks left out only for the $10 swap minimum: spread by target weight, on top, over the
+   *  stocks in `among` still under their target share after this run (none: it stays as cash). */
   spreadUsd = 0,
 ): { symbol: string; usd: number }[] {
   const heldUsd = targets.reduce((s, t) => s + (valuesUsd[t.symbol] ?? 0), 0);
@@ -94,8 +95,12 @@ export function topUpSplit(
   // next runs put more into any that sat this one out, since they're then the most under target.
   const fresh = nothingHeld(heldUsd, budgetUsd);
   const base = pool.map((t, i) => (fresh ? (budgetUsd * t.weightPct) / sumW : sumShort > budgetUsd ? (budgetUsd * short[i]) / sumShort : short[i]));
-  const spread = Math.max(0, Math.min(spreadUsd, budgetUsd - base.reduce((s, x) => s + x, 0)));
-  return pool.map((t, i) => ({ symbol: t.symbol, usd: Math.floor((base[i] + (spread * t.weightPct) / sumW) * 100) / 100 }));
+  // The spread goes only to stocks under their target share after this run, by weight; with none left it
+  // stays as cash (recheck, 2026-11-14: it went into a stock already far over target).
+  const under = pool.map((_, i) => short[i] >= 0.01); // a cent: float noise isn't "under"
+  const sumUnderW = pool.reduce((s, t, i) => s + (under[i] ? t.weightPct : 0), 0);
+  const spread = sumUnderW > 0 ? Math.max(0, Math.min(spreadUsd, budgetUsd - base.reduce((s, x) => s + x, 0))) : 0;
+  return pool.map((t, i) => ({ symbol: t.symbol, usd: Math.floor((base[i] + (under[i] ? (spread * t.weightPct) / sumUnderW : 0)) * 100) / 100 }));
 }
 
 /** How far a stock is below its target share of `totalAfterUsd` (holdings + this run), 0 if it isn't. */
@@ -131,7 +136,8 @@ export function topUpLegs(
     const small = legs.filter((l) => l.usd < PLAN_LIMITS.minLegUsd);
     if (!small.length) return { legs, tooSmall };
     // Drop the smallest one and split again. It didn't fail a check, only the minimum, so the money it had
-    // goes to the others by target weight (at most $10 a dropped stock past their target share).
+    // goes by target weight to the others still under their target share (at most $10 a dropped stock past
+    // it), or stays as cash when none is.
     const smallest = small.reduce((a, b) => (b.usd < a.usd ? b : a));
     tooSmall.push(smallest.symbol);
     pool = pool.filter((s) => s !== smallest.symbol);

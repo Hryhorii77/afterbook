@@ -231,6 +231,73 @@ describe('planRebalance', () => {
     expect(lost[lost.length - 1]).toBeLessThan(0.1);
   });
 
+  it('recheck repro: a stock dropped for the $10 minimum is looked at again when another fails; nothing goes past target', () => {
+    // 29/15/30/26, holding $0 / $11.32 / $43.24 / $96.17; NVDA fails at sizing. Before: $24 into AMD (63.8% vs 26%).
+    const targets: Target[] = [
+      { symbol: 'NVDAc', weightPct: 29 },
+      { symbol: 'MSFTc', weightPct: 15 },
+      { symbol: 'AAPLc', weightPct: 30 },
+      { symbol: 'AMDc', weightPct: 26 },
+    ];
+    const balances = { MSFTc: raw('MSFTc', 0.1132), AAPLc: raw('AAPLc', 0.4324), AMDc: raw('AMDc', 0.9617) };
+    for (const budgetUsd of [19, 25, 37]) {
+      const costs = costsFor(flat);
+      costs.set('NVDAc', over);
+      const p = run(input({ targets, budgetUsd, balances }), deep(), costs);
+      expect(p.picks?.some((x) => x.symbol === 'AMDc') ?? false).toBe(false);
+      expect(p.legs.find((l) => l.symbol === 'NVDAc')?.decidedBy).toMatch(/cost more than your/);
+      if (budgetUsd === 25) expect(p.picks?.map((x) => x.symbol)).toEqual(['MSFTc']);
+      if (p.cashUsd >= 0.01) expect(p.cashWhy).toBeTruthy();
+    }
+  });
+
+  it('reviewer: the only stock under target is too small and the others are over or failed: its reason is the minimum', () => {
+    // 40/30/30 holding NVDA $35, MSFT $45, AAPL $20; $10 run → after $110: NVDA short $9, MSFT over, AAPL short $13 but fails.
+    const costs = costsFor(flat);
+    costs.set('AAPLc', over);
+    const p = run(input({ budgetUsd: 10, balances: { NVDAc: raw('NVDAc', 0.35), MSFTc: raw('MSFTc', 0.45), AAPLc: raw('AAPLc', 0.2) } }), deep(), costs);
+    expect(p.picks).toBeNull();
+    expect(p.cashUsd).toBe(10);
+    expect(p.notBought.find((x) => x.symbol === 'NVDAc')?.why).toMatch(/minimum for a swap/);
+    expect(p.shortfall).toMatch(/NVDA: Its share of this run would be under the \$10 minimum/);
+  });
+
+  it('fuzz: with something held, no pick goes into a stock at or over its target share after the run', () => {
+    let seed = 23;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const syms4 = ['NVDAc', 'MSFTc', 'AAPLc', 'AMDc'];
+    let checked = 0;
+    for (let k = 0; k < 4000; k++) {
+      const n = 2 + Math.floor(rnd() * 3);
+      const syms = syms4.slice(0, n);
+      const w = syms.map(() => 1 + Math.floor(rnd() * 40));
+      const sumW = w.reduce((a, b) => a + b, 0);
+      const pct = w.map((x) => Math.max(1, Math.floor((x * 100) / sumW)));
+      pct[0] += 100 - pct.reduce((a, b) => a + b, 0);
+      if (pct.some((x) => x < 1)) continue;
+      const targets = syms.map((symbol, i) => ({ symbol, weightPct: pct[i] }));
+      const budgetUsd = [19, 25, 37, 50, 120, 300][k % 6];
+      const balances = Object.fromEntries(syms.map((s) => [s, rnd() < 0.25 ? BigInt(0) : rnd() < 0.15 ? BigInt(1) : raw(s, rnd() * 1.5)]));
+      const costs = costsFor(flat);
+      if (rnd() < 0.5) costs.set(syms[Math.floor(rnd() * n)], over);
+      const p = run(input({ targets, budgetUsd, balances }), deep(), costs);
+      const held = p.drift.reduce((s, d) => s + d.valueUsd, 0);
+      if (!p.picks) continue;
+      expect(p.investedUsd).toBeLessThanOrEqual(budgetUsd);
+      if (p.cashWhy?.startsWith('for these reasons')) {
+        const amounts = [...p.cashWhy.matchAll(/\$([\d,]+\.\d\d) because/g)].map((m) => Number(m[1].replace(/,/g, '')));
+        expect(Math.round(amounts.reduce((a, b) => a + b, 0) * 100)).toBe(Math.round(p.cashUsd * 100));
+      }
+      if (held < Math.max(1, budgetUsd * 0.01)) continue; // nothing held: the run goes at the target weights
+      checked++;
+      for (const pick of p.picks) {
+        const d = p.drift.find((x) => x.symbol === pick.symbol)!;
+        expect(d.valueUsd).toBeLessThan((d.targetPct / 100) * (held + budgetUsd));
+      }
+    }
+    expect(checked).toBeGreaterThan(1000);
+  });
+
   it('nothing passes: no buy, every reason given', () => {
     const p = run(input(), tape(), costsFor(over));
     expect(p.picks).toBeNull();

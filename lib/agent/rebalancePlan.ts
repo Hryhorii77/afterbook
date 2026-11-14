@@ -143,6 +143,16 @@ export function planRebalance(
       l.reasons.push(why);
       small.set(l.symbol, why);
     };
+    // A stock dropped for the minimum is small only next to the others: when one of those fails, the split
+    // changes, so every dropped one is looked at again (recheck, 2026-11-14: they stayed dropped and their
+    // money went into a stock far over target).
+    const recheckSmall = () => {
+      for (const sym of small.keys()) {
+        const base = screened.find((l) => l.symbol === sym)!;
+        Object.assign(legs.find((l) => l.symbol === sym)!, { ...base, reasons: [...base.reasons] });
+      }
+      small.clear();
+    };
     for (;;) {
       const among = syms.filter((s) => !out.has(s) && !small.has(s));
       if (!among.length) break;
@@ -161,6 +171,7 @@ export function planRebalance(
       const failed = trials.filter((t) => t.verdict !== 'buy' || !((t.usd ?? 0) > 0));
       if (failed.length) {
         for (const t of failed) skip(legs.find((l) => l.symbol === t.symbol)!, t.decidedBy ?? 'It didn’t pass your limits.');
+        recheckSmall();
         continue;
       }
       const whole = wholePercentBasket(trials.map((t) => ({ symbol: t.symbol, usd: t.usd! })));
@@ -207,8 +218,8 @@ export function planRebalance(
         parts.push({
           usd: held,
           text: who.length
-            ? `${who.join(', and ')}, and the others get no more than their target share after this run`
-            : 'the others get no more than their target share after this run',
+            ? `${who.join(', and ')}, and this run puts money only into stocks under their target share`
+            : 'this run puts money only into stocks under their target share',
         });
       }
       // Only what sizing really cut (cost limit or swap caps); cents lost to whole dollars count as rounding.
@@ -243,7 +254,7 @@ export function planRebalance(
       };
     }
     // Nothing to buy: the ones under target failed, and the rest are at or over their share after this run.
-    const why = (s: string) => out.get(s) ?? 'It’s at or over its target share after this run, so this run puts nothing into it.';
+    const why = (s: string) => out.get(s) ?? small.get(s) ?? 'It’s at or over its target share after this run, so this run puts nothing into it.';
     return none(
       legs,
       `Nothing can be bought for this run right now, so the run stays in your wallet. ${syms.map((s) => `${ticker(s)}: ${why(s)}`).join(' ')}`.trim(),
