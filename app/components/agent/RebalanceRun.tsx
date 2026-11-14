@@ -117,7 +117,7 @@ export function RebalanceRun({
           {plan.cashUsd >= 0.01 && (
             <p className="plan-hint">
               {usd(plan.cashUsd, 2)} of this run’s {usd(check.budgetUsd, 2)} stays in your wallet
-              {plan.cashWhy ? ` ${plan.cashWhy}.` : '.'}
+              {plan.cashWhy ? `${plan.cashWhy.startsWith(':') ? '' : ' '}${plan.cashWhy}.` : '.'}
             </p>
           )}
         </>
