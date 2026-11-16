@@ -1,16 +1,10 @@
 // POST /api/agent/plan: the trade plan (lib/agent/plan.ts) plus Claude's explanation (lib/agent/explain.ts).
 // Read-only: it builds nothing a wallet could sign. A buy is reviewed and signed in the swap panel.
 import { NextResponse } from 'next/server';
-import { getTape } from '@/lib/market/tape';
-import { getBuyQuoter } from '@/lib/market/lotQuote';
 import { getStock } from '@/lib/stocks/tokens';
-import { swapFee } from '@/lib/swap/swap';
-import { getEarningsSyncedAt } from '@/lib/stocks/earningsCalendar';
 import { limitRead } from '@/lib/server/readGuard';
-import { parsePlanInput, screen, sizeLegs, summarize, fallbackExplanation, type CostModel } from '@/lib/agent/plan';
-import { explainPlan } from '@/lib/agent/explain';
-import { whyNotExplain } from '@/lib/agent/explainGate';
-import { countPlanBriefly } from '@/lib/agent/planStats';
+import { parsePlanInput } from '@/lib/agent/plan';
+import { runPlan } from '@/lib/agent/runPlan';
 
 export const maxDuration = 60;
 
@@ -28,28 +22,7 @@ export async function POST(request: Request) {
   if (typeof input === 'string') return NextResponse.json({ error: input }, { status: 400 });
 
   try {
-    const tape = await getTape();
-    const legs = screen(input, tape, await getEarningsSyncedAt());
-    const costs = new Map<string, CostModel | null>();
-    await Promise.all(
-      legs
-        .filter((l) => l.verdict === 'buy')
-        .map(async (l) => {
-          const stock = getStock(l.symbol);
-          costs.set(l.symbol, stock ? await getBuyQuoter(stock).catch(() => null) : null);
-        }),
-    );
-    const plan = summarize(sizeLegs(legs, input, costs, swapFee()?.bps ?? 0), input, tape.session);
-    const blocked = await whyNotExplain(request);
-    const explained = blocked ? { text: null, why: blocked } : await explainPlan(plan, input);
-    await countPlanBriefly({ explainedBy: explained.text != null ? 'claude' : 'fixed', buys: plan.legs.filter((l) => l.verdict === 'buy').length });
-    return NextResponse.json({
-      plan,
-      explanation: explained.text ?? fallbackExplanation(plan),
-      explainedBy: explained.text != null ? 'claude' : 'fixed',
-      // Why the fixed words were used (a hit limit vs. a reply the checks refused), null when Claude explained it.
-      fixedBecause: explained.text != null ? null : explained.why,
-    });
+    return NextResponse.json(await runPlan(input, request));
   } catch (err) {
     console.error('[/api/agent/plan]', err);
     return NextResponse.json({ error: 'plan unavailable, try again shortly' }, { status: 502 });

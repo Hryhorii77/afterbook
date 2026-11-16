@@ -346,7 +346,14 @@ Three higher, $0.05 endpoints for agents doing heavier analysis:
 
 **Afterbook never holds a signing key for this.** Settlement is executed by Coinbase's hosted CDP facilitator, not by this app — Afterbook only supplies a plain receiving wallet address (`X402_PAYOUT_ADDRESS`) and a CDP *platform* API key/secret pair that authenticates this server to Coinbase's facilitator service (not a blockchain key). Payment lands directly in that address (the owner's own wallet); nothing is ever custodied here, same as everywhere else in this app, and nothing swaps or spends it automatically.
 
-All six routes 503 with `{ "error": "x402 tier not configured" }` until `CDP_API_KEY_ID`, `CDP_API_KEY_SECRET`, and `X402_PAYOUT_ADDRESS` are all set.
+**Trade plans and baskets for agents (x402, $0.05; 2026-11-16, for the Stocks Maxxing quest).** The same code as `/plan` (`lib/agent/runPlan.ts`, shared with `/api/agent/plan` and `/api/agent/brief`): the code decides every verdict and size, Claude only explains (or the fixed words do, under the same Claude limits). Read-only: neither builds anything a wallet could sign; a person buys on afterbook.app behind the region gate and eligibility box.
+
+- **`/api/v1/x402/plan`** — `{ symbols?, budgetUsd, maxPremiumBp?, maxCostBp?, earningsDays? }` (`symbols` comma-separated, e.g. `NVDAc,AAPLc`; none = the deepest pools). Returns `{ plan, explanation, explainedBy, fixedBecause, buyAt }`: each stock's buy, wait or skip with its reasons and size, as on the page.
+- **`/api/v1/x402/basket`** — `{ theme?, exclude?, minStocks?, budgetUsd, cashPct?, maxPremiumBp?, maxCostBp?, earningsDays? }` (`exclude` comma-separated GICS sectors; encode `&` in "Memory & storage"). Returns `{ brief, explanation, explainedBy, fixedBecause, buyUrl }`: the 2–4 picks with amounts, every dropped stock and why, and the `/build` page where a person reviews and signs the basket.
+
+Both take query parameters (GET, like the other routes), refuse unknown ones (a typo is a 400, not a silent default) and take no `note`: on the page it is the person's own words, and from an agent it would only be text for Claude, while the numbers decide (`lib/agent/x402Input.ts`). A 400 or 502 isn't charged (`withX402` settles only a successful response). Each paid call counts as a plan in the traction stats and in `paid` (`/api/agent/stats`); it is counted once the payment is verified, so a call whose settlement then fails still counts. Both routes keep the page's 10-a-minute `limitRead` per caller (the handler runs before settlement, so one signed payment sent many times at once can't run many plans; a 429 isn't charged), and paid calls share the page's Claude limits: past them the plan comes with the fixed words and `fixedBecause` says why. Tests: `tests/x402Plan.test.ts`.
+
+All eight routes 503 with `{ "error": "x402 tier not configured" }` until `CDP_API_KEY_ID`, `CDP_API_KEY_SECRET`, and `X402_PAYOUT_ADDRESS` are all set.
 
 ## Deploying
 

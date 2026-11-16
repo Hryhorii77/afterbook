@@ -77,8 +77,8 @@ describe('plan counters', () => {
     // The expiry is set once per day key, on its first plan.
     expect(r.calls.filter((c) => c.startsWith('expire'))).toEqual(['expire stats:plans:2026-11-08', 'expire stats:plans:2026-11-09']);
     const s = await planStats(7, day + 86_400_000);
-    expect(s?.total).toEqual({ made: 3, claude: 2, withBuy: 1, ruleChecks: 0, rulePassed: 0 });
-    expect(s?.byDay['2026-11-08']).toEqual({ made: 2, claude: 1, withBuy: 1, ruleChecks: 0, rulePassed: 0 });
+    expect(s?.total).toEqual({ made: 3, claude: 2, withBuy: 1, ruleChecks: 0, rulePassed: 0, paid: 0 });
+    expect(s?.byDay['2026-11-08']).toEqual({ made: 2, claude: 1, withBuy: 1, ruleChecks: 0, rulePassed: 0, paid: 0 });
   });
   it('counts rule checks in the same day hash, setting the expiry only if the day had none', async () => {
     const day = Date.parse('2026-11-12T12:00:00Z');
@@ -87,7 +87,17 @@ describe('plan counters', () => {
     expect(r.calls.filter((c) => c.startsWith('expire'))).toEqual(['expire stats:plans:2026-11-12']);
     await countPlan({ explainedBy: 'fixed', buys: 0 }, day);
     const s = await planStats(1, day);
-    expect(s?.total).toEqual({ made: 1, claude: 0, withBuy: 0, ruleChecks: 2, rulePassed: 1 });
+    expect(s?.total).toEqual({ made: 1, claude: 0, withBuy: 0, ruleChecks: 2, rulePassed: 1, paid: 0 });
+  });
+  it('counts a plan an agent paid for (x402) in made and in paid', async () => {
+    const day = Date.parse('2026-11-16T12:00:00Z');
+    await countPlan({ explainedBy: 'fixed', buys: 1, paid: true }, day);
+    await countPlan({ explainedBy: 'fixed', buys: 0 }, day);
+    expect(r.calls.filter((c) => c.startsWith('hincrby') && c.includes('2026-11-16'))).toEqual([
+      'hincrby stats:plans:2026-11-16 made', 'hincrby stats:plans:2026-11-16 withBuy', 'hincrby stats:plans:2026-11-16 paid',
+      'hincrby stats:plans:2026-11-16 made',
+    ]);
+    expect((await planStats(1, day))?.total).toEqual({ made: 2, claude: 0, withBuy: 1, ruleChecks: 0, rulePassed: 0, paid: 1 });
   });
   it('waits at most a moment for a slow Redis', async () => {
     const { countPlanBriefly } = await import('../lib/agent/planStats');

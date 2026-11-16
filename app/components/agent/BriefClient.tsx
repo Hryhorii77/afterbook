@@ -11,7 +11,7 @@ import type { Brief } from '@/lib/agent/brief';
 import { BRIEF_LIMITS, EARNINGS_OPTIONS, PLAN_LIMITS } from '@/lib/agent/limits';
 import { PROFILES, SECTORS, THEMES, type Sector } from '@/lib/stocks/sectors';
 import { getStock } from '@/lib/stocks/tokens';
-import { formatSpec } from '@/lib/build/customBasket';
+import { buildPath } from '@/lib/build/customBasket';
 import { cleanAmountInput, cleanPercentInput, readNumberFields } from '@/lib/agent/formFields';
 import { bpPct, formatNextOpen, usd } from '@/lib/format';
 import { BasketBuyPanel } from '../baskets/BasketBuyPanel';
@@ -323,8 +323,7 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
                 One approval of exactly the total, then one swap per stock, each rebuilt and checked before you sign. The box starts at the basket’s total, which splits into
                 the amounts above; if you change it, the split follows the same weights. What you type in the box is what you buy.{' '}
                 <Link
-                  // Explicit weights unless all equal: /build would re-split 33/34/33 as 34/33/33 (review, 2026-11-13).
-                  href={`/build/${brief.basket.every((l) => l.weightPct === brief.basket![0].weightPct) ? formatSpec(brief.basket) : brief.basket.map((l) => `${l.symbol}-${l.weightPct}`).join('_')}`}
+                  href={buildPath(brief.basket)}
                   className="emph-link"
                 >
                   Open this basket on its own page
