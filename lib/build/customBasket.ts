@@ -65,6 +65,11 @@ export function formatSpec(legs: BasketLeg[]): string {
   return legs.map((l) => (equal ? l.symbol : `${l.symbol}-${l.weightPct}`)).join('_');
 }
 
+/** The /build page for exactly these weights: the short spec only when all are equal, since /build would
+ *  re-split a near-equal 33/34/33 as 34/33/33 (review, 2026-11-13). */
+export const buildPath = (legs: BasketLeg[]) =>
+  `/build/${legs.every((l) => l.weightPct === legs[0].weightPct) ? formatSpec(legs) : legs.map((l) => `${l.symbol}-${l.weightPct}`).join('_')}`;
+
 export const basketLabel = (legs: BasketLeg[]) => legs.map((l) => `${l.symbol} ${l.weightPct}%`).join(' · ');
 
 export interface LegGapInput {

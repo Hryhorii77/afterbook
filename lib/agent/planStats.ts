@@ -15,11 +15,13 @@ export interface PlanDay {
   /** Personal stock rules (/rules): runs checked, and checks where the run passed. */
   ruleChecks: number;
   rulePassed: number;
+  /** Plans and baskets paid for by agents through x402 (/api/v1/x402/plan, /basket); also in `made`. */
+  paid: number;
 }
 
 /** Bookkeeping: never throws. One to three Redis commands per plan, plus the expiry once a day (on the
  *  day's first plan). The route waits at most a moment for it (countPlanBriefly). */
-export async function countPlan(p: { explainedBy: 'claude' | 'fixed'; buys: number }, now = Date.now()): Promise<void> {
+export async function countPlan(p: { explainedBy: 'claude' | 'fixed'; buys: number; paid?: boolean }, now = Date.now()): Promise<void> {
   if (!redis) return;
   const key = KEY(new Date(now).toISOString().slice(0, 10));
   try {
@@ -27,6 +29,7 @@ export async function countPlan(p: { explainedBy: 'claude' | 'fixed'; buys: numb
     pipe.hincrby(key, 'made', 1);
     if (p.explainedBy === 'claude') pipe.hincrby(key, 'claude', 1);
     if (p.buys > 0) pipe.hincrby(key, 'withBuy', 1);
+    if (p.paid) pipe.hincrby(key, 'paid', 1);
     const [made] = (await pipe.exec()) as number[];
     if (made === 1) await redis.expire(key, TTL_S);
   } catch (err) {
@@ -62,7 +65,7 @@ export async function planStats(days: number, now = Date.now()): Promise<{ days:
   const pipe = redis.pipeline();
   for (const d of dayKeys) pipe.hgetall(KEY(d));
   const rows = (await pipe.exec()) as (Record<string, string | number> | null)[];
-  const total: PlanDay = { made: 0, claude: 0, withBuy: 0, ruleChecks: 0, rulePassed: 0 };
+  const total: PlanDay = { made: 0, claude: 0, withBuy: 0, ruleChecks: 0, rulePassed: 0, paid: 0 };
   const byDay: Record<string, PlanDay> = {};
   rows.forEach((r, i) => {
     if (!r) return;
@@ -72,6 +75,7 @@ export async function planStats(days: number, now = Date.now()): Promise<{ days:
       withBuy: Number(r.withBuy ?? 0),
       ruleChecks: Number(r.ruleChecks ?? 0),
       rulePassed: Number(r.rulePassed ?? 0),
+      paid: Number(r.paid ?? 0),
     };
     byDay[dayKeys[i]] = day;
     total.made += day.made;
@@ -79,6 +83,7 @@ export async function planStats(days: number, now = Date.now()): Promise<{ days:
     total.withBuy += day.withBuy;
     total.ruleChecks += day.ruleChecks;
     total.rulePassed += day.rulePassed;
+    total.paid += day.paid;
   });
   return { days, total, byDay };
 }
@@ -86,6 +91,6 @@ export async function planStats(days: number, now = Date.now()): Promise<{ days:
 /** What the plan route calls: the count, but never more than `ms` of waiting. Upstash retries with backoff
  *  when Redis is down, which would otherwise hold the plan for seconds; a count that loses the race may
  *  still land, or be lost, which is fine for a metric. */
-export async function countPlanBriefly(p: { explainedBy: 'claude' | 'fixed'; buys: number }, ms = 300): Promise<void> {
+export async function countPlanBriefly(p: { explainedBy: 'claude' | 'fixed'; buys: number; paid?: boolean }, ms = 300): Promise<void> {
   await Promise.race([countPlan(p), new Promise<void>((resolve) => setTimeout(resolve, ms))]);
 }
