@@ -4,6 +4,7 @@ import { getTape } from '@/lib/market/tape';
 import { getGeoInfo } from '@/lib/server/geo';
 import { findStock, getStock, poolVenue } from '@/lib/stocks/tokens';
 import HomeClient from '../components/markets/HomeClient';
+import { getMultiplierHistory } from '@/lib/stocks/multiplierHistory';
 import { shareMetadata } from '@/lib/share/shareMeta';
 
 interface PageProps {
@@ -38,6 +39,6 @@ export default async function SymbolPage({ params }: PageProps) {
     notFound();
   }
 
-  const [tape, geo] = await Promise.all([getTape(), getGeoInfo()]);
-  return <HomeClient initialTape={tape} initialGeo={geo} initialSymbol={stock.symbol} />;
+  const [tape, geo, corporateActions] = await Promise.all([getTape(), getGeoInfo(), getMultiplierHistory()]);
+  return <HomeClient initialTape={tape} initialGeo={geo} corporateActions={corporateActions} initialSymbol={stock.symbol} />;
 }

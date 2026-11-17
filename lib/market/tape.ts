@@ -4,6 +4,7 @@ import { midPriceUsd, poolDepth, readPoolState, MULTIPLIER_ONE } from './quote';
 import { recordSample } from './history';
 import { recordPriceSample } from './volatility';
 import { checkMultiplierChange } from '../stocks/corporateActions';
+import { syncMultiplierHistory } from '../stocks/multiplierHistory';
 import { getNextEarnings } from '../stocks/earningsCalendar';
 import { sendTelegramMessage } from '../alerts/telegram';
 
@@ -193,6 +194,8 @@ async function buildTape(): Promise<TapeRow[]> {
       if (poolState) {
         void checkMultiplierChange(stock.symbol, poolState.multiplier, Date.now()).then((change) => {
           if (!change) return;
+          // Record it for the stock pages now rather than at the daily scan (lib/stocks/multiplierHistory.ts).
+          void syncMultiplierHistory().catch(() => {});
           const adminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
           if (!adminChatId) return;
           void sendTelegramMessage(

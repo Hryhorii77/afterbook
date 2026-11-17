@@ -2,6 +2,7 @@ import { getTape } from '@/lib/market/tape';
 import { getGeoInfo } from '@/lib/server/geo';
 import { buildTodaySnapshot } from '@/lib/market/todaySnapshot';
 import HomeClient from '../components/markets/HomeClient';
+import { getMultiplierHistory } from '@/lib/stocks/multiplierHistory';
 import { shareMetadata } from '@/lib/share/shareMeta';
 
 export const metadata = shareMetadata({
@@ -17,8 +18,8 @@ export const metadata = shareMetadata({
 // doesn't see empty dashes and "region could not be detected" that only
 // resolve after client JS hydrates.
 export default async function Page() {
-  const [tape, geo] = await Promise.all([getTape(), getGeoInfo()]);
+  const [tape, geo, corporateActions] = await Promise.all([getTape(), getGeoInfo(), getMultiplierHistory()]);
   // Lead with the biggest liquid gap (the pick /today uses), not whichever stock is listed first.
   const initialSymbol = buildTodaySnapshot(tape).headline?.symbol;
-  return <HomeClient initialTape={tape} initialGeo={geo} initialSymbol={initialSymbol} />;
+  return <HomeClient initialTape={tape} initialGeo={geo} corporateActions={corporateActions} initialSymbol={initialSymbol} />;
 }
