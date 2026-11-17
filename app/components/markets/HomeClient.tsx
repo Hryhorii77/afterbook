@@ -17,6 +17,8 @@ import { TapeSection } from './TapeSection';
 import { LotLab } from './LotLab';
 import { ExecuteSection } from './ExecuteSection';
 import { MarketsFooter } from './MarketsFooter';
+import { CorporateActionsPanel } from './CorporateActionsPanel';
+import type { CorporateAction } from '@/lib/stocks/multiplierActions';
 
 function formatLogTime(ts: number): string {
   return (
@@ -29,9 +31,11 @@ interface HomeClientProps {
   initialTape: TapeResult;
   initialGeo: GeoInfo;
   initialSymbol?: string;
+  /** Dividends and splits of every tracked token (lib/stocks/multiplierHistory.ts); scanned false hides the panel. */
+  corporateActions?: { actions: CorporateAction[]; scanned: boolean };
 }
 
-export default function HomeClient({ initialTape, initialGeo, initialSymbol }: HomeClientProps) {
+export default function HomeClient({ initialTape, initialGeo, initialSymbol, corporateActions }: HomeClientProps) {
   const { tape, refreshFailed, eventLog } = useTapePoll(initialTape);
   const trend = useTrend();
   const now = useNow();
@@ -121,6 +125,8 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol }: H
         )}
       </section>
       )}
+
+      {corporateActions && <CorporateActionsPanel stock={activeStock} actions={corporateActions.actions} scanned={corporateActions.scanned} />}
 
       <TapeSection
         tape={tape}
