@@ -173,6 +173,34 @@ export default function TradeHome({
               <span className="arrow">→</span>
             </Link>
           </section>
+
+          <section className="panel trade-tools" aria-labelledby="plan-tools">
+            <h2 id="plan-tools">Plan before you buy</h2>
+            <p className="trade-tools-note">Afterbook&apos;s code checks and sizes each planned buy; Claude explains it. You sign each one.</p>
+            <ul className="trade-tools-list">
+              <li>
+                <Link href="/plan" className="page-link">
+                  Plan a trade
+                  <span className="arrow">→</span>
+                </Link>
+                <span>Pick stocks and your limits. Each one is checked for its gap, earnings and cost, then sized.</span>
+              </li>
+              <li>
+                <Link href="/plan#basket" className="page-link">
+                  Describe a basket
+                  <span className="arrow">→</span>
+                </Link>
+                <span>Choose a theme, such as AI chips. Afterbook picks 2 to 4 stocks with deep pools and splits your budget.</span>
+              </li>
+              <li>
+                <Link href="/rules" className="page-link">
+                  Stock rules
+                  <span className="arrow">→</span>
+                </Link>
+                <span>Repeat a buy weekly or monthly, or keep a basket at its target weights. Each run is checked again.</span>
+              </li>
+            </ul>
+          </section>
         </div>
 
         <aside className="panel action-card" ref={cardRef} aria-label="Swap, borrow or lend">
