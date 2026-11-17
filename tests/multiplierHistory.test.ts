@@ -8,11 +8,16 @@ const store = vi.hoisted(() => new Map<string, unknown>());
 vi.mock('../lib/server/redis', () => ({
   redis: {
     get: async (k: string) => store.get(k) ?? null,
-    set: async (k: string, v: unknown) => void store.set(k, v),
+    set: async (k: string, v: unknown, opts?: { nx?: boolean }) => {
+      if (opts?.nx && store.has(k)) return null;
+      store.set(k, v);
+      return 'OK';
+    },
+    del: async (k: string) => void store.delete(k),
   },
 }));
 
-import { scanRange, mergeActions, syncMultiplierHistory, HISTORY_START_BLOCK, type ScanDeps } from '../lib/stocks/multiplierHistory';
+import { scanRange, mergeActions, syncMultiplierHistory, getMultiplierHistory, HISTORY_START_BLOCK, type ScanDeps } from '../lib/stocks/multiplierHistory';
 import { STOCKS } from '../lib/stocks/tokens';
 
 const E18 = BigInt(10) ** BigInt(18);
@@ -100,13 +105,14 @@ describe('syncMultiplierHistory', () => {
     const ev = { block: HISTORY_START_BLOCK + BigInt(70_000), address: AAPL, to: BigInt('1000500389301980219') };
     const { deps, calls } = fakeChain([ev], head);
     const r1 = await syncMultiplierHistory(deps);
-    expect(r1).toMatchObject({ ok: true, caughtUp: true, found: 1, total: 1 });
+    expect(r1).toMatchObject({ ok: true, caughtUp: true, progressed: true, becameReady: true, found: 1, total: 1 });
+    expect(store.has('corp:lock')).toBe(false);
     expect(calls[0][0]).toBe(HISTORY_START_BLOCK);
     expect(store.get('corp:cursor')).toBe((head - BigInt(300)).toString());
     calls.length = 0;
     const { deps: deps2, calls: calls2 } = fakeChain([ev], head + BigInt(1_000));
     const r2 = await syncMultiplierHistory(deps2);
-    expect(r2).toMatchObject({ found: 0, total: 1 });
+    expect(r2).toMatchObject({ found: 0, total: 1, becameReady: false });
     // One query per 10 addresses for the one new chunk.
     expect(calls2).toEqual(Array(Math.ceil(STOCKS.length / 10)).fill([head - BigInt(299), head + BigInt(700)]));
   });
@@ -118,5 +124,33 @@ describe('syncMultiplierHistory', () => {
     expect(r).toMatchObject({ added: 1, found: 1 });
     expect(calls[0]).toEqual([HISTORY_START_BLOCK, HISTORY_START_BLOCK + BigInt(49_999)]);
     expect((store.get('corp:scanned') as string[]).length).toBe(STOCKS.length);
+  });
+  it('pages stay hidden until the first full scan reaches the head', async () => {
+    const head = HISTORY_START_BLOCK + BigInt(1_000_300);
+    const { deps } = fakeChain([], head);
+    // A run that runs out of time part way: cursor written, history not ready.
+    const r = await syncMultiplierHistory(deps, -1);
+    expect(r).toMatchObject({ caughtUp: false, progressed: false, becameReady: false });
+    expect(store.has('corp:cursor')).toBe(true);
+    expect(await getMultiplierHistory()).toEqual({ actions: [], scanned: false });
+    const r2 = await syncMultiplierHistory(deps);
+    expect(r2).toMatchObject({ caughtUp: true, becameReady: true });
+    expect((await getMultiplierHistory()).scanned).toBe(true);
+  });
+  it('a stuck scan says progressed: false', async () => {
+    const head = HISTORY_START_BLOCK + BigInt(100_300);
+    const { deps } = fakeChain([], head, HISTORY_START_BLOCK + BigInt(10));
+    const r = await syncMultiplierHistory(deps);
+    expect(r).toMatchObject({ ok: true, progressed: false, caughtUp: false });
+    expect(store.get('corp:cursor')).toBe((HISTORY_START_BLOCK - BigInt(1)).toString());
+  });
+  it('a second run while one holds the lock returns without reading or writing', async () => {
+    store.set('corp:lock', '1');
+    const { deps, calls } = fakeChain([], HISTORY_START_BLOCK + BigInt(100_300));
+    const r = await syncMultiplierHistory(deps);
+    expect(r).toMatchObject({ ok: true, skipped: 'another run is in progress', found: 0 });
+    expect(calls).toEqual([]);
+    expect(store.has('corp:cursor')).toBe(false);
+    expect(store.get('corp:lock')).toBe('1');
   });
 });

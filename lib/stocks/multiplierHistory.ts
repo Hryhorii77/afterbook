@@ -4,9 +4,9 @@
 // MultiplierUpdated(uint256 newMultiplier) from the token (AAPLc, 2026-11-16 15:58 UTC, block 58,271,537:
 // 1.0 -> 1.000500389, Apple's $0.27 dividend). This module finds those events for every tracked token,
 // with the value before (multiplier() one block earlier) and the block time, and keeps them in Redis
-// for the stock pages. The daily job (/api/cron/corporate-actions) scans forward from a cursor; the
-// hourly multiplier check in the tape (lib/stocks/corporateActions.ts) starts a scan when it sees a
-// change. Nothing here is inferred from prices: every entry is an onchain event.
+// for the stock pages. Only the daily job (/api/cron/corporate-actions) scans, forward from a cursor
+// (Coinbase changes a multiplier a few times a quarter; the tape's hourly check still pings the owner).
+// Nothing here is inferred from prices: every entry is an onchain event.
 import 'server-only';
 import { createPublicClient, decodeAbiParameters, http, parseAbiItem, type PublicClient } from 'viem';
 import { base } from 'viem/chains';
@@ -40,6 +40,13 @@ const RUN_BUDGET_MS = 75_000;
 const KEY_ACTIONS = 'corp:actions';
 const KEY_CURSOR = 'corp:cursor';
 const KEY_SCANNED = 'corp:scanned';
+/** Set once the first full scan has reached the head: until then the pages show nothing, so a half-done
+ *  history never reads as "no dividend so far". */
+const KEY_READY = 'corp:ready';
+/** One run at a time: two overlapping runs would each write their own list and cursor, and one could drop
+ *  the other's find behind its cursor. Expires after the cron's 120 s limit in case a run dies holding it. */
+const KEY_LOCK = 'corp:lock';
+const LOCK_SECONDS = 130;
 
 const EVENT = parseAbiItem('event MultiplierUpdated(uint256 newMultiplier)');
 const MULTIPLIER_ABI = [{ type: 'function', name: 'multiplier', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }] as const;
@@ -132,11 +139,23 @@ export function mergeActions(stored: CorporateAction[], found: CorporateAction[]
  */
 export async function syncMultiplierHistory(deps: ScanDeps = { logs: getLogsClient(), reads: getClient() }, budgetMs = RUN_BUDGET_MS) {
   if (!redis) return { ok: false as const, error: 'no store' };
+  const got = await redis.set(KEY_LOCK, '1', { nx: true, ex: LOCK_SECONDS });
+  if (got == null) return { ok: true as const, skipped: 'another run is in progress' as const, found: 0, becameReady: false };
+  try {
+    return await syncLocked(deps, budgetMs);
+  } finally {
+    await redis.del(KEY_LOCK).catch(() => {});
+  }
+}
+
+async function syncLocked(deps: ScanDeps, budgetMs: number) {
+  const r = redis!;
   const deadline = Date.now() + budgetMs;
-  const [cursorRaw, scannedRaw, storedRaw] = await Promise.all([
-    redis.get<string | number>(KEY_CURSOR),
-    redis.get<string[]>(KEY_SCANNED),
-    redis.get<CorporateAction[]>(KEY_ACTIONS),
+  const [cursorRaw, scannedRaw, storedRaw, readyRaw] = await Promise.all([
+    r.get<string | number>(KEY_CURSOR),
+    r.get<string[]>(KEY_SCANNED),
+    r.get<CorporateAction[]>(KEY_ACTIONS),
+    r.get<string | number>(KEY_READY),
   ]);
   const head = (await deps.logs.getBlockNumber()) - CONFIRMATIONS;
   const cursor = cursorRaw != null ? BigInt(cursorRaw) : HISTORY_START_BLOCK - BigInt(1);
@@ -149,37 +168,56 @@ export async function syncMultiplierHistory(deps: ScanDeps = { logs: getLogsClie
   let budget = MAX_CHUNKS_PER_RUN;
   // Tokens new to STOCKS: their past up to the cursor (the forward scan below covers them from there).
   let addedDone = true;
+  let addedProgress = false;
   if (added.length) {
     const back = await scanRange(deps, added, HISTORY_START_BLOCK, cursor, budget, deadline);
     found = found.concat(back.actions);
     budget -= back.chunks;
     addedDone = back.reached >= cursor;
+    addedProgress = back.chunks > 0;
   }
   const fwd = cursor < head && budget > 0 ? await scanRange(deps, addedDone ? all : known, cursor + BigInt(1), head, budget, deadline) : { actions: [], reached: cursor, chunks: 0 };
   found = found.concat(fwd.actions);
 
   const stored = storedRaw ?? [];
   const merged = mergeActions(stored, found);
-  const writes: Promise<unknown>[] = [redis.set(KEY_CURSOR, fwd.reached.toString())];
-  if (merged.length !== stored.length) writes.push(redis.set(KEY_ACTIONS, merged));
-  if (addedDone) writes.push(redis.set(KEY_SCANNED, all));
+  const caughtUp = fwd.reached >= head && addedDone;
+  const becameReady = caughtUp && readyRaw == null;
+  // The list first, then the cursor: a run that dies between them rescans, never skips.
+  if (merged.length !== stored.length) await r.set(KEY_ACTIONS, merged);
+  const writes: Promise<unknown>[] = [r.set(KEY_CURSOR, fwd.reached.toString())];
+  if (addedDone) writes.push(r.set(KEY_SCANNED, all));
+  if (becameReady) writes.push(r.set(KEY_READY, Date.now()));
   await Promise.all(writes);
-  return { ok: true as const, from: (cursor + BigInt(1)).toString(), reached: fwd.reached.toString(), head: head.toString(), caughtUp: fwd.reached >= head, added: added.length, found: found.length, total: merged.length };
+  return {
+    ok: true as const,
+    from: (cursor + BigInt(1)).toString(),
+    reached: fwd.reached.toString(),
+    head: head.toString(),
+    caughtUp,
+    // false while not caught up: the first query failed or timed out, so a stuck scan shows in the logs.
+    progressed: fwd.reached > cursor || addedProgress || cursor >= head,
+    becameReady,
+    added: added.length,
+    found: found.length,
+    total: merged.length,
+  };
 }
 
-/** Every stored action for the stock pages, and whether a scan has run at all (`scanned` false: the
- *  pages say nothing rather than "none so far"). Two Redis reads an hour per instance (Next's data cache). */
+/** Every stored action for the stock pages, and whether the first full scan has finished (`scanned` false:
+ *  the pages say nothing rather than "none so far"). Two Redis reads an hour per instance (Next's data
+ *  cache); the cron refreshes it when it finds something or first catches up. */
 export const getMultiplierHistory = unstable_cache(
   async (): Promise<{ actions: CorporateAction[]; scanned: boolean }> => {
     if (!redis) return { actions: [], scanned: false };
     try {
-      const [actions, cursor] = await Promise.all([redis.get<CorporateAction[]>(KEY_ACTIONS), redis.get<string | number>(KEY_CURSOR)]);
-      return { actions: actions ?? [], scanned: cursor != null };
+      const [actions, ready] = await Promise.all([redis.get<CorporateAction[]>(KEY_ACTIONS), redis.get<string | number>(KEY_READY)]);
+      return { actions: actions ?? [], scanned: ready != null };
     } catch {
       return { actions: [], scanned: false };
     }
   },
-  ['corp-actions-v1'],
+  ['corp-actions-v2'],
   { revalidate: 3600, tags: ['corp-actions'] },
 );
 
