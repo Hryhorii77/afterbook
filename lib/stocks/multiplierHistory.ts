@@ -8,6 +8,7 @@
 // (Coinbase changes a multiplier a few times a quarter; the tape's hourly check still pings the owner).
 // Nothing here is inferred from prices: every entry is an onchain event.
 import 'server-only';
+import { randomUUID } from 'crypto';
 import { createPublicClient, decodeAbiParameters, http, parseAbiItem, type PublicClient } from 'viem';
 import { base } from 'viem/chains';
 import { unstable_cache } from 'next/cache';
@@ -47,6 +48,9 @@ const KEY_READY = 'corp:ready';
  *  the other's find behind its cursor. Expires after the cron's 120 s limit in case a run dies holding it. */
 const KEY_LOCK = 'corp:lock';
 const LOCK_SECONDS = 130;
+/** Deletes the lock only if it still holds this run's value: a run that outlived the lock (only possible
+ *  if maxDuration is raised past LOCK_SECONDS) must not free the next run's lock. One atomic step. */
+const RELEASE_LOCK = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
 
 const EVENT = parseAbiItem('event MultiplierUpdated(uint256 newMultiplier)');
 const MULTIPLIER_ABI = [{ type: 'function', name: 'multiplier', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }] as const;
@@ -139,12 +143,13 @@ export function mergeActions(stored: CorporateAction[], found: CorporateAction[]
  */
 export async function syncMultiplierHistory(deps: ScanDeps = { logs: getLogsClient(), reads: getClient() }, budgetMs = RUN_BUDGET_MS) {
   if (!redis) return { ok: false as const, error: 'no store' };
-  const got = await redis.set(KEY_LOCK, '1', { nx: true, ex: LOCK_SECONDS });
+  const token = randomUUID();
+  const got = await redis.set(KEY_LOCK, token, { nx: true, ex: LOCK_SECONDS });
   if (got == null) return { ok: true as const, skipped: 'another run is in progress' as const, found: 0, becameReady: false };
   try {
     return await syncLocked(deps, budgetMs);
   } finally {
-    await redis.del(KEY_LOCK).catch(() => {});
+    await redis.eval(RELEASE_LOCK, [KEY_LOCK], [token]).catch(() => {});
   }
 }
 
@@ -161,6 +166,9 @@ async function syncLocked(deps: ScanDeps, budgetMs: number) {
   const cursor = cursorRaw != null ? BigInt(cursorRaw) : HISTORY_START_BLOCK - BigInt(1);
   const all = STOCKS.map((s) => s.tokenAddress.toLowerCase() as `0x${string}`);
   const scanned = new Set((scannedRaw ?? []).map((a) => a.toLowerCase()));
+  // A token added to STOCKS after the first full scan: the panel is already on, so its page says "No dividend
+  // or split … so far" until its past is scanned, normally by the next run (or the one after, if a run runs
+  // out of time). Rare and fixes itself; corp:ready deliberately isn't cleared for it.
   const added = cursorRaw != null ? all.filter((a) => !scanned.has(a)) : [];
   const known = all.filter((a) => !added.includes(a));
 

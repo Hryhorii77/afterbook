@@ -14,6 +14,8 @@ vi.mock('../lib/server/redis', () => ({
       return 'OK';
     },
     del: async (k: string) => void store.delete(k),
+    // Only the lock release script is used: delete KEYS[0] if it still holds ARGV[0].
+    eval: async (_script: string, keys: string[], args: string[]) => (store.get(keys[0]) === args[0] ? (store.delete(keys[0]), 1) : 0),
   },
 }));
 
@@ -152,5 +154,13 @@ describe('syncMultiplierHistory', () => {
     expect(calls).toEqual([]);
     expect(store.has('corp:cursor')).toBe(false);
     expect(store.get('corp:lock')).toBe('1');
+  });
+  it('a run never frees a lock that is no longer its own', async () => {
+    const head = HISTORY_START_BLOCK + BigInt(100_300);
+    const { deps } = fakeChain([], head);
+    // The run's lock expires mid-run and another run takes it: this run's release must leave it alone.
+    const slow: ScanDeps = { ...deps, logs: { ...deps.logs, getBlockNumber: async () => (store.set('corp:lock', 'next-run'), head) } };
+    await syncMultiplierHistory(slow);
+    expect(store.get('corp:lock')).toBe('next-run');
   });
 });
