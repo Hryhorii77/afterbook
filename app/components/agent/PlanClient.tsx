@@ -74,6 +74,16 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
 
   useEffect(() => setLog(readLog()), []);
 
+  // /plan#basket opens "Describe a basket" (the home page links to it). Read after mount, like other URL state.
+  useEffect(() => {
+    const fromHash = () => {
+      if (window.location.hash === '#basket') setMode('brief');
+    };
+    fromHash();
+    window.addEventListener('hashchange', fromHash);
+    return () => window.removeEventListener('hashchange', fromHash);
+  }, []);
+
   // The log's "since then" column needs live prices: the same 20 s tape refresh as the other pages.
   useEffect(() => {
     let alive = true;
