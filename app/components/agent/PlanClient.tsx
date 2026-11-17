@@ -192,7 +192,11 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
             role="tab"
             aria-selected={mode === m}
             className={mode === m ? 'carry-direction-tab carry-direction-tab-active' : 'carry-direction-tab'}
-            onClick={() => setMode(m)}
+            onClick={() => {
+              setMode(m);
+              // Keep the address in step, so a reload or a shared link opens the tab on screen.
+              window.history.replaceState(window.history.state, '', m === 'brief' ? '#basket' : window.location.pathname + window.location.search);
+            }}
           >
             {label}
           </button>

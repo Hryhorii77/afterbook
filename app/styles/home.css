@@ -94,8 +94,8 @@
 .trade-tools h2 { margin: 0; }
 .trade-tools-note { font-size: 14px; color: var(--info); margin: 6px 0 4px; line-height: 1.5; }
 .trade-tools-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 20px; }
-/* The stocks column is narrow beside the card up to 1199px: one link a row, never 2 + 1. */
-@media (min-width: 901px) and (max-width: 1199px) { .trade-tools-list { grid-template-columns: minmax(0, 1fr); } }
+/* One link a row up to 1199px: on phones, and beside the card where the stocks column is narrow (never 2 + 1). */
+@media (max-width: 1199px) { .trade-tools-list { grid-template-columns: minmax(0, 1fr); } }
 .trade-tools-list li { display: flex; flex-direction: column; min-width: 0; padding-bottom: 4px; }
 .trade-tools-list .page-link { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
 .trade-tools-list li > span { font-size: 14px; line-height: 1.5; color: var(--text-dim); }
@@ -111,7 +111,6 @@
   .action-card { order: 2; position: static; }
   .trade-top { order: 3; }
   .trade-tools { order: 4; margin-top: 0; }
-  .trade-tools-list { grid-template-columns: minmax(0, 1fr); }
   .trade-home-intro h1 { font-size: 28px; }
 }
 /* Phones: each row is a grid instead of a table: the stock (logo, ticker, name) on the left, the Base
@@ -119,7 +118,7 @@
    stock name, which ran under the price (owner's iPhone, 2026-11-03); stacking the two numbers keeps
    the name readable down to 320px. */
 @media (max-width: 600px) {
-  .trade-top { padding: 16px 14px; }
+  .trade-top, .trade-tools { padding: 16px 14px; }
   .trade-top-table, .trade-top-table thead, .trade-top-table tbody { display: block; }
   .trade-top-table tr {
     display: grid;

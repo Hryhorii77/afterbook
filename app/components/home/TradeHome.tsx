@@ -176,7 +176,7 @@ export default function TradeHome({
 
           <section className="panel trade-tools" aria-labelledby="plan-tools">
             <h2 id="plan-tools">Plan before you buy</h2>
-            <p className="trade-tools-note">Afterbook&apos;s code checks and sizes every buy; Claude explains it. You sign each one.</p>
+            <p className="trade-tools-note">Afterbook&apos;s code checks and sizes each planned buy; Claude explains it. You sign each one.</p>
             <ul className="trade-tools-list">
               <li>
                 <Link href="/plan" className="page-link">
