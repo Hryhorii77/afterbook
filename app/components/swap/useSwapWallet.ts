@@ -8,15 +8,19 @@
 // - every approval and swap carries Afterbook's Builder Code (approve: `dataSuffix`; the swap goes
 //   through sendTransaction, which has none, so the suffix is appended with `concat`);
 // - a swap is only sent to the router (the server already checked the calldata, lib/swap/swap.ts);
-// - a transaction that reverts onchain is an error, never a success.
+// - a transaction that reverts onchain is an error, never a success;
+// - a one-signature basket batch (sendBatch, lib/swap/basketBatch.ts) is sent only atomically, to a wallet
+//   that says it can do that on Base, and its calls come only from basketBatchCalls.
 // Each panel keeps its own review card, wording and progress; this file never decides what to trade.
 
 import { useEffect, useState } from 'react';
-import { useAccount, usePublicClient, useReadContract, useSendTransaction, useSwitchChain, useWriteContract } from 'wagmi';
+import { useAccount, useCapabilities, useConfig, usePublicClient, useReadContract, useSendCalls, useSendTransaction, useSwitchChain, useWriteContract } from 'wagmi';
+import { waitForCallsStatus } from 'wagmi/actions';
 import { base } from 'wagmi/chains';
 import { concat, erc20Abi, getAddress, parseUnits, type Hex } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import { KYBER_ROUTER, type SwapQuote, type SwapTx } from '@/lib/swap/swap';
+import { canBatchAtomically, isBasketBatchCall, type BatchCall } from '@/lib/swap/basketBatch';
 import { useNotify } from '../notifications/notify';
 import { api } from './swapClient';
 
@@ -58,6 +62,12 @@ export function useSwapWallet() {
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
   const { sendTransactionAsync } = useSendTransaction();
+  const config = useConfig();
+  const { sendCallsAsync } = useSendCalls();
+  // Whether this wallet can sign a basket as one atomic batch on Base (EIP-5792). A wallet that doesn't
+  // answer, or answers anything but "supported", keeps the one-swap-at-a-time flow.
+  const { data: caps } = useCapabilities({ chainId: base.id, query: { enabled: !!address, retry: false, staleTime: 60_000 } });
+  const canBatch = !!address && canBatchAtomically(caps);
 
   const client = () => {
     if (!publicClient) throw new Error('Base is not reachable right now. Try again in a moment.');
@@ -106,13 +116,45 @@ export function useSwapWallet() {
     return receipt.transactionHash;
   };
 
+  /** Sends a basket batch (calls from basketBatchCalls only) as one atomic EIP-5792 batch and waits for it.
+   *  Returns the mined transaction hashes. `onSigned` runs once the wallet has accepted it. A batch that
+   *  failed is BATCH_FAILED when the wallet confirms it was atomic (nothing happened), otherwise
+   *  BATCH_UNKNOWN; so is one whose outcome can't be read in time (it may still go through). */
+  const sendBatch = async (calls: BatchCall[], onSigned?: (id: string) => void): Promise<Hex[]> => {
+    for (const c of calls) if (!isBasketBatchCall(c)) throw new Error('Refused: unexpected contract.');
+    // The Builder Code twice: on each call (the rule for every transaction here) and as the batch's
+    // `dataSuffix` capability, which a smart account appends to its whole operation: that is where Base's
+    // attribution reads it for Base Account (docs.base.org, builder codes for app developers). Optional, so
+    // a wallet without the capability still sends the batch.
+    const { id } = await sendCallsAsync({
+      calls,
+      chainId: base.id,
+      forceAtomic: true,
+      capabilities: { dataSuffix: { value: BUILDER_CODE_SUFFIX, optional: true } },
+    });
+    onSigned?.(id);
+    let status;
+    try {
+      status = await waitForCallsStatus(config, { id, timeout: 180_000 });
+    } catch {
+      throw new Error(BATCH_UNKNOWN);
+    }
+    const receipts = status.receipts ?? [];
+    if (status.status === 'success' && receipts.length > 0 && receipts.every((r) => r.status === 'success')) {
+      return [...new Set(receipts.map((r) => r.transactionHash))];
+    }
+    // 400: never sent onchain; 500: reverted as a whole. Anything else (600 is a partial revert) isn't "nothing happened".
+    if (status.status === 'failure' && status.atomic && (status.statusCode === 400 || status.statusCode === 500)) throw new Error(BATCH_FAILED);
+    throw new Error(BATCH_UNKNOWN);
+  };
+
   /** Sets the router's allowance for `token` back to zero (Portfolio's Revoke): approve(router, 0). */
   const revokeRouter = async (token: `0x${string}`, revertedMessage: string, onSigned?: () => void) => {
     await ensureBase();
     await approveExact(token, BigInt(0), revertedMessage, onSigned);
   };
 
-  return { address, ensureBase, routerAllowance, approveExact, sendSwap, revokeRouter };
+  return { address, ensureBase, routerAllowance, approveExact, sendSwap, revokeRouter, canBatch, sendBatch };
 }
 
 /** Wording for a run that stops: what the panel says and what the toast says. */
@@ -124,6 +166,8 @@ export interface RunTexts {
 }
 
 export const SWAP_CANCELLED = 'The swap was cancelled in your wallet. Nothing was bought or sold.';
+export const BATCH_FAILED = 'The basket’s transaction reverted onchain, so nothing was bought and nothing was approved. Prices may have moved: review it again.';
+export const BATCH_UNKNOWN = 'Your wallet sent the basket, but its outcome couldn’t be read yet. Check your wallet activity before buying again.';
 export const SWAP_REPLACED = 'Your wallet replaced the swap with another transaction. Check your wallet activity to see what went through.';
 
 /** Busy label, error line and the try/catch every panel wraps a wallet run in. */

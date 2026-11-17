@@ -7,10 +7,11 @@ import { KYBER_ROUTER, type SwapTx } from '@/lib/swap/swap';
 import { USDC } from '@/lib/stocks/tokens';
 import type { BasketLeg } from '@/lib/build/customBasket';
 import { basketAmountProblem, legFloor, splitBasketUsdc, type BasketLegAmount } from '@/lib/swap/basketBuy';
+import { basketBatchCalls } from '@/lib/swap/basketBatch';
 import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { useNotify } from '../notifications/notify';
 import { fmt, logSwapHash, usd, venueNames } from '../swap/swapClient';
-import { SWAP_CANCELLED, buildSwap, parseAmount, useSwapWallet, useTokenBalance, useTxRun } from '../swap/useSwapWallet';
+import { BATCH_FAILED, SWAP_CANCELLED, buildSwap, parseAmount, useSwapWallet, useTokenBalance, useTxRun } from '../swap/useSwapWallet';
 import { SlippageControl, useSlippage } from '../swap/slippage';
 
 // Buy a /build basket in one go: one USDC amount, split by the basket's weights, one KyberSwap swap
@@ -19,12 +20,24 @@ import { SlippageControl, useSlippage } from '../swap/slippage';
 // each with Afterbook's Builder Code (the wallet steps are useSwapWallet.ts). A leg is rebuilt just before it is signed and only sent if its
 // minimum is at least the "at least" figure on the review card. Anything that stops the run stops
 // it: what was bought is stated, nothing is retried on its own.
+//
+// One signature (2026-11-17): a wallet that can run a batch atomically on Base (Base Account) gets the
+// approval (if needed) and every swap as one batch (lib/swap/basketBatch.ts); a review over a minute old,
+// or made for another account, is rebuilt and held to the same "at least" floors first. It goes through
+// together or not at all. A rule run
+// (onRunSent set) keeps the one-swap-at-a-time flow: its pending record is keyed by a transaction hash,
+// which a batch doesn't have until it is mined.
 
 /** Pause after each confirmed leg before asking for the next. On the owner's first real basket
  *  (2026-10-14) Rabby simulated the second swap a moment after the first confirmed and showed a false
  *  "TRANSFER_FROM_FAILED": its simulation counted the first swap twice (pending and mined), so it saw
  *  no allowance left. The same swap simulated fine on-chain and went through seconds later. */
 const LEG_PAUSE_MS = 4000;
+/** A one-signature batch signs the reviewed swaps as they are while the review is this fresh (as a single
+ *  swap does, useReviewedSwap); older, every leg is rebuilt first, REBUILD_GAP_MS apart. Rebuilding all
+ *  legs straight after the review's own builds got KyberSwap's 429 in testing (2026-11-18). */
+const BATCH_FRESH_MS = 60_000;
+const REBUILD_GAP_MS = 1000;
 
 interface StockInfo {
   symbol: string;
@@ -40,6 +53,9 @@ interface Progress {
 }
 interface Review {
   legs: { plan: BasketLegAmount; tx: SwapTx }[];
+  at: number;
+  /** The account the swaps were built to pay: a review is never signed as built from another one. */
+  account: `0x${string}`;
 }
 
 export function BasketBuyPanel({
@@ -95,6 +111,8 @@ export function BasketBuyPanel({
   useEffect(() => onBusy?.(busy !== null), [busy, onBusy]);
   // A review is only valid for the slippage limit it was built with.
   useEffect(() => setReview(null), [slippageBps]);
+  // ...and for the account it was built for (each swap pays that account).
+  useEffect(() => setReview(null), [address]);
 
   const decimalsOf = (symbol: string) => stocks.find((s) => s.symbol === symbol)?.decimals ?? 8;
 
@@ -122,7 +140,72 @@ export function BasketBuyPanel({
       setProgress(null);
       const built = [];
       for (const leg of legsToBuy) built.push({ plan: leg, tx: await buildLeg(leg) });
-      setReview({ legs: built });
+      setReview({ legs: built, at: Date.now(), account: address! });
+    });
+
+  // One signature for the whole basket, when the wallet can and this isn't a rule run.
+  const oneSignature = wallet.canBatch && !onRunSent;
+
+  const confirmBatch = () =>
+    run('rebuild', async () => {
+      if (!address || !review) return;
+      await wallet.ensureBase();
+      setRest(null);
+      setApprovedFor(null);
+      setMaybeSent(false);
+      // A review over a minute old: every leg rebuilt now and held to its card's "at least" figure, before
+      // anything is signed. A fresher one is signed as reviewed (each swap's own minimum protects it).
+      const stale = Date.now() - review.at > BATCH_FRESH_MS || review.account.toLowerCase() !== address.toLowerCase();
+      const fresh: SwapTx[] = [];
+      for (const [i, { plan: leg, tx: reviewed }] of review.legs.entries()) {
+        if (!stale) {
+          fresh.push(reviewed);
+          continue;
+        }
+        if (i > 0) await new Promise((r) => setTimeout(r, REBUILD_GAP_MS));
+        const tx = await buildLeg(leg);
+        if (BigInt(tx.minAmountOut) < legFloor(BigInt(reviewed.minAmountOut))) {
+          throw new Error(`${leg.symbol}'s price moved below the "at least" amount since your review, so nothing was sent. Review it again.`);
+        }
+        fresh.push(tx);
+      }
+      const total = review.legs.reduce((s, l) => s + l.plan.amountIn, BigInt(0));
+      const needsApproval = (await wallet.routerAllowance(USDC.address)) < total;
+      const calls = basketBatchCalls(fresh, needsApproval);
+
+      const status: Progress[] = review.legs.map((l) => ({ symbol: l.plan.symbol, status: 'sending' }));
+      setProgress([...status]);
+      setBusy('batch');
+      let signed = false;
+      try {
+        const hashes = await wallet.sendBatch(calls, () => {
+          signed = true;
+          setBusy('confirm-batch');
+        });
+        review.legs.forEach(({ plan: leg }, i) => {
+          status[i] = { symbol: leg.symbol, status: 'done', hash: hashes[hashes.length - 1], text: `${fmt(fresh[i].quote.amountOut, decimalsOf(leg.symbol))} ${leg.symbol} for ${fmt(leg.amountIn, USDC.decimals, 2)} USDC` };
+        });
+        setProgress([...status]);
+        for (const h of hashes) void logSwapHash(h);
+      } catch (e) {
+        // Declined, or reverted as one atomic batch: nothing was bought or approved. Anything else may have gone through.
+        const msg = (e as { shortMessage?: string; message?: string }).shortMessage ?? (e as Error).message ?? '';
+        // Refused before the wallet accepted it (declined, or the wallet couldn't take the batch): nothing was
+        // sent, so the review stays and Buy can be pressed again. Accepted, then an atomic failure: nothing
+        // bought. Accepted, anything else: it may have gone through.
+        if (!signed) {
+          setProgress(null);
+          throw e;
+        }
+        setProgress(review.legs.map((l) => ({ symbol: l.plan.symbol, status: 'stopped' })));
+        if (msg !== BATCH_FAILED) setMaybeSent(true);
+        setReview(null);
+        void refetchBalance();
+        throw e;
+      }
+      setReview(null);
+      void refetchBalance();
+      notify({ kind: 'tx', tone: 'success', title: 'Basket bought', body: status.map((s) => s.text).join(' · ') });
     });
 
   const confirm = () =>
@@ -231,6 +314,9 @@ export function BasketBuyPanel({
     if (!busy) return null;
     if (busy === 'review') return 'Preparing…';
     if (busy === 'approve') return 'Approve USDC in wallet…';
+    if (busy === 'rebuild') return 'Getting the latest prices…';
+    if (busy === 'batch') return 'Confirm in your wallet (one signature)…';
+    if (busy === 'confirm-batch') return 'Confirming onchain…';
     const [kind, idx] = busy.split('-');
     const sym = review?.legs[Number(idx)]?.plan.symbol ?? '';
     if (kind === 'pause') return `Getting ${sym} ready…`;
@@ -310,13 +396,21 @@ export function BasketBuyPanel({
               </a>
             </dd>
           </dl>
-          <p className="geo-note">
-            Your wallet asks to approve exactly {fmt(reviewTotal, USDC.decimals, 2)} USDC for this router (skipped if it already can), then for {legCount} {legCount === 1 ? 'swap' : 'swaps'},
-            one per stock. Each is rebuilt just before you sign it and is only sent if you still get at least the amount above. If one stops, you keep what
-            was already bought and can buy the rest. You need a little ETH on Base for network fees.
-          </p>
+          {oneSignature ? (
+            <p className="geo-note">
+              You sign once. Your wallet gets one batch: approve exactly {fmt(reviewTotal, USDC.decimals, 2)} USDC for this router (left out if it already can), then{' '}
+              {legCount} {legCount === 1 ? 'swap' : 'swaps'}, one per stock. After a minute the prices are fetched again before you sign, and the batch is only sent if
+              every stock still gets at least the amount above. It goes through together or not at all. You need a little ETH on Base for network fees, unless your wallet covers them.
+            </p>
+          ) : (
+            <p className="geo-note">
+              Your wallet asks to approve exactly {fmt(reviewTotal, USDC.decimals, 2)} USDC for this router (skipped if it already can), then for {legCount} {legCount === 1 ? 'swap' : 'swaps'},
+              one per stock. Each is rebuilt just before you sign it and is only sent if you still get at least the amount above. If one stops, you keep what
+              was already bought and can buy the rest. You need a little ETH on Base for network fees.
+            </p>
+          )}
           <div className="basket-row">
-            <button type="button" className="btn" onClick={confirm} disabled={busy !== null}>
+            <button type="button" className="btn" onClick={oneSignature ? confirmBatch : confirm} disabled={busy !== null}>
               {label ?? `Buy ${legCount} ${legCount === 1 ? 'stock' : 'stocks'}`}
             </button>
             <button type="button" className="btn btn-secondary" onClick={() => setReview(null)} disabled={busy !== null}>
@@ -340,6 +434,8 @@ export function BasketBuyPanel({
                 </>
               ) : p.status === 'sending' ? (
                 'in progress'
+              ) : maybeSent && oneSignature ? (
+                'not confirmed yet'
               ) : (
                 'not bought'
               )}

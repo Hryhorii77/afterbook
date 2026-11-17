@@ -8,7 +8,9 @@ import { Attribution } from 'ox/erc8021';
 // is appended with concat; the stock, /build basket buy and sell, meme, /plan and /rules panels all
 // use that hook); Aave lending's approval, supply and withdraw (AaveLendPanel.tsx); Aave borrowing's
 // approval, multicall, repay and withdraw (AaveBorrowPanel.tsx); and the Baskets USDC deposit
-// (BasketPanel.tsx). The Baskets signatures are messages, not transactions, and cannot carry it.
+// (BasketPanel.tsx). A one-signature basket batch (lib/swap/basketBatch.ts) puts it on every call and
+// also passes it as the batch's `dataSuffix` capability (EIP-5792), which a smart account appends to its
+// whole operation. The Baskets signatures are messages, not transactions, and cannot carry it.
 // Liquidity still happens on Aerodrome's own site.
 //
 // Passed per call as `dataSuffix` rather than through the wagmi config: a code set in
