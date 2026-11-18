@@ -148,6 +148,26 @@ check passes, say so in one short line; do not pad.
   the rest"; an automatic retry or a loop that keeps sending is a finding. The
   split (`splitBasketUsdc`) must sum to exactly the reviewed total; the total
   is capped at `MAX_BASKET_USD`.
+- One-signature basket buys (2026-11-18: `lib/swap/basketBatch.ts`, `sendBatch` and
+  `canBatch` in `useSwapWallet.ts`, `confirmBatch` in `BasketBuyPanel.tsx`): only
+  when the wallet reports `atomic.status === 'supported'` on Base (`canBatchAtomically`;
+  "ready", which would upgrade the account, is not enough) and never for a rule run
+  (`onRunSent` set: its pending record needs a transaction hash). The calls come only
+  from `basketBatchCalls`: an `approve(KYBER_ROUTER, total)` of USDC for exactly the
+  legs' total, only when the allowance is short, then one router swap per leg, each a
+  USDC buy built by `/api/swap/build`, every call with the Builder Code and value 0;
+  `sendBatch` re-checks each call (`isBasketBatchCall`) and sends with
+  `forceAtomic: true` plus the `dataSuffix` capability. A review older than
+  `BATCH_FRESH_MS` rebuilds every leg (paced) and sends only if each minimum is >=
+  `legFloor(reviewed min)`; a fresher one signs the reviewed builds, but only
+  for the account they were built for (`review.account`; another account rebuilds,
+  and a change of address clears the review). Only `statusCode` 400 or 500 with
+  `atomic: true` is `BATCH_FAILED`; an error before the wallet accepted the batch
+  keeps the review and claims nothing was sent. Only an atomic
+  failure (`BATCH_FAILED`) or a decline may say nothing was bought; any other
+  outcome (timeout, non-atomic failure, unreadable status) must say it may have
+  gone through (`BATCH_UNKNOWN`). A non-atomic batch, a call to anything else, an
+  unlimited approval, or a batch path for rule runs is a finding.
 - Basket sells (`BasketSellPanel.tsx`, `basketSellAmounts`): per leg, an
   approval of that stock's token for `KYBER_ROUTER` for exactly that leg's
   amount (never unlimited, never another spender), then its swap; the client
