@@ -100,8 +100,35 @@ check passes, say so in one short line; do not pad.
   it elsewhere is a finding (the owner keeps it at 0 until a legal check).
 - `/api/swap/log` records only a successful router call whose calldata
   (minus the Builder Code) matches one `/api/swap/build` returned
-  (`rememberBuiltSwap`), sent by the account it was built for; fee and size
-  come from that stored build. Never the raw address in the record.
+  (`rememberBuiltSwap`), made by the account it was built for; fee and size
+  come from that stored build. Never the raw address in the record. A smart
+  account's swap (Base Account, 2026-11-18) is a router call inside a bundler's
+  `handleOps` (`routerCalls`): the transaction must go to a known EntryPoint, the
+  user operation's sender is the account, it counts only if that EntryPoint
+  emitted `UserOperationEvent` with the same sender and nonce and `success`, the
+  sender ran it as a genuine Coinbase Smart Wallet (`isCoinbaseSmartWallet`:
+  the factories' ERC-1967 proxy code or the EIP-7702 designator to
+  `0x7702cb55…176C`, and the implementation slot one of `CSW_IMPLEMENTATIONS`,
+  which only grows after reading a Coinbase factory's `implementation()`; genuine
+  at the end of the block AND at the block before, unless empty before and
+  deployed by this op's `initCode` through one of `CSW_FACTORIES`; and every
+  `Upgraded` log from the account in the block names a `CSW_IMPLEMENTATIONS`
+  entry; at most `MAX_ACCOUNTS_PER_TX` accounts, with Builder Code calls, are
+  read per transaction. The end state alone can be
+  faked by running other code and writing the genuine implementation back.
+  Known Low, accepted: a 7702 account re-delegating away and back within one
+  block emits no event), and
+  only router calls with value 0 are read from `execute`/`executeBatch`. Each
+  router call is its own record (`<hash>:<n>`). For every counted call, on
+  either path, the router's own `Swapped` event must match it (sender = the
+  account, src/dst token, recipient, `spentAmount` = the built amount; each
+  event used once): an operation's `success` only says the account's outer
+  call didn't revert, and anyone can deploy an account that skips the call. A
+  build counts for one swap only (`swapused:<keccak>` holds the record id), and
+  a sell's size is capped at its `Swapped.returnAmount` (other calls in a batch
+  can send the account USDC). A smart account's transaction gets `swapdone:<hash>`
+  only after every call in it was tried. Loosening any of these lets a crafted operation
+  inflate the stats.
 - The trade plan (`/plan`, `app/components/agent/PlanClient.tsx`, `app/api/agent/plan/route.ts`, `lib/agent/*`): the route starts with `limitRead`, keeps `agentLimiter`/`agentDailyLimiter` and skips Claude (fixed-word explanation) when they are missing; Claude's text is rendered only as a plain React text node; the only plan fields that reach `SwapPanel` are `stock` (a `STOCKS` entry) and `defaultUsd` (pre-fills the editable amount), behind `geo.nonUs === true` and the eligibility checkbox; `lib/agent/explain.ts` stays `server-only` and never logs or returns the key. "Describe a basket" (`BriefClient.tsx`, `app/api/agent/brief/route.ts`, `lib/agent/brief.ts`): the same route guards (`limitRead`, the limiters via `lib/agent/explainGate.ts`); the only brief fields that reach `BasketBuyPanel` are `legs` (whole-percent weights of `STOCKS` symbols, 2–4) and `defaultUsd` (pre-fills the editable amount, which still goes through `basketAmountProblem` and every per-leg build check), behind `geo.nonUs === true` and the eligibility checkbox; the model never chooses a stock, weight or amount.
 - Paid agent plans (x402, 2026-11-16: `app/api/v1/x402/plan/route.ts`, `app/api/v1/x402/basket/route.ts`, `lib/agent/runPlan.ts`, `lib/agent/x402Input.ts`): both go through `withX402` with `X402_PRICE_PREMIUM`, `X402_NETWORK` and `X402_PAYOUT_ADDRESS` from `lib/server/x402.ts` and answer 503 when unconfigured; each handler starts with `limitRead` (the handler runs after the payment is verified but before it settles); input goes only through `x402Input.ts` (the page's parsers, unknown parameters refused, no `note`); they run only `runPlan`/`runBrief`, the same path as `/api/agent/plan` and `/api/agent/brief`, so the Claude limits apply through `whyNotExplain`; the only links returned are `buyAt` (`/plan`) and `buyUrl` (`buildPath`, `/build`), never a transaction or calldata; every error stays a status of 400 or more, so it isn't charged (`withX402` settles only a successful response).
 - Stock rules (`/rules`, `app/components/agent/RulesClient.tsx`, `app/api/agent/rule-check/route.ts`, `lib/agent/rules.ts`): the route starts with `limitRead`, is read-only and calls no model; what reaches `SwapPanel` is only `stock` (from `getStock` of the checked leg), `defaultUsd` (the checked run amount, editable), `source: 'rule'`, `buyOnly`, `maxUsd` (the run's budget: the panel refuses a larger buy) and the bookkeeping callbacks `onBuySent` / `onBought` / `onBuyReverted` (they record the run as pending, bought or due again and change nothing in the swap; `useReviewedSwap`'s `onSendFailed` fires only on a mined revert, never on a receipt read error). One buy per run: a sent buy is saved as pending before it is mined and counts toward the cap, and a live rule's bought/pending runs are never trimmed from history; while a run is pending its SwapPanel is not rendered, and the panel renders only while the checked run is `due` for that slot, and a pending run becomes due again only on a mined revert or a wallet cancel (never on an RPC error or a replaced nonce, which may be a sped-up buy; those need the person's click after a wallet-check warning), behind `geo.nonUs === true` and the eligibility checkbox. Nothing on the page may build, sign or send a transaction on a schedule or without a click; stored and imported rules are validated (`isRule`, `cleanRuns`) before use.
