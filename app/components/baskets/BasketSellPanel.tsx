@@ -11,7 +11,8 @@ import { basketSellAmounts, legFloor, MIN_LEG_USDC, type BasketLegAmount } from 
 import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { useNotify } from '../notifications/notify';
 import { fmt, logSwapHash, usd, venueNames } from '../swap/swapClient';
-import { buildSwap, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
+import { basketSellBatchCalls } from '@/lib/swap/basketBatch';
+import { BATCH_FAILED, buildSwap, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
 import { SlippageControl, useSlippage } from '../swap/slippage';
 
 // Sell a /build basket: a share of whatever the wallet holds of each of its stocks, one KyberSwap
@@ -21,8 +22,15 @@ import { SlippageControl, useSlippage } from '../swap/slippage';
 // like a single sell, rebuilt just before signing and sent only if it still returns at least the
 // "at least" USDC on the review card. A stop states what was sold and offers the rest; nothing
 // retries on its own.
+// A wallet that runs batches atomically on Base (Base Account) signs the whole sale once instead
+// (2026-11-19): one batch of, per stock, its exact approval (only if needed) and its swap, through
+// basketSellBatchCalls, together or not at all. Same freshness rules as BasketBuyPanel's batch.
 
 const LEG_PAUSE_MS = 4000; // same reason as BasketBuyPanel: let wallet simulations see the last leg
+const BATCH_FRESH_MS = 60_000; // as BasketBuyPanel: a review under a minute old is signed as reviewed
+const REBUILD_GAP_MS = 1000; // and an older one is rebuilt one leg a second (KyberSwap's rate limit)
+const SELL_BATCH_FAILED = 'The sale’s transaction reverted onchain, so nothing was sold and nothing was approved. Prices may have moved: review it again.';
+const SELL_BATCH_UNKNOWN = 'Your wallet sent the sale, but its outcome couldn’t be read yet. Check your wallet activity before selling again.';
 
 export interface SellStock {
   symbol: string;
@@ -51,6 +59,10 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
   const [pct, setPct] = useState('100');
   const slippageBps = useSlippage();
   const [review, setReview] = useState<{ plan: BasketLegAmount; tx: SwapTx }[] | null>(null);
+  /** When and for which account the review was built: a batch reuses it only within a minute, for the same account. */
+  const [reviewMeta, setReviewMeta] = useState<{ at: number; account: `0x${string}` } | null>(null);
+  /** A one-signature sale the wallet accepted whose outcome isn't known: it may have gone through. */
+  const [maybeSent, setMaybeSent] = useState(false);
   const [progress, setProgress] = useState<Progress[] | null>(null);
   const [rest, setRest] = useState<BasketLegAmount[] | null>(null);
   /** After a stop: the stock the router can still spend, read live from the chain (whatever run approved it). */
@@ -60,6 +72,9 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
   useEffect(() => onBusy?.(busy !== null), [busy, onBusy]);
   // A review is only valid for the slippage limit it was built with.
   useEffect(() => setReview(null), [slippageBps]);
+  // Nor for another account: switching accounts drops it (a reused swap would pay the old one).
+  useEffect(() => setReview(null), [address]);
+  const oneSignature = wallet.canBatch;
 
   const stockOf = (symbol: string) => stocks.find((s) => s.symbol === symbol)!;
   const { data: balances, refetch: refetchBalances } = useReadContracts({
@@ -93,6 +108,70 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
       setDust(built.filter((l) => l.tx.quote.amountInUsd < MIN_LEG_USDC).map((l) => l.plan.symbol));
       if (worth.length === 0) throw new Error(`Each stock to sell is worth less than $${MIN_LEG_USDC}: not worth the network fees.`);
       setReview(worth);
+      setReviewMeta({ at: Date.now(), account: address! });
+    });
+
+  const confirmBatch = () =>
+    run('rebuild', async () => {
+      if (!address || !review) return;
+      await wallet.ensureBase();
+      setRest(null);
+      setApprovedLeft(null);
+      setMaybeSent(false);
+      // Over a minute old, or built for another account: every leg rebuilt now and held to its card's
+      // "at least" USDC before anything is signed. A fresher one is signed as reviewed.
+      const stale = !reviewMeta || Date.now() - reviewMeta.at > BATCH_FRESH_MS || reviewMeta.account.toLowerCase() !== address.toLowerCase();
+      const fresh: SwapTx[] = [];
+      for (const [i, { plan: leg, tx: reviewed }] of review.entries()) {
+        if (!stale) {
+          fresh.push(reviewed);
+          continue;
+        }
+        if (i > 0) await new Promise((r) => setTimeout(r, REBUILD_GAP_MS));
+        const tx = await buildLeg(leg);
+        if (BigInt(tx.minAmountOut) < legFloor(BigInt(reviewed.minAmountOut))) {
+          throw new Error(`${leg.symbol}'s price moved below the "at least" amount since your review, so nothing was sent. Review it again.`);
+        }
+        fresh.push(tx);
+      }
+      // Each stock's own approval, exactly what its leg sells, only when the router can't already spend it.
+      const approve: boolean[] = [];
+      for (const { plan: leg } of review) approve.push((await wallet.routerAllowance(stockOf(leg.symbol).tokenAddress)) < leg.amountIn);
+      const calls = basketSellBatchCalls(fresh, approve);
+
+      const status: Progress[] = review.map((l) => ({ symbol: l.plan.symbol, status: 'sending' }));
+      setProgress([...status]);
+      setBusy('batch');
+      let signed = false;
+      try {
+        const hashes = await wallet.sendBatch(calls, () => {
+          signed = true;
+          setBusy('confirm-batch');
+        });
+        review.forEach(({ plan: leg }, i) => {
+          status[i] = { symbol: leg.symbol, status: 'done', hash: hashes[hashes.length - 1], text: `${fmt(leg.amountIn, stockOf(leg.symbol).decimals)} ${leg.symbol} for about ${fmt(fresh[i].quote.amountOut, USDC.decimals, 2)} USDC` };
+        });
+        setProgress([...status]);
+        for (const h of hashes) void logSwapHash(h);
+      } catch (e) {
+        const msg = (e as { shortMessage?: string; message?: string }).shortMessage ?? (e as Error).message ?? '';
+        // Refused before the wallet accepted it (declined, or the wallet couldn't take the batch): nothing
+        // was sent, so the review stays. Accepted, then an atomic failure: nothing sold or approved.
+        // Accepted, anything else: it may have gone through.
+        if (!signed) {
+          setProgress(null);
+          throw e;
+        }
+        setProgress(review.map((l) => ({ symbol: l.plan.symbol, status: 'stopped' })));
+        setReview(null);
+        void refetchBalances();
+        if (msg === BATCH_FAILED) throw new Error(SELL_BATCH_FAILED);
+        setMaybeSent(true);
+        throw new Error(SELL_BATCH_UNKNOWN);
+      }
+      setReview(null);
+      void refetchBalances();
+      notify({ kind: 'tx', tone: 'success', title: 'Basket sold', body: status.map((s) => s.text).join(' · ') });
     });
 
   const confirm = () =>
@@ -101,6 +180,7 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
       await wallet.ensureBase();
       setRest(null);
       setApprovedLeft(null);
+      setMaybeSent(false);
 
       const status: Progress[] = review.map((l) => ({ symbol: l.plan.symbol, status: 'waiting' }));
       setProgress([...status]);
@@ -164,6 +244,9 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
     if (!busy) return null;
     if (busy === 'review') return 'Preparing…';
     if (busy === 'start') return 'Starting…';
+    if (busy === 'rebuild') return 'Getting the latest prices…';
+    if (busy === 'batch') return 'Confirm in your wallet (one signature)…';
+    if (busy === 'confirm-batch') return 'Confirming onchain…';
     const [kind, idx] = busy.split('-');
     const sym = review?.[Number(idx)]?.plan.symbol ?? '';
     if (kind === 'approve') return `Approve ${sym} in wallet…`;
@@ -242,13 +325,22 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
               </a>
             </dd>
           </dl>
-          <p className="geo-note">
-            For each stock your wallet asks to approve exactly the amount above for this router (skipped if it already can), then for the swap: up to{' '}
-            {n * 2} requests. Each swap is rebuilt just before you sign it and is only sent if you still get at least the USDC above. If one stops, you keep
-            the USDC from what was already sold and can sell the rest. You need a little ETH on Base for network fees.
-          </p>
+          {oneSignature ? (
+            <p className="geo-note">
+              You sign once. Your wallet gets one batch: for each stock, approve exactly the amount above for this router (left out if it already can),
+              then its swap to USDC: {n} stock{n === 1 ? '' : 's'}. After a minute the prices are fetched again before you sign, and the batch is only sent if
+              every stock still returns at least the USDC above. It goes through together or not at all. You need a little ETH on Base for network fees,
+              unless your wallet covers them.
+            </p>
+          ) : (
+            <p className="geo-note">
+              For each stock your wallet asks to approve exactly the amount above for this router (skipped if it already can), then for the swap: up to{' '}
+              {n * 2} requests. Each swap is rebuilt just before you sign it and is only sent if you still get at least the USDC above. If one stops, you keep
+              the USDC from what was already sold and can sell the rest. You need a little ETH on Base for network fees.
+            </p>
+          )}
           <div className="basket-row">
-            <button type="button" className="btn" onClick={confirm} disabled={busy !== null}>
+            <button type="button" className="btn" onClick={oneSignature ? confirmBatch : confirm} disabled={busy !== null}>
               {label ?? `Sell ${n} stock${n === 1 ? '' : 's'}`}
             </button>
             <button type="button" className="btn btn-secondary" onClick={() => setReview(null)} disabled={busy !== null}>
@@ -272,6 +364,8 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
                 </>
               ) : p.status === 'sending' ? (
                 'in progress'
+              ) : maybeSent && oneSignature ? (
+                'not confirmed yet'
               ) : (
                 'not sold'
               )}

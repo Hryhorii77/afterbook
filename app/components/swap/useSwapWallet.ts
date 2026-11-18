@@ -20,7 +20,7 @@ import { base } from 'wagmi/chains';
 import { concat, erc20Abi, getAddress, parseUnits, type Hex } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import { KYBER_ROUTER, type SwapQuote, type SwapTx } from '@/lib/swap/swap';
-import { canBatchAtomically, isBasketBatchCall, type BatchCall } from '@/lib/swap/basketBatch';
+import { basketBatchProblem, canBatchAtomically, type BatchCall } from '@/lib/swap/basketBatch';
 import { userOpOutcome } from '@/lib/wallet/userOps';
 import { useNotify } from '../notifications/notify';
 import { api } from './swapClient';
@@ -154,12 +154,15 @@ export function useSwapWallet() {
     return receipt.transactionHash;
   };
 
-  /** Sends a basket batch (calls from basketBatchCalls only) as one atomic EIP-5792 batch and waits for it.
+  /** Sends a basket batch (calls from basketBatchCalls or basketSellBatchCalls only) as one atomic EIP-5792 batch and waits for it.
    *  Returns the mined transaction hashes. `onSigned` runs once the wallet has accepted it. A batch that
    *  failed is BATCH_FAILED when the wallet confirms it was atomic (nothing happened), otherwise
    *  BATCH_UNKNOWN; so is one whose outcome can't be read in time (it may still go through). */
   const sendBatch = async (calls: BatchCall[], onSigned?: (id: string) => void): Promise<Hex[]> => {
-    for (const c of calls) if (!isBasketBatchCall(c)) throw new Error('Refused: unexpected contract.');
+    // Every call checked again: every swap pays this account, every approval is exactly what the batch's swaps spend of that token.
+    if (!address) throw new Error('Connect a wallet first.');
+    const problem = basketBatchProblem(calls, address);
+    if (problem) throw new Error(`Refused: ${problem}.`);
     // The Builder Code twice: on each call (the rule for every transaction here) and as the batch's
     // `dataSuffix` capability, which a smart account appends to its whole operation: that is where Base's
     // attribution reads it for Base Account (docs.base.org, builder codes for app developers). Optional, so

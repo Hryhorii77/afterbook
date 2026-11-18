@@ -8,8 +8,8 @@
 // carries Afterbook's Builder Code.
 import { concat, decodeFunctionData, encodeFunctionData, erc20Abi, getAddress, type Hex } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '../wallet/builderCode';
-import { KYBER_ROUTER, type SwapTx } from './swap';
-import { USDC } from '../stocks/tokens';
+import { decodeSwapDesc, KYBER_ROUTER, type SwapTx } from './swap';
+import { STOCKS, USDC } from '../stocks/tokens';
 
 export interface BatchCall {
   to: `0x${string}`;
@@ -41,6 +41,34 @@ export function basketBatchCalls(swaps: SwapTx[], approve: boolean): BatchCall[]
   return calls;
 }
 
+/**
+ * The calls of a basket sell batch (2026-11-19), stock by stock: approve(router, exactly that leg's amount)
+ * of that stock when `approve[i]` is true, then its swap to USDC. Throws unless every swap is a sell of a
+ * different tracked stock through the router, so one batch can't approve or sell anything else.
+ */
+export function basketSellBatchCalls(swaps: SwapTx[], approve: boolean[]): BatchCall[] {
+  if (swaps.length === 0) throw new Error('Refused: nothing to sell.');
+  if (approve.length !== swaps.length) throw new Error('Refused: one approval decision per stock.');
+  const seen = new Set<string>();
+  const calls: BatchCall[] = [];
+  swaps.forEach((tx, i) => {
+    if (getAddress(tx.to) !== KYBER_ROUTER || getAddress(tx.spender) !== KYBER_ROUTER) throw new Error('Refused: unexpected contract.');
+    const stock = STOCKS.find((s) => s.symbol === tx.quote.symbol);
+    if (tx.quote.side !== 'sell' || !stock || getAddress(tx.tokenIn) !== getAddress(stock.tokenAddress)) throw new Error('Refused: a basket sell sells its own stocks.');
+    if (seen.has(stock.symbol)) throw new Error('Refused: a stock appears twice.');
+    seen.add(stock.symbol);
+    if (approve[i]) {
+      calls.push({
+        to: getAddress(stock.tokenAddress),
+        data: concat([encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [KYBER_ROUTER, BigInt(tx.quote.amountIn)] }), BUILDER_CODE_SUFFIX]),
+        value: BigInt(0),
+      });
+    }
+    calls.push({ to: KYBER_ROUTER, data: concat([tx.data, BUILDER_CODE_SUFFIX]), value: BigInt(0) });
+  });
+  return calls;
+}
+
 /** Whether a wallet's Base capabilities say it can run a batch atomically right now. "ready" (the wallet
  *  would first upgrade the account, e.g. an EOA to a smart account) is not enough: that is a bigger step
  *  than a basket buy should ask for, so those wallets keep the one-swap-at-a-time flow. */
@@ -49,16 +77,45 @@ export function canBatchAtomically(capabilities: unknown): boolean {
   return atomic?.status === 'supported';
 }
 
+const BATCH_TOKENS = new Set([USDC.address, ...STOCKS.map((s) => s.tokenAddress)].map((a) => getAddress(a)));
+
 /** A call the wallet may be asked to sign in a basket batch: a swap to the router, or an approval of USDC
- *  whose spender is the router (checked again just before sending). */
+ *  or a tracked stock whose spender is the router (checked again just before sending). */
 export function isBasketBatchCall(c: BatchCall): boolean {
   if (c.value !== BigInt(0)) return false;
   if (getAddress(c.to) === KYBER_ROUTER) return true;
-  if (getAddress(c.to) !== getAddress(USDC.address)) return false;
+  if (!BATCH_TOKENS.has(getAddress(c.to))) return false;
   try {
     const d = decodeFunctionData({ abi: erc20Abi, data: c.data });
     return d.functionName === 'approve' && getAddress(d.args[0] as string) === KYBER_ROUTER;
   } catch {
     return false;
   }
+}
+
+/**
+ * The whole batch, just before the wallet sees it: every call passes isBasketBatchCall, every swap decodes
+ * and pays `account`, and every approval is exactly what the batch's swaps spend of that token (never more,
+ * never unlimited), at most one per token. Returns a reason to refuse, or null.
+ */
+export function basketBatchProblem(calls: BatchCall[], account: `0x${string}`): string | null {
+  if (calls.length === 0) return 'nothing to send';
+  const spends = new Map<string, bigint>();
+  const approvals = new Map<string, bigint>();
+  for (const c of calls) {
+    if (!isBasketBatchCall(c)) return 'unexpected contract';
+    if (getAddress(c.to) === KYBER_ROUTER) {
+      const d = decodeSwapDesc(c.data);
+      if (!d) return 'a swap that does not decode';
+      if (d.recipient !== getAddress(account)) return 'a swap that pays someone else';
+      spends.set(d.srcToken, (spends.get(d.srcToken) ?? BigInt(0)) + d.amountIn);
+    } else {
+      const token = getAddress(c.to);
+      if (approvals.has(token)) return 'two approvals of one token';
+      const d = decodeFunctionData({ abi: erc20Abi, data: c.data });
+      approvals.set(token, d.args[1] as bigint);
+    }
+  }
+  for (const [token, amount] of approvals) if (spends.get(token) !== amount) return 'an approval that is not exactly what the swaps spend';
+  return null;
 }

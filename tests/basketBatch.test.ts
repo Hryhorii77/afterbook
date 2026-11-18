@@ -63,3 +63,82 @@ describe('canBatchAtomically', () => {
     expect(canBatchAtomically(undefined)).toBe(false);
   });
 });
+
+// Sells (2026-11-19) and the whole-batch check sendBatch runs before the wallet sees anything.
+import { encodeFunctionData as encodeFn, getAddress as addr, parseAbi } from 'viem';
+import { basketBatchProblem, basketSellBatchCalls } from '../lib/swap/basketBatch';
+import { getStock } from '../lib/stocks/tokens';
+
+const routerAbi = parseAbi([
+  'struct SwapDescriptionV2 { address srcToken; address dstToken; address[] srcReceivers; uint256[] srcAmounts; address[] feeReceivers; uint256[] feeAmounts; address dstReceiver; uint256 amount; uint256 minReturnAmount; uint256 flags; bytes permit; }',
+  'struct SwapExecutionParams { address callTarget; address approveTarget; bytes targetData; SwapDescriptionV2 desc; bytes clientData; }',
+  'function swap(SwapExecutionParams execution) payable returns (uint256, uint256)',
+]);
+const EXEC = '0x2222222222222222222222222222222222222222' as const;
+const ME = '0x1111111111111111111111111111111111111111' as const;
+const swapData = (src: string, dst: string, amount: bigint) =>
+  encodeFn({
+    abi: routerAbi,
+    functionName: 'swap',
+    args: [{ callTarget: EXEC, approveTarget: EXEC, targetData: '0x', clientData: '0x', desc: { srcToken: addr(src), dstToken: addr(dst), srcReceivers: [EXEC], srcAmounts: [amount], feeReceivers: [], feeAmounts: [], dstReceiver: ME, amount, minReturnAmount: BigInt(1), flags: BigInt(0), permit: '0x' } }],
+  });
+const sellLeg = (symbol: string, amount: bigint): SwapTx => {
+  const s = getStock(symbol)!;
+  return {
+    quote: { symbol, side: 'sell', amountIn: amount.toString(), amountOut: '1', amountInUsd: 3, amountOutUsd: 3, gasUsd: 0, feeBps: 0, venues: [] },
+    to: KYBER_ROUTER,
+    data: swapData(s.tokenAddress, USDC.address, amount),
+    minAmountOut: '1',
+    spender: KYBER_ROUTER,
+    tokenIn: s.tokenAddress,
+  };
+};
+const sells = [sellLeg('AMZNc', BigInt(1010145)), sellLeg('NVDAc', BigInt(1791649))];
+
+describe('basketSellBatchCalls', () => {
+  it("approves each stock exactly its leg's amount for the router, then its swap, every call with the Builder Code", () => {
+    const calls = basketSellBatchCalls(sells, [true, true]);
+    expect(calls.map((c) => c.to)).toEqual([addr(getStock('AMZNc')!.tokenAddress), KYBER_ROUTER, addr(getStock('NVDAc')!.tokenAddress), KYBER_ROUTER]);
+    for (const c of calls) {
+      expect(c.data.toLowerCase().endsWith(suffix)).toBe(true);
+      expect(c.value).toBe(BigInt(0));
+    }
+    expect(decodeFunctionData({ abi: erc20Abi, data: calls[0].data }).args).toEqual([KYBER_ROUTER, BigInt(1010145)]);
+    expect(decodeFunctionData({ abi: erc20Abi, data: calls[2].data }).args).toEqual([KYBER_ROUTER, BigInt(1791649)]);
+    expect(basketBatchProblem(calls, ME)).toBeNull();
+  });
+  it('leaves out an approval the router already has', () => {
+    expect(basketSellBatchCalls(sells, [false, true]).map((c) => c.to)).toEqual([KYBER_ROUTER, addr(getStock('NVDAc')!.tokenAddress), KYBER_ROUTER]);
+  });
+  it('refuses a buy, a token that is not the stock, an untracked stock, a stock twice, a wrong router, or mismatched approvals', () => {
+    expect(() => basketSellBatchCalls([{ ...sells[0], quote: { ...sells[0].quote, side: 'buy' } }], [true])).toThrow(/own stocks/);
+    expect(() => basketSellBatchCalls([{ ...sells[0], tokenIn: USDC.address as `0x${string}` }], [true])).toThrow(/own stocks/);
+    expect(() => basketSellBatchCalls([{ ...sells[0], quote: { ...sells[0].quote, symbol: 'NOPEc' } }], [true])).toThrow(/own stocks/);
+    expect(() => basketSellBatchCalls([sells[0], sells[0]], [true, true])).toThrow(/twice/);
+    expect(() => basketSellBatchCalls([{ ...sells[0], to: '0x0000000000000000000000000000000000000001' as never }], [true])).toThrow(/unexpected contract/);
+    expect(() => basketSellBatchCalls(sells, [true])).toThrow(/one approval decision/);
+    expect(() => basketSellBatchCalls([], [])).toThrow(/nothing/);
+  });
+});
+
+describe('basketBatchProblem', () => {
+  const buy = (symbol: string, amount: bigint) => swapData(USDC.address, getStock(symbol)!.tokenAddress, amount);
+  const approveOf = (token: string, amount: bigint) => ({ to: addr(token), data: encodeFn({ abi: erc20Abi, functionName: 'approve', args: [KYBER_ROUTER, amount] }) as Hex, value: BigInt(0) });
+  const swapCall = (data: Hex) => ({ to: KYBER_ROUTER, data, value: BigInt(0) });
+  it('accepts a buy whose one approval is exactly what its swaps spend', () => {
+    expect(basketBatchProblem([approveOf(USDC.address, BigInt(100)), swapCall(buy('NVDAc', BigInt(40))), swapCall(buy('AAPLc', BigInt(60)))], ME)).toBeNull();
+    expect(basketBatchProblem([swapCall(buy('NVDAc', BigInt(40)))], ME)).toBeNull();
+  });
+  it('refuses an approval above, below or without the swaps, an unlimited one, two of one token, a swap that does not decode, and an empty batch', () => {
+    const max = BigInt(2) ** BigInt(256) - BigInt(1);
+    expect(basketBatchProblem([approveOf(USDC.address, BigInt(101)), swapCall(buy('NVDAc', BigInt(100)))], ME)).toMatch(/not exactly/);
+    expect(basketBatchProblem([approveOf(USDC.address, BigInt(99)), swapCall(buy('NVDAc', BigInt(100)))], ME)).toMatch(/not exactly/);
+    expect(basketBatchProblem([approveOf(USDC.address, max), swapCall(buy('NVDAc', BigInt(100)))], ME)).toMatch(/not exactly/);
+    expect(basketBatchProblem([approveOf(getStock('NVDAc')!.tokenAddress, BigInt(5)), swapCall(buy('NVDAc', BigInt(100)))], ME)).toMatch(/not exactly/);
+    expect(basketBatchProblem([approveOf(USDC.address, BigInt(50)), approveOf(USDC.address, BigInt(50)), swapCall(buy('NVDAc', BigInt(100)))], ME)).toMatch(/two approvals/);
+    expect(basketBatchProblem([swapCall('0xe21fd0e9aa')], ME)).toMatch(/does not decode/);
+    expect(basketBatchProblem([{ to: '0x0000000000000000000000000000000000000009', data: '0x', value: BigInt(0) }], ME)).toMatch(/unexpected contract/);
+    expect(basketBatchProblem([], ME)).toMatch(/nothing/);
+    expect(basketBatchProblem([swapCall(buy('NVDAc', BigInt(40)))], '0x3333333333333333333333333333333333333333')).toMatch(/pays someone else/);
+  });
+});
