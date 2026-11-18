@@ -21,6 +21,7 @@ import { concat, erc20Abi, getAddress, parseUnits, type Hex } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import { KYBER_ROUTER, type SwapQuote, type SwapTx } from '@/lib/swap/swap';
 import { canBatchAtomically, isBasketBatchCall, type BatchCall } from '@/lib/swap/basketBatch';
+import { userOpOutcome } from '@/lib/wallet/userOps';
 import { useNotify } from '../notifications/notify';
 import { api } from './swapClient';
 
@@ -97,7 +98,11 @@ export function useSwapWallet() {
     });
     onSigned?.();
     const receipt = await client().waitForTransactionReceipt({ hash });
-    if (receipt.status !== 'success') throw new Error(revertedMessage);
+    // A smart account's approval is a user operation inside a bundler's transaction: that one can succeed
+    // while the approval reverted, so the account's own operation decides.
+    const outcome = userOpOutcome(receipt, address);
+    if (outcome === 'reverted') throw new Error(revertedMessage);
+    if (outcome === 'unknown') throw new Error(TX_UNKNOWN);
   };
 
   /** Sends a checked router swap with the Builder Code and waits for it to be mined; returns the hash that
@@ -112,7 +117,10 @@ export function useSwapWallet() {
     const receipt = await client().waitForTransactionReceipt({ hash, onReplaced: (r) => void (replaced = r.reason) });
     if (replaced === 'cancelled') throw new Error(SWAP_CANCELLED);
     if (replaced === 'replaced') throw new Error(SWAP_REPLACED);
-    if (receipt.status !== 'success') throw new Error(revertedMessage);
+    // Same for a smart account's swap: the bundler's transaction succeeding doesn't mean the swap ran.
+    const outcome = userOpOutcome(receipt, address);
+    if (outcome === 'reverted') throw new Error(revertedMessage);
+    if (outcome === 'unknown') throw new Error(TX_UNKNOWN);
     return receipt.transactionHash;
   };
 
@@ -140,7 +148,7 @@ export function useSwapWallet() {
       throw new Error(BATCH_UNKNOWN);
     }
     const receipts = status.receipts ?? [];
-    if (status.status === 'success' && receipts.length > 0 && receipts.every((r) => r.status === 'success')) {
+    if (status.status === 'success' && receipts.length > 0 && receipts.every((r) => r.status === 'success' && userOpOutcome(r, address) === 'success')) {
       return [...new Set(receipts.map((r) => r.transactionHash))];
     }
     // 400: never sent onchain; 500: reverted as a whole. Anything else (600 is a partial revert) isn't "nothing happened".
@@ -168,6 +176,7 @@ export interface RunTexts {
 export const SWAP_CANCELLED = 'The swap was cancelled in your wallet. Nothing was bought or sold.';
 export const BATCH_FAILED = 'The basket’s transaction reverted onchain, so nothing was bought and nothing was approved. Prices may have moved: review it again.';
 export const BATCH_UNKNOWN = 'Your wallet sent the basket, but its outcome couldn’t be read yet. Check your wallet activity before buying again.';
+export const TX_UNKNOWN = 'Your wallet sent it, but whether it went through couldn’t be read. Check your wallet activity before trying again.';
 export const SWAP_REPLACED = 'Your wallet replaced the swap with another transaction. Check your wallet activity to see what went through.';
 
 /** Busy label, error line and the try/catch every panel wraps a wallet run in. */

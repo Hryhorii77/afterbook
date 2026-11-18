@@ -10,7 +10,7 @@
 // (anyone can hash a known address).
 import { createHash } from 'node:crypto';
 import { decodeEventLog, decodeFunctionData, erc20Abi, getAddress, keccak256, parseAbi, type Hex } from 'viem';
-import { entryPoint06Abi, entryPoint07Abi, entryPoint08Abi } from 'viem/account-abstraction';
+import { ENTRY_POINT_ABIS, ENTRY_POINTS } from '../wallet/userOps';
 import { BUILDER_CODE_SUFFIX } from '../wallet/builderCode';
 import { getClient } from '../market/quote';
 import { redis } from '../server/redis';
@@ -82,13 +82,9 @@ const walletId = (addr: string) => createHash('sha256').update(addr.toLowerCase(
 
 export type LogResult = { ok: true; records: SwapRecord[]; duplicate: boolean } | { ok: false; reason: string };
 
-// ERC-4337 EntryPoints (v0.6, v0.7, v0.8). A smart account such as Base Account doesn't send its own
-// transaction: a bundler sends handleOps to an EntryPoint, which runs the account's user operation. So
+// A smart account such as Base Account doesn't send its own transaction: a bundler sends handleOps to an
+// ERC-4337 EntryPoint (ENTRY_POINTS, lib/wallet/userOps.ts), which runs the account's user operation. So
 // a swap from a smart account is a router call inside a user operation, not a transaction to the router.
-const ENTRY_POINTS = new Set(
-  ['0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789', '0x0000000071727De22E5E9d8BAf0edAc6f37da032', '0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108'].map((a) => getAddress(a)),
-);
-const ENTRY_POINT_ABIS = [entryPoint06Abi, entryPoint07Abi, entryPoint08Abi] as const;
 // Coinbase Smart Wallet (Base Account): one call, or a batch that reverts as a whole if any call fails.
 // A user operation's "success" only means the account's own code didn't revert, and anyone can deploy an
 // account whose code claims to run a call and runs another. So a smart account's swaps count only when it

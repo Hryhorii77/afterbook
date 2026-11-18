@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { TransactionNotFoundError, TransactionReceiptNotFoundError, erc20Abi, type Hex } from 'viem';
 import { useAccount, usePublicClient } from 'wagmi';
+import { userOpOutcome } from '@/lib/wallet/userOps';
 import { base } from 'wagmi/chains';
 import type { TapeResult } from '@/lib/market/tape';
 import type { GeoInfo } from '@/lib/server/geo';
@@ -49,6 +50,10 @@ import { SymbolTile } from '../ui/SymbolTile';
 const RULES_KEY = 'afterbook-rules';
 const RUNS_KEY = 'afterbook-rule-runs';
 const known = (s: string) => !!getStock(s);
+// A pending smart-account buy whose receipt holds no operation for the connected wallet: it can only be
+// settled with the wallet that made it connected (it still counts toward the cap meanwhile).
+const UNSETTLED_NOTE = 'connect the wallet that made this buy to settle it';
+
 
 function readStore(): { rules: Rule[]; runs: RuleRun[] } {
   try {
@@ -461,7 +466,14 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
           if (!stillPending(run)) continue;
           // A basket run settled here (the page closed or reloaded mid-buy) is known only by its first swap:
           // the run's whole total is counted (the safe side for the cap), but say what's confirmed.
-          if (receipt.status === 'success')
+          // A Base Account buy is a user operation in a bundler's transaction: that can succeed while the
+          // buy reverted, so the account's own operation decides; if it can't be told, leave it pending.
+          const outcome = userOpOutcome(receipt, account);
+          if (outcome === 'unknown') {
+            if (run.note !== UNSETTLED_NOTE) addRun({ ...run, note: UNSETTLED_NOTE });
+            continue;
+          }
+          if (outcome === 'success')
             addRun({ ...run, outcome: 'bought', ...(readStore().rules.some((r) => r.id === run.ruleId && isRebalance(r)) && !run.note ? { note: 'settled from its first swap after the page closed; check your wallet for what else was bought' } : {}) });
           else dropRun(run.ruleId, run.slot);
           continue;
@@ -494,7 +506,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
       alive = false;
     };
     // re-read every 30 s while something is pending (`now` ticks)
-  }, [publicClient, pendingKey, addRun, dropRun, now]);
+  }, [publicClient, pendingKey, addRun, dropRun, now, account]);
 
   const setPaused = (id: string, paused: boolean) => {
     const s = readStore();
