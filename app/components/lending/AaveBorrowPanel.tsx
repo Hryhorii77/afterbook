@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAccount, usePublicClient, useReadContracts, useWriteContract } from 'wagmi';
+import { userOpOutcome } from '@/lib/wallet/userOps';
 import { base } from 'wagmi/chains';
 import { erc20Abi, formatUnits, getAddress, type ContractFunctionParameters } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
@@ -26,7 +27,7 @@ import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { LoanRescue } from './LoanRescue';
 import { fmt, usd } from '../swap/swapClient';
 import { useNotify } from '../notifications/notify';
-import { parseAmount, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
+import { parseAmount, TX_UNKNOWN, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
 
 // Borrow USDC against stock tokens on Aave V4's MAG7 spoke, from the visitor's own wallet (real
 // money; lib/lending/aaveBorrow.ts has the verified contract facts). Three actions:
@@ -184,7 +185,10 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
   const waitOk = async (hash: `0x${string}`, reverted: string) => {
     if (!publicClient) throw new Error('Base is not reachable right now. Try again in a moment.');
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
-    if (receipt.status !== 'success') throw new Error(reverted);
+    // A smart account's call runs inside a bundler's transaction, which can succeed while the call reverted.
+    const outcome = userOpOutcome(receipt, address);
+    if (outcome === 'reverted') throw new Error(reverted);
+    if (outcome === 'unknown') throw new Error(TX_UNKNOWN);
   };
   /** Exactly `amount` of `token` for the Aave spoke (the contract that pulls it), never unlimited. */
   const approveSpoke = async (token: `0x${string}`, amount: bigint, sym: string) => {
