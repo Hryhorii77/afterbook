@@ -152,13 +152,23 @@ export function useSwapWallet() {
       // The wallet's receipts can leave out the transaction's `to` and the account's own event, so read
       // each mined transaction from the chain and let the account's user operation decide.
       const hashes = [...new Set(receipts.map((r) => r.transactionHash))];
-      let outcomes: ('success' | 'reverted' | 'unknown')[];
+      let mined: { hash: Hex; outcome: 'success' | 'reverted' | 'unknown' }[];
       try {
-        outcomes = await Promise.all(hashes.map(async (hash) => userOpOutcome(await client().getTransactionReceipt({ hash }), address)));
+        // Waits up to 30 s per transaction: the wallet can report it before our node has the block. No
+        // replacement detection: the wallet reports hashes already mined, and viem would otherwise accept
+        // any transaction from the bundler's shared account with the same nonce (a cancel or a transfer
+        // has no EntryPoint event and would read as success).
+        mined = await Promise.all(
+          hashes.map(async (hash) => {
+            const receipt = await client().waitForTransactionReceipt({ hash, timeout: 30_000, checkReplacement: false });
+            return { hash: receipt.transactionHash, outcome: userOpOutcome(receipt, address) };
+          }),
+        );
       } catch {
         throw new Error(BATCH_UNKNOWN);
       }
-      if (outcomes.every((o) => o === 'success')) return hashes;
+      const outcomes = mined.map((m) => m.outcome);
+      if (outcomes.every((o) => o === 'success')) return [...new Set(mined.map((m) => m.hash))];
       // One transaction whose account operation reverted: an atomic batch then did nothing at all.
       if (status.atomic && hashes.length === 1 && outcomes[0] === 'reverted') throw new Error(BATCH_FAILED);
       throw new Error(BATCH_UNKNOWN);
