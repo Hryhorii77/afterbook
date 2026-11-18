@@ -473,8 +473,11 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
             if (run.note !== UNSETTLED_NOTE) addRun({ ...run, note: UNSETTLED_NOTE });
             continue;
           }
-          if (outcome === 'success')
-            addRun({ ...run, outcome: 'bought', ...(readStore().rules.some((r) => r.id === run.ruleId && isRebalance(r)) && !run.note ? { note: 'settled from its first swap after the page closed; check your wallet for what else was bought' } : {}) });
+          if (outcome === 'success') {
+            // The "connect the wallet" note was only for while it couldn't be settled.
+            const note = run.note === UNSETTLED_NOTE ? undefined : run.note;
+            addRun({ ...run, outcome: 'bought', note, ...(readStore().rules.some((r) => r.id === run.ruleId && isRebalance(r)) && !note ? { note: 'settled from its first swap after the page closed; check your wallet for what else was bought' } : {}) });
+          }
           else dropRun(run.ruleId, run.slot);
           continue;
         } catch (e) {

@@ -40,4 +40,9 @@ describe('userOpOutcome', () => {
     expect(userOpOutcome({ status: 'success', logs: [] }, ME)).toBe('success');
     expect(userOpOutcome({ status: 'success', logs: [opEvent(ME, false)] }, ME)).toBe('reverted');
   });
+  it('reads two operations of the account with different results as unknown, and other accounts\' events without `to` as unknown', () => {
+    expect(userOpOutcome({ status: 'success', to: EP, logs: [opEvent(ME, true), opEvent(ME, false)] }, ME)).toBe('unknown');
+    expect(userOpOutcome({ status: 'success', logs: [opEvent(OTHER, true)] }, ME)).toBe('unknown');
+    expect(userOpOutcome({ status: 'success', logs: [opEvent(OTHER, false)] }, ME)).toBe('unknown');
+  });
 });

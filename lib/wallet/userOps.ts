@@ -23,14 +23,15 @@ interface ReceiptLike {
  * What a mined transaction did for `account`:
  * - 'reverted' if the transaction reverted, or an EntryPoint reports the account's user operation failed;
  * - 'success' if it succeeded and, when it carries the account's user operation, that operation succeeded;
- * - 'unknown' if it went to an EntryPoint but holds no event for the account (or the account isn't known),
- *   so whether the person's call ran can't be told from this receipt.
+ * - 'unknown' if it went to an EntryPoint, or holds EntryPoint events, but none for the account (or the
+ *   account isn't known), or the account has two operations in it with different results.
  */
 export function userOpOutcome(receipt: ReceiptLike, account: `0x${string}` | undefined): 'success' | 'reverted' | 'unknown' {
   if (receipt.status !== 'success') return 'reverted';
   const me = account ? getAddress(account) : null;
-  let found = false;
-  let failed = false;
+  let ok = 0;
+  let failed = 0;
+  let others = 0;
   for (const log of receipt.logs ?? []) {
     if (!ENTRY_POINTS.has(getAddress(log.address))) continue;
     for (const abi of ENTRY_POINT_ABIS) {
@@ -39,9 +40,9 @@ export function userOpOutcome(receipt: ReceiptLike, account: `0x${string}` | und
         if (e.eventName === 'UserOperationEvent') {
           const a = e.args as { sender: string; success: boolean };
           if (me && getAddress(a.sender) === me) {
-            found = true;
-            if (!a.success) failed = true;
-          }
+            if (a.success) ok++;
+            else failed++;
+          } else others++;
         }
         break;
       } catch {
@@ -49,8 +50,13 @@ export function userOpOutcome(receipt: ReceiptLike, account: `0x${string}` | und
       }
     }
   }
+  // Two operations of the same account in one bundle with different results: which was this one is
+  // unknown (reading it as reverted could let a rule run buy twice).
+  if (failed && ok) return 'unknown';
   if (failed) return 'reverted';
-  if (found) return 'success';
+  if (ok) return 'success';
+  // EntryPoint events, but none for this account (or no account), or a transaction to an EntryPoint at
+  // all: whether the person's call ran can't be told from this receipt.
   const toEntryPoint = receipt.to ? ENTRY_POINTS.has(getAddress(receipt.to)) : false;
-  return toEntryPoint ? 'unknown' : 'success';
+  return others > 0 || toEntryPoint ? 'unknown' : 'success';
 }

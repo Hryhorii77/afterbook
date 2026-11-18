@@ -148,8 +148,20 @@ export function useSwapWallet() {
       throw new Error(BATCH_UNKNOWN);
     }
     const receipts = status.receipts ?? [];
-    if (status.status === 'success' && receipts.length > 0 && receipts.every((r) => r.status === 'success' && userOpOutcome(r, address) === 'success')) {
-      return [...new Set(receipts.map((r) => r.transactionHash))];
+    if (status.status === 'success' && receipts.length > 0 && receipts.every((r) => r.status === 'success')) {
+      // The wallet's receipts can leave out the transaction's `to` and the account's own event, so read
+      // each mined transaction from the chain and let the account's user operation decide.
+      const hashes = [...new Set(receipts.map((r) => r.transactionHash))];
+      let outcomes: ('success' | 'reverted' | 'unknown')[];
+      try {
+        outcomes = await Promise.all(hashes.map(async (hash) => userOpOutcome(await client().getTransactionReceipt({ hash }), address)));
+      } catch {
+        throw new Error(BATCH_UNKNOWN);
+      }
+      if (outcomes.every((o) => o === 'success')) return hashes;
+      // One transaction whose account operation reverted: an atomic batch then did nothing at all.
+      if (status.atomic && hashes.length === 1 && outcomes[0] === 'reverted') throw new Error(BATCH_FAILED);
+      throw new Error(BATCH_UNKNOWN);
     }
     // 400: never sent onchain; 500: reverted as a whole. Anything else (600 is a partial revert) isn't "nothing happened".
     if (status.status === 'failure' && status.atomic && (status.statusCode === 400 || status.statusCode === 500)) throw new Error(BATCH_FAILED);
