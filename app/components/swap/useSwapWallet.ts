@@ -154,11 +154,13 @@ export function useSwapWallet() {
       const hashes = [...new Set(receipts.map((r) => r.transactionHash))];
       let mined: { hash: Hex; outcome: 'success' | 'reverted' | 'unknown' }[];
       try {
-        // Waits up to 30 s per transaction: the wallet can report it before our node has the block. The
-        // hash returned is the one mined (a bundler's replacement mines the batch under another hash).
+        // Waits up to 30 s per transaction: the wallet can report it before our node has the block. No
+        // replacement detection: the wallet reports hashes already mined, and viem would otherwise accept
+        // any transaction from the bundler's shared account with the same nonce (a cancel or a transfer
+        // has no EntryPoint event and would read as success).
         mined = await Promise.all(
           hashes.map(async (hash) => {
-            const receipt = await client().waitForTransactionReceipt({ hash, timeout: 30_000 });
+            const receipt = await client().waitForTransactionReceipt({ hash, timeout: 30_000, checkReplacement: false });
             return { hash: receipt.transactionHash, outcome: userOpOutcome(receipt, address) };
           }),
         );
