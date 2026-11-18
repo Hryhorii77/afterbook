@@ -47,9 +47,10 @@ export function middleware(request: NextRequest) {
   //    blob: is allowed too: without it every wallet icon is a broken image.
   //    cdn.dexscreener.com: meme token logos on /memes and /stocks (lib/memes/memestocks.ts keeps only
   //    https URLs on that host).
-  //    chain-proxy.wallet.coinbase.com: once connected, the Base Account SDK sends wallet_getCallsStatus
-  //    (how a one-signature basket batch learns it was mined) to the chain RPC Coinbase gives it, this
-  //    host. Blocked, every Base Account basket buy ended in "its outcome couldn't be read yet" and went
+  //    *.wallet.coinbase.com: once connected, the Base Account SDK sends wallet_getCallsStatus
+  //    (how a one-signature basket batch learns it was mined) to the chain RPC Coinbase gives it,
+  //    chain-proxy.wallet.coinbase.com, and calls rpc.wallet.coinbase.com for other requests; the
+  //    wildcard covers Coinbase's wallet hosts only, not all of coinbase.com (owner, 2026-11-18). Blocked, every Base Account basket buy ended in "its outcome couldn't be read yet" and went
   //    unlogged, though it had gone through (the owner's first real one, 2026-11-18).
   //  - frame-src: Coinbase Wallet's SDK popup communication happens through
   //    an iframe on Coinbase's own domain, not window.open; WalletConnect's
@@ -60,7 +61,7 @@ export function middleware(request: NextRequest) {
     scriptSrc,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https://explorer-api.walletconnect.com https://api.web3modal.org https://metadata.coinbase.com https://cdn.dexscreener.com",
-    "connect-src 'self' https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.reown.com https://api.web3modal.org https://pulse.walletconnect.org https://mainnet.base.org https://base-rpc.publicnode.com https://chain-proxy.wallet.coinbase.com",
+    "connect-src 'self' https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.reown.com https://api.web3modal.org https://pulse.walletconnect.org https://mainnet.base.org https://base-rpc.publicnode.com https://*.wallet.coinbase.com",
     "frame-src https://*.coinbase.com https://keys.coinbase.com https://verify.walletconnect.org https://verify.walletconnect.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
