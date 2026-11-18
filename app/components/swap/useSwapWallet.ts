@@ -85,6 +85,11 @@ export function useSwapWallet() {
     return (await client().readContract({ address: token, abi: erc20Abi, functionName: 'allowance', args: [address, KYBER_ROUTER] })) as bigint;
   };
 
+  /** Whether a transaction was sent by someone other than the connected account: a smart account's
+   *  bundler (or the account isn't known: then nothing can be told). A regular wallet sends its own, and
+   *  its "Speed up" or "Cancel" is followed as before. */
+  const sentByBundler = (from: `0x${string}`) => !address || getAddress(from) !== getAddress(address);
+
   /** Approves exactly `amount` of `token` for the router and waits for it to be mined.
    *  `onSigned` runs once the wallet has sent it (the router may spend from then on). */
   const approveExact = async (token: `0x${string}`, amount: bigint, revertedMessage: string, onSigned?: () => void) => {
@@ -97,7 +102,21 @@ export function useSwapWallet() {
       dataSuffix: BUILDER_CODE_SUFFIX,
     });
     onSigned?.();
-    const receipt = await client().waitForTransactionReceipt({ hash });
+    let byBundler = false;
+    let replaced: 'cancelled' | 'replaced' | 'repriced' | null = null;
+    const receipt = await client().waitForTransactionReceipt({
+      hash,
+      onReplaced: (r) => {
+        replaced = r.reason;
+        byBundler = sentByBundler(r.replacedTransaction.from);
+      },
+    });
+    // Replaced, for a smart account: viem matched another transaction from the bundler's shared account
+    // with the same nonce, which says nothing about this approval.
+    if (byBundler) throw new Error(TX_UNKNOWN);
+    // A regular wallet's own Cancel: nothing was approved; another replacement: unknown.
+    if (replaced === 'cancelled') throw new Error(revertedMessage);
+    if (replaced === 'replaced') throw new Error(TX_UNKNOWN);
     // A smart account's approval is a user operation inside a bundler's transaction: that one can succeed
     // while the approval reverted, so the account's own operation decides.
     const outcome = userOpOutcome(receipt, address);
@@ -114,7 +133,18 @@ export function useSwapWallet() {
     const hash = await sendTransactionAsync({ to: tx.to, data: concat([tx.data, BUILDER_CODE_SUFFIX]), value: BigInt(0), chainId: base.id });
     onSigned?.(hash);
     let replaced: 'cancelled' | 'replaced' | 'repriced' | null = null;
-    const receipt = await client().waitForTransactionReceipt({ hash, onReplaced: (r) => void (replaced = r.reason) });
+    let byBundler = false;
+    const receipt = await client().waitForTransactionReceipt({
+      hash,
+      onReplaced: (r) => {
+        replaced = r.reason;
+        byBundler = sentByBundler(r.replacedTransaction.from);
+      },
+    });
+    // A smart account's swap is sent by a bundler: a "replacement" is just another transaction from its
+    // shared account with the same nonce (a bundler's self-send reads as "cancelled"), which says nothing
+    // about this swap; it may still be bundled again. Never "cancelled" (that would free a rule run).
+    if (byBundler) throw new Error(TX_UNKNOWN);
     if (replaced === 'cancelled') throw new Error(SWAP_CANCELLED);
     if (replaced === 'replaced') throw new Error(SWAP_REPLACED);
     // Same for a smart account's swap: the bundler's transaction succeeding doesn't mean the swap ran.

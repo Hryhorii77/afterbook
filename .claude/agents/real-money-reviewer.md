@@ -142,6 +142,14 @@ check passes, say so in one short line; do not pad.
   reverted. 'unknown' (a bundle without the account's event) must never be
   read as success or as "nothing happened". A new receipt check that reads only
   `status` is a finding.
+  Replacement detection: for a smart account the sender is the bundler's shared
+  account, so viem's replacement match (same `from` and nonce) says nothing about
+  the person's call. `sendBatch` waits with `checkReplacement: false`;
+  `approveExact`, `sendSwap` and both Aave panels' `waitOk` read any
+  replacement whose `replacedTransaction.from` isn't the connected account (or
+  with no account known) as `TX_UNKNOWN`, never as SWAP_CANCELLED (which frees a
+  rule run) or as success. A regular wallet's own "Speed up" is still followed;
+  its own "Cancel" means nothing happened, and another replacement is unknown.
 - `useReviewedSwap` (`useSwapWallet.ts`, used by SwapPanel and MemeBuyPanel)
   sends a rebuilt swap without a new review only if it is the same trade (each
   panel's `sameTrade`) with a minimum >= the reviewed one; approvals use the reviewed
