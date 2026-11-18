@@ -184,7 +184,19 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
   // ---- wallet steps
   const waitOk = async (hash: `0x${string}`, reverted: string) => {
     if (!publicClient) throw new Error('Base is not reachable right now. Try again in a moment.');
-    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    // For a smart account the sender is the bundler's shared account, so viem's replacement match (same
+    // sender and nonce) says nothing about this call: any replacement not sent by the account is unknown.
+    let byBundler = false;
+    let replaced: 'cancelled' | 'replaced' | 'repriced' | null = null;
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash,
+      onReplaced: (r) => {
+        replaced = r.reason;
+        byBundler = !address || getAddress(r.replacedTransaction.from) !== getAddress(address);
+      },
+    });
+    if (byBundler || replaced === 'replaced') throw new Error(TX_UNKNOWN);
+    if (replaced === 'cancelled') throw new Error(reverted);
     // A smart account's call runs inside a bundler's transaction, which can succeed while the call reverted.
     const outcome = userOpOutcome(receipt, address);
     if (outcome === 'reverted') throw new Error(reverted);
