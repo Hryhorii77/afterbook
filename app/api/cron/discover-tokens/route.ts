@@ -5,6 +5,8 @@ import { fetchPublishedStockList, diffAgainstTracked, verifyCandidate, lowestRec
 import { usdCompact } from '@/lib/format';
 import { cronAuthorized } from '@/lib/server/sharedSecret';
 import { saveDirectoryPools } from '@/lib/stocks/stockDirectory';
+import { fetchCoinbaseStockList } from '@/lib/stocks/coinbaseStockList';
+import { checkCoinbaseList } from '@/lib/stocks/coinbaseListGuard';
 
 export const revalidate = 0;
 // 120 s: after Denim (2026-11-05) each pool over $50k needs ~27 log reads for its three-hour low.
@@ -51,7 +53,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, reason: 'discovery not configured' });
   }
 
-  const listing = await fetchPublishedStockList().catch(() => null);
+  const raw = await fetchCoinbaseStockList({ cache: 'no-store' }).catch(() => null);
+  if (!raw) return NextResponse.json({ ok: false, reason: 'stock list fetch failed' });
+  // The list guard (lib/stocks/coinbaseListGuard.ts): saves the last good list, or alerts when the list shrank too
+  // far or a tracked stock is missing from it. Runs before anything else so an alert is never skipped.
+  const guard = await checkCoinbaseList(raw, { dry }).catch((err) => ({ saved: false, alerts: [`Coinbase list guard failed: ${(err as Error).message}`], error: true }));
+  if (!dry) for (const a of guard.alerts) await sendTelegramMessage(adminChatId!, a).catch(() => {});
+  if (dry && request.nextUrl.searchParams.get('guard') === '1') return NextResponse.json({ ok: true, dry: true, guard });
+  const listing = await fetchPublishedStockList(raw).catch(() => null);
   if (!listing) return NextResponse.json({ ok: false, reason: 'stock list fetch failed' });
   const published = listing.stocks;
 

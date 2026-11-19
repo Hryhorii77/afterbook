@@ -1,4 +1,4 @@
-import { fetchCoinbaseStockList } from './coinbaseStockList';
+import { getCoinbaseStockList } from './coinbaseListGuard';
 import { STOCKS } from './tokens';
 
 // Coinbase's public, keyless tokenized-stock list. Each entry carries the
@@ -14,7 +14,7 @@ export const ICON_HOST = 'https://metadata.coinbase.com/equity_icons/';
  *  Any failure returns an empty map and the app keeps its letter tiles. */
 export async function getTokenIcons(): Promise<Record<string, string>> {
   try {
-    const tokens = await fetchCoinbaseStockList({ next: { revalidate: 6 * 60 * 60 } });
+    const tokens = await getCoinbaseStockList({ next: { revalidate: 6 * 60 * 60 } });
     const byAddress = new Map<string, string>();
     for (const t of tokens) {
       if (typeof t.contract_address === 'string' && typeof t.icon_url === 'string' && t.icon_url.startsWith(ICON_HOST)) {

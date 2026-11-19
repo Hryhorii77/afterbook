@@ -1,4 +1,4 @@
-import { fetchCoinbaseStockList, splitListedTokens, type SkippedListing } from './coinbaseStockList';
+import { fetchCoinbaseStockList, splitListedTokens, type ListedToken, type SkippedListing } from './coinbaseStockList';
 import { parseAbi } from 'viem';
 import { getClient, TOKEN_ABI, readPoolState, poolDepth, midPriceUsd, MULTIPLIER_ONE } from '../market/quote';
 import { blockAtOrBefore, blockRanges, mapLimited } from '../market/blocks';
@@ -20,8 +20,8 @@ export interface PublishedStock {
 // carries the contract address, so a candidate's identity comes from Coinbase,
 // not from a ticker match.
 // (lib/stocks/coinbaseStockList.ts reads every page; the first page alone is 100 of 145 as of 2026-10-14.)
-export async function fetchPublishedStockList(): Promise<{ stocks: PublishedStock[]; skipped: SkippedListing[] }> {
-  const { kept, skipped } = splitListedTokens(await fetchCoinbaseStockList({ cache: 'no-store' }));
+export async function fetchPublishedStockList(raw?: ListedToken[]): Promise<{ stocks: PublishedStock[]; skipped: SkippedListing[] }> {
+  const { kept, skipped } = splitListedTokens(raw ?? (await fetchCoinbaseStockList({ cache: 'no-store' })));
   const stocks = kept.map((t) => ({
     symbol: t.symbol as string,
     tokenAddress: t.contract_address as `0x${string}`,

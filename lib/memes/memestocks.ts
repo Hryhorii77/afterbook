@@ -19,7 +19,7 @@
 // can be bought but not sold. None of this makes a meme safe; the pages say so.
 import { unstable_cache } from 'next/cache';
 import { encodeAbiParameters, getAddress, keccak256, parseAbi } from 'viem';
-import { fetchCoinbaseStockList } from '../stocks/coinbaseStockList';
+import { getStockTokenExclusions } from '../stocks/coinbaseListGuard';
 import { getClient } from '../market/quote';
 import { redis } from '../server/redis';
 import { kyberBase, kyberHeaders, logKyberFailure } from '../swap/kyberClient';
@@ -281,7 +281,9 @@ export const MEME_CARRY_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 /** Finds and verifies every meme pool on a tracked stock. Reads only; the caller saves the result. */
 export async function discoverMemePools(): Promise<{ allowlist: MemeAllowlist; report: DiscoveryReport }> {
   // Any Coinbase tokenized stock on the other side is a stock pair, not a meme.
-  const coinbase = new Set((await fetchCoinbaseStockList({ cache: 'no-store' })).map((t) => String(t.contract_address ?? '').toLowerCase()));
+  // Tracked stocks, Coinbase's fresh list and its last good list together (lib/stocks/coinbaseListGuard.ts), so a
+  // list glitch can't let a stock token through as a meme.
+  const coinbase = await getStockTokenExclusions({ cache: 'no-store' });
 
   const candidates: { pair: DexPair; stock: CbStock; meme: `0x${string}` }[] = [];
   const failedStocks: string[] = [];
