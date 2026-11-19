@@ -296,7 +296,7 @@ export function BasketPanel() {
       {!portfolio && !review && !ENROLLMENT_PAUSED && (
         <>
           <p className="geo-note" style={{ marginTop: 0 }}>
-            Enrolling creates a smart account on Base that only you can withdraw from. Afterbook never holds funds.
+            Enrolling creates a smart account on Base owned by your wallet. Glider&apos;s automation key can also move its funds and change its settings: only Glider&apos;s own system limits what it does, not a contract rule. Afterbook never holds funds.
           </p>
           <label className="geo-note" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
             <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} style={{ marginTop: 3 }} />
@@ -317,9 +317,10 @@ export function BasketPanel() {
       {!portfolio && review && !ENROLLMENT_PAUSED && (
         <>
           <p className="geo-note" style={{ marginTop: 0 }}>
-            You are about to sign a message that authorizes Glider&apos;s automation agent to create a Base smart account
-            owned by <code>{address}</code> and rebalance it to the Basis Tilt strategy. It does not move any funds. You can
-            withdraw at any time with a fresh signature.
+            You are about to sign a message that creates a Base smart account owned by <code>{address}</code> and gives
+            Glider&apos;s automation key unrestricted permission on it: that key can move the account&apos;s funds and change its
+            settings, and only Glider&apos;s own system limits it to rebalancing toward Basis Tilt. Signing does not move any
+            funds.
           </p>
           <p className="geo-note">
             Agent: <code>{review.agentAccountId}</code>
@@ -390,6 +391,8 @@ export function BasketPanel() {
               <p className="geo-note" style={{ marginTop: 0 }}>
                 Sends USDC from your wallet to your own Basis Tilt account on Base, then Glider spreads it across the
                 basket. Each position needs at least $1 to trade, so tiny deposits may leave some names unfilled.
+                Glider&apos;s automation key can move funds out of this account; only Glider&apos;s own system limits that,
+                not a contract rule.
               </p>
             </div>
           )}
@@ -413,7 +416,7 @@ export function BasketPanel() {
               USDC in your account on Base: {formatUnits(accountUsdc, USDC.decimals)}
               {positions && Number(positions.totalValueUsd) < 0.01 && (
                 <span style={{ display: 'block' }}>
-                  It is yours and only you can withdraw it. Glider has not counted it yet, so Balance shows $0.00 and Withdraw stays
+                  It is in your account. Glider has not counted it yet, so Balance shows $0.00 and Withdraw stays
                   off until it does. That can take a while after the deposit confirms: press Refresh later.
                 </span>
               )}

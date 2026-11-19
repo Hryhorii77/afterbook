@@ -84,7 +84,7 @@ export default async function BasketsPage() {
           <li className="how-step">
             <span className="how-num">02</span>
             <h3>Deposit USDC</h3>
-            <p>Send USDC from your wallet to that account. It stays yours; Afterbook never holds it.</p>
+            <p>Send USDC from your wallet to that account. It stays in your account; Afterbook never holds it. Glider&apos;s automation can also move it (see the risks).</p>
           </li>
           <li className="how-step">
             <span className="how-num">03</span>
