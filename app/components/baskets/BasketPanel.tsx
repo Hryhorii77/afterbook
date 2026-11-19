@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { useAccount, useReadContract, useSignMessage, useSignTypedData, useWriteContract } from 'wagmi';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useAccount, usePublicClient, useReadContract, useSignMessage, useSignTypedData, useWriteContract } from 'wagmi';
 import { base } from 'wagmi/chains';
 import { erc20Abi, formatUnits, parseUnits, type Hex } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import { USDC } from '@/lib/stocks/tokens';
+import { deployedAccountProblem, depositAccountProblem } from '@/lib/baskets/depositAccount';
 import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { useNotify } from '../notifications/notify';
 
@@ -76,8 +77,25 @@ export function BasketPanel() {
 
   // The USDC sitting in the user's Basis Tilt account, read straight from the chain (every 15s), so a
   // deposit is visible as soon as it confirms, before Glider has counted it.
-  const deposit = portfolio?.smartAccounts.find((a) => a.accountId.startsWith(BASE_PREFIX));
-  const depositAddr = (deposit?.depositAccountId ?? deposit?.accountId)?.split(':')[2];
+  // The address comes from Glider through our server, so the browser checks it is the connected wallet's own
+  // Kernel account (lib/baskets/depositAccount.ts) before showing it or sending to it: the CREATE2 maths, then,
+  // if it is deployed, its implementation, root validator and signer read from the chain.
+  const publicClient = usePublicClient({ chainId: base.id });
+  const deposit = portfolio?.smartAccounts.find((a) => typeof a.accountId === 'string' && a.accountId.startsWith(BASE_PREFIX));
+  const mathsProblem = useMemo(() => (portfolio ? depositAccountProblem(address, deposit) : null), [portfolio, address, deposit]);
+  const candidate = portfolio && mathsProblem === null ? (deposit?.accountId.split(':')[2] as Hex | undefined) : undefined;
+  const [chainCheck, setChainCheck] = useState<{ addr: string; problem: string | null } | null>(null);
+  useEffect(() => {
+    if (!candidate || !address || !publicClient) return;
+    let live = true;
+    void deployedAccountProblem(publicClient, address, candidate).then((problem) => live && setChainCheck({ addr: candidate, problem }));
+    return () => {
+      live = false;
+    };
+  }, [candidate, address, publicClient, portfolio]);
+  const chainProblem = candidate && chainCheck?.addr === candidate ? chainCheck.problem : null;
+  const depositProblem = mathsProblem ?? chainProblem;
+  const depositAddr = candidate && chainCheck?.addr === candidate && chainCheck.problem === null ? candidate : undefined;
   const { data: accountUsdc, refetch: refetchAccountUsdc } = useReadContract({
     address: USDC.address,
     abi: erc20Abi,
@@ -188,6 +206,11 @@ export function BasketPanel() {
       const value = parseUnits(amount, USDC.decimals);
       if (value <= BigInt(0)) throw new Error('Enter an amount above zero.');
       if (usdcBalance !== undefined && value > usdcBalance) throw new Error('That is more USDC than your wallet holds on Base.');
+      const problem =
+        depositAccountProblem(address, deposit) ??
+        (deposit?.accountId.split(':')[2]?.toLowerCase() !== to.toLowerCase() ? 'the address changed.' : null) ??
+        (address && publicClient ? await deployedAccountProblem(publicClient, address, to as Hex) : 'Connect a wallet first.');
+      if (problem) throw new Error(`Refused: ${problem} Nothing was sent.`);
       const hash = await writeContractAsync({ address: USDC.address, abi: erc20Abi, functionName: 'transfer', args: [to as Hex, value], chainId: base.id, dataSuffix: BUILDER_CODE_SUFFIX });
       setAmount('');
       setNotice(
@@ -308,10 +331,16 @@ export function BasketPanel() {
       {portfolio && (
         <>
           <p className="geo-note" style={{ marginTop: 0 }}>
-            Deposit address on Base: <code>{depositAddr ?? 'unavailable'}</code>
+            Deposit address on Base: <code>{depositAddr ?? (candidate && !depositProblem ? 'checking…' : 'unavailable')}</code>
             <br />
-            Only send assets on <strong>Base</strong> to this address. Funds sent on another network, or to the wrong
-            address, may not be recoverable.
+            {depositProblem ? (
+              <span className="geo-note-blocked">{depositProblem}</span>
+            ) : (
+              <>
+                Only send assets on <strong>Base</strong> to this address. Funds sent on another network, or to the wrong
+                address, may not be recoverable.
+              </>
+            )}
           </p>
           {depositAddr && (
             <div className="basket-deposit">

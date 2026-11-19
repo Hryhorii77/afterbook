@@ -71,6 +71,8 @@ Scripts below import repo modules, so write them as `tmp-*.ts` in the
 **repo root**, run with `npx tsx ./tmp-x.ts`, and **delete them
 afterwards**. Don't commit them.
 
+**Deposit address check (2026-11-19).** The Baskets panel shows a deposit address and sends USDC to it only if `lib/baskets/depositAccount.ts` recomputes it from the connected wallet (Kernel v3.1 CREATE2, salts `0x8b0300` + 0…4095). Glider's account index looks like a counter (41, 42, 53, 69 by 2026-11-19), possibly shared across their tenants: if new enrollees ever see "could not be confirmed as an account owned by your wallet", re-read a fresh account's deployment (or recompute with `findGliderSalt` over a wider range) before widening `GLIDER_SALT_SCAN` or moving `GLIDER_SALT_BASE`. A wider scan is safe (the salt needs no trust), only slower.
+
 ## 1. Who is enrolled and what do they hold? (read-only, always first)
 
 ```ts
