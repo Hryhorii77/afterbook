@@ -5,7 +5,8 @@
 // minutes), and each tracked stock's memes from the /memes board. Nothing here reads the chain or
 // writes Redis on a page view, and the snapshot read is cached an hour.
 import { unstable_cache } from 'next/cache';
-import { fetchCoinbaseStockList, splitListedTokens } from './coinbaseStockList';
+import { splitListedTokens } from './coinbaseStockList';
+import { getCoinbaseStockList } from './coinbaseListGuard';
 import { ICON_HOST } from './coinbaseIcons';
 import { getMemeBoard } from '../memes/memestocks';
 import { redis } from '../server/redis';
@@ -143,7 +144,7 @@ export function sortDirectory(rows: DirectoryRow[]): DirectoryRow[] {
 /** The whole directory, or null if Coinbase's list can't be read. `trackedDepth` is the tape's depth by symbol. */
 export async function getStockDirectory(trackedDepth: Record<string, number | null>): Promise<{ rows: DirectoryRow[]; checkedAt: number | null } | null> {
   const [list, pools, board] = await Promise.all([
-    fetchCoinbaseStockList({ next: { revalidate: 60 * 60 } }).catch(() => null),
+    getCoinbaseStockList({ next: { revalidate: 60 * 60 } }).catch(() => null),
     readDirectoryPools(),
     getMemeBoard(),
   ]);

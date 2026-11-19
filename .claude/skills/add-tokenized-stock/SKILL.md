@@ -23,7 +23,7 @@ Glider/users) — don't do it as part of this skill.
 
 *State on 2026-10-27:* 38 tracked (12 moved to their Aero pools, 26 added the day Base announced them; README "Contract addresses"). The other ~180 listed tokens all had under $15k of USDC depth on either factory. Re-check only when the daily digest names a candidate.
 
-Coinbase's own public list is the source of truth for *which tokens
+Coinbase's own public list (read through the shrink guard in `lib/stocks/coinbaseListGuard.ts` since 2026-11-19; 90 tokens that day) is the source of truth for *which tokens
 exist*: `GET https://api.coinbase.com/v1/tokenized-stocks` (keyless; each
 entry has `symbol`, `name`, `contract_address`, `decimals`, `icon_url`,
 `multiplier`, `nav_price`). The older base.org/stocks page it replaced
