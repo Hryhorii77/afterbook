@@ -42,11 +42,10 @@ export function liquidBarRow(samples: DepthSample[], symbol: string, now: number
       return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? [{ ts: s.ts, usd: v }] : [];
     })
     .sort((a, b) => a.ts - b.ts)
-    // A lone $0 next to good readings is a node answering 0 for a moment (ULc and HSAIc each had one on 2026-11-19
-    // between ~$51k reads), not a pool emptied and refilled within ten minutes: count it as a failed read, or one
-    // glitch labels a stock thin for days. "Lone" means the readings on both sides are good and within two slots
-    // (or, for the newest reading, the one before is); at most MAX_ZERO_GLITCHES per window are dropped, so a pool
-    // reading 0 every other slot still counts as thin. Real pulls to $10–20k (LLYc, MRVLc) are still counted.
+    // A lone $0 between two good readings at or above the bar, each within two slots, is a node answering 0 for a
+    // moment (seen on 2026-11-19), not a pool emptied and refilled within ten minutes: count it as a failed read, or
+    // one glitch labels a deep stock thin for days. At most MAX_ZERO_GLITCHES per window are dropped, a $0 at either
+    // edge always counts, and pulls to anything above $0 (the bots' $10–20k) always count.
     .filter(
       (() => {
         let dropped = 0;
@@ -54,8 +53,10 @@ export function liquidBarRow(samples: DepthSample[], symbol: string, now: number
           if (s.usd !== 0 || dropped >= MAX_ZERO_GLITCHES) return true;
           const prev = arr[i - 1];
           const next = arr[i + 1];
-          const prevOk = !!prev && prev.usd > 0 && s.ts - prev.ts <= 2 * DEPTH_SLOT_MS;
-          const nextOk = next ? next.usd > 0 && next.ts - s.ts <= 2 * DEPTH_SLOT_MS : true;
+          // Both neighbours must be good readings at or above the bar and close by: a $0 at the newest reading is
+          // not excused (a pool emptied just before the daily compute must not read "Liquid" for a day).
+          const prevOk = !!prev && prev.usd >= LIQUID_BAR_USD && s.ts - prev.ts <= 2 * DEPTH_SLOT_MS;
+          const nextOk = !!next && next.usd >= LIQUID_BAR_USD && next.ts - s.ts <= 2 * DEPTH_SLOT_MS;
           if (prevOk && nextOk) {
             dropped++;
             return false;
@@ -65,7 +66,8 @@ export function liquidBarRow(samples: DepthSample[], symbol: string, now: number
       })(),
     );
   const slots = LIQUID_BAR_WINDOW_MS / DEPTH_SLOT_MS;
-  const coverage = Math.min(1, good.length / slots);
+  // Coverage counts distinct 5-minute slots, not samples, so a doubled write can't inflate it.
+  const coverage = Math.min(1, new Set(good.map((s) => Math.floor(s.ts / DEPTH_SLOT_MS))).size / slots);
   const lowUsd = good.length ? Math.min(...good.map((s) => s.usd)) : null;
   const oldest = good.length ? Math.min(...good.map((s) => s.ts)) : null;
   // The whole window must be covered: reads reaching back (within one hour) to its start, and most slots read.
@@ -81,7 +83,9 @@ export function liquidBarRow(samples: DepthSample[], symbol: string, now: number
 export async function computeLiquidBar({ now = Date.now(), save = false } = {}): Promise<LiquidBar> {
   const samples = await getDepthSamplesFor(LIQUID_BAR_WINDOW_MS, now);
   const bar: LiquidBar = { at: now, rows: Object.fromEntries(STOCKS.map((s) => [s.symbol, liquidBarRow(samples, s.symbol, now)])) };
-  if (save && redis) await redis.set(KEY, bar);
+  // No samples at all means the read failed (or Redis is down): keep the previous labels up instead of saving
+  // "measuring" for every stock.
+  if (save && redis && samples.length > 0) await redis.set(KEY, bar);
   return bar;
 }
 

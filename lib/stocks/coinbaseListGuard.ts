@@ -13,6 +13,10 @@ import { STOCKS } from './tokens';
 // cron alerts when a tracked stock is missing from the fresh list even though the count holds.
 
 const LAST_GOOD_KEY = 'cblist:lastgood';
+/** The alert conditions seen on the last run, so each alert is sent once when it starts. */
+const ALERT_STATE_KEY = 'cblist:alertstate';
+/** When the frozen-baseline report last went out. */
+const STALE_REPORT_KEY = 'cblist:stalereport';
 /** A fresh list this much smaller than the last good one is treated as broken: readers use the last good one. */
 export const SHRINK_LIMIT = 0.25;
 /** Any drop of more than this alerts, and no smaller list ever replaces the saved one automatically (owner,
@@ -97,6 +101,13 @@ export async function checkCoinbaseList(
   freshCount: number;
   lastGoodCount: number | null;
   missingTracked: string[];
+  /** Alerts to send now: new conditions (all of them on a dry run). */
+  toSend: { key: string; text: string }[];
+  /** The weekly frozen-baseline report, when due. */
+  staleReport: string | null;
+  /** Every condition seen this run, and the ones recorded last run. */
+  conditionKeys: string[];
+  previousKeys: string[];
   /** Whole days since the saved list was written; null when there is none. */
   baselineAgeDays: number | null;
   /** The list the cron's own discovery step should use: the last good one when the fresh one shrank too far. */
@@ -116,38 +127,57 @@ export async function checkCoinbaseList(
     }
   }
   const j = judgeCoinbaseList(fresh, lastGood);
-  const alerts: string[] = [];
+  // Each problem is a condition with a key; an alert goes out only when its condition is new since the last run
+  // (owner, 2026-11-19: the same alert every day while a problem lasts is noise). Dry runs show every condition.
+  const conditions: { key: string; text: string }[] = [];
   const dropped = j.lastGoodCount != null && j.freshCount < j.lastGoodCount;
   if (!j.shrunk && j.lastGoodCount != null && j.freshCount < j.lastGoodCount * (1 - DROP_ALERT)) {
-    alerts.push(
-      `Coinbase's tokenized-stock list dropped from ${j.lastGoodCount} to ${j.freshCount} tokens (over ${DROP_ALERT * 100}%, under ${SHRINK_LIMIT * 100}%). ` +
+    const pct = Math.round((1 - j.freshCount / j.lastGoodCount) * 100);
+    conditions.push({
+      // The 5% band is in the key, so a drop that deepens (12% to 22%) alerts again.
+      key: `drop:${Math.floor(pct / 5) * 5}`,
+      text:
+        `Coinbase's tokenized-stock list dropped from ${j.lastGoodCount} to ${j.freshCount} tokens (over ${DROP_ALERT * 100}%, under ${SHRINK_LIMIT * 100}%). ` +
         `It is still used, but not saved as the baseline. If the smaller list is real, delete the Redis key ${LAST_GOOD_KEY} (unless a tracked stock is missing from it).`,
-    );
+    });
   }
   if (j.shrunk) {
-    alerts.push(
-      `Coinbase's tokenized-stock list shrank from ${j.lastGoodCount} to ${j.freshCount} tokens (over ${SHRINK_LIMIT * 100}%). ` +
+    conditions.push({
+      key: 'shrink',
+      text:
+        `Coinbase's tokenized-stock list shrank from ${j.lastGoodCount} to ${j.freshCount} tokens (over ${SHRINK_LIMIT * 100}%). ` +
         `/stocks, the icons and the meme job keep using the last good list (from ${new Date(lastGood!.at).toISOString().slice(0, 10)}) until this is checked. ` +
         `If the smaller list is real, delete the Redis key ${LAST_GOOD_KEY} and the next run takes the new list as the baseline (unless a tracked stock is missing from it).`,
-    );
+    });
   }
   if (j.missingTracked.length > 0) {
-    alerts.push(
-      `Tracked stocks missing from Coinbase's list: ${j.missingTracked.join(', ')} (list has ${j.freshCount} tokens). ` +
+    conditions.push({
+      key: `missing:${[...j.missingTracked].sort().join(',')}`,
+      text:
+        `Tracked stocks missing from Coinbase's list: ${j.missingTracked.join(', ')} (list has ${j.freshCount} tokens). ` +
         `They keep their tape rows and pages, but /stocks loses their rows and their icons fall back to letter tiles. ` +
         `The saved baseline is not updated until each is back in Coinbase's list or removed from STOCKS (lib/stocks/tokens.ts); deleting ${LAST_GOOD_KEY} does not change that.`,
-    );
+    });
   }
+  // Which conditions are new since the last run. Nothing is written here: the cron sends first and then records
+  // only what was sent (recordGuardAlerts), so a failed send or a later throw can't swallow a first alert.
+  const previousKeys = !dry && redis ? ((await redis.get<string[]>(ALERT_STATE_KEY)) ?? []) : [];
+  const known = new Set(previousKeys);
+  const toSend = dry ? conditions : conditions.filter((c) => !known.has(c.key));
   // A baseline that hasn't been updated in a week (a small drop or a missing tracked stock keeps it frozen) says so
-  // once a week, so it can't go stale silently.
+  // once a week, timed from the last report that went out, so a missed cron day or a failed send can't skip it.
   const notSaving = j.shrunk || dropped || j.missingTracked.length > 0;
   const ageDays = lastGood ? Math.floor((now - lastGood.at) / 86_400_000) : null;
-  if (notSaving && ageDays != null && ageDays >= STALE_DAYS && ageDays % STALE_DAYS === 0) {
-    alerts.push(
-      `The saved Coinbase list (${LAST_GOOD_KEY}, ${j.lastGoodCount} tokens) is ${ageDays} days old and isn't being updated: today's list has ${j.freshCount}` +
-        `${j.missingTracked.length ? ` and is missing ${j.missingTracked.join(', ')}` : ''}. Tokens Coinbase added since then aren't in the fallback.`,
-    );
+  let staleReport: string | null = null;
+  if (notSaving && ageDays != null && ageDays >= STALE_DAYS) {
+    const lastReport = dry || !redis ? null : await redis.get<number>(STALE_REPORT_KEY);
+    if (typeof lastReport !== 'number' || now - lastReport >= STALE_DAYS * 86_400_000) {
+      staleReport =
+        `The saved Coinbase list (${LAST_GOOD_KEY}, ${j.lastGoodCount} tokens) is ${ageDays} days old and isn't being updated: today's list has ${j.freshCount}` +
+        `${j.missingTracked.length ? ` and is missing ${j.missingTracked.join(', ')}` : ''}. Tokens Coinbase added since then aren't in the fallback.`;
+    }
   }
+  const alerts = [...toSend.map((c) => c.text), ...(staleReport ? [staleReport] : [])];
   // Saved only when nothing is wrong: not smaller than the saved list (a slow shrink can't walk the baseline down)
   // and no tracked stock missing (a bad list can't become the fallback).
   let saved = false;
@@ -159,7 +189,17 @@ export async function checkCoinbaseList(
       saved = true;
     }
   }
-  return { saved, alerts, ...j, baselineAgeDays: ageDays, useList: j.shrunk ? lastGood!.tokens : fresh };
+  return {
+    saved,
+    alerts,
+    toSend,
+    staleReport,
+    conditionKeys: conditions.map((c) => c.key),
+    previousKeys,
+    ...j,
+    baselineAgeDays: ageDays,
+    useList: j.shrunk ? lastGood!.tokens : fresh,
+  };
 }
 
 /**
@@ -174,4 +214,21 @@ export async function getStockTokenExclusions(init: Parameters<typeof fetchCoinb
     if (typeof t.contract_address === 'string') out.add(t.contract_address.toLowerCase());
   }
   return out;
+}
+
+/**
+ * Cron only, after sending: records which conditions are now known (still present, and either already known or just
+ * sent) and when the weekly report last went out. A condition whose send failed stays unknown, so it is sent again
+ * on the next run.
+ */
+export async function recordGuardAlerts(
+  { conditionKeys, previousKeys }: { conditionKeys: string[]; previousKeys: string[] },
+  sentKeys: Set<string>,
+  staleReportSent: boolean,
+  now = Date.now(),
+): Promise<void> {
+  if (!redis) return;
+  const known = new Set(previousKeys);
+  await redis.set(ALERT_STATE_KEY, conditionKeys.filter((k) => known.has(k) || sentKeys.has(k)));
+  if (staleReportSent) await redis.set(STALE_REPORT_KEY, now);
 }
