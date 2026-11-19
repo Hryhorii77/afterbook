@@ -84,7 +84,15 @@ check passes, say so in one short line; do not pad.
   approve call site is a finding. (The Aave spoke's approvals are separate:
   see the Aave bullets below.) The client re-checks `to`/`spender` against `KYBER_ROUTER`
   (`buildSwap`), and `sendSwap` (the one swap call site) re-checks `to` and
-  appends the suffix.
+  appends the suffix. The browser's `buildSwap` also runs `lib/swap/swapFloor.ts` on
+  every build (2026-11-19): `signedFloorProblem` (calldata tokens, worked out from the
+  person's own request in `buildSwap`, never from the server's answer, plus amount and
+  recipient are the ones asked; no fee arrays, empty permit, splits within the amount; signed minimum = `minAmountOut`, and at least the quote less the
+  person's `slippageBps` minus 1 bp) and, for a stock, `poolPriceProblem` (the quote
+  no more than `MAX_POOL_GAP_BPS`, 5%, worse than the stock's pool price, from a
+  `slot0` read in the browser, not the server). Removing either, or widening the 5%
+  without new live-quote numbers, is a finding. Known, accepted gap: meme buys get no pool
+  price check (their pool comes from the server-written allowlist; $1,000 cap).
 - A stock buy is refused above the lower of `MAX_SWAP_USD` and `MAX_BUY_DEPTH_SHARE` of its live pool depth (`poolDepthUsd` checked in `getRoute`, so quote, build and basket legs all hit it; it refuses when the depth can't be read). Raising or removing it is a finding.
 - Tokens come only from `STOCKS` (`parseSwapRequest`), or for a meme buy from
   `parseMemeSwapRequest` (`lib/swap/memeSwap.ts`): the meme must be on the verified
