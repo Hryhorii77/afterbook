@@ -192,9 +192,14 @@ check passes, say so in one short line; do not pad.
   stock at most once, only `STOCKS` tokens, `tokenIn` the stock's own token.
   `sendBatch` runs `basketBatchProblem` on every batch, buy or sell: every call
   passes `isBasketBatchCall` (approvals of USDC or a `STOCKS` token naming the
-  router), every swap decodes and pays the connected account, and each approval equals exactly what the batch's
+  router), every swap decodes, pays the connected account, has no fee receiver or fee amount, split amounts within its
+  amount, an empty permit, a minimum above 0 and exactly one side USDC with the other a
+  `STOCKS` token, and each approval equals exactly what the batch's
   swaps spend of that token (at most one per token). The sell's failure wording
   is its own (`SELL_BATCH_FAILED` / `SELL_BATCH_UNKNOWN`), never the buy's.
+  Both batch builders (`assertSignedIsShown`) refuse a swap whose calldata spends
+  another amount than `quote.amountIn` or signs another minimum than
+  `tx.minAmountOut` (the card's "at least"), or whose split amounts exceed it.
 - Basket sells (`BasketSellPanel.tsx`, `basketSellAmounts`): per leg, an
   approval of that stock's token for `KYBER_ROUTER` for exactly that leg's
   amount (never unlimited, never another spender), then its swap; the client

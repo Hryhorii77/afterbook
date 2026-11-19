@@ -168,13 +168,20 @@ export function checkSwapCalldata(req: SwapRequest, account: `0x${string}`, fee:
   return desc.minReturnAmount;
 }
 
-/** The router call's swap description (tokens, recipient, amount), or null if it is not a router swap.
- *  Used by the swap log for meme buys, whose tokens are checked against the stored build. */
-export function decodeSwapDesc(data: Hex): { srcToken: `0x${string}`; dstToken: `0x${string}`; recipient: `0x${string}`; amountIn: bigint; feeReceivers: number } | null {
+/** The router call's swap description (tokens, recipient, amount, the minimum received, the permit, the
+ *  fee arrays' lengths and the split amounts' sum), or null if it is not a router swap. Used by the swap
+ *  log, and by the basket batch checks the browser runs before a wallet signs (`lib/swap/basketBatch.ts`). */
+export function decodeSwapDesc(data: Hex): { srcToken: `0x${string}`; dstToken: `0x${string}`; recipient: `0x${string}`; amountIn: bigint; feeReceivers: number; feeAmounts: number; minReturn: bigint; permit: Hex; srcAmountsTotal: bigint } | null {
   try {
     const decoded = decodeFunctionData({ abi: routerAbi, data });
     const desc = decoded.functionName === 'swap' ? decoded.args[0].desc : decoded.args[1];
-    return { srcToken: getAddress(desc.srcToken), dstToken: getAddress(desc.dstToken), recipient: getAddress(desc.dstReceiver), amountIn: desc.amount, feeReceivers: desc.feeReceivers.length };
+    return { srcToken: getAddress(desc.srcToken), dstToken: getAddress(desc.dstToken), recipient: getAddress(desc.dstReceiver), amountIn: desc.amount,
+      feeReceivers: desc.feeReceivers.length,
+      feeAmounts: desc.feeAmounts.length,
+      minReturn: desc.minReturnAmount,
+      permit: desc.permit,
+      srcAmountsTotal: desc.srcAmounts.reduce((a, b) => a + b, BigInt(0)),
+    };
   } catch {
     return null;
   }

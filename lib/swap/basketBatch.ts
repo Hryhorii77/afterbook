@@ -17,6 +17,17 @@ export interface BatchCall {
   value: bigint;
 }
 
+/** Throws unless the calldata the wallet will sign is the trade the card shows: it spends exactly the
+ *  quoted amount, its minimum received is exactly `minAmountOut` (the "at least" figure), and its split
+ *  amounts don't add up to more than it spends. The server's own check covers this only when the server is honest. */
+function assertSignedIsShown(tx: SwapTx): void {
+  const d = decodeSwapDesc(tx.data);
+  if (!d) throw new Error('Refused: a swap that does not decode.');
+  if (d.amountIn !== BigInt(tx.quote.amountIn)) throw new Error('Refused: the swap spends a different amount than shown.');
+  if (d.minReturn !== BigInt(tx.minAmountOut)) throw new Error('Refused: the swap’s minimum is not the one shown.');
+  if (d.srcAmountsTotal > d.amountIn) throw new Error('Refused: the swap’s split amounts exceed what it spends.');
+}
+
 /**
  * The calls of a basket buy batch, in order: approve(router, total) when `approve` is true, then each
  * swap. Throws if a swap isn't a USDC buy through the router, so a wrong build can never be signed.
@@ -27,6 +38,7 @@ export function basketBatchCalls(swaps: SwapTx[], approve: boolean): BatchCall[]
   for (const tx of swaps) {
     if (getAddress(tx.to) !== KYBER_ROUTER || getAddress(tx.spender) !== KYBER_ROUTER) throw new Error('Refused: unexpected contract.');
     if (getAddress(tx.tokenIn) !== getAddress(USDC.address) || tx.quote.side !== 'buy') throw new Error('Refused: a basket buy pays in USDC.');
+    assertSignedIsShown(tx);
     total += BigInt(tx.quote.amountIn);
   }
   const calls: BatchCall[] = [];
@@ -57,6 +69,7 @@ export function basketSellBatchCalls(swaps: SwapTx[], approve: boolean[]): Batch
     if (tx.quote.side !== 'sell' || !stock || getAddress(tx.tokenIn) !== getAddress(stock.tokenAddress)) throw new Error('Refused: a basket sell sells its own stocks.');
     if (seen.has(stock.symbol)) throw new Error('Refused: a stock appears twice.');
     seen.add(stock.symbol);
+    assertSignedIsShown(tx);
     if (approve[i]) {
       calls.push({
         to: getAddress(stock.tokenAddress),
@@ -78,6 +91,8 @@ export function canBatchAtomically(capabilities: unknown): boolean {
 }
 
 const BATCH_TOKENS = new Set([USDC.address, ...STOCKS.map((s) => s.tokenAddress)].map((a) => getAddress(a)));
+const USDC_ADDRESS = getAddress(USDC.address);
+const STOCK_TOKENS = new Set(STOCKS.map((s) => getAddress(s.tokenAddress)));
 
 /** A call the wallet may be asked to sign in a basket batch: a swap to the router, or an approval of USDC
  *  or a tracked stock whose spender is the router (checked again just before sending). */
@@ -94,8 +109,9 @@ export function isBasketBatchCall(c: BatchCall): boolean {
 }
 
 /**
- * The whole batch, just before the wallet sees it: every call passes isBasketBatchCall, every swap decodes
- * and pays `account`, and every approval is exactly what the batch's swaps spend of that token (never more,
+ * The whole batch, just before the wallet sees it: every call passes isBasketBatchCall, every swap decodes,
+ * pays `account`, has no fee receiver or fee amount, no permit, a minimum above 0 and split amounts within
+ * what it spends, and trades USDC against a tracked stock (exactly one side USDC), and every approval is exactly what the batch's swaps spend of that token (never more,
  * never unlimited), at most one per token. Returns a reason to refuse, or null.
  */
 export function basketBatchProblem(calls: BatchCall[], account: `0x${string}`): string | null {
@@ -108,6 +124,13 @@ export function basketBatchProblem(calls: BatchCall[], account: `0x${string}`): 
       const d = decodeSwapDesc(c.data);
       if (!d) return 'a swap that does not decode';
       if (d.recipient !== getAddress(account)) return 'a swap that pays someone else';
+      // The fee is 0 (SWAP_FEE_BPS unset): turning it on would refuse every batch here until this is revisited.
+      if (d.feeReceivers > 0 || d.feeAmounts > 0) return 'a swap with a fee';
+      if (d.permit !== '0x') return 'a swap with a permit';
+      if (d.minReturn <= BigInt(0)) return 'a swap with no minimum';
+      if (d.srcAmountsTotal > d.amountIn) return 'a swap whose split amounts exceed what it spends';
+      const pair = (d.srcToken === USDC_ADDRESS && STOCK_TOKENS.has(d.dstToken)) || (d.dstToken === USDC_ADDRESS && STOCK_TOKENS.has(d.srcToken));
+      if (!pair) return 'a swap that is not USDC against a tracked stock';
       spends.set(d.srcToken, (spends.get(d.srcToken) ?? BigInt(0)) + d.amountIn);
     } else {
       const token = getAddress(c.to);
