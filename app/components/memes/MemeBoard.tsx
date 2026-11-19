@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { SymbolTile } from '../ui/SymbolTile';
 import type { MemeRow } from '@/lib/memes/memestocks';
 import { pctMove, usdOrDash } from '@/lib/memes/memeFormat';
+import { type LiquidBarRow } from '@/lib/market/liquidLabel';
 
 type Sort = 'volume' | 'move';
 
 const moveClass = (n: number | null) => (n == null ? '' : n >= 0 ? 'meme-up' : 'meme-down');
 
-function Rows({ rows }: { rows: MemeRow[] }) {
+function Rows({ rows, liquid }: { rows: MemeRow[]; liquid: Record<string, LiquidBarRow> | null }) {
   return (
     <ul className="directory-list">
       {rows.map((r) => (
@@ -19,7 +20,12 @@ function Rows({ rows }: { rows: MemeRow[] }) {
             <SymbolTile cashTicker={r.pool.meme.symbol.slice(0, 5)} size="sm" iconUrl={r.imageUrl} />
             <span className="directory-name">
               <span className="directory-symbol">{r.pool.meme.symbol}</span>
-              <span className="directory-company">on {r.pool.stockSymbol}</span>
+              <span className="directory-company">
+                on {r.pool.stockSymbol}
+                {liquid?.[r.pool.stockSymbol] && liquid[r.pool.stockSymbol].status !== 'measuring' && (
+                  <> · {liquid[r.pool.stockSymbol].status === 'liquid' ? 'liquid' : 'thin'} stock pool</>
+                )}
+              </span>
             </span>
           </Link>
           <span className="meme-move">
@@ -38,7 +44,7 @@ function Rows({ rows }: { rows: MemeRow[] }) {
   );
 }
 
-export function MemeBoard({ rows: all, initialStock }: { rows: MemeRow[]; initialStock?: string }) {
+export function MemeBoard({ rows: all, initialStock, liquid: liquidBar = null }: { rows: MemeRow[]; initialStock?: string; liquid?: Record<string, LiquidBarRow> | null }) {
   const stocks = useMemo(() => [...new Set(all.map((r) => r.pool.stockSymbol))].sort(), [all]);
   const [stock, setStock] = useState(initialStock && stocks.includes(initialStock) ? initialStock : 'all');
   const rows = useMemo(() => (stock === 'all' ? all : all.filter((r) => r.pool.stockSymbol === stock)), [all, stock]);
@@ -68,7 +74,7 @@ export function MemeBoard({ rows: all, initialStock }: { rows: MemeRow[]; initia
           ))}
         </select>
       </div>
-      <Rows rows={liquid} />
+      <Rows rows={liquid} liquid={liquidBar} />
       {thin.length > 0 && (
         <div className="thin-books">
           <button className="thin-toggle" onClick={() => setShowThin((v) => !v)}>
@@ -77,7 +83,7 @@ export function MemeBoard({ rows: all, initialStock }: { rows: MemeRow[]; initia
           {showThin && (
             <>
               <p className="geo-note">Under $10k of liquidity: a single small trade moves these prices a lot.</p>
-              <Rows rows={thin} />
+              <Rows rows={thin} liquid={liquidBar} />
             </>
           )}
         </div>

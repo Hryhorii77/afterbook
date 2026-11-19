@@ -61,7 +61,7 @@ describe('steadyDepth', () => {
 });
 
 describe('recording and reading', () => {
-  it('one key per run with a 4-hour expiry, read back in one MGET, cached for a minute', async () => {
+  it('one key per run with a 73-hour expiry (the 72-hour liquid label), read back in one MGET, cached for a minute', async () => {
     const rows = [
       { symbol: 'NVDAc', depthUsd: 1_000_000 },
       { symbol: 'HIMSc', depthUsd: null },
@@ -69,7 +69,7 @@ describe('recording and reading', () => {
     for (let i = 4; i >= 0; i--) await recordDepthSample(rows, NOW - i * DEPTH_SLOT_MS);
     expect(store.sets).toHaveLength(5);
     expect(new Set(store.sets.map((s) => s.key)).size).toBe(5);
-    expect(store.sets.every((s) => s.ex === 4 * 3600)).toBe(true);
+    expect(store.sets.every((s) => s.ex === 73 * 3600)).toBe(true);
 
     const samples = await getRecentDepthSamples(NOW);
     expect(samples).toHaveLength(5);

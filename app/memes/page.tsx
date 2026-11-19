@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { MemeBoard } from '@/app/components/memes/MemeBoard';
 import { getMemeBoard, MEME_MIN_LIQUIDITY_USD } from '@/lib/memes/memestocks';
+import { getLiquidBar } from '@/lib/market/liquidityBar';
+import { LIQUID_BAR_USD } from '@/lib/market/liquidLabel';
 import { usdCompact } from '@/lib/format';
 import { shareMetadata } from '@/lib/share/shareMeta';
 
@@ -17,7 +19,7 @@ export const metadata: Metadata = shareMetadata({
 });
 
 export default async function MemesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const [board, sp] = await Promise.all([getMemeBoard(), searchParams]);
+  const [board, sp, bar] = await Promise.all([getMemeBoard(), searchParams, getLiquidBar()]);
   const stock = typeof sp.stock === 'string' ? sp.stock : undefined;
   const checked = board ? new Date(board.checkedAt).toISOString().slice(0, 10) : null;
 
@@ -41,7 +43,14 @@ export default async function MemesPage({ searchParams }: { searchParams: Promis
         ) : board.rows.length === 0 ? (
           <p className="geo-note">No verified meme pools right now.</p>
         ) : (
-          <MemeBoard rows={board.rows} initialStock={stock} />
+          <MemeBoard rows={board.rows} initialStock={stock} liquid={bar?.rows ?? null} />
+        )}
+        {bar && board && board.rows.length > 0 && (
+          <p className="geo-note">
+            &ldquo;liquid stock pool&rdquo; or &ldquo;thin stock pool&rdquo; is about the stock the meme is priced in, not the meme:
+            whether that stock&apos;s own USDC pool stayed at or above {usdCompact(LIQUID_BAR_USD)} at its five-minute readings
+            over the last 72 hours (at least 80% of them read; worked out once a day).
+          </p>
         )}
         <p className="geo-note">
           Listed: pools on Aero, Aerodrome and Uniswap where one side is a stock token Afterbook tracks, with at least{' '}

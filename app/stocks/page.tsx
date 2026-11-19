@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { StockDirectory } from '@/app/components/markets/StockDirectory';
 import { getStockDirectory } from '@/lib/stocks/stockDirectory';
 import { getTape } from '@/lib/market/tape';
+import { getLiquidBar } from '@/lib/market/liquidityBar';
+import { LIQUID_BAR_USD } from '@/lib/market/liquidLabel';
 import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/market/liquidity';
 import { usdCompact } from '@/lib/format';
 import { shareMetadata } from '@/lib/share/shareMeta';
@@ -26,7 +28,7 @@ const ADD_AT_USD = 250_000;
 export default async function StocksPage() {
   const tape = await getTape().catch(() => null);
   const trackedDepth = Object.fromEntries((tape?.rows ?? []).map((r) => [r.symbol, r.depthUsd]));
-  const dir = await getStockDirectory(trackedDepth);
+  const [dir, bar] = await Promise.all([getStockDirectory(trackedDepth), getLiquidBar()]);
   const tracked = dir?.rows.filter((r) => r.status === 'tracked').length ?? 0;
   const deepestOther = dir?.rows.find((r) => r.status === 'pool' && r.depthUsd != null);
   const checked = dir?.checkedAt ? new Date(dir.checkedAt).toISOString().slice(0, 10) : null;
@@ -54,7 +56,7 @@ export default async function StocksPage() {
             tape once its pool passes about {usdCompact(ADD_AT_USD)}.
           </p>
           <section className="panel">
-            <StockDirectory rows={dir.rows} />
+            <StockDirectory rows={dir.rows} liquid={bar?.rows ?? null} />
             <p className="geo-note">
               Depth is the real value held in the stock&apos;s USDC pool (Aero or Aerodrome): live for tracked stocks (under{' '}
               {usdCompact(LIQUID_DEPTH_THRESHOLD_USD)} shows as a thin book on the tape), checked once a day for the rest
@@ -65,6 +67,12 @@ export default async function StocksPage() {
                 Memestocks
               </Link>
               . Coinbase&apos;s stock tokens are not available to people in the United States.
+            </p>
+            <p className="geo-note">
+              &ldquo;Liquid&rdquo; on a tracked stock means its pool stayed at or above {usdCompact(LIQUID_BAR_USD)} at its
+              five-minute readings over the last 72 hours (at least 80% of them read; worked out once a day); &ldquo;Thin&rdquo; means
+              it dipped below at least once, and the lowest reading is shown. A pool that only looks deep sometimes, because
+              liquidity is added and pulled, counts as thin. &ldquo;Measuring&rdquo; means there aren&apos;t 72 hours of readings yet.
             </p>
           </section>
         </>

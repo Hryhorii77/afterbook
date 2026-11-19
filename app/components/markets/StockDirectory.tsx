@@ -1,5 +1,6 @@
 'use client';
 
+import { liquidLabel, type LiquidBarRow } from '@/lib/market/liquidLabel';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { SymbolTile } from '../ui/SymbolTile';
@@ -41,7 +42,7 @@ function Chevron({ dir }: { dir: 'left' | 'right' }) {
   );
 }
 
-export function StockDirectory({ rows }: { rows: DirectoryRow[] }) {
+export function StockDirectory({ rows, liquid = null }: { rows: DirectoryRow[]; liquid?: Record<string, LiquidBarRow> | null }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [sort, setSort] = useState<Sort>('default');
@@ -144,6 +145,9 @@ export function StockDirectory({ rows }: { rows: DirectoryRow[] }) {
                     {STATUS_LABEL[r.status]}
                     {(r.status === 'tracked' || r.status === 'pool') && (
                       <span className="directory-depth">{r.depthUsd != null ? `${usdCompact(r.depthUsd)} deep` : 'depth unreadable'}</span>
+                    )}
+                    {r.status === 'tracked' && liquidLabel(liquid?.[r.symbol]) && (
+                      <span className="directory-depth">{liquidLabel(liquid?.[r.symbol])}</span>
                     )}
                     <a className="directory-contract" href={`https://basescan.org/token/${r.tokenAddress}`} target="_blank" rel="noopener noreferrer">
                       {short(r.tokenAddress)}&nbsp;<span className="ext-arrow">↗</span>
