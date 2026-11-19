@@ -7,6 +7,7 @@ import { erc20Abi, formatUnits, parseUnits, type Hex } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import { USDC } from '@/lib/stocks/tokens';
 import { deployedAccountProblem, depositAccountProblem } from '@/lib/baskets/depositAccount';
+import { ENROLLMENT_PAUSED, ENROLLMENT_PAUSED_MESSAGE } from '@/lib/baskets/enrollPause';
 import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { useNotify } from '../notifications/notify';
 
@@ -165,6 +166,7 @@ export function BasketPanel() {
   // Stage 1: fetch what would be signed and show it BEFORE asking the wallet.
   const startEnroll = () =>
     run('review', async () => {
+      if (ENROLLMENT_PAUSED) throw new Error(ENROLLMENT_PAUSED_MESSAGE);
       setReview(await api<EnrollStage1>('/api/baskets/enroll/signature', { method: 'POST', body: { owner: address } }));
     });
 
@@ -172,6 +174,7 @@ export function BasketPanel() {
   const confirmEnroll = () =>
     run('enroll', async () => {
       if (!review) return;
+      if (ENROLLMENT_PAUSED) throw new Error(ENROLLMENT_PAUSED_MESSAGE);
       const signature = await signMessageAsync({ message: { raw: review.message.raw } });
       await api('/api/baskets/enroll', {
         method: 'POST',
@@ -273,7 +276,7 @@ export function BasketPanel() {
   if (!address) {
     return (
       <>
-        <p className="geo-note" style={{ marginTop: 0 }}>Connect a wallet to enroll in Basis Tilt.</p>
+        <p className="geo-note" style={{ marginTop: 0 }}>{ENROLLMENT_PAUSED ? 'Connect a wallet to see your Basis Tilt account.' : 'Connect a wallet to enroll in Basis Tilt.'}</p>
         <WalletConnectButton />
       </>
     );
@@ -284,10 +287,16 @@ export function BasketPanel() {
 
   return (
     <>
-      {!portfolio && !review && (
+      {!portfolio && ENROLLMENT_PAUSED && (
+        <p className="geo-note" style={{ marginTop: 0 }}>
+          {ENROLLMENT_PAUSED_MESSAGE}
+        </p>
+      )}
+
+      {!portfolio && !review && !ENROLLMENT_PAUSED && (
         <>
           <p className="geo-note" style={{ marginTop: 0 }}>
-            Enrolling creates a smart account on Base that only you can withdraw from. Afterbook never holds funds.
+            Enrolling creates a smart account on Base owned by your wallet. Glider&apos;s automation key can also move its funds and change its settings: only Glider&apos;s own system limits what it does, not a contract rule. Afterbook never holds funds.
           </p>
           <label className="geo-note" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
             <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} style={{ marginTop: 3 }} />
@@ -305,12 +314,13 @@ export function BasketPanel() {
         </>
       )}
 
-      {!portfolio && review && (
+      {!portfolio && review && !ENROLLMENT_PAUSED && (
         <>
           <p className="geo-note" style={{ marginTop: 0 }}>
-            You are about to sign a message that authorizes Glider&apos;s automation agent to create a Base smart account
-            owned by <code>{address}</code> and rebalance it to the Basis Tilt strategy. It does not move any funds. You can
-            withdraw at any time with a fresh signature.
+            You are about to sign a message that creates a Base smart account owned by <code>{address}</code> and gives
+            Glider&apos;s automation key unrestricted permission on it: that key can move the account&apos;s funds and change its
+            settings, and only Glider&apos;s own system limits it to rebalancing toward Basis Tilt. Signing does not move any
+            funds.
           </p>
           <p className="geo-note">
             Agent: <code>{review.agentAccountId}</code>
@@ -381,6 +391,8 @@ export function BasketPanel() {
               <p className="geo-note" style={{ marginTop: 0 }}>
                 Sends USDC from your wallet to your own Basis Tilt account on Base, then Glider spreads it across the
                 basket. Each position needs at least $1 to trade, so tiny deposits may leave some names unfilled.
+                Glider&apos;s automation key can move funds out of this account; only Glider&apos;s own system limits that,
+                not a contract rule.
               </p>
             </div>
           )}
@@ -404,7 +416,7 @@ export function BasketPanel() {
               USDC in your account on Base: {formatUnits(accountUsdc, USDC.decimals)}
               {positions && Number(positions.totalValueUsd) < 0.01 && (
                 <span style={{ display: 'block' }}>
-                  It is yours and only you can withdraw it. Glider has not counted it yet, so Balance shows $0.00 and Withdraw stays
+                  It is in your account. Glider has not counted it yet, so Balance shows $0.00 and Withdraw stays
                   off until it does. That can take a while after the deposit confirms: press Refresh later.
                 </span>
               )}

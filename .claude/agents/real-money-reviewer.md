@@ -43,6 +43,11 @@ check passes, say so in one short line; do not pad.
   comparison of the plan before and after (as done for the Aero move,
   2026-10-27); without one it is a finding.
 
+**Enrollment**
+- New enrollments stay paused (`ENROLLMENT_PAUSED`, `lib/baskets/enrollPause.ts`) in the panel and in both
+  `/api/baskets/enroll*` routes until the browser recomputes the signed hash from the enable data and the owner
+  agrees. A change that signs `message.raw` without that check is a High finding.
+
 **Inputs and recipients**
 - Addresses, asset ids and amounts are validated with the shared patterns
   (`OWNER_RE`, `BASE_ASSET_RE`, `RAW_AMOUNT_RE`) before use.

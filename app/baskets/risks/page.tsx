@@ -9,7 +9,7 @@ export const metadata: Metadata = shareMetadata({
   card: { page: 'home' },
 });
 
-const UPDATED = '2026-10-01';
+const UPDATED = '2026-11-19';
 
 export default function BasketRisksPage() {
   return (
@@ -87,12 +87,14 @@ export default function BasketRisksPage() {
         <h2>Who controls what</h2>
         <ul className="geo-note">
           <li>
-            Your funds sit in a smart account on Base that you own. According to Glider&apos;s documentation, Glider&apos;s
-            automation can rebalance that account within the strategy, but cannot withdraw to another address without a fresh
-            signature from you.
+            Your funds sit in a smart account on Base that your wallet owns. Enrolling also gives Glider&apos;s automation
+            key unrestricted permission on that account (on chain, ZeroDev&apos;s &ldquo;sudo&rdquo; policy), so that key can
+            move the account&apos;s funds anywhere and change the account&apos;s settings, including who controls it. Glider says its automation only rebalances within the strategy and sends
+            withdrawals to you, but that limit is enforced by Glider&apos;s own system, not by a contract rule. If that key or
+            Glider&apos;s system were compromised, you could lose the funds in the account.
           </li>
           <li>
-            If Glider&apos;s service were interrupted, you would still own the account, but getting funds out might need
+            If Glider&apos;s service were interrupted, you would still own the account (as long as its settings had not been changed), but getting funds out might need
             technical steps, and we cannot promise it would be quick or possible.
           </li>
           <li>

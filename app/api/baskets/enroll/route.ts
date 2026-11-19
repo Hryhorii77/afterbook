@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { enroll } from '@/lib/baskets/glider';
 import { BASE_CHAIN_ID } from '@/lib/baskets/tilt';
+import { ENROLLMENT_PAUSED, ENROLLMENT_PAUSED_MESSAGE } from '@/lib/baskets/enrollPause';
 import { guardBasketRequest, readJson, errorResponse, OWNER_RE, ownerAccountId, strategyId } from '@/lib/baskets/guard';
 
 export const revalidate = 0;
@@ -10,6 +11,7 @@ export const revalidate = 0;
 export async function POST(request: NextRequest) {
   const blocked = await guardBasketRequest(request);
   if (blocked) return blocked;
+  if (ENROLLMENT_PAUSED) return NextResponse.json({ error: ENROLLMENT_PAUSED_MESSAGE }, { status: 503 });
   const b = await readJson(request);
   const { owner, accountIndex, agentAccountId, signature, flowId, portfolioName } = b ?? {};
   if (typeof owner !== 'string' || !OWNER_RE.test(owner)) return NextResponse.json({ error: 'owner must be a 0x address' }, { status: 400 });
