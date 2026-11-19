@@ -7,6 +7,7 @@ import { cronAuthorized } from '@/lib/server/sharedSecret';
 import { saveDirectoryPools } from '@/lib/stocks/stockDirectory';
 import { fetchCoinbaseStockList } from '@/lib/stocks/coinbaseStockList';
 import { checkCoinbaseList } from '@/lib/stocks/coinbaseListGuard';
+import { computeLiquidBar } from '@/lib/market/liquidityBar';
 
 export const revalidate = 0;
 // 120 s: after Denim (2026-11-05) each pool over $50k needs ~27 log reads for its three-hour low.
@@ -43,7 +44,7 @@ async function inChunks<T, R>(items: T[], size: number, fn: (item: T) => Promise
 // and tells the maintainer (one digest message, not one per token) about names
 // that now have a USDC pool (Aero or the older Aerodrome factory), with real depth, and once about any listed
 // token the site skips (splitListedTokens: an unexpected symbol, no address, a duplicate). Never edits tokens.ts.
-// ?dry=1 returns the digest without sending anything or touching Redis.
+// ?dry=1 returns the digest without sending anything or writing to Redis.
 export async function GET(request: NextRequest) {
   if (!cronAuthorized(request)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
@@ -54,6 +55,12 @@ export async function GET(request: NextRequest) {
   if (!dry && (!redis || !adminChatId)) {
     return NextResponse.json({ ok: false, reason: 'discovery not configured' });
   }
+
+  // The daily "Liquid" label (lib/market/liquidityBar.ts): each tracked stock's 72-hour depth low, saved for
+  // /stocks and /memes. Display only; best effort, it never stops discovery, and it runs before the
+  // Coinbase fetch so a failed fetch doesn't skip it. `?dry=1&bar=1` returns it unsaved.
+  const bar = await computeLiquidBar({ save: !dry }).catch(() => null);
+  if (dry && request.nextUrl.searchParams.get('bar') === '1') return NextResponse.json({ ok: true, dry: true, bar });
 
   const raw = await fetchCoinbaseStockList({ cache: 'no-store' }).catch(() => null);
   if (!raw) {

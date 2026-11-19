@@ -8,7 +8,8 @@ import type { TapeRow } from './tape';
 // too slow for a page request).
 //
 // The 5-minute alerts cron writes every stock's depth from the tape it already reads, as ONE key per
-// run (`depth:<5-minute slot>`, expiring after 4 hours): about 8,640 writes a month however many stocks
+// run (`depth:<5-minute slot>`, expiring after 73 hours since 2026-11-19, for the 72-hour liquid label in
+// lib/market/liquidityBar.ts; it was 4 hours): about 8,640 writes a month however many stocks
 // are tracked (one key per pool would be ~330k; Redis budget, CLAUDE.md). A failed read is stored as
 // null, a missing sample, never as $0, which would push a stock under the line for hours.
 
@@ -17,7 +18,7 @@ export const DEPTH_SLOT_MS = 5 * 60_000;
 export const STEADY_WINDOW_MS = 3 * 3_600_000;
 /** A stock with no good sample this recent has an unknown depth (cron down, or just deployed). */
 export const DEPTH_FRESH_MS = 15 * 60_000;
-const TTL_S = 4 * 3600;
+const TTL_S = 73 * 3600;
 
 export interface DepthSample {
   ts: number;
@@ -92,4 +93,24 @@ export async function getRecentDepthSamples(now = Date.now()): Promise<DepthSamp
   } catch {
     return []; // every depth unknown: the brief says so rather than guessing
   }
+}
+
+/**
+ * Every stored sample in the last `windowMs`, for the daily liquid-label job (cron only, once a day): one MGET per
+ * 300 keys, so 72 hours is three requests. Failed chunks just leave gaps, which the label counts as missing reads.
+ */
+export async function getDepthSamplesFor(windowMs: number, now = Date.now()): Promise<DepthSample[]> {
+  if (!redis) return [];
+  const last = slotOf(now);
+  const keys = Array.from({ length: Math.floor(windowMs / DEPTH_SLOT_MS) + 1 }, (_, i) => keyOf(last - i));
+  const out: DepthSample[] = [];
+  for (let i = 0; i < keys.length; i += 300) {
+    try {
+      const raw = await redis.mget<(DepthSample | null)[]>(...keys.slice(i, i + 300));
+      out.push(...raw.filter((s): s is DepthSample => !!s && typeof s.ts === 'number' && !!s.d && typeof s.d === 'object'));
+    } catch {
+      // a gap
+    }
+  }
+  return out;
 }
