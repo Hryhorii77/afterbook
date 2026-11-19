@@ -86,16 +86,19 @@ export function BasketPanel() {
   const deposit = portfolio?.smartAccounts.find((a) => typeof a.accountId === 'string' && a.accountId.startsWith(BASE_PREFIX));
   const mathsProblem = useMemo(() => (portfolio ? depositAccountProblem(address, deposit) : null), [portfolio, address, deposit]);
   const candidate = portfolio && mathsProblem === null ? (deposit?.accountId.split(':')[2] as Hex | undefined) : undefined;
-  const [chainCheck, setChainCheck] = useState<{ addr: string; problem: string | null } | null>(null);
+  const [chainCheck, setChainCheck] = useState<{ addr: string; problem: string | null; mismatch: boolean } | null>(null);
   useEffect(() => {
     if (!candidate || !address || !publicClient) return;
     let live = true;
-    void deployedAccountProblem(publicClient, address, candidate).then((problem) => live && setChainCheck({ addr: candidate, problem }));
+    void deployedAccountStatus(publicClient, address, candidate).then(
+      (s) => live && setChainCheck({ addr: candidate, problem: s.state === 'ok' ? null : s.problem, mismatch: s.state === 'mismatch' }),
+    );
     return () => {
       live = false;
     };
   }, [candidate, address, publicClient, portfolio]);
   const chainProblem = candidate && chainCheck?.addr === candidate ? chainCheck.problem : null;
+  const accountTampered = !!(candidate && chainCheck?.addr === candidate && chainCheck.mismatch);
   const depositProblem = mathsProblem ?? chainProblem;
   const depositAddr = candidate && chainCheck?.addr === candidate && chainCheck.problem === null ? candidate : undefined;
   const { data: accountUsdc, refetch: refetchAccountUsdc } = useReadContract({
@@ -196,6 +199,7 @@ export function BasketPanel() {
 
   const startAutomation = () =>
     run('start', async () => {
+      if (accountTampered) throw new Error('Refused: this account is no longer set up the way it was created, so automation stays off.');
       await api('/api/baskets/start', { method: 'POST', body: { owner: address } });
       setNotice('Automation started.');
       await refresh();
@@ -234,16 +238,11 @@ export function BasketPanel() {
     run('withdraw', async () => {
       const assets = (positions?.assets ?? []).filter((a) => a.balanceRaw !== '0' && a.assetId.startsWith('eip155:8453/'));
       if (assets.length === 0) throw new Error('Nothing to withdraw yet.');
-      // The account must pass #194's check: the maths always (an undeployed account passes on the maths alone), and,
-      // if deployed, the chain must not show another implementation, root validator or signer. A chain read that
-      // fails does not block an exit: the recipient is pinned to this wallet by withdrawalProblem anyway.
+      // The account must pass #194's address maths (an undeployed account passes on the maths alone). What the chain
+      // shows doesn't block an exit: a failed read or an account no longer set up as created (warned about above the
+      // buttons) still lets the person withdraw, because withdrawalProblem pins the recipient to this wallet.
       const accountProblem = depositAccountProblem(address, deposit);
       if (accountProblem) throw new Error(`Refused: ${accountProblem} Nothing was signed.`);
-      const accountAddr = deposit!.accountId.split(':')[2] as Hex;
-      const status = address && publicClient ? await deployedAccountStatus(publicClient, address, accountAddr) : { state: 'unread' as const };
-      if (status.state === 'mismatch') {
-        throw new Error('Refused: your Basis Tilt account on Base is no longer set up the way it was created (another implementation, root validator or signer), so this withdrawal was not signed. Contact Glider about the account.');
-      }
       const asked = assets.map((a) => ({ assetId: a.assetId, amountRaw: a.balanceRaw }));
       const sig = await api<{ typedData: { domain: object; types: Record<string, unknown>; primaryType: string; message: unknown } }>(
         '/api/baskets/withdraw/signature',
@@ -448,9 +447,17 @@ export function BasketPanel() {
               )}
             </p>
           )}
+          {accountTampered && (
+            <p className="geo-note geo-note-blocked">
+              Warning: your Basis Tilt account on Base is no longer set up the way it was created (another implementation,
+              root validator or signer), so someone other than your wallet may now control it. Deposits and automation are
+              off. You can still ask for a withdrawal: it can only pay this wallet, so requesting it now is the safest step,
+              though whether it goes through depends on who now controls the account.
+            </p>
+          )}
           <div className="basket-row">
             {portfolio.schedule.status === 'paused' && (
-              <button type="button" className="btn" onClick={startAutomation} disabled={busy !== null || !withdrawable}>
+              <button type="button" className="btn" onClick={startAutomation} disabled={busy !== null || !withdrawable || accountTampered}>
                 {busy === 'start' ? 'Starting…' : 'Start automation'}
               </button>
             )}

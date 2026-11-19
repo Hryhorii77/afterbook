@@ -52,8 +52,8 @@ check passes, say so in one short line; do not pad.
 - `withdrawAll` signs Glider's typed data only after `withdrawalProblem` (`lib/baskets/withdrawCheck.ts`) passes:
   exactly Glider's `Withdrawal` domain, version, chain, account, types and fields, the connected wallet as recipient,
   the same assets and amounts as asked (any order, no duplicates), an expiry within an hour. Before asking Glider,
-  the account must pass `depositAccountProblem` and must not be a `mismatch` in `deployedAccountStatus`; an
-  `unread` (failed chain read) must not block a withdrawal, while a deposit refuses it. Signing typed data from the server without it is a High finding.
+  the account must pass `depositAccountProblem`. `deployedAccountStatus` must never block a withdrawal (`unread`
+  goes ahead; `mismatch` warns and goes ahead, the recipient being pinned), while a deposit refuses both. Signing typed data from the server without it is a High finding.
 
 **Inputs and recipients**
 - Addresses, asset ids and amounts are validated with the shared patterns

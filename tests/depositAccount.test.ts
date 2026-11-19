@@ -86,4 +86,20 @@ describe('deployedAccountStatus', () => {
     expect((await deployedAccountStatus(client({ signer: OWNER_B }), OWNER_A, ACCT_A1)).state).toBe('mismatch');
     expect((await deployedAccountStatus(client({ fail: true }), OWNER_A, ACCT_A1)).state).toBe('unread');
   });
+  it('counts a wrong value as a mismatch even when another read fails, and a garbled value as unread', async () => {
+    const ROOT = '0x015c97aa67ba578e3c54ec5942a7563ea9130e4f5f';
+    const slotOf = (impl: string) => ('0x' + '0'.repeat(24) + impl.slice(2).toLowerCase()) as `0x${string}`;
+    const mixed = (o: { slot?: () => Promise<unknown>; root?: () => Promise<unknown>; signer?: () => Promise<unknown> }) => ({
+      getCode: async () => '0x363d' as `0x${string}`,
+      getStorageAt: (o.slot ?? (async () => slotOf(KERNEL_V3_1_IMPLEMENTATION))) as never,
+      readContract: (async ({ functionName }: { functionName: string }) =>
+        functionName === 'rootValidator' ? (o.root ?? (async () => ROOT))() : (o.signer ?? (async () => OWNER_A))()) as never,
+    });
+    const fail = async () => { throw new Error('rpc'); };
+    expect((await deployedAccountStatus(mixed({ slot: fail, signer: async () => OWNER_B }), OWNER_A, ACCT_A1)).state).toBe('mismatch');
+    expect((await deployedAccountStatus(mixed({ root: fail, slot: async () => slotOf('0x1111111111111111111111111111111111111111') }), OWNER_A, ACCT_A1)).state).toBe('mismatch');
+    expect((await deployedAccountStatus(mixed({ signer: async () => 'not an address' }), OWNER_A, ACCT_A1)).state).toBe('unread');
+    expect((await deployedAccountStatus(mixed({ slot: fail }), OWNER_A, ACCT_A1)).state).toBe('unread');
+    expect((await deployedAccountStatus(mixed({ slot: async () => undefined }), OWNER_A, ACCT_A1)).state).toBe('mismatch');
+  });
 });
