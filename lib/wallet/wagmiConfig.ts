@@ -8,8 +8,9 @@ import {
   okxWallet,
   zerionWallet,
   walletConnectWallet,
-  base as baseAccountWallet,
 } from '@rainbow-me/rainbowkit/wallets';
+// RainbowKit's Base Account wallet, wrapped so a page reload reconnects without opening a window.
+import { baseAccountWallet } from './baseAccountWallet';
 import { fallback, http } from 'viem';
 import { base } from 'viem/chains';
 
