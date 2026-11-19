@@ -7,6 +7,7 @@ import { erc20Abi, formatUnits, parseUnits, type Hex } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import { USDC } from '@/lib/stocks/tokens';
 import { deployedAccountProblem, depositAccountProblem } from '@/lib/baskets/depositAccount';
+import { ENROLLMENT_PAUSED, ENROLLMENT_PAUSED_MESSAGE } from '@/lib/baskets/enrollPause';
 import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { useNotify } from '../notifications/notify';
 
@@ -165,6 +166,7 @@ export function BasketPanel() {
   // Stage 1: fetch what would be signed and show it BEFORE asking the wallet.
   const startEnroll = () =>
     run('review', async () => {
+      if (ENROLLMENT_PAUSED) throw new Error(ENROLLMENT_PAUSED_MESSAGE);
       setReview(await api<EnrollStage1>('/api/baskets/enroll/signature', { method: 'POST', body: { owner: address } }));
     });
 
@@ -172,6 +174,7 @@ export function BasketPanel() {
   const confirmEnroll = () =>
     run('enroll', async () => {
       if (!review) return;
+      if (ENROLLMENT_PAUSED) throw new Error(ENROLLMENT_PAUSED_MESSAGE);
       const signature = await signMessageAsync({ message: { raw: review.message.raw } });
       await api('/api/baskets/enroll', {
         method: 'POST',
@@ -273,7 +276,7 @@ export function BasketPanel() {
   if (!address) {
     return (
       <>
-        <p className="geo-note" style={{ marginTop: 0 }}>Connect a wallet to enroll in Basis Tilt.</p>
+        <p className="geo-note" style={{ marginTop: 0 }}>{ENROLLMENT_PAUSED ? 'Connect a wallet to see your Basis Tilt account.' : 'Connect a wallet to enroll in Basis Tilt.'}</p>
         <WalletConnectButton />
       </>
     );
@@ -284,7 +287,13 @@ export function BasketPanel() {
 
   return (
     <>
-      {!portfolio && !review && (
+      {!portfolio && ENROLLMENT_PAUSED && (
+        <p className="geo-note" style={{ marginTop: 0 }}>
+          {ENROLLMENT_PAUSED_MESSAGE}
+        </p>
+      )}
+
+      {!portfolio && !review && !ENROLLMENT_PAUSED && (
         <>
           <p className="geo-note" style={{ marginTop: 0 }}>
             Enrolling creates a smart account on Base that only you can withdraw from. Afterbook never holds funds.
@@ -305,7 +314,7 @@ export function BasketPanel() {
         </>
       )}
 
-      {!portfolio && review && (
+      {!portfolio && review && !ENROLLMENT_PAUSED && (
         <>
           <p className="geo-note" style={{ marginTop: 0 }}>
             You are about to sign a message that authorizes Glider&apos;s automation agent to create a Base smart account
