@@ -7,4 +7,4 @@
 export const ENROLLMENT_PAUSED = true;
 
 export const ENROLLMENT_PAUSED_MESSAGE =
-  'New enrollments are paused while we add a check that the message you sign can only enroll you. Already enrolled? Your account, deposits and withdrawals work as before.';
+  'New enrollments are paused while we add a check of the message you would sign. Enrolling gives Glider\u2019s automation key full control of your Basis Tilt account (see the risks page). Already enrolled? Your account, deposits and withdrawals work as before.';

@@ -48,6 +48,11 @@ check passes, say so in one short line; do not pad.
   `/api/baskets/enroll*` routes until the browser recomputes the signed hash from the enable data and the owner
   agrees. A change that signs `message.raw` without that check is a High finding.
 
+**Withdrawal**
+- `withdrawAll` signs Glider's typed data only after `withdrawalProblem` (`lib/baskets/withdrawCheck.ts`) passes:
+  exactly Glider's `Withdrawal` domain, version, chain, account, types and fields, the connected wallet as recipient,
+  the same assets and amounts as asked (any order, no duplicates), an expiry within an hour. Signing typed data from the server without it is a High finding.
+
 **Inputs and recipients**
 - Addresses, asset ids and amounts are validated with the shared patterns
   (`OWNER_RE`, `BASE_ASSET_RE`, `RAW_AMOUNT_RE`) before use.

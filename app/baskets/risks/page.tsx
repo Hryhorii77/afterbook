@@ -26,8 +26,9 @@ export default function BasketRisksPage() {
         <h2>What it is</h2>
         <p className="geo-note" style={{ marginTop: 0 }}>
           Basis Tilt is a strategy that holds ten Coinbase tokenized stocks on Base. Afterbook chooses the target weights.
-          The trading itself is done by Glider, a third-party service, inside a smart account that you own. Afterbook
-          never holds your funds and does not place your trades.
+          The trading itself is done by Glider, a third-party service, inside a smart account that your wallet owns and
+          Glider&apos;s automation key can also control (see &ldquo;Who controls what&rdquo; below). Afterbook never holds your
+          funds and does not place your trades.
         </p>
       </section>
 
@@ -89,7 +90,9 @@ export default function BasketRisksPage() {
           <li>
             Your funds sit in a smart account on Base that your wallet owns. Enrolling also gives Glider&apos;s automation
             key unrestricted permission on that account (on chain, ZeroDev&apos;s &ldquo;sudo&rdquo; policy), so that key can
-            move the account&apos;s funds anywhere and change the account&apos;s settings, including who controls it. Glider says its automation only rebalances within the strategy and sends
+            move the account&apos;s funds anywhere, change the account&apos;s settings, including who controls it, and sign
+            as the account (its signature counts as the account&apos;s for things like token permits). Glider says its
+            automation only rebalances within the strategy and sends
             withdrawals to you, but that limit is enforced by Glider&apos;s own system, not by a contract rule. If that key or
             Glider&apos;s system were compromised, you could lose the funds in the account.
           </li>

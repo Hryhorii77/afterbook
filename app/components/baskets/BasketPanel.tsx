@@ -8,6 +8,7 @@ import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import { USDC } from '@/lib/stocks/tokens';
 import { deployedAccountProblem, depositAccountProblem } from '@/lib/baskets/depositAccount';
 import { ENROLLMENT_PAUSED, ENROLLMENT_PAUSED_MESSAGE } from '@/lib/baskets/enrollPause';
+import { withdrawalProblem } from '@/lib/baskets/withdrawCheck';
 import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { useNotify } from '../notifications/notify';
 
@@ -233,10 +234,25 @@ export function BasketPanel() {
     run('withdraw', async () => {
       const assets = (positions?.assets ?? []).filter((a) => a.balanceRaw !== '0' && a.assetId.startsWith('eip155:8453/'));
       if (assets.length === 0) throw new Error('Nothing to withdraw yet.');
+      const asked = assets.map((a) => ({ assetId: a.assetId, amountRaw: a.balanceRaw }));
       const sig = await api<{ typedData: { domain: object; types: Record<string, unknown>; primaryType: string; message: unknown } }>(
         '/api/baskets/withdraw/signature',
-        { method: 'POST', body: { owner: address, liquidate, assets: assets.map((a) => ({ assetId: a.assetId, amountRaw: a.balanceRaw })) } },
+        { method: 'POST', body: { owner: address, liquidate, assets: asked } },
       );
+      // The typed data comes from Glider through our server: sign it only if it is exactly this withdrawal, to this
+      // wallet, from this portfolio's account (lib/baskets/withdrawCheck.ts).
+      const problem =
+        address && portfolio && deposit
+          ? withdrawalProblem(sig.typedData, {
+              owner: address,
+              accountId: deposit.accountId,
+              portfolioId: portfolio.portfolioId,
+              assets: asked,
+              liquidate,
+              nowSec: Math.floor(Date.now() / 1000),
+            })
+          : 'your Basis Tilt account is not loaded.';
+      if (problem) throw new Error(`Refused: the withdrawal to sign is not the one you asked for: ${problem} Nothing was signed.`);
       const { domain, types, primaryType, message } = sig.typedData;
       const signature = await signTypedDataAsync({ domain, types, primaryType, message } as Parameters<typeof signTypedDataAsync>[0]);
       const { operationId } = await api<{ operationId: string }>('/api/baskets/withdraw', {
@@ -296,7 +312,7 @@ export function BasketPanel() {
       {!portfolio && !review && !ENROLLMENT_PAUSED && (
         <>
           <p className="geo-note" style={{ marginTop: 0 }}>
-            Enrolling creates a smart account on Base owned by your wallet. Glider&apos;s automation key can also move its funds and change its settings: only Glider&apos;s own system limits what it does, not a contract rule. Afterbook never holds funds.
+            Enrolling creates a smart account on Base owned by your wallet. Glider&apos;s automation key can also move its funds, change its settings and sign as the account: only Glider&apos;s own system limits what it does, not a contract rule. Afterbook never holds funds.
           </p>
           <label className="geo-note" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
             <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} style={{ marginTop: 3 }} />
@@ -318,8 +334,8 @@ export function BasketPanel() {
         <>
           <p className="geo-note" style={{ marginTop: 0 }}>
             You are about to sign a message that creates a Base smart account owned by <code>{address}</code> and gives
-            Glider&apos;s automation key unrestricted permission on it: that key can move the account&apos;s funds and change its
-            settings, and only Glider&apos;s own system limits it to rebalancing toward Basis Tilt. Signing does not move any
+            Glider&apos;s automation key unrestricted permission on it: that key can move the account&apos;s funds, change its
+            settings and sign as the account, and only Glider&apos;s own system limits it to rebalancing toward Basis Tilt. Signing does not move any
             funds.
           </p>
           <p className="geo-note">
