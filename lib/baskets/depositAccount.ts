@@ -104,27 +104,48 @@ const IMPL_SLOT = '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d3
 const accountAbi = parseAbi(['function rootValidator() view returns (bytes21)']);
 const validatorAbi = parseAbi(['function ecdsaValidatorStorage(address) view returns (address)']);
 
+export type DeployedAccountStatus =
+  | { state: 'ok' }
+  | { state: 'mismatch'; problem: string }
+  | { state: 'unread'; problem: string };
+
 /**
  * For an account that passed `depositAccountProblem`: if it is deployed, its implementation, root validator and that
  * validator's signer must still be the ones it was created with (the maths can't see an upgrade or a new root).
- * Null when fine or not deployed yet; a failed read is a problem (fail closed).
+ * `ok` when they are, or when it is not deployed yet (then the maths alone decides); `mismatch` when the chain shows
+ * something else; `unread` when the chain couldn't be read. Deposits refuse both; a withdrawal refuses only a mismatch.
  */
-export async function deployedAccountProblem(client: Pick<PublicClient, 'getCode' | 'getStorageAt' | 'readContract'>, owner: Address, account: Address): Promise<string | null> {
-  const unsure = 'Couldn\u2019t read your Basis Tilt account on Base to confirm it is still yours. Nothing can be sent until it can; press Refresh.';
+export async function deployedAccountStatus(
+  client: Pick<PublicClient, 'getCode' | 'getStorageAt' | 'readContract'>,
+  owner: Address,
+  account: Address,
+): Promise<DeployedAccountStatus> {
+  let impl: Address | null, root: string, signer: Address;
   try {
     const code = await client.getCode({ address: account });
-    if (!code || code === '0x') return null;
-    const [slot, root, signer] = await Promise.all([
+    if (!code || code === '0x') return { state: 'ok' };
+    const [slot, r, sgn] = await Promise.all([
       client.getStorageAt({ address: account, slot: IMPL_SLOT }),
       client.readContract({ address: account, abi: accountAbi, functionName: 'rootValidator' }),
       client.readContract({ address: getAddress('0x' + GLIDER_ROOT_VALIDATOR.slice(4)), abi: validatorAbi, functionName: 'ecdsaValidatorStorage', args: [account] }),
     ]);
-    const impl = slot ? getAddress('0x' + slot.slice(-40)) : null;
-    if (impl !== KERNEL_V3_1_IMPLEMENTATION || root.toLowerCase() !== GLIDER_ROOT_VALIDATOR || getAddress(signer) !== getAddress(owner)) {
-      return 'Your Basis Tilt account on Base is no longer set up the way it was created (another implementation, root validator or signer), so it is not shown and nothing can be sent to it.';
-    }
-    return null;
+    impl = slot ? getAddress('0x' + slot.slice(-40)) : null;
+    root = r;
+    signer = getAddress(sgn);
   } catch {
-    return unsure;
+    return { state: 'unread', problem: 'Couldn\u2019t read your Basis Tilt account on Base to confirm it is still yours. Nothing can be sent until it can; press Refresh.' };
   }
+  if (impl !== KERNEL_V3_1_IMPLEMENTATION || root.toLowerCase() !== GLIDER_ROOT_VALIDATOR || signer !== getAddress(owner)) {
+    return {
+      state: 'mismatch',
+      problem: 'Your Basis Tilt account on Base is no longer set up the way it was created (another implementation, root validator or signer), so it is not shown and nothing can be sent to it.',
+    };
+  }
+  return { state: 'ok' };
+}
+
+/** `deployedAccountStatus` for deposits: null only when ok; a mismatch or a failed read is a problem (fail closed). */
+export async function deployedAccountProblem(client: Pick<PublicClient, 'getCode' | 'getStorageAt' | 'readContract'>, owner: Address, account: Address): Promise<string | null> {
+  const s = await deployedAccountStatus(client, owner, account);
+  return s.state === 'ok' ? null : s.problem;
 }

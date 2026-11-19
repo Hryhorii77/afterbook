@@ -7,6 +7,11 @@
 // test wallet; nothing signed): primaryType `Withdrawal`, domain {name "Glider Withdrawal Authorization", version
 // "1" for a plain transfer or "2" with `liquidate`, chainId 8453, verifyingContract = the account being debited},
 // and exactly the types below. A change on Glider's side fails closed until this file is updated from a real answer.
+//
+// What this does and doesn't prove: the amounts the panel asks for come from the server's own positions list, so
+// "the same assets and amounts as asked" only shows the server agrees with itself. The protection is the pinned
+// recipient (the connected wallet) and the pinned format: whatever the amounts, the signature can only authorise a
+// Glider withdrawal paid to this wallet.
 import { getAddress } from 'viem';
 
 const BASE = 8453;

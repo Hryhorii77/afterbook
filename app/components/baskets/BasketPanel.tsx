@@ -6,7 +6,7 @@ import { base } from 'wagmi/chains';
 import { erc20Abi, formatUnits, parseUnits, type Hex } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import { USDC } from '@/lib/stocks/tokens';
-import { deployedAccountProblem, depositAccountProblem } from '@/lib/baskets/depositAccount';
+import { deployedAccountProblem, deployedAccountStatus, depositAccountProblem } from '@/lib/baskets/depositAccount';
 import { ENROLLMENT_PAUSED, ENROLLMENT_PAUSED_MESSAGE } from '@/lib/baskets/enrollPause';
 import { withdrawalProblem } from '@/lib/baskets/withdrawCheck';
 import { WalletConnectButton } from '../layout/WalletConnectButton';
@@ -234,6 +234,16 @@ export function BasketPanel() {
     run('withdraw', async () => {
       const assets = (positions?.assets ?? []).filter((a) => a.balanceRaw !== '0' && a.assetId.startsWith('eip155:8453/'));
       if (assets.length === 0) throw new Error('Nothing to withdraw yet.');
+      // The account must pass #194's check: the maths always (an undeployed account passes on the maths alone), and,
+      // if deployed, the chain must not show another implementation, root validator or signer. A chain read that
+      // fails does not block an exit: the recipient is pinned to this wallet by withdrawalProblem anyway.
+      const accountProblem = depositAccountProblem(address, deposit);
+      if (accountProblem) throw new Error(`Refused: ${accountProblem} Nothing was signed.`);
+      const accountAddr = deposit!.accountId.split(':')[2] as Hex;
+      const status = address && publicClient ? await deployedAccountStatus(publicClient, address, accountAddr) : { state: 'unread' as const };
+      if (status.state === 'mismatch') {
+        throw new Error('Refused: your Basis Tilt account on Base is no longer set up the way it was created (another implementation, root validator or signer), so this withdrawal was not signed. Contact Glider about the account.');
+      }
       const asked = assets.map((a) => ({ assetId: a.assetId, amountRaw: a.balanceRaw }));
       const sig = await api<{ typedData: { domain: object; types: Record<string, unknown>; primaryType: string; message: unknown } }>(
         '/api/baskets/withdraw/signature',
@@ -407,7 +417,7 @@ export function BasketPanel() {
               <p className="geo-note" style={{ marginTop: 0 }}>
                 Sends USDC from your wallet to your own Basis Tilt account on Base, then Glider spreads it across the
                 basket. Each position needs at least $1 to trade, so tiny deposits may leave some names unfilled.
-                Glider&apos;s automation key can move funds out of this account; only Glider&apos;s own system limits that,
+                Glider&apos;s automation key can move funds out of this account and sign as the account; only Glider&apos;s own system limits that,
                 not a contract rule.
               </p>
             </div>

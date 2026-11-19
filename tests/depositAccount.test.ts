@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deployedAccountProblem, depositAccountProblem, findGliderSalt, gliderKernelAddress, KERNEL_V3_1_IMPLEMENTATION } from '@/lib/baskets/depositAccount';
+import { deployedAccountProblem, deployedAccountStatus, depositAccountProblem, findGliderSalt, gliderKernelAddress, KERNEL_V3_1_IMPLEMENTATION } from '@/lib/baskets/depositAccount';
 
 // Real Glider accounts on Base (2026-11-19): two deployed, one not yet deployed.
 const OWNER_A = '0xf325610a2f9a0fB8BB92b472B8904349ea65C2ED';
@@ -68,5 +68,22 @@ describe('deployedAccountProblem', () => {
   });
   it('fails closed when the chain cannot be read', async () => {
     expect(await deployedAccountProblem(client({ fail: true }), OWNER_A, ACCT_A1)).toMatch(/Couldn.t read/);
+  });
+});
+
+describe('deployedAccountStatus', () => {
+  const ROOT = '0x015c97aa67ba578e3c54ec5942a7563ea9130e4f5f';
+  const slot = (impl: string) => ('0x' + '0'.repeat(24) + impl.slice(2).toLowerCase()) as `0x${string}`;
+  const client = (o: { code?: string; impl?: string; signer?: string; fail?: boolean }) => ({
+    getCode: async () => (o.fail ? Promise.reject(new Error('rpc')) : (o.code ?? '0x363d')) as `0x${string}`,
+    getStorageAt: async () => slot(o.impl ?? KERNEL_V3_1_IMPLEMENTATION),
+    readContract: (async ({ functionName }: { functionName: string }) => (functionName === 'rootValidator' ? ROOT : o.signer ?? OWNER_A)) as never,
+  });
+  it('separates ok, a mismatch and a failed read', async () => {
+    expect(await deployedAccountStatus(client({ code: '0x' }), OWNER_A, ACCT_A1)).toEqual({ state: 'ok' });
+    expect(await deployedAccountStatus(client({}), OWNER_A, ACCT_A1)).toEqual({ state: 'ok' });
+    expect((await deployedAccountStatus(client({ impl: '0x1111111111111111111111111111111111111111' }), OWNER_A, ACCT_A1)).state).toBe('mismatch');
+    expect((await deployedAccountStatus(client({ signer: OWNER_B }), OWNER_A, ACCT_A1)).state).toBe('mismatch');
+    expect((await deployedAccountStatus(client({ fail: true }), OWNER_A, ACCT_A1)).state).toBe('unread');
   });
 });
