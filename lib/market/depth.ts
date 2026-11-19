@@ -112,8 +112,13 @@ export async function getCachedLiquidityDistribution(stock: CbStock, state: Pool
  * (liquidityNet 0) rather than throwing, since a slightly-off histogram bar
  * is fine but a dead Lot Lab panel isn't.
  */
-export async function getLiquidityDistribution(stock: CbStock, state: PoolState): Promise<LiquidityDistribution> {
-  const client = getClient();
+export async function getLiquidityDistribution(
+  stock: CbStock,
+  state: PoolState,
+  client: Pick<ReturnType<typeof getClient>, 'multicall'> = getClient(),
+  /** For a safety check (lib/swap/swapFloor.ts): throw on any failed read instead of treating it as empty. */
+  strict = false,
+): Promise<LiquidityDistribution> {
   const spacing = stock.pool.tickSpacing;
   const currentTick = state.tick;
   const currentPriceUsd = midPriceUsd(state, stock);
@@ -137,7 +142,10 @@ export async function getLiquidityDistribution(stock: CbStock, state: PoolState)
   const initializedTicks: number[] = [];
   words.forEach((wordPos, i) => {
     const result = bitmapResults[i];
-    if (result.status !== 'success') return;
+    if (result.status !== 'success') {
+      if (strict) throw new Error(`tick bitmap read failed for ${stock.symbol}`);
+      return;
+    }
     const word = result.result as bigint;
     if (word === 0n) return;
     for (let bitPos = 0; bitPos < 256; bitPos++) {
@@ -158,7 +166,10 @@ export async function getLiquidityDistribution(stock: CbStock, state: PoolState)
     });
     initializedTicks.forEach((tick, i) => {
       const result = ticksResults[i];
-      if (result.status !== 'success') return;
+      if (result.status !== 'success') {
+        if (strict) throw new Error(`tick read failed for ${stock.symbol}`);
+        return;
+      }
       const [, liquidityNet] = result.result as readonly [bigint, bigint, bigint, bigint, bigint, bigint, bigint, bigint, number, boolean];
       netByTick.set(tick, liquidityNet);
     });

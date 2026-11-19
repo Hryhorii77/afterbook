@@ -37,7 +37,7 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
 
   const { address, busy, error, review, setReview, done, setDone, startReview, confirm, reset } = useReviewedSwap({
     build: async () => {
-      const tx = await buildSwap({ meme: meme.address, payWith: inToken.param, amountIn: amountKey, account: address, slippageBps });
+      const tx = await buildSwap({ meme: meme.address, payWith: inToken.param, payToken: inToken.address, amountIn: amountKey, account: address, slippageBps });
       // The server already checked the calldata; this also checks that it is this buy.
       if (!tx.quote.meme || getAddress(tx.quote.meme) !== getAddress(meme.address) || getAddress(tx.tokenIn) !== getAddress(inToken.address) || tx.quote.side !== 'buy') {
         throw new Error('Refused: the transaction is not this buy.');

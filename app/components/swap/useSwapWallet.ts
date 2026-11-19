@@ -7,7 +7,11 @@
 // - approvals are for the exact amount, only for KyberSwap's router, never unlimited;
 // - every approval and swap carries Afterbook's Builder Code (approve: `dataSuffix`; the swap goes
 //   through sendTransaction, which has none, so the suffix is appended with `concat`);
-// - a swap is only sent to the router (the server already checked the calldata, lib/swap/swap.ts);
+// - a swap is only sent to the router (the server already checked the calldata, lib/swap/swap.ts), and
+//   only if the browser's own checks pass too (lib/swap/swapFloor.ts): the calldata is the trade asked
+//   for, its signed minimum is the one shown and within the person's slippage of the quote, and a stock
+//   quote is no more than 1% worse than that stock's own pool would pay for the same amount, walked through
+//   the pool's liquidity read from the chain here, not from the server;
 // - a transaction that reverts onchain is an error, never a success;
 // - a one-signature basket batch (sendBatch, lib/swap/basketBatch.ts) is sent only atomically, to a wallet
 //   that says it can do that on Base, and its calls come only from basketBatchCalls.
@@ -15,13 +19,18 @@
 
 import { useEffect, useState } from 'react';
 import { useAccount, useCapabilities, useConfig, usePublicClient, useReadContract, useSendCalls, useSendTransaction, useSwitchChain, useWriteContract } from 'wagmi';
-import { waitForCallsStatus } from 'wagmi/actions';
+import { getPublicClient, waitForCallsStatus } from 'wagmi/actions';
 import { base } from 'wagmi/chains';
 import { concat, erc20Abi, getAddress, parseUnits, type Hex } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import { KYBER_ROUTER, type SwapQuote, type SwapTx } from '@/lib/swap/swap';
 import { basketBatchProblem, canBatchAtomically, type BatchCall } from '@/lib/swap/basketBatch';
 import { userOpOutcome } from '@/lib/wallet/userOps';
+import { wagmiConfig } from '@/lib/wallet/wagmiConfig';
+import { getStock, USDC } from '@/lib/stocks/tokens';
+import { poolFillProblem, signedFloorProblem } from '@/lib/swap/swapFloor';
+import { readPoolState } from '@/lib/market/quote';
+import { getLiquidityDistribution } from '@/lib/market/depth';
 import { useNotify } from '../notifications/notify';
 import { api } from './swapClient';
 
@@ -36,10 +45,52 @@ export function parseAmount(text: string, decimals: number): bigint | null {
   }
 }
 
-/** Calls /api/swap/build and refuses the answer unless the wallet would be pointed at the router. */
-export async function buildSwap(body: Record<string, unknown>): Promise<SwapTx> {
-  const tx = await api<SwapTx>('/api/swap/build', { body });
+/** Calls /api/swap/build and refuses the answer unless the wallet would be pointed at the router, the
+ *  calldata is the trade asked for with the minimum shown (within the slippage setting of the quote),
+ *  and, for a stock, the quote is at most 1% worse than its own pool would pay for this amount, read here. */
+export async function buildSwap(body: {
+  amountIn: string;
+  account: `0x${string}` | undefined;
+  slippageBps: number;
+  symbol?: string;
+  side?: 'buy' | 'sell';
+  /** A meme buy: the meme's address, and the token it is paid with (USDC or its pool's stock token). */
+  meme?: `0x${string}`;
+  payToken?: `0x${string}`;
+  [k: string]: unknown;
+}): Promise<SwapTx> {
+  const account = body.account;
+  if (!account) throw new Error('Connect a wallet first.');
+  // The tokens the calldata must trade, from the person's own request, never from the server's answer.
+  const stock = body.symbol ? getStock(body.symbol) : undefined;
+  const usdc = USDC.address as `0x${string}`;
+  const tokens = stock
+    ? body.side === 'sell'
+      ? { tokenIn: stock.tokenAddress, tokenOut: usdc }
+      : { tokenIn: usdc, tokenOut: stock.tokenAddress }
+    : body.meme && body.payToken
+      ? { tokenIn: body.payToken, tokenOut: body.meme }
+      : null;
+  if (!tokens || (stock && body.side !== 'buy' && body.side !== 'sell')) throw new Error('Refused: unknown trade.');
+  const { payToken: _payToken, ...request } = body;
+  void _payToken;
+  const tx = await api<SwapTx>('/api/swap/build', { body: request });
   if (getAddress(tx.to) !== KYBER_ROUTER || getAddress(tx.spender) !== KYBER_ROUTER) throw new Error('Refused: unexpected contract.');
+  const floor = signedFloorProblem(tx, { amountIn: body.amountIn, account, slippageBps: body.slippageBps, ...tokens });
+  if (floor) throw new Error(`Refused: ${floor}. This swap was not sent.`);
+  if (stock) {
+    if (tx.quote.symbol !== stock.symbol || tx.quote.side !== body.side) throw new Error('Refused: the server built a different trade. This swap was not sent.');
+    // The stock's own pool, read here from public RPC (never the server), walked for exactly this amount.
+    const pool = await (async () => {
+      const client = getPublicClient(wagmiConfig, { chainId: base.id }) as unknown as Parameters<typeof readPoolState>[1];
+      const state = await readPoolState(stock, client);
+      return { state, dist: await getLiquidityDistribution(stock, state, client, true) };
+    })().catch(() => {
+      throw new Error(`Couldn't read ${stock.symbol}'s pool to check the quote. This swap was not sent; try again.`);
+    });
+    const gap = poolFillProblem(tx, stock, pool.state, pool.dist);
+    if (gap) throw new Error(`Refused: ${gap}. This swap was not sent.`);
+  }
   return tx;
 }
 
