@@ -19,16 +19,23 @@ vi.mock('@/lib/stocks/coinbaseStockList', async (orig) => ({
 
 const tok = (i: number, addr?: string) => ({ symbol: `T${i}c`, contract_address: addr ?? `0x${i.toString(16).padStart(40, '0')}`, name: `Token ${i}`, icon_url: null, description: 'long text' });
 const TRACKED = [{ symbol: 'AAAc', tokenAddress: '0x' + 'a'.repeat(40) }];
-const list = (n: number, withTracked = true) => [...(withTracked ? [tok(0, TRACKED[0].tokenAddress)] : []), ...Array.from({ length: n - (withTracked ? 1 : 0) }, (_, i) => tok(i + 1))];
+import { STOCKS } from '@/lib/stocks/tokens';
+/** For the pure judge: a list holding the one synthetic tracked stock, or not. */
+const listA = (n: number, withTracked = true) => [...(withTracked ? [tok(0, TRACKED[0].tokenAddress)] : []), ...Array.from({ length: n - (withTracked ? 1 : 0) }, (_, i) => tok(i + 1))];
+/** End to end: the real tracked stocks first (so the list can be saved), then made-up tokens up to n. */
+const list = (n: number, withTracked = true) => {
+  const tracked = withTracked ? STOCKS.slice(0, n).map((st, i) => tok(1000 + i, st.tokenAddress)) : [];
+  return [...tracked, ...Array.from({ length: Math.max(0, n - tracked.length) }, (_, i) => tok(i + 1))];
+};
 
 describe('judgeCoinbaseList', () => {
   it('flags a drop of more than 25% and missing tracked stocks', async () => {
     const { judgeCoinbaseList } = await import('@/lib/stocks/coinbaseListGuard');
-    const last = { at: 0, tokens: list(100) as never };
-    expect(judgeCoinbaseList(list(80), last, TRACKED)).toMatchObject({ shrunk: false, missingTracked: [] });
-    expect(judgeCoinbaseList(list(74), last, TRACKED)).toMatchObject({ shrunk: true });
-    expect(judgeCoinbaseList(list(100, false), last, TRACKED)).toMatchObject({ shrunk: false, missingTracked: ['AAAc'] });
-    expect(judgeCoinbaseList(list(5), null, TRACKED)).toMatchObject({ shrunk: false, lastGoodCount: null });
+    const last = { at: 0, tokens: listA(100) as never };
+    expect(judgeCoinbaseList(listA(80), last, TRACKED)).toMatchObject({ shrunk: false, missingTracked: [] });
+    expect(judgeCoinbaseList(listA(74), last, TRACKED)).toMatchObject({ shrunk: true });
+    expect(judgeCoinbaseList(listA(100, false), last, TRACKED)).toMatchObject({ shrunk: false, missingTracked: ['AAAc'] });
+    expect(judgeCoinbaseList(listA(5), null, TRACKED)).toMatchObject({ shrunk: false, lastGoodCount: null });
   });
 });
 
@@ -61,12 +68,11 @@ describe('the guard end to end (mocked Redis and fetch)', () => {
 
   it('the meme exclusions are the union of tracked, fresh and last good', async () => {
     const g = await import('@/lib/stocks/coinbaseListGuard');
-    const { STOCKS } = await import('@/lib/stocks/tokens');
     await g.checkCoinbaseList(list(90) as never);
     fresh.list = [tok(500)];
     const ex = await g.getStockTokenExclusions();
     expect(ex.has(tok(500).contract_address.toLowerCase())).toBe(true);
-    expect(ex.has(tok(89).contract_address.toLowerCase())).toBe(true);
+    expect(ex.has(tok(52).contract_address.toLowerCase())).toBe(true); // a made-up token only in the last good list
     expect(STOCKS.every((s) => ex.has(s.tokenAddress.toLowerCase()))).toBe(true);
   });
 
@@ -98,11 +104,51 @@ describe('the guard end to end (mocked Redis and fetch)', () => {
     await g.checkCoinbaseList(list(90) as never);
     fresh.list = list(85);
     expect(await g.getCoinbaseStockList()).toHaveLength(85);
-    const tracked = (await import('@/lib/stocks/tokens')).STOCKS;
     const r = await g.checkCoinbaseList(list(90, false) as never);
-    // None of the real tracked addresses are in this synthetic list, so every tracked stock is reported missing.
-    expect(r.missingTracked).toHaveLength(tracked.length);
+    expect(r.missingTracked).toHaveLength(STOCKS.length);
     expect(r.alerts.join(' ')).toMatch(/Tracked stocks missing/);
+  });
+
+  it('a slow shrink never walks the baseline down, and a drop over 10% alerts', async () => {
+    const g = await import('@/lib/stocks/coinbaseListGuard');
+    await g.checkCoinbaseList(list(95) as never);
+    const r1 = await g.checkCoinbaseList(list(76) as never); // -20%: used, alerted, not saved
+    expect(r1).toMatchObject({ shrunk: false, saved: false });
+    expect(r1.alerts.join(' ')).toMatch(/dropped from 95 to 76/);
+    const r2 = await g.checkCoinbaseList(list(60) as never); // still compared with 95: -37%, shrunk
+    expect(r2.shrunk).toBe(true);
+    expect(r2.useList).toHaveLength(95);
+    const r3 = await g.checkCoinbaseList(list(92) as never); // -3%: used, no alert, not saved
+    expect(r3).toMatchObject({ saved: false, shrunk: false });
+    expect(r3.alerts.join(' ')).not.toMatch(/dropped|shrank/);
+    expect((store.get('cblist:lastgood') as { tokens: unknown[] }).tokens).toHaveLength(95);
+    const r4 = await g.checkCoinbaseList(list(100) as never); // growth with every tracked stock: saved
+    expect(r4.saved).toBe(true);
+  });
+
+  it('never saves a list with a tracked stock missing', async () => {
+    const g = await import('@/lib/stocks/coinbaseListGuard');
+    const withTracked = (n: number) => list(STOCKS.length + n);
+    expect((await g.checkCoinbaseList(withTracked(50) as never)).saved).toBe(true);
+    const r = await g.checkCoinbaseList(list(100, false) as never); // count grew, every tracked stock gone
+    expect(r.saved).toBe(false);
+    expect(r.alerts.join(' ')).toMatch(/Tracked stocks missing/);
+    expect((store.get('cblist:lastgood') as { tokens: unknown[] }).tokens).toHaveLength(STOCKS.length + 50);
+    expect((await g.checkCoinbaseList(withTracked(60) as never)).saved).toBe(true);
+  });
+
+  it('reports a frozen baseline once a week and says how to clear a missing tracked stock', async () => {
+    const g = await import('@/lib/stocks/coinbaseListGuard');
+    const t0 = Date.UTC(2026, 10, 19, 13);
+    await g.checkCoinbaseList(list(90) as never, { now: t0 });
+    const day = (d: number) => t0 + d * 86_400_000;
+    expect((await g.checkCoinbaseList(list(89) as never, { now: day(6) })).alerts.join(' ')).not.toMatch(/days old/);
+    const r7 = await g.checkCoinbaseList(list(89) as never, { now: day(7) });
+    expect(r7.alerts.join(' ')).toMatch(/7 days old/);
+    expect(r7.baselineAgeDays).toBe(7);
+    expect((await g.checkCoinbaseList(list(89) as never, { now: day(8) })).alerts.join(' ')).not.toMatch(/days old/);
+    const missing = await g.checkCoinbaseList(list(95).slice(1) as never, { now: day(9) });
+    expect(missing.alerts.join(' ')).toMatch(/removed from STOCKS/);
   });
 
   it('dry runs write nothing', async () => {
