@@ -18,6 +18,8 @@ const POOL_NOTIFIED_KEY = 'discover:notified';
 const LIQUID_NOTIFIED_KEY = 'discover:liquid';
 /** Listed tokens the site skips (splitListedTokens), by address and symbol, so each is reported once. */
 const SKIPPED_NOTIFIED_KEY = 'discover:skipped';
+/** Consecutive daily runs whose Coinbase list fetch failed. */
+const FETCH_FAIL_KEY = 'cblist:fetchfail';
 const MAX_SKIPPED_LINES = 10;
 /** Depth at which a candidate is worth a ready-to-paste snippet. Half the tape's
  *  own "liquid" line, since the rows it would join start as thin books anyway. */
@@ -54,13 +56,26 @@ export async function GET(request: NextRequest) {
   }
 
   const raw = await fetchCoinbaseStockList({ cache: 'no-store' }).catch(() => null);
-  if (!raw) return NextResponse.json({ ok: false, reason: 'stock list fetch failed' });
+  if (!raw) {
+    // Alert on the second failed day in a row (one failure is often a blip); the counter lives 3 days.
+    if (!dry && redis) {
+      const fails = await redis.incr(FETCH_FAIL_KEY).catch(() => 0);
+      await redis.expire(FETCH_FAIL_KEY, 3 * 24 * 3600).catch(() => {});
+      if (fails === 2) await sendTelegramMessage(adminChatId!, `Coinbase's tokenized-stock list could not be fetched on ${fails} daily runs in a row. /stocks, the icons and the meme job may be failing too.`).catch(() => {});
+    }
+    return NextResponse.json({ ok: false, reason: 'stock list fetch failed' });
+  }
+  if (!dry && redis) await redis.del(FETCH_FAIL_KEY).catch(() => {});
   // The list guard (lib/stocks/coinbaseListGuard.ts): saves the last good list, or alerts when the list shrank too
   // far or a tracked stock is missing from it. Runs before anything else so an alert is never skipped.
-  const guard = await checkCoinbaseList(raw, { dry }).catch((err) => ({ saved: false, alerts: [`Coinbase list guard failed: ${(err as Error).message}`], error: true }));
+  const guard = await checkCoinbaseList(raw, { dry }).catch((err) => ({ saved: false, alerts: [`Coinbase list guard failed: ${(err as Error).message}`], error: true, useList: raw }));
   if (!dry) for (const a of guard.alerts) await sendTelegramMessage(adminChatId!, a).catch(() => {});
-  if (dry && request.nextUrl.searchParams.get('guard') === '1') return NextResponse.json({ ok: true, dry: true, guard });
-  const listing = await fetchPublishedStockList(raw).catch(() => null);
+  if (dry && request.nextUrl.searchParams.get('guard') === '1') {
+    const { useList, ...summary } = guard;
+    return NextResponse.json({ ok: true, dry: true, guard: { ...summary, usingLastGood: useList !== raw } });
+  }
+  // Discovery and the /stocks pool data use the guarded list, so a shrunk list doesn't turn rows into "not checked".
+  const listing = await fetchPublishedStockList(guard.useList).catch(() => null);
   if (!listing) return NextResponse.json({ ok: false, reason: 'stock list fetch failed' });
   const published = listing.stocks;
 
