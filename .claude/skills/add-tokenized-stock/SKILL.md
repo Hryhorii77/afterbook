@@ -78,6 +78,11 @@ dynamic and read per quote.)
 `cast` may not be installed; the same reads work with viem via
 `getClient()` from `lib/market/quote.ts` in a `tsx` script.)
 
+**USDC must be `token0`.** All 38 pools list USDC first (2026-11-19). The browser's swap check
+(`poolFillProblem` in `lib/swap/swapFloor.ts`) refuses every swap in a pool that lists the stock
+first, so a candidate whose pool has `token0` = the stock would be untradeable in the app. Don't
+add it that way: extend and test `poolFillProblem` for that order in the same PR first.
+
 Measure real depth the way the app does: build a `CbStock`, then
 `poolDepth(await readPoolState(stock), stock).totalUsd` (`lib/market/quote.ts`), and
 `lowestRecentDepthUsd(stock, 3)` (`lib/stocks/discovery.ts`) for the three-hour low;

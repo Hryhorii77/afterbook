@@ -47,7 +47,14 @@ check passes, say so in one short line; do not pad.
 - Addresses, asset ids and amounts are validated with the shared patterns
   (`OWNER_RE`, `BASE_ASSET_RE`, `RAW_AMOUNT_RE`) before use.
 - The deposit recipient is derived from Glider's portfolio response, never
-  from anything the user typed or a query parameter.
+  from anything the user typed or a query parameter, and the browser shows
+  it or sends to it only after `depositAccountProblem`
+  (`lib/baskets/depositAccount.ts`) recomputes it from the connected wallet:
+  the CREATE2 address of a ZeroDev Kernel v3.1 account whose root validator
+  (the MultiChainValidator) has that wallet as signer, no hook, no other
+  modules. It is checked again inside the send. Don't loosen it (another
+  factory, implementation, validator or `initConfig`) without re-reading a
+  real deployment; a salt outside the scanned range must fail closed.
 - No amount arithmetic with JavaScript numbers where a bigint is needed
   (USDC has 6 decimals; raw amounts can exceed 2^53).
 
