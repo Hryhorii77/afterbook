@@ -1,7 +1,10 @@
 // The browser's own floor under every swap (lib/swap/swapFloor.ts).
 import { describe, expect, it } from 'vitest';
 import { encodeFunctionData, getAddress, parseAbi, type Hex } from 'viem';
-import { MAX_POOL_GAP_BPS, poolPriceProblem, poolUsdPerToken, signedFloorProblem } from '../lib/swap/swapFloor';
+import { MAX_FILL_GAP_BPS, poolFillProblem, signedFloorProblem } from '../lib/swap/swapFloor';
+import { simulateBuy, simulateSell } from '../lib/market/swapSim';
+import type { PoolState } from '../lib/market/quote';
+import type { LiquidityDistribution } from '../lib/market/depth';
 import { KYBER_ROUTER, type SwapTx } from '../lib/swap/swap';
 import { getStock, USDC } from '../lib/stocks/tokens';
 
@@ -64,23 +67,41 @@ describe('signedFloorProblem', () => {
   });
 });
 
-describe('poolPriceProblem', () => {
-  // sqrtPriceX96 for $200 a NVDAc token with USDC as token0: stock raw per USDC raw = 10^(dec-6) / 200.
-  const sqrtFor = (usd: number) => BigInt(Math.round(Math.sqrt(10 ** (NVDA.decimals - USDC.decimals) / usd) * 2 ** 96));
-  it('reads the pool price, whichever token the pool lists first', () => {
-    expect(poolUsdPerToken(sqrtFor(200), NVDA)).toBeCloseTo(200, 6);
-    // A pool sorted the other way: token1 is USDC, so sqrtP² is USDC raw per stock raw.
-    const flipped = { ...NVDA, pool: { ...NVDA.pool, token0: 'stock' as const } };
-    const sqrtStockFirst = BigInt(Math.round(Math.sqrt((200 * 10 ** USDC.decimals) / 10 ** NVDA.decimals) * 2 ** 96));
-    expect(poolUsdPerToken(sqrtStockFirst, flipped)).toBeCloseTo(200, 6);
+describe('poolFillProblem', () => {
+  // A synthetic NVDAc pool at $200 a token (USDC is token0), with one range of liquidity around the price.
+  const sqrtP = Math.sqrt(10 ** (NVDA.decimals - USDC.decimals) / 200);
+  const tick = Math.floor(Math.log(sqrtP * sqrtP) / Math.log(1.0001));
+  const pool = (liquidity: bigint) => {
+    const state = { sqrtPriceX96: BigInt(Math.round(sqrtP * 2 ** 96)), tick, liquidity, multiplier: BigInt(10) ** BigInt(18), usdcReserveRaw: BigInt(0), stockReserveRaw: BigInt(0), feeGrowthGlobal0X128: BigInt(0), feeGrowthGlobal1X128: BigInt(0), feePpm: 500 } as PoolState;
+    const dist = { currentTick: tick, currentPriceUsd: 200, buckets: [{ tickLower: tick - 2000, tickUpper: tick + 2000, priceLowerUsd: 0, priceUpperUsd: 0, liquidity: liquidity.toString() }] } as LiquidityDistribution;
+    return { state, dist };
+  };
+  const deep = pool(BigInt(10) ** BigInt(16));
+  const withOut = (side: 'buy' | 'sell', amountIn: bigint, amountOut: number): SwapTx => ({ ...tx(BigInt(1)), quote: { ...tx(BigInt(1)).quote, side, amountIn: amountIn.toString(), amountOut: String(Math.floor(amountOut)) } });
+  it('accepts a quote at or above what the pool itself would pay, and up to 1% under', () => {
+    const fill = (simulateBuy(deep.state, deep.dist, NVDA, 100).sharesOut) * 10 ** NVDA.decimals;
+    expect(poolFillProblem(withOut('buy', BigInt(100_000_000), fill), NVDA, deep.state, deep.dist)).toBeNull();
+    expect(poolFillProblem(withOut('buy', BigInt(100_000_000), fill * (1 - (MAX_FILL_GAP_BPS - 10) / 10000)), NVDA, deep.state, deep.dist)).toBeNull();
+    expect(poolFillProblem(withOut('buy', BigInt(100_000_000), fill * 1.02), NVDA, deep.state, deep.dist)).toBeNull();
+    const usdc = simulateSell(deep.state, deep.dist, NVDA, 0.5).usdcOut * 1e6;
+    expect(poolFillProblem(withOut('sell', outRaw, usdc), NVDA, deep.state, deep.dist)).toBeNull();
   });
-  it('accepts a quote near the pool price and refuses one far worse than it, for buys and sells', () => {
-    // A buy of $100 for 0.5 token is worth $85 at a pool price of $170: over 5% worse.
-    expect(poolPriceProblem(tx(minAt(50)), NVDA, sqrtFor(200))).toBeNull();
-    expect(poolPriceProblem(tx(minAt(50)), NVDA, sqrtFor(200 * (1 - (MAX_POOL_GAP_BPS - 50) / 10000)))).toBeNull();
-    expect(poolPriceProblem(tx(minAt(50)), NVDA, sqrtFor(170))).toMatch(/worse than NVDAc's pool price/);
-    const sell = (usdcOut: number): SwapTx => ({ ...tx(BigInt(1)), quote: { ...tx(BigInt(1)).quote, side: 'sell', amountIn: outRaw.toString(), amountOut: String(usdcOut * 1e6) } });
-    expect(poolPriceProblem(sell(99), NVDA, sqrtFor(200))).toBeNull();
-    expect(poolPriceProblem(sell(1), NVDA, sqrtFor(200))).toMatch(/worse/);
+  it('refuses a quote more than 1% under the pool’s own fill, for buys and sells', () => {
+    const fill = (simulateBuy(deep.state, deep.dist, NVDA, 100).sharesOut) * 10 ** NVDA.decimals;
+    expect(poolFillProblem(withOut('buy', BigInt(100_000_000), fill * 0.98), NVDA, deep.state, deep.dist)).toMatch(/own pool would pay/);
+    expect(poolFillProblem(withOut('buy', BigInt(100_000_000), 1), NVDA, deep.state, deep.dist)).toMatch(/own pool would pay/);
+    expect(poolFillProblem(withOut('sell', outRaw, 1), NVDA, deep.state, deep.dist)).toMatch(/own pool would pay/);
+  });
+  it('accounts for depth: a thin pool fills well under spot, and that is not refused', () => {
+    const thin = pool(BigInt(10) ** BigInt(9));
+    const r = simulateBuy(thin.state, thin.dist, NVDA, 100);
+    expect(r.costBp).toBeGreaterThan(300);
+    expect(poolFillProblem(withOut('buy', BigInt(100_000_000), r.sharesOut * 10 ** NVDA.decimals), NVDA, thin.state, thin.dist)).toBeNull();
+  });
+  it('refuses an amount the pool cannot fill within its scanned window, and a pool listed the other way', () => {
+    const tiny = pool(BigInt(1000));
+    expect(poolFillProblem(withOut('buy', BigInt(100_000_000), 1e12), NVDA, tiny.state, tiny.dist)).toMatch(/try a smaller amount/);
+    const flipped = { ...NVDA, pool: { ...NVDA.pool, token0: 'stock' as const } };
+    expect(poolFillProblem(withOut('buy', BigInt(100_000_000), 1e12), flipped, deep.state, deep.dist)).toMatch(/not supported/);
   });
 });

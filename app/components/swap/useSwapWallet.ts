@@ -10,7 +10,8 @@
 // - a swap is only sent to the router (the server already checked the calldata, lib/swap/swap.ts), and
 //   only if the browser's own checks pass too (lib/swap/swapFloor.ts): the calldata is the trade asked
 //   for, its signed minimum is the one shown and within the person's slippage of the quote, and a stock
-//   quote is within 5% of that stock's pool price, read from the chain here, not from the server;
+//   quote is no more than 1% worse than that stock's own pool would pay for the same amount, walked through
+//   the pool's liquidity read from the chain here, not from the server;
 // - a transaction that reverts onchain is an error, never a success;
 // - a one-signature basket batch (sendBatch, lib/swap/basketBatch.ts) is sent only atomically, to a wallet
 //   that says it can do that on Base, and its calls come only from basketBatchCalls.
@@ -18,7 +19,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAccount, useCapabilities, useConfig, usePublicClient, useReadContract, useSendCalls, useSendTransaction, useSwitchChain, useWriteContract } from 'wagmi';
-import { readContract, waitForCallsStatus } from 'wagmi/actions';
+import { getPublicClient, waitForCallsStatus } from 'wagmi/actions';
 import { base } from 'wagmi/chains';
 import { concat, erc20Abi, getAddress, parseUnits, type Hex } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
@@ -27,7 +28,9 @@ import { basketBatchProblem, canBatchAtomically, type BatchCall } from '@/lib/sw
 import { userOpOutcome } from '@/lib/wallet/userOps';
 import { wagmiConfig } from '@/lib/wallet/wagmiConfig';
 import { getStock, USDC } from '@/lib/stocks/tokens';
-import { poolPriceProblem, signedFloorProblem } from '@/lib/swap/swapFloor';
+import { poolFillProblem, signedFloorProblem } from '@/lib/swap/swapFloor';
+import { readPoolState } from '@/lib/market/quote';
+import { getLiquidityDistribution } from '@/lib/market/depth';
 import { useNotify } from '../notifications/notify';
 import { api } from './swapClient';
 
@@ -42,26 +45,9 @@ export function parseAmount(text: string, decimals: number): bigint | null {
   }
 }
 
-const SLOT0_ABI = [
-  {
-    type: 'function',
-    name: 'slot0',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [
-      { name: 'sqrtPriceX96', type: 'uint160' },
-      { name: 'tick', type: 'int24' },
-      { name: 'observationIndex', type: 'uint16' },
-      { name: 'observationCardinality', type: 'uint16' },
-      { name: 'observationCardinalityNext', type: 'uint16' },
-      { name: 'unlocked', type: 'bool' },
-    ],
-  },
-] as const;
-
 /** Calls /api/swap/build and refuses the answer unless the wallet would be pointed at the router, the
  *  calldata is the trade asked for with the minimum shown (within the slippage setting of the quote),
- *  and, for a stock, the quote is within 5% of its pool's own price read from the chain here. */
+ *  and, for a stock, the quote is at most 1% worse than its own pool would pay for this amount, read here. */
 export async function buildSwap(body: {
   amountIn: string;
   account: `0x${string}` | undefined;
@@ -94,10 +80,15 @@ export async function buildSwap(body: {
   if (floor) throw new Error(`Refused: ${floor}. This swap was not sent.`);
   if (stock) {
     if (tx.quote.symbol !== stock.symbol || tx.quote.side !== body.side) throw new Error('Refused: the server built a different trade. This swap was not sent.');
-    const [sqrtPriceX96] = await readContract(wagmiConfig, { address: stock.pool.address, abi: SLOT0_ABI, functionName: 'slot0', chainId: base.id }).catch(() => {
-      throw new Error(`Couldn't read ${stock.symbol}'s pool price to check the quote. This swap was not sent; try again.`);
+    // The stock's own pool, read here from public RPC (never the server), walked for exactly this amount.
+    const pool = await (async () => {
+      const client = getPublicClient(wagmiConfig, { chainId: base.id }) as unknown as Parameters<typeof readPoolState>[1];
+      const state = await readPoolState(stock, client);
+      return { state, dist: await getLiquidityDistribution(stock, state, client, true) };
+    })().catch(() => {
+      throw new Error(`Couldn't read ${stock.symbol}'s pool to check the quote. This swap was not sent; try again.`);
     });
-    const gap = poolPriceProblem(tx, stock, sqrtPriceX96);
+    const gap = poolFillProblem(tx, stock, pool.state, pool.dist);
     if (gap) throw new Error(`Refused: ${gap}. This swap was not sent.`);
   }
   return tx;
