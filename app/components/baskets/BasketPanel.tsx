@@ -199,7 +199,14 @@ export function BasketPanel() {
 
   const startAutomation = () =>
     run('start', async () => {
-      if (accountTampered) throw new Error('Refused: this account is no longer set up the way it was created, so automation stays off.');
+      // Only after a finished, clean check of the account (the same one deposits need): not while it is still running,
+      // not when the chain couldn't be read, not when it shows the account tampered with. Start moves no funds, so a
+      // flaky RPC only delays it; press Refresh.
+      if (!depositAddr) {
+        throw new Error(accountTampered
+          ? 'Refused: this account is no longer set up the way it was created, so automation stays off.'
+          : 'Your Basis Tilt account hasn\u2019t been confirmed yet, so automation can\u2019t start. Wait a moment or press Refresh.');
+      }
       await api('/api/baskets/start', { method: 'POST', body: { owner: address } });
       setNotice('Automation started.');
       await refresh();
@@ -457,7 +464,7 @@ export function BasketPanel() {
           )}
           <div className="basket-row">
             {portfolio.schedule.status === 'paused' && (
-              <button type="button" className="btn" onClick={startAutomation} disabled={busy !== null || !withdrawable || accountTampered}>
+              <button type="button" className="btn" onClick={startAutomation} disabled={busy !== null || !withdrawable || !depositAddr}>
                 {busy === 'start' ? 'Starting…' : 'Start automation'}
               </button>
             )}
