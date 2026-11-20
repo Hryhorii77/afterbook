@@ -6,8 +6,10 @@ import type { SteadyDepth } from '../lib/market/depthSamples';
 import type { TapeResult, TapeRow } from '../lib/market/tape';
 import { STOCKS } from '../lib/stocks/tokens';
 import { PROFILES } from '../lib/stocks/sectors';
-import { BRIEF_LIMITS } from '../lib/agent/limits';
+import { AUTO_PICK_HOLD, BRIEF_LIMITS } from '../lib/agent/limits';
 import { MAX_LEGS, MIN_LEGS, normalizeLegs } from '../lib/build/customBasket';
+/** New listings held out of automatic picks (lib/agent/limits.ts). */
+const HELD = Object.keys(AUTO_PICK_HOLD).length;
 import { MAX_BASKET_USD, splitBasketUsdc } from '../lib/swap/basketBuy';
 
 const NOW = 1_800_000_000_000;
@@ -425,7 +427,7 @@ describe('refilling the basket', () => {
     const b = run(input({ theme: 'Any', minStocks: 2, budgetUsd: 20 }), steadyOf({}, 2_000_000));
     expect(b.picks).toHaveLength(2);
     const unused = b.dropped.filter((d) => /covers at most 2 stocks/.test(d.why));
-    expect(unused).toHaveLength(STOCKS.length - 2);
+    expect(unused).toHaveLength(STOCKS.length - HELD - 2);
     expect(b.steps.at(-1)?.label).toBe('the 2 with the deepest pools that your budget covers at $10 or more each');
   });
 
@@ -438,7 +440,7 @@ describe('refilling the basket', () => {
       [0, 'within your cost limit'],
     ]);
     expect(b.dropped.some((d) => /deeper pools made it/.test(d.why))).toBe(false);
-    expect(b.dropped.filter((d) => /are tried against your cost limit; this one comes after them/.test(d.why))).toHaveLength(STOCKS.length - BRIEF_LIMITS.maxCandidates);
+    expect(b.dropped.filter((d) => /are tried against your cost limit; this one comes after them/.test(d.why))).toHaveLength(STOCKS.length - HELD - BRIEF_LIMITS.maxCandidates);
     expect(b.shortfall).toMatch(/^Your 0.3% limit on what you’ll pay to trade leaves out every stock it was tried on/);
   });
 
@@ -489,5 +491,19 @@ describe('refilling the basket', () => {
     expect(b.shortfall).toBe(
       'Your $25.00 to invest is too little for at least $10 in each of 3 stocks. Raise the budget or keep less as cash. Your 0.3% cost limit also left out NVDA, MU, AMD, AVGO.',
     );
+  });
+});
+
+describe('new listings held out of automatic picks', () => {
+  it('ANTc is left out of a brief however deep its pool reads, and says why', () => {
+    const b = run(input({ theme: 'Any', minStocks: 2 }), steadyOf({ ANTc: 5_000_000, NVDAc: 2_000_000, MUc: 1_500_000 }, 0));
+    expect((b.picks ?? []).map((p) => p.symbol)).toEqual(['NVDAc', 'MUc']);
+    expect(b.dropped.find((d) => d.symbol === 'ANTc')?.why).toMatch(/new listing \(added 2026-11-20\).*left out of automatic baskets/);
+  });
+  it('the plan\u2019s default "deepest pools" skips it, but naming it still works', async () => {
+    const { pickRows } = await import('../lib/agent/plan');
+    const rows = allRows().map((r) => (r.symbol === 'ANTc' ? { ...r, depthUsd: 9_000_000 } : r));
+    expect(pickRows({ symbols: [], budgetUsd: 100, note: '' } as never, { rows }).map((r) => r.symbol)).not.toContain('ANTc');
+    expect(pickRows({ symbols: ['ANTc'], budgetUsd: 100, note: '' } as never, { rows }).map((r) => r.symbol)).toEqual(['ANTc']);
   });
 });

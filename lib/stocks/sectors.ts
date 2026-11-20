@@ -60,6 +60,7 @@ export const PROFILES: Record<string, StockProfile> = {
   TSLAc: { sector: 'Consumer Discretionary', themes: ['EVs & autonomy'] },
   PLTRc: { sector: 'Information Technology', themes: ['Software & cloud'] },
   MUc: { sector: 'Information Technology', themes: ['Memory & storage', 'AI chips'] },
+  ANTc: { sector: 'Information Technology', themes: ['Software & cloud'] },
   NFLXc: { sector: 'Communication Services', themes: ['Internet & media'] },
   // Nasdaq-listed SK hynix shares (since 2026-07-13), each 1/10 of a Korean common share.
   SKHYc: { sector: 'Information Technology', themes: ['Memory & storage', 'AI chips', 'Outside the US'] },

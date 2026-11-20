@@ -9,7 +9,7 @@ import { todayReference } from '../market/todaySnapshot';
 import { TAPE_MAIN_DEPTH_USD } from '../market/liquidity';
 import { MAX_SWAP_USD, MAX_BUY_DEPTH_SHARE } from '../swap/swap';
 import { gapSizeText, gapVsText, usd, formatNextOpen } from '../format';
-import { PLAN_LIMITS } from './limits';
+import { AUTO_PICK_HOLD, PLAN_LIMITS } from './limits';
 
 /** A cost in bp as the person typed it on the form: a percent ("0.3%"), not bp (external review, 2026-11-13). */
 const costPct = (bp: number) => `${Number((bp / 100).toFixed(3))}%`;
@@ -113,7 +113,7 @@ function daysUntil(todayKey: string, isoDate: string): number {
 export function pickRows(input: PlanInput, tape: Pick<TapeResult, 'rows'>): TapeRow[] {
   if (input.symbols.length) return input.symbols.map((s) => tape.rows.find((r) => r.symbol === s)).filter((r): r is TapeRow => !!r);
   return [...tape.rows]
-    .filter((r) => r.onchainMidUsd != null && !r.cashStale && (r.depthUsd ?? 0) >= TAPE_MAIN_DEPTH_USD)
+    .filter((r) => r.onchainMidUsd != null && !r.cashStale && (r.depthUsd ?? 0) >= TAPE_MAIN_DEPTH_USD && !AUTO_PICK_HOLD[r.symbol])
     .sort((a, b) => (b.depthUsd ?? 0) - (a.depthUsd ?? 0))
     .slice(0, PLAN_LIMITS.anyCount);
 }

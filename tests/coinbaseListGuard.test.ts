@@ -72,7 +72,7 @@ describe('the guard end to end (mocked Redis and fetch)', () => {
     fresh.list = [tok(500)];
     const ex = await g.getStockTokenExclusions();
     expect(ex.has(tok(500).contract_address.toLowerCase())).toBe(true);
-    expect(ex.has(tok(52).contract_address.toLowerCase())).toBe(true); // a made-up token only in the last good list
+    expect(ex.has(tok(90 - STOCKS.length).contract_address.toLowerCase())).toBe(true); // a made-up token only in the last good list
     expect(STOCKS.every((s) => ex.has(s.tokenAddress.toLowerCase()))).toBe(true);
   });
 

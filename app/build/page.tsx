@@ -1,15 +1,17 @@
 import { redirect } from 'next/navigation';
 import { getTape } from '@/lib/market/tape';
 import { formatSpec, normalizeLegs } from '@/lib/build/customBasket';
+import { AUTO_PICK_HOLD } from '@/lib/agent/limits';
 
 export const dynamic = 'force-dynamic';
 
 // /build opens on a starting basket: the three deepest pools right now,
-// equal weights. Every basket lives at its own /build/<spec> URL.
+// equal weights, never a new listing held out of automatic picks (AUTO_PICK_HOLD). Every basket lives at its
+// own /build/<spec> URL.
 export default async function BuildIndex() {
   const tape = await getTape().catch(() => null);
   const deepest = (tape?.rows ?? [])
-    .filter((r) => r.depthUsd != null)
+    .filter((r) => r.depthUsd != null && !AUTO_PICK_HOLD[r.symbol])
     .sort((a, b) => (b.depthUsd ?? 0) - (a.depthUsd ?? 0))
     .slice(0, 3)
     .map((r) => ({ symbol: r.symbol, weight: 1 }));
