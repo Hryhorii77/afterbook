@@ -85,6 +85,20 @@
 .trade-top-stock > span { display: flex; flex-direction: column; min-width: 0; }
 .trade-top-sym { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trade-top-name { font-size: 13px; color: var(--text-dim); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A recent listing held out of automatic picks (AUTO_PICK_HOLD): ranked by pool like any stock, tagged so a
+   day-two IPO doesn't look as settled as the rest (owner, 2026-11-20). Neutral --info, not a market colour. */
+.trade-top-new {
+  display: block;
+  width: fit-content;
+  margin-top: 2px;
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--info);
+}
 .trade-top-action { text-align: right; width: 1%; }
 .trade-top-action .btn { padding: 0 18px; }
 .trade-top-foot { font-size: 14px; color: var(--info); margin: 12px 0 4px; }

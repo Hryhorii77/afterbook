@@ -2,13 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const store = new Map<string, unknown>();
 const redisFail = { on: false };
+const failSet = { key: '' };
 vi.mock('@/lib/server/redis', () => ({
   redis: {
     get: async (k: string) => {
       if (redisFail.on) throw new Error('redis down');
       return store.get(k) ?? null;
     },
-    set: async (k: string, v: unknown) => void store.set(k, v),
+    set: async (k: string, v: unknown) => {
+      if (failSet.key === k) throw new Error('write failed');
+      store.set(k, v);
+    },
   },
 }));
 const fresh = { list: [] as Record<string, unknown>[] };
@@ -43,6 +47,7 @@ describe('the guard end to end (mocked Redis and fetch)', () => {
   beforeEach(() => {
     store.clear();
     redisFail.on = false;
+    failSet.key = '';
     vi.resetModules();
   });
 
@@ -169,6 +174,13 @@ describe('the guard end to end (mocked Redis and fetch)', () => {
     expect(await run(day(9))).toMatch(/9 days old/); // so it goes out the next day
     expect(await run(day(10))).toBe('');
     expect(await run(day(16))).toMatch(/16 days old/);
+  });
+
+  it('a failed alert-state write still saves the weekly report time', async () => {
+    const g = await import('@/lib/stocks/coinbaseListGuard');
+    failSet.key = 'cblist:alertstate';
+    await expect(g.recordGuardAlerts({ conditionKeys: ['drop:10'], previousKeys: [] }, new Set(['drop:10']), true, 123)).rejects.toThrow(/write failed/);
+    expect(store.get('cblist:stalereport')).toBe(123);
   });
 
   it('dry runs write nothing', async () => {
