@@ -8,6 +8,7 @@ import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { fmt, logSwapHash, usd, venueNames } from './swapClient';
 import { useNotify } from '../notifications/notify';
 import { buildSwap, parseAmount, useLiveQuote, useReviewedSwap, useTokenBalance } from './useSwapWallet';
+import { GetUsdcGuide } from './GetUsdcGuide';
 import { SlippageControl, useSlippage } from './slippage';
 
 // Buy or sell a tracked stock token with USDC from the visitor's own wallet, routed by KyberSwap.
@@ -174,6 +175,7 @@ export function SwapPanel({
         )}
       </div>
       {overBalance && <p className="geo-note">That is more {inToken.symbol} than your wallet holds on Base.</p>}
+      {side === 'buy' && <GetUsdcGuide balance={balance} needed={amountIn} refetch={refetchBalance} />}
       {overMax && maxUsd != null && <p className="geo-note">This run is at most {usd(maxUsd)}.</p>}
       {!review && <SlippageControl disabled={busy !== null} />}
 
