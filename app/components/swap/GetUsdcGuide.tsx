@@ -17,11 +17,17 @@ export function GetUsdcGuide({ balance, needed, refetch }: { balance: bigint | u
   const { address } = useAccount();
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const addressRef = useRef<HTMLElement>(null);
+  // The "Copied" reset timer: one at a time, cleared on a second click and on unmount.
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+  }, []);
   const empty = balance === BigInt(0);
   const shown = !!address && balance !== undefined && (empty || (needed != null && needed > balance));
   useEffect(() => {
     if (!shown || !refetch) return;
-    // Skipped while the tab is in the background; the default query refetch on focus catches up when it returns.
+    // Skipped while the tab is in the background; the data library's default refetch when the tab is visible again
+    // catches up when it returns.
     const id = setInterval(() => {
       if (document.visibilityState === 'visible') void refetch();
     }, REFRESH_MS);
@@ -33,9 +39,12 @@ export function GetUsdcGuide({ balance, needed, refetch }: { balance: bigint | u
     try {
       await navigator.clipboard.writeText(address);
       setCopyState('copied');
-      setTimeout(() => setCopyState('idle'), 2000);
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopyState('idle'), 2000);
     } catch {
-      // Some in-wallet browsers block the clipboard: select the address so it can be copied by hand.
+      // Some in-wallet browsers block the clipboard: select the address so it can be copied by hand. A pending reset
+      // from an earlier copy must not wipe this message.
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
       setCopyState('failed');
       const el = addressRef.current;
       const sel = typeof window !== 'undefined' ? window.getSelection() : null;
