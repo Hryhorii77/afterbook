@@ -151,6 +151,11 @@ export default function TradeHome({
                           <span>
                             <span className="trade-top-sym">{r.cashTicker}</span>
                             <span className="trade-top-name">{r.name}</span>
+                            {AUTO_PICK_HOLD[r.symbol] && (
+                              <span className="trade-top-new" title="Listed recently: its pool is still settling">
+                                New listing
+                              </span>
+                            )}
                           </span>
                         </Link>
                       </td>

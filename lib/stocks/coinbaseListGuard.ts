@@ -229,6 +229,12 @@ export async function recordGuardAlerts(
 ): Promise<void> {
   if (!redis) return;
   const known = new Set(previousKeys);
-  await redis.set(ALERT_STATE_KEY, conditionKeys.filter((k) => known.has(k) || sentKeys.has(k)));
-  if (staleReportSent) await redis.set(STALE_REPORT_KEY, now);
+  // Two separate writes: a failed alert-state write must not stop the weekly report's time being saved, or the report
+  // would go out every day until a write worked (owner's note on #203).
+  const [state, stale] = await Promise.allSettled([
+    redis.set(ALERT_STATE_KEY, conditionKeys.filter((k) => known.has(k) || sentKeys.has(k))),
+    staleReportSent ? redis.set(STALE_REPORT_KEY, now) : Promise.resolve(null),
+  ]);
+  if (state.status === 'rejected') throw state.reason;
+  if (stale.status === 'rejected') throw stale.reason;
 }
