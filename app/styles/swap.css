@@ -67,7 +67,13 @@ main .slippage-custom { width: 88px; height: 44px; min-height: 44px; padding-top
   padding: 0 14px;
   font-weight: 600;
   color: var(--text);
+  list-style: none;
 }
+/* display: flex hides the native marker, so draw the same arrow as .geo-more. */
+.usdc-guide summary::-webkit-details-marker { display: none; }
+.usdc-guide summary::after { content: '\00a0\25B8'; /* ▸ */ }
+.usdc-guide[open] summary::after { content: '\00a0\25BE'; /* ▾ */ }
+.usdc-guide-copied { font-size: 13px; color: var(--info); }
 .usdc-guide-body {
   display: flex;
   flex-direction: column;

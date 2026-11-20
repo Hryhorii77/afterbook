@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { USDC } from '@/lib/stocks/tokens';
 
@@ -15,12 +15,16 @@ const REFRESH_MS = 15_000;
 
 export function GetUsdcGuide({ balance, needed, refetch }: { balance: bigint | undefined; needed?: bigint | null; refetch?: () => unknown }) {
   const { address } = useAccount();
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const addressRef = useRef<HTMLElement>(null);
   const empty = balance === BigInt(0);
   const shown = !!address && balance !== undefined && (empty || (needed != null && needed > balance));
   useEffect(() => {
     if (!shown || !refetch) return;
-    const id = setInterval(() => void refetch(), REFRESH_MS);
+    // Skipped while the tab is in the background; the default query refetch on focus catches up when it returns.
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') void refetch();
+    }, REFRESH_MS);
     return () => clearInterval(id);
   }, [shown, refetch]);
   if (!shown || !address) return null;
@@ -28,10 +32,19 @@ export function GetUsdcGuide({ balance, needed, refetch }: { balance: bigint | u
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(address);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopyState('copied');
+      setTimeout(() => setCopyState('idle'), 2000);
     } catch {
-      setCopied(false);
+      // Some in-wallet browsers block the clipboard: select the address so it can be copied by hand.
+      setCopyState('failed');
+      const el = addressRef.current;
+      const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+      if (el && sel) {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
     }
   };
 
@@ -40,10 +53,16 @@ export function GetUsdcGuide({ balance, needed, refetch }: { balance: bigint | u
       <summary>{empty ? 'No USDC on Base yet? How to get some' : 'Need more USDC on Base? How to get some'}</summary>
       <div className="usdc-guide-body">
         <p className="usdc-guide-address">
-          Your wallet on Base: <code className="usdc-guide-full">{address}</code>{' '}
+          Your wallet on Base:{' '}
+          <code className="usdc-guide-full" ref={addressRef}>
+            {address}
+          </code>{' '}
           <button type="button" className="btn btn-secondary usdc-guide-copy" onClick={copy}>
-            {copied ? 'Copied' : 'Copy address'}
+            Copy address
           </button>
+          <span className="usdc-guide-copied" aria-live="polite">
+            {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Couldn\u2019t copy here: the address is selected, copy it by hand.' : ''}
+          </span>
         </p>
         <ol>
           <li>
@@ -65,6 +84,10 @@ export function GetUsdcGuide({ balance, needed, refetch }: { balance: bigint | u
             {short(USDC.address)}&nbsp;<span className="ext-arrow">↗</span>
           </a>
           . Bridged USDbC is a different token and can&apos;t be used here. Your balance above updates by itself once it arrives.
+        </p>
+        <p>
+          <strong>Network fees.</strong> A buy also needs a little ETH on Base for network fees, unless your wallet covers
+          them. If you only have USDC, get a few dollars of ETH on Base the same way.
         </p>
       </div>
     </details>
