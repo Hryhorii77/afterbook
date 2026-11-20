@@ -97,6 +97,7 @@
   font-size: 12px;
   font-weight: 600;
   line-height: 18px;
+  white-space: nowrap;
   color: var(--info);
 }
 .trade-top-action { text-align: right; width: 1%; }

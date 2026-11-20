@@ -152,7 +152,7 @@ export default function TradeHome({
                             <span className="trade-top-sym">{r.cashTicker}</span>
                             <span className="trade-top-name">{r.name}</span>
                             {AUTO_PICK_HOLD[r.symbol] && (
-                              <span className="trade-top-new" title="Listed recently: its pool is still settling">
+                              <span className="trade-top-new">
                                 New listing
                               </span>
                             )}
@@ -174,6 +174,9 @@ export default function TradeHome({
             </table>
             <p className="trade-top-foot">
               Gap: how far the price on Base is from the real stock&apos;s. Green: the token costs more; red: less.
+              {top.some((r) => AUTO_PICK_HOLD[r.symbol]) && (
+                <> &ldquo;New listing&rdquo;: listed recently, and its pool is still settling.</>
+              )}
             </p>
             <Link href="/markets" className="page-link">
               See all {STOCKS.length}
