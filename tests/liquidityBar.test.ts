@@ -42,8 +42,13 @@ describe('liquidBarRow', () => {
     expect(liquidBarRow(series(72, (h) => (h > 20 && h < 20.2 ? 0 : 500_000)), 'NVDAc', NOW).status).toBe('thin');
   });
   it('the $0 rule stays narrow', () => {
-    // A $0 on the newest reading, with a good one just before, is a glitch.
-    expect(liquidBarRow(series(72, (h) => (h === 0 ? 0 : 500_000)), 'NVDAc', NOW).status).toBe('liquid');
+    // A $0 on the newest reading always counts (a pool emptied just before the daily compute).
+    expect(liquidBarRow(series(72, (h) => (h === 0 ? 0 : 500_000)), 'NVDAc', NOW).status).toBe('thin');
+    // A $0 between neighbours under the bar counts too.
+    expect(liquidBarRow(series(72, (h) => (Math.abs(h - 20) < 0.01 ? 0 : 90_000)), 'NVDAc', NOW).lowUsd).toBe(0);
+    // Coverage is by distinct slot: doubled samples don't count twice.
+    const half = series(72, () => 500_000, (i) => i % 2 === 0);
+    expect(liquidBarRow([...half, ...half], 'NVDAc', NOW).status).toBe('measuring');
     // Zeros every other slot: only two are dropped, the rest count.
     expect(liquidBarRow(series(72, (h) => (Math.round(h * 12) % 2 === 1 && h < 5 ? 0 : 500_000)), 'NVDAc', NOW).status).toBe('thin');
     // A $0 with no good reading close by (hours of failed reads around it) counts.

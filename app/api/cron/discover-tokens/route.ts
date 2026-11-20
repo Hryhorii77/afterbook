@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/server/redis';
-import { sendTelegramMessage } from '@/lib/alerts/telegram';
+import { sendTelegramMessage, sendTelegramMessageOk } from '@/lib/alerts/telegram';
 import { fetchPublishedStockList, diffAgainstTracked, verifyCandidate, lowestRecentDepthUsd, recentWindowStart, type CandidateResult } from '@/lib/stocks/discovery';
 import { usdCompact } from '@/lib/format';
 import { cronAuthorized } from '@/lib/server/sharedSecret';
 import { saveDirectoryPools } from '@/lib/stocks/stockDirectory';
 import { fetchCoinbaseStockList } from '@/lib/stocks/coinbaseStockList';
-import { checkCoinbaseList } from '@/lib/stocks/coinbaseListGuard';
+import { checkCoinbaseList, recordGuardAlerts } from '@/lib/stocks/coinbaseListGuard';
 import { computeLiquidBar } from '@/lib/market/liquidityBar';
 
 export const revalidate = 0;
@@ -76,7 +76,17 @@ export async function GET(request: NextRequest) {
   // The list guard (lib/stocks/coinbaseListGuard.ts): saves the last good list, or alerts when the list shrank too
   // far or a tracked stock is missing from it. Runs before anything else so an alert is never skipped.
   const guard = await checkCoinbaseList(raw, { dry }).catch((err) => ({ saved: false, alerts: [`Coinbase list guard failed: ${(err as Error).message}`], error: true, useList: raw }));
-  if (!dry) for (const a of guard.alerts) await sendTelegramMessage(adminChatId!, a).catch(() => {});
+  if (!dry) {
+    if ('error' in guard) {
+      for (const a of guard.alerts) await sendTelegramMessage(adminChatId!, a).catch(() => {});
+    } else {
+      // Send first, then record only what Telegram accepted, so a failed send is retried on the next run.
+      const sent = new Set<string>();
+      for (const c of guard.toSend) if (await sendTelegramMessageOk(adminChatId!, c.text)) sent.add(c.key);
+      const staleSent = guard.staleReport ? await sendTelegramMessageOk(adminChatId!, guard.staleReport) : false;
+      await recordGuardAlerts(guard, sent, staleSent).catch(() => {});
+    }
+  }
   if (dry && request.nextUrl.searchParams.get('guard') === '1') {
     const { useList, ...summary } = guard;
     return NextResponse.json({ ok: true, dry: true, guard: { ...summary, usingLastGood: useList !== raw } });
@@ -123,8 +133,9 @@ export async function GET(request: NextRequest) {
   });
 
   // The /stocks page's pool column: every untracked token's pool and depth from this run (one write a day).
-  // A failed check is left out, so the page shows it as not checked rather than as having no pool.
-  if (!dry) {
+  // A failed check is left out, so the page shows it as not checked rather than as having no pool. Skipped when the
+  // list guard itself failed: the list it ran on may be the collapsed one, and yesterday's pools stay up instead.
+  if (!dry && !('error' in guard)) {
     await saveDirectoryPools({
       checkedAt: Date.now(),
       pools: Object.fromEntries(checked.filter((c) => c.r).map((c) => [c.t.symbol, { pool: c.r!.poolAddress, depthUsd: c.r!.depthUsd }])),

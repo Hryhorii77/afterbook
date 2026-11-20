@@ -137,18 +137,38 @@ describe('the guard end to end (mocked Redis and fetch)', () => {
     expect((await g.checkCoinbaseList(withTracked(60) as never)).saved).toBe(true);
   });
 
-  it('reports a frozen baseline once a week and says how to clear a missing tracked stock', async () => {
+  it('alerts once when a condition starts, again if it changes, and retries a failed send', async () => {
+    const g = await import('@/lib/stocks/coinbaseListGuard');
+    // What the cron does: check, send, record what was sent (`ok` says whether the send worked).
+    const run = async (n: number, ok = true) => {
+      const r = await g.checkCoinbaseList(list(n) as never);
+      await g.recordGuardAlerts(r, new Set(ok ? r.toSend.map((c) => c.key) : []), false);
+      return r.toSend.map((c) => c.text).join(' ');
+    };
+    await run(95);
+    expect(await run(84, false)).toMatch(/dropped/); // the send fails...
+    expect(await run(84)).toMatch(/dropped/); // ...so it is sent again
+    expect(await run(84)).not.toMatch(/dropped/); // then quiet
+    expect(await run(76)).toMatch(/dropped from 95 to 76/); // deeper band: again
+    expect(await run(60)).toMatch(/shrank/);
+    expect(await run(95)).toBe(''); // recovered
+    expect(await run(84)).toMatch(/dropped/); // started again
+  });
+
+  it('the frozen report is timed from the last report, so a missed day doesn\u2019t skip it', async () => {
     const g = await import('@/lib/stocks/coinbaseListGuard');
     const t0 = Date.UTC(2026, 10, 19, 13);
-    await g.checkCoinbaseList(list(90) as never, { now: t0 });
     const day = (d: number) => t0 + d * 86_400_000;
-    expect((await g.checkCoinbaseList(list(89) as never, { now: day(6) })).alerts.join(' ')).not.toMatch(/days old/);
-    const r7 = await g.checkCoinbaseList(list(89) as never, { now: day(7) });
-    expect(r7.alerts.join(' ')).toMatch(/7 days old/);
-    expect(r7.baselineAgeDays).toBe(7);
-    expect((await g.checkCoinbaseList(list(89) as never, { now: day(8) })).alerts.join(' ')).not.toMatch(/days old/);
-    const missing = await g.checkCoinbaseList(list(95).slice(1) as never, { now: day(9) });
-    expect(missing.alerts.join(' ')).toMatch(/removed from STOCKS/);
+    const run = async (now: number, sentOk = true) => {
+      const r = await g.checkCoinbaseList(list(89) as never, { now });
+      await g.recordGuardAlerts(r, new Set(), !!r.staleReport && sentOk, now);
+      return r.staleReport ?? '';
+    };
+    await g.checkCoinbaseList(list(90) as never, { now: t0 });
+    expect(await run(day(8), false)).toMatch(/8 days old/); // day 7 missed; the send fails
+    expect(await run(day(9))).toMatch(/9 days old/); // so it goes out the next day
+    expect(await run(day(10))).toBe('');
+    expect(await run(day(16))).toMatch(/16 days old/);
   });
 
   it('dry runs write nothing', async () => {

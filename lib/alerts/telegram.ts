@@ -1,5 +1,20 @@
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
+/** Like sendTelegramMessage, but says whether Telegram accepted it (for callers that only record what was sent). */
+export async function sendTelegramMessageOk(chatId: string | number, text: string): Promise<boolean> {
+  if (!TELEGRAM_BOT_TOKEN) return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** No-ops (and logs, so it's visible in function logs) if the bot token
  *  isn't configured — same graceful-degradation posture as the Redis store
  *  everywhere else in this app. */
