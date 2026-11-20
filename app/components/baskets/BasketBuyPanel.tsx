@@ -12,6 +12,7 @@ import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { useNotify } from '../notifications/notify';
 import { fmt, logSwapHash, usd, venueNames } from '../swap/swapClient';
 import { BATCH_FAILED, SWAP_CANCELLED, buildSwap, parseAmount, useSwapWallet, useTokenBalance, useTxRun } from '../swap/useSwapWallet';
+import { GetUsdcGuide } from '../swap/GetUsdcGuide';
 import { SlippageControl, useSlippage } from '../swap/slippage';
 
 // Buy a /build basket in one go: one USDC amount, split by the basket's weights, one KyberSwap swap
@@ -357,6 +358,7 @@ export function BasketBuyPanel({
         )}
       </div>
       {overBalance && <p className="geo-note">That is more USDC than your wallet holds on Base.</p>}
+      <GetUsdcGuide balance={balance} needed={totalRaw} refetch={refetchBalance} />
       {overMax && maxUsd != null && <p className="geo-note">This run is at most {usd(maxUsd)}.</p>}
       {overSized && !overMax && (
         <p className="geo-note">

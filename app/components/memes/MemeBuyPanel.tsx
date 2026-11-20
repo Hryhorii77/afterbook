@@ -8,6 +8,7 @@ import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { fmt, logSwapHash, usd, venueNames } from '../swap/swapClient';
 import { useNotify } from '../notifications/notify';
 import { buildSwap, parseAmount, useLiveQuote, useReviewedSwap, useTokenBalance } from '../swap/useSwapWallet';
+import { GetUsdcGuide } from '../swap/GetUsdcGuide';
 import { SlippageControl, useSlippage } from '../swap/slippage';
 
 // Buy an allowlisted meme with USDC or the stock token its pool is priced in, from the visitor's own
@@ -140,6 +141,7 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
         )}
       </div>
       {overBalance && <p className="geo-note">That is more {inToken.symbol} than your wallet holds on Base.</p>}
+      {payWith === 'USDC' && <GetUsdcGuide balance={balance} needed={amountIn} refetch={refetchBalance} />}
       {!review && <SlippageControl disabled={busy !== null} />}
 
       {quote && !review && (
