@@ -2,7 +2,8 @@
 // decimals()/token0()/token1()/tickSpacing()/fee()) and cross-checked against
 // Dexscreener's Aerodrome pair listings on 2026-09-04; all 38 re-verified on 2026-10-27 (each pool's
 // factory(), token0/1, tickSpacing and fee, plus the factory's getPool returning it) when the
-// tracked stocks moved to their Aero pools and 26 more were added. Do not add a symbol here
+// tracked stocks moved to their Aero pools and 26 more were added; ANTc (Anthropic) verified the same way on
+// 2026-11-20, plus Coinbase's list, Dexscreener and Yahoo (README "Contract addresses"). Do not add a symbol here
 // without doing the same verification — this file is the trust boundary for
 // what the UI is allowed to point a user's wallet at.
 
@@ -587,6 +588,20 @@ export const STOCKS: CbStock[] = [
       token0: 'USDC',
       tickSpacing: 1,
       feePpm: 100,
+    },
+  },
+  {
+    symbol: 'ANTc',
+    cashTicker: 'ANT',
+    name: 'Anthropic, PBC',
+    tokenAddress: '0xb20000000000000000000016e38FD364d271Ba28',
+    decimals: 8,
+    pool: {
+      address: '0x599C4225FE90214795a0be228D20d7680f8CED15',
+      factory: AERO_CL_FACTORY,
+      token0: 'USDC',
+      tickSpacing: 10,
+      feePpm: 500,
     },
   },
 ];

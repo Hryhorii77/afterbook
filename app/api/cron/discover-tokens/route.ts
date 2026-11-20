@@ -122,6 +122,11 @@ export async function GET(request: NextRequest) {
   // One block search for the run, then up to STEADY_CONCURRENCY pools at a time: since Denim each
   // pool's three hours is ~27 log reads (4-6 s measured on 2026-11-05), and bot-filled pools come in groups.
   const fromBlock = toCheck.length > 0 ? await recentWindowStart(STEADY_HOURS).catch(() => null) : null;
+  // The digest names the window it measured and the price it valued it at: a later check covers a later window at
+  // another price (ANTc read $299k at the 13:00 run and $244k an hour later, 2026-11-20).
+  const steadyEnd = new Date();
+  const hhmm = (d: Date) => d.toISOString().slice(11, 16);
+  const steadyWindow = `${hhmm(new Date(steadyEnd.getTime() - STEADY_HOURS * 3_600_000))}–${hhmm(steadyEnd)} UTC ${steadyEnd.toISOString().slice(0, 10)}`;
   await inChunks(toCheck, STEADY_CONCURRENCY, async (c) => {
     try {
       if (fromBlock == null) throw new Error('block window unreadable');
@@ -163,7 +168,7 @@ export async function GET(request: NextRequest) {
       ? ''
       : `Coinbase lists ${published.length + listing.skipped.length} tokenized stocks; ${untracked.length} aren't tracked here. ` +
         `New Aero or Aerodrome USDC pools since last check (${reportable.length}), deepest first:\n\n${lines.join('\n')}\n\n` +
-        `${noPool} others have no pool yet (checked again daily). Depth over ${usdCompact(STEADY_CHECK_FROM_USD)} is the lowest it has been in the last ${STEADY_HOURS} hours. Liquid ones get a snippet below; follow the add-tokenized-stock steps before adding.`;
+        `${noPool} others have no pool yet (checked again daily). Depth over ${usdCompact(STEADY_CHECK_FROM_USD)} is the lowest it has been over ${steadyWindow}, valued at the ${hhmm(steadyEnd)} price; a later check covers a later window. Liquid ones get a snippet below; follow the add-tokenized-stock steps before adding.`;
   const skippedLines = newSkipped.slice(0, MAX_SKIPPED_LINES).map((s) => `${s.symbol} — ${s.address} — ${s.reason}`);
   if (newSkipped.length > MAX_SKIPPED_LINES) skippedLines.push(`…and ${newSkipped.length - MAX_SKIPPED_LINES} more`);
   const skippedPart =
@@ -181,7 +186,7 @@ export async function GET(request: NextRequest) {
 
   await sendTelegramMessage(adminChatId!, digest);
   for (const c of snippets) {
-    await sendTelegramMessage(adminChatId!, `Ready-to-paste STOCKS entry for ${c.t.symbol} (${usdCompact(c.r!.depthUsd)} depth, the lowest in ${STEADY_HOURS} hours):\n\n${c.r!.snippet}`);
+    await sendTelegramMessage(adminChatId!, `Ready-to-paste STOCKS entry for ${c.t.symbol} (${usdCompact(c.r!.depthUsd)} depth, the lowest over ${steadyWindow}, at the ${hhmm(steadyEnd)} price):\n\n${c.r!.snippet}`);
   }
   if (redis) {
     const store = redis;

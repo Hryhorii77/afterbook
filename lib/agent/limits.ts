@@ -36,3 +36,17 @@ export const BRIEF_LIMITS = {
    *  the cost limit drops. The route reads a cost model for each of these (cached pool reads). */
   maxCandidates: 8,
 } as const;
+
+/**
+ * New listings kept out of every automatic pick and of what leads a page (owner, 2026-11-20): "Describe a basket", the
+ * plan's default "deepest pools" (and the x402 plan and basket routes), /build's starting basket, the /rules preselected
+ * stock, the headline gap (/today, the home card's and the tape's opening stock, the home card's fallback), live alerts,
+ * the share card's rows and the Telegram close digest until
+ * their depth has proved itself (owner, 2026-11-20): ANTc was added the day after its IPO, with a 24-hour depth low of
+ * ~$42k while liquidity was still arriving. Someone who names the stock can still plan or rule-buy it, under the same
+ * caps. Remove an entry once the stock's three-hour depth low holds isLiquid's $1M line (lib/market/liquidity.ts)
+ * and its 72-hour "Liquid" label passes, in a PR the owner reviews.
+ */
+export const AUTO_PICK_HOLD: Record<string, { since: string }> = {
+  ANTc: { since: '2026-11-20' },
+};

@@ -7,12 +7,12 @@
 // Pure: the route passes in the tape, the steady depths (lib/market/depthSamples.ts) and the cost models.
 import type { TapeResult } from '../market/tape';
 import type { SteadyDepth } from '../market/depthSamples';
-import { TAPE_MAIN_DEPTH_USD } from '../market/liquidity';
+import { LIQUID_DEPTH_THRESHOLD_USD, TAPE_MAIN_DEPTH_USD } from '../market/liquidity';
 import { normalizeLegs, type BasketLeg } from '../build/customBasket';
 import { STOCKS } from '../stocks/tokens';
 import { PROFILES, SECTORS, THEMES, type Sector, type Theme } from '../stocks/sectors';
 import { usd } from '../format';
-import { BRIEF_LIMITS, PLAN_LIMITS } from './limits';
+import { AUTO_PICK_HOLD, BRIEF_LIMITS, PLAN_LIMITS } from './limits';
 import { given, screen, sizeLegs, type CostModel, type PlanInput, type PlanLeg } from './plan';
 
 export { BRIEF_LIMITS } from './limits';
@@ -138,6 +138,10 @@ function shortlist(input: BriefInput, tape: Pick<TapeResult, 'rows' | 'session'>
     return true;
   });
   const deep = kept.filter((sym) => {
+    if (AUTO_PICK_HOLD[sym]) {
+      dropped.push({ symbol: sym, why: `A new listing (added ${AUTO_PICK_HOLD[sym].since}): left out of automatic baskets until its pool has held ${usd(LIQUID_DEPTH_THRESHOLD_USD, 0)} for a while.` });
+      return false;
+    }
     const d = steady.get(sym);
     if (!d || d.usd == null) {
       dropped.push({ symbol: sym, why: 'Its pool depth over the last 3 hours is unknown (no recent reading), so it is left out.' });

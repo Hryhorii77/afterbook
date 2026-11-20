@@ -1,4 +1,5 @@
 import type { TapeResult, TapeRow } from './tape';
+import { AUTO_PICK_HOLD } from '../agent/limits';
 import { splitByLiquidity } from './liquidity';
 
 export interface TodaySnapshot {
@@ -68,7 +69,11 @@ export function buildTodaySnapshot(tape: Pick<TapeResult, 'rows' | 'session'>): 
 
   // The same reference the homepage's gap-hero uses (todayReference), so a screenshot of / and a
   // screenshot of /today never disagree about the same instant.
-  const headline = pickHeadline(liquid, tape.session) ?? pickHeadline(thin, tape.session);
+  // New listings held out of automatic picks (AUTO_PICK_HOLD) never lead the page: a day-two IPO with moving depth
+  // shouldn't be the first thing people see (owner, 2026-11-20). This also sets the home card's and the tape's
+  // opening stock.
+  const shown = (rows: typeof liquid) => rows.filter((r) => !AUTO_PICK_HOLD[r.symbol]);
+  const headline = pickHeadline(shown(liquid), tape.session) ?? pickHeadline(shown(thin), tape.session);
 
   const closedForMs = marketOpen
     ? 0

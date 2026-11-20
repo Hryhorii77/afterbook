@@ -4,6 +4,7 @@
 // when it becomes true, never on every poll while it holds.
 
 import { isLiquid } from '../market/liquidity';
+import { AUTO_PICK_HOLD } from '../agent/limits';
 import { bp, usd } from '../format';
 
 /** |basis| above this, on a liquid pool, counts as a gap worth a popup. */
@@ -45,7 +46,8 @@ export function snapshotOf(tape: TapeLite): AlertSnapshot {
 /** First read has no previous state, so it only sets the baseline (including
  *  which gaps are already past the threshold) and fires nothing. */
 export function detectEvents(prev: AlertSnapshot | null, tape: TapeLite): { events: LiveEvent[]; next: AlertSnapshot } {
-  const liquid = tape.rows.filter((r) => isLiquid(r) && r.basisBp != null);
+  // New listings held out of automatic picks don't trigger or headline live alerts (owner, 2026-11-20).
+  const liquid = tape.rows.filter((r) => isLiquid(r) && r.basisBp != null && !AUTO_PICK_HOLD[r.symbol]);
   const fired = new Set(prev?.fired ?? []);
   const events: LiveEvent[] = [];
 

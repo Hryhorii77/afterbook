@@ -21,7 +21,7 @@ Glider/users) — don't do it as part of this skill.
 
 ## 1. Find and rank candidates
 
-*State on 2026-10-27:* 38 tracked (12 moved to their Aero pools, 26 added the day Base announced them; README "Contract addresses"). The other ~180 listed tokens all had under $15k of USDC depth on either factory. Re-check only when the daily digest names a candidate.
+*State on 2026-11-20:* 39 tracked (ANTc added that day, held out of automatic baskets by `AUTO_PICK_HOLD` in `lib/agent/limits.ts` until its depth proves itself; consider the same hold for any brand-new listing). *On 2026-10-27:* 38 tracked (12 moved to their Aero pools, 26 added the day Base announced them; README "Contract addresses"). The other ~180 listed tokens all had under $15k of USDC depth on either factory. Re-check only when the daily digest names a candidate.
 
 Coinbase's own public list (read through the shrink guard in `lib/stocks/coinbaseListGuard.ts` since 2026-11-19; 90 tokens that day) is the source of truth for *which tokens
 exist*: `GET https://api.coinbase.com/v1/tokenized-stocks` (keyless; each
@@ -78,7 +78,7 @@ dynamic and read per quote.)
 `cast` may not be installed; the same reads work with viem via
 `getClient()` from `lib/market/quote.ts` in a `tsx` script.)
 
-**USDC must be `token0`.** All 38 pools list USDC first (2026-11-19). The browser's swap check
+**USDC must be `token0`.** All 39 pools list USDC first (2026-11-20). The browser's swap check
 (`poolFillProblem` in `lib/swap/swapFloor.ts`) refuses every swap in a pool that lists the stock
 first, so a candidate whose pool has `token0` = the stock would be untradeable in the app. Don't
 add it that way: extend and test `poolFillProblem` for that order in the same PR first.
