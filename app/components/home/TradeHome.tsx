@@ -9,6 +9,7 @@ import { TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
 import { bpClass, bpPct, formatNextOpen, usd } from '@/lib/format';
 import { heroGapBp } from '@/lib/share/shareText';
 import { SwapPanel } from '../swap/SwapPanel';
+import { AUTO_PICK_HOLD } from '@/lib/agent/limits';
 import { SymbolTile } from '../ui/SymbolTile';
 
 // The home page (owner, 2026-11-03, from an external review): one sentence on what the site is,
@@ -77,7 +78,8 @@ export default function TradeHome({
   const liquid = rows.filter((r) => (r.depthUsd ?? 0) >= TAPE_MAIN_DEPTH_USD);
   const thin = rows.filter((r) => !liquid.includes(r));
 
-  const [symbol, setSymbol] = useState(() => initialSymbol ?? top[0]?.symbol ?? STOCKS[0].symbol);
+  // Falls back to the deepest pool that isn't a new listing held out of automatic picks (AUTO_PICK_HOLD).
+  const [symbol, setSymbol] = useState(() => initialSymbol ?? rows.find((r) => !AUTO_PICK_HOLD[r.symbol])?.symbol ?? STOCKS[0].symbol);
   const [tab, setTab] = useState<CardTab>('swap');
   const [eligible, setEligible] = useState(false);
   const cardRef = useRef<HTMLElement>(null);

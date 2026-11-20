@@ -5,6 +5,7 @@ import type { TapeResult } from '@/lib/market/tape';
 import { splitByLiquidity } from '@/lib/market/liquidity';
 import { bp } from '@/lib/format';
 import type { TrendData } from './Tape';
+import { AUTO_PICK_HOLD } from '@/lib/agent/limits';
 import type { ClosedPeriodStats, DepthResponse, EarningsMoveStats, EventLogEntry, HistorySample, OpenSnapStats, PriceSample, QuoteResponse } from './types';
 
 /** The tape, polled every 20 s, plus a session-local log of the cash market closing. */
@@ -33,7 +34,8 @@ export function useTapePoll(initialTape: TapeResult) {
         const wasOpen = prevSessionStateRef.current === 'open';
         const nowClosed = json.session.state !== 'open';
         if (wasOpen && nowClosed) {
-          const { liquid } = splitByLiquidity(json.rows);
+          // Held new listings (AUTO_PICK_HOLD) stay out, as in the Telegram close digest.
+          const { liquid } = splitByLiquidity(json.rows.filter((r: { symbol: string }) => !AUTO_PICK_HOLD[r.symbol]));
           const parts = liquid.map((r) => `${r.cashTicker} ${bp(r.basisBp)}`).join(' ');
           setEventLog((log) => [{ ts: Date.now(), text: `Cash closed. ${parts}` }, ...log].slice(0, 20));
         }

@@ -17,6 +17,7 @@ import { getBorrowSummary } from '../lending/liquidationRisk';
 import { aeroExit, venueName, type BorrowSummary } from '../lending/borrowSummary';
 import { bp as bpSpaced, bpPct, isFlatBp, usdCompact } from '../format';
 import { getMemeRow, venueLabel, type MemeRow } from '../memes/memestocks';
+import { AUTO_PICK_HOLD } from '../agent/limits';
 import { memePrice, pctMove } from '../memes/memeFormat';
 
 /** A share's frozen numbers (lib/share/shareSnapshot.ts). Without one a card reads the live tape. */
@@ -131,7 +132,8 @@ export async function buildOgImage(symbol?: string, theme: CardTheme = 'dark', f
       // room left.
       const byAbsBasis = (a: (typeof tape.rows)[number], b: (typeof tape.rows)[number]) =>
         Math.abs(b.basisBp ?? 0) - Math.abs(a.basisBp ?? 0);
-      const { liquid, thin } = splitByLiquidity(tape.rows);
+      // New listings held out of automatic picks (AUTO_PICK_HOLD) stay off the card.
+      const { liquid, thin } = splitByLiquidity(tape.rows.filter((r) => !AUTO_PICK_HOLD[r.symbol]));
       rows = [...liquid.sort(byAbsBasis), ...thin.sort(byAbsBasis)].slice(0, 6);
     }
   } catch {

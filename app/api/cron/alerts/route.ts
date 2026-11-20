@@ -7,6 +7,7 @@ import { sendTelegramMessage } from '@/lib/alerts/telegram';
 import { bp } from '@/lib/format';
 import { cronAuthorized } from '@/lib/server/sharedSecret';
 import { getWalletLoans } from '@/lib/lending/loanPositions';
+import { AUTO_PICK_HOLD } from '@/lib/agent/limits';
 import { loanAlertText, nextLoanState, worstHealth, type WalletLoan } from '@/lib/lending/loanHealth';
 
 export const revalidate = 0;
@@ -28,7 +29,8 @@ export async function GET(request: NextRequest) {
   await Promise.all([recordTapeSamples(tape.rows), tape.error ? null : recordDepthSample(tape.rows, tape.fetchedAt)]);
 
   const marketClosed = tape.session.state !== 'open';
-  const { liquid } = splitByLiquidity(tape.rows);
+  // New listings held out of automatic picks (AUTO_PICK_HOLD) stay out of the close digest too.
+  const { liquid } = splitByLiquidity(tape.rows.filter((r) => !AUTO_PICK_HOLD[r.symbol]));
   const closeDigest = `Cash closed. ${liquid.map((r) => `${r.cashTicker} Aero ${bp(r.basisBp)}`).join(' ')}`;
 
   const chatIds = await getAllChatIds();

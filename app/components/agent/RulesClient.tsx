@@ -45,6 +45,7 @@ import type { RebalancePlan } from '@/lib/agent/rebalancePlan';
 import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { RebalanceRun, type RebalanceCheck } from './RebalanceRun';
 import { SwapPanel } from '../swap/SwapPanel';
+import { AUTO_PICK_HOLD } from '@/lib/agent/limits';
 import { SymbolTile } from '../ui/SymbolTile';
 
 const RULES_KEY = 'afterbook-rules';
@@ -119,7 +120,12 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
   const [saveFailed, setSaveFailed] = useState(false);
 
   // The form
-  const [symbol, setSymbol] = useState(rows[0]?.symbol ?? '');
+  // Defaults skip new listings held out of automatic picks (AUTO_PICK_HOLD); the dropdowns still list every stock.
+  const pickable = useMemo(() => {
+    const p = rows.filter((r) => !AUTO_PICK_HOLD[r.symbol]);
+    return p.length ? p : rows;
+  }, [rows]);
+  const [symbol, setSymbol] = useState(pickable[0]?.symbol ?? '');
   const [amount, setAmount] = useState('50');
   const [kind, setKind] = useState<Cadence['kind']>('weekly');
   const [weekday, setWeekday] = useState(1);
@@ -141,8 +147,8 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
   // A rebalance rule: 2-4 stocks with whole-percent targets (lib/agent/rebalance.ts).
   const [ruleKind, setRuleKind] = useState<'one' | 'rebalance'>('one');
   const [targetRows, setTargetRows] = useState<{ symbol: string; pct: string }[]>(() => [
-    { symbol: rows[0]?.symbol ?? '', pct: '50' },
-    { symbol: rows[1]?.symbol ?? '', pct: '50' },
+    { symbol: pickable[0]?.symbol ?? '', pct: '50' },
+    { symbol: pickable[1]?.symbol ?? '', pct: '50' },
   ]);
 
   // A due run being checked or bought
@@ -920,7 +926,7 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={() => setTargetRows((rs) => [...rs, { symbol: rows.find((r) => !rs.some((x) => x.symbol === r.symbol))?.symbol ?? rows[0]?.symbol ?? '', pct: '' }])}
+                  onClick={() => setTargetRows((rs) => [...rs, { symbol: pickable.find((r) => !rs.some((x) => x.symbol === r.symbol))?.symbol ?? pickable[0]?.symbol ?? '', pct: '' }])}
                 >
                   Add a stock
                 </button>
