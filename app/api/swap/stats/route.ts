@@ -10,5 +10,6 @@ export async function GET(request: NextRequest) {
   if (!cronAuthorized(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const days = Math.min(Math.max(Number(request.nextUrl.searchParams.get('days') ?? 7) || 7, 1), 365);
   const stats = await swapStats(days, { includeTests: request.nextUrl.searchParams.get('tests') === '1' });
-  return stats ? NextResponse.json(stats) : NextResponse.json({ error: 'store unavailable' }, { status: 503 });
+  // Maintainer data: never kept by a shared cache.
+  return stats ? NextResponse.json(stats, { headers: { 'Cache-Control': 'private, no-store' } }) : NextResponse.json({ error: 'store unavailable' }, { status: 503 });
 }

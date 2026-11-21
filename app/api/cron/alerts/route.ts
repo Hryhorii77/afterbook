@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
   // One run at a time sends: Vercel can double-invoke a cron, and two runs reading the same rules would
   // both send the same alert. The samples above are written either way (review of #212).
   const lockToken = randomUUID();
-  if (redis && (await redis.set(ALERTS_LOCK, lockToken, { nx: true, ex: 55 }).catch(() => 'OK')) == null) {
+  if (redis && (await redis.set(ALERTS_LOCK, lockToken, { nx: true, ex: 120 }).catch(() => 'OK')) == null) {
     return NextResponse.json({ ok: true, skipped: 'another run is sending' });
   }
   try {

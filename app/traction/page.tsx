@@ -18,7 +18,7 @@ export const metadata = shareMetadata({
 });
 
 const SOURCES: { key: SwapSource; label: string; note: string }[] = [
-  { key: 'agent', label: 'From an agent’s plan link', note: 'An agent paid for a plan; a person opened its link and signed' },
+  { key: 'agent', label: 'From an agent’s plan link', note: 'An agent made a plan (free over MCP, or paid over x402); a person opened its link and signed' },
   { key: 'plan', label: 'Trade plan', note: '/plan, checked by the code, signed by the person' },
   { key: 'rule', label: 'Stock rules', note: 'A recurring buy, signed on each run' },
   { key: 'basket', label: 'Baskets', note: 'Several stocks in one go (/build and Describe a basket)' },
@@ -108,8 +108,8 @@ export default async function TractionPage() {
           <section className="panel">
             <h2>Agents</h2>
             <p className="geo-note" style={{ marginTop: 0 }}>
-              Agents pay for a checked plan over x402 in USDC on Base and get a link; a person opens it on Afterbook and signs each buy in their own
-              wallet.
+              Agents make a checked plan, free over MCP or paid over x402 in USDC on Base, and get a link; a person opens it on Afterbook and signs
+              each buy in their own wallet.
               {t.paidPlans30 != null && (
                 <>
                   {' '}
