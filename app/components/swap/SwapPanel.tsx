@@ -28,15 +28,18 @@ export function SwapPanel({
   source = 'stock',
   buyOnly = false,
   maxUsd,
+  maxLabel = 'This run',
   onBuySent,
   onBought,
   onBuyReverted,
 }: {
   stock: CbStock;
   defaultUsd?: number;
-  source?: 'stock' | 'plan' | 'rule';
+  source?: 'stock' | 'plan' | 'rule' | 'agent';
   buyOnly?: boolean;
   maxUsd?: number;
+  /** Names what `maxUsd` caps in the over-cap note: a rule's run, or an agent's plan link. */
+  maxLabel?: string;
   onBuySent?: (usd: number, hash: Hex) => void;
   onBought?: (usd: number, hash: Hex) => void;
   onBuyReverted?: (hash: Hex) => void;
@@ -176,7 +179,7 @@ export function SwapPanel({
       </div>
       {overBalance && <p className="geo-note">That is more {inToken.symbol} than your wallet holds on Base.</p>}
       {side === 'buy' && <GetUsdcGuide balance={balance} needed={amountIn} refetch={refetchBalance} />}
-      {overMax && maxUsd != null && <p className="geo-note">This run is at most {usd(maxUsd)}.</p>}
+      {overMax && maxUsd != null && <p className="geo-note">{maxLabel} is at most {usd(maxUsd)}.</p>}
       {!review && <SlippageControl disabled={busy !== null} />}
 
       {quote && !review && (

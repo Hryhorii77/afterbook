@@ -29,8 +29,9 @@ const USED = (data: Hex) => `swapused:${keccak256(data)}`;
  *  a buy reviewed from a trade plan on /plan, or a due run of a personal stock rule on /rules. The label is
  *  the browser's claim, for the metrics only: a swap still counts only if it passes every check below,
  *  whatever it is labelled. */
-export type SwapSource = 'stock' | 'basket' | 'meme' | 'plan' | 'rule';
-export const SWAP_SOURCES: readonly SwapSource[] = ['stock', 'basket', 'meme', 'plan', 'rule'];
+/** 'agent': a buy from an agent's saved plan link (/plan/<id>, lib/agent/planLink.ts), stock or basket. */
+export type SwapSource = 'stock' | 'basket' | 'meme' | 'plan' | 'rule' | 'agent';
+export const SWAP_SOURCES: readonly SwapSource[] = ['stock', 'basket', 'meme', 'plan', 'rule', 'agent'];
 
 interface BuiltSwap {
   account: string;

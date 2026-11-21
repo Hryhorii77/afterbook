@@ -65,10 +65,12 @@ export function BasketBuyPanel({
   onBusy,
   defaultUsd,
   maxUsd,
+  maxLabel = 'This run',
   onRunSent,
   onRunDone,
   onRunNothing,
   noRest,
+  source = 'basket',
 }: {
   legs: BasketLeg[];
   stocks: StockInfo[];
@@ -77,16 +79,20 @@ export function BasketBuyPanel({
   defaultUsd?: number;
   /** A /rules rebalance run: the most it may spend; a bigger total can't be reviewed. */
   maxUsd?: number;
+  /** Names what `maxUsd` caps in the over-cap note: a rule's run, or an agent's plan link. */
+  maxLabel?: string;
   /** Bookkeeping for a rule run (nothing here changes what is built, approved or signed). The wallet
    *  sent the run's first swap: the run is pending from here, so a closed tab can't invite a second. */
   onRunSent?: (totalUsd: number, hash: Hex) => void;
   /** The run ended with at least one swap mined: what was paid (a swap sent but not known to have failed
-   *  counts), every hash, and the stocks not bought. */
+   *  counts), every hash, and the stocks not bought. Also called after a one-signature batch succeeds. */
   onRunDone?: (r: { paidUsd: number; hashes: Hex[]; notBought: string[] }) => void;
   /** The run's first swap was mined and reverted, or cancelled in the wallet: nothing was bought. */
   onRunNothing?: () => void;
   /** A rule run is one buy: no "Review the rest" after it stops. */
   noRest?: boolean;
+  /** For the swap metrics only (lib/swap/swapLog.ts): 'agent' on an agent's saved plan link. */
+  source?: 'basket' | 'agent';
 }) {
   const { notify } = useNotify();
   const wallet = useSwapWallet();
@@ -131,7 +137,7 @@ export function BasketBuyPanel({
   const overMax = totalRaw !== null && maxRaw !== null && totalRaw > maxRaw;
 
   const buildLeg = async (leg: BasketLegAmount): Promise<SwapTx> => {
-    const tx = await buildSwap({ symbol: leg.symbol, side: 'buy', amountIn: leg.amountIn.toString(), account: address, source: 'basket', slippageBps });
+    const tx = await buildSwap({ symbol: leg.symbol, side: 'buy', amountIn: leg.amountIn.toString(), account: address, source, slippageBps });
     if (tx.quote.symbol !== leg.symbol || tx.quote.side !== 'buy' || tx.quote.amountIn !== leg.amountIn.toString()) throw new Error('Refused: the server built a different trade.');
     return tx;
   };
@@ -178,8 +184,9 @@ export function BasketBuyPanel({
       setProgress([...status]);
       setBusy('batch');
       let signed = false;
+      let hashes: Hex[] = [];
       try {
-        const hashes = await wallet.sendBatch(calls, () => {
+        hashes = await wallet.sendBatch(calls, () => {
           signed = true;
           setBusy('confirm-batch');
         });
@@ -206,6 +213,8 @@ export function BasketBuyPanel({
       }
       setReview(null);
       void refetchBalance();
+      // Bookkeeping only (an agent's plan link closes its basket after one buy; a rule run never batches).
+      onRunDone?.({ paidUsd: Number(total) / 1e6, hashes, notBought: [] });
       notify({ kind: 'tx', tone: 'success', title: 'Basket bought', body: status.map((s) => s.text).join(' · ') });
     });
 
@@ -359,7 +368,7 @@ export function BasketBuyPanel({
       </div>
       {overBalance && <p className="geo-note">That is more USDC than your wallet holds on Base.</p>}
       <GetUsdcGuide balance={balance} needed={totalRaw} refetch={refetchBalance} />
-      {overMax && maxUsd != null && <p className="geo-note">This run is at most {usd(maxUsd)}.</p>}
+      {overMax && maxUsd != null && <p className="geo-note">{maxLabel} is at most {usd(maxUsd)}.</p>}
       {overSized && !overMax && (
         <p className="geo-note">
           That is more than the {usd(Number(sizedRaw) / 1e6)} the plan sized, so a stock may cost more to trade than your limit. The review below shows each swap’s minimum before you sign.

@@ -106,7 +106,7 @@ export function planFacts(plan: Plan, input: PlanInput) {
 }
 
 /** Why the fixed words were shown instead of Claude's (returned by the routes as `fixedBecause`). */
-export type FixedWhy = 'not-configured' | 'no-limiter' | 'rate-limited' | 'cut-off' | 'refused-by-check' | 'claude-error';
+export type FixedWhy = 'not-requested' | 'not-configured' | 'no-limiter' | 'rate-limited' | 'cut-off' | 'refused-by-check' | 'claude-error';
 export type Explained = { text: string } | { text: null; why: FixedWhy };
 
 export async function explainPlan(plan: Plan, input: PlanInput): Promise<Explained> {
