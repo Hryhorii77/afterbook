@@ -48,6 +48,14 @@ export function dropToLiquidation(healthFactor: number): number {
   return healthFactor > 1 ? 1 - 1 / healthFactor : 0;
 }
 
+/** After this many failed reads in a row (5-minute ticks: 30 minutes) the chat is told its warnings are
+ *  paused until the loan can be read again, once per run of failures. */
+export const LOAN_READ_FAIL_NOTICE = 6;
+
+export function loanReadFailText(wallet: string): string {
+  return `Heads-up for ${short(wallet)}: Afterbook couldn't read this wallet's loans for the last 30 minutes (a lender's price feed or the network didn't answer), so loan warnings are paused until it can. Check the loan on Aave or Morpho directly. Not advice.`;
+}
+
 export const DEFAULT_ALERT_HEALTH = 1.2;
 export const MIN_ALERT_HEALTH = 1.01;
 export const MAX_ALERT_HEALTH = 3;

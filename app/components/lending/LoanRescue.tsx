@@ -43,6 +43,8 @@ export function LoanRescue({
   // scenario and fills the Repay or Add field once, from this wallet's own loan; the person signs as usual.
   const [preset, setPreset] = useState<RescuePreset | null>(null);
   const filled = useRef(false);
+  // What the link's fill did, for the note: only "filled" says a field was filled (review of #212).
+  const [outcome, setOutcome] = useState<'filled' | 'safe' | 'nothing' | null>(null);
   useEffect(() => {
     const p = parseRescuePreset(new URLSearchParams(window.location.search));
     if (!p) return;
@@ -55,17 +57,23 @@ export function LoanRescue({
   }, []);
   const plan = planRescue(position, { fall, target, chainHealth, balances, usdcBalance });
   useEffect(() => {
-    if (!preset || filled.current || disabled || plan.kind !== 'plan' || plan.safe) return;
+    if (!preset || filled.current || disabled || plan.kind !== 'plan') return;
     if (fall !== preset.fall || target !== preset.target) return;
     filled.current = true;
+    if (plan.safe) {
+      setOutcome('safe');
+      return;
+    }
+    let did = false;
     if (preset.action === 'repay') {
       // The same choice as the "Fill" button: nothing when the wallet holds no USDC.
-      if (plan.repay.partial) onRepay(plan.repay.partial.raw, false);
-      else if (usdcBalance > BigInt(0)) onRepay(plan.repay.raw, plan.repay.all);
+      if (plan.repay.partial) (onRepay(plan.repay.partial.raw, false), (did = true));
+      else if (usdcBalance > BigInt(0)) (onRepay(plan.repay.raw, plan.repay.all), (did = true));
     } else {
       const a = plan.adds[0];
-      if (a) onAdd(a.reserve, a.partial ? a.partial.raw : a.addRaw);
+      if (a) (onAdd(a.reserve, a.partial ? a.partial.raw : a.addRaw), (did = true));
     }
+    setOutcome(did ? 'filled' : 'nothing');
   }, [preset, plan, fall, target, disabled, usdcBalance, onRepay, onAdd]);
   if (plan.kind === 'no-loan') return null;
 
@@ -77,9 +85,14 @@ export function LoanRescue({
       </p>
       {preset && (
         <p className="geo-note" role="status">
-          Opened from a loan warning: the case below is set to {fallLabel(preset.fall).toLowerCase()} and health {preset.target.toFixed(1)}, and, if your wallet holds{' '}
-          {preset.action === 'repay' ? 'USDC, the Repay field' : 'one of the stocks this pool takes, the Add field'} is filled from your own loan. Check it, then sign with
-          the button below, or change it.
+          Opened from a loan warning: the case below is set to {fallLabel(preset.fall).toLowerCase()} and health {preset.target.toFixed(1)}.{' '}
+          {outcome === 'filled'
+            ? `The ${preset.action === 'repay' ? 'Repay' : 'Add'} field below is filled from your own loan. Check it, then sign with the button below, or change it.`
+            : outcome === 'safe'
+              ? 'Your loan already stays at that health in this case, so nothing was filled.'
+              : outcome === 'nothing'
+                ? `Nothing was filled: your wallet holds ${preset.action === 'repay' ? 'no USDC on Base' : 'none of the stocks this pool takes'}.`
+                : null}
         </p>
       )}
       <div className="rescue-fields">

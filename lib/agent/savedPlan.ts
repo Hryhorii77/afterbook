@@ -5,7 +5,7 @@ import 'server-only';
 import { randomBytes } from 'node:crypto';
 import { unstable_cache } from 'next/cache';
 import { redis } from '../server/redis';
-import { isSavedPlan, PLAN_ID_RE, PLAN_LINK_TTL_S, type PlanLinkVia, type SavedPlan } from './planLink';
+import { hasLinkableBuy, isSavedPlan, PLAN_ID_RE, PLAN_LINK_TTL_S, type PlanLinkVia, type SavedPlan } from './planLink';
 import type { Plan, PlanInput } from './plan';
 import type { Brief } from './brief';
 
@@ -59,13 +59,13 @@ export async function readSavedPlan(id: string): Promise<SavedPlan | null> {
   }
 }
 
-/** A stock plan's link, saved only when the plan has a buy. */
+/** A stock plan's link, saved only when the plan has a buy a link can offer (not only new listings). */
 export async function saveStockPlan(
   input: PlanInput,
   out: { plan: Plan; explanation: string; explainedBy: 'claude' | 'fixed' },
   via: PlanLinkVia,
 ): Promise<string | null> {
-  if (!out.plan.legs.some((l) => l.verdict === 'buy')) return null;
+  if (!hasLinkableBuy(out.plan)) return null;
   const { note: _note, ...limits } = input;
   return savePlan({ kind: 'plan', via, input: limits, plan: out.plan, explanation: out.explanation, explainedBy: out.explainedBy });
 }

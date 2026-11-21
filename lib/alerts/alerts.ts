@@ -16,9 +16,18 @@ export interface AlertRule {
   /** Edge-trigger state: true = condition currently holds. Only fires a
    *  message on the false→true transition, not every tick while it holds. */
   active: boolean;
+  /** 'loan' rules: reads of the wallet that failed in a row (a lender's oracle or the RPC), for the
+   *  heads-up at LOAN_READ_FAIL_NOTICE; 0 or missing after a good read. */
+  failedReads?: number;
 }
 
 export const MAX_RULES_PER_CHAT = 10;
+
+/** A message that wasn't delivered doesn't count as sent: the rule keeps its old state, so the next tick
+ *  tries again, instead of the alert being lost (review of #212). */
+export function stateAfterSend(prevActive: boolean, nowActive: boolean, message: string | null, delivered: boolean): boolean {
+  return message && !delivered ? prevActive : nowActive;
+}
 
 /** After a basis alert fires it re-arms only once |basis| falls back to this share of the level or
  *  lower (50 bp alert -> back to 40 bp or lower). Without it a gap hovering around the level sent one message

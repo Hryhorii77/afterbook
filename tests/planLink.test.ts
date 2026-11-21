@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PlanLeg } from '../lib/agent/plan';
 import type { Brief } from '../lib/agent/brief';
-import { isSavedPlan, savedBuys, recheckInput, cappedBuys, basketRecheck, type SavedStockPlan, type SavedBasket } from '../lib/agent/planLink';
+import { hasLinkableBuy, isSavedPlan, savedBuys, recheckInput, cappedBuys, basketRecheck, type SavedStockPlan, type SavedBasket } from '../lib/agent/planLink';
 
 // An agent's saved plan link (/plan/<id>): what the page may offer after the checks run again.
 const leg = (symbol: string, verdict: PlanLeg['verdict'], usd?: number, extra: Partial<PlanLeg> = {}): PlanLeg => ({
@@ -61,6 +61,11 @@ describe('saved plan links', () => {
     expect(cappedBuys(withNew, [leg('NVDAc', 'buy', 500), leg('ANTc', 'buy', 500)])).toEqual([{ symbol: 'NVDAc', usd: 500 }]);
     const newBasket = { ...basket, brief: { ...basket.brief, basket: [{ symbol: 'NVDAc', weightPct: 50 }, { symbol: 'ANTc', weightPct: 50 }] } as Brief };
     expect(basketRecheck(newBasket, [leg('NVDAc', 'buy', 450), leg('ANTc', 'buy', 450)])).toEqual({ ok: false, why: ['ANTc: a new listing, not offered from an agent’s link.'] });
+  });
+
+  it('a plan of new listings only has nothing a link could offer', () => {
+    expect(hasLinkableBuy(stockPlan.plan)).toBe(true);
+    expect(hasLinkableBuy({ ...stockPlan.plan, legs: [leg('ANTc', 'buy', 500), leg('MUc', 'wait')] })).toBe(false);
   });
 
   it('a basket is offered whole, at its saved total, or not at all', () => {

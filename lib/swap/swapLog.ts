@@ -8,10 +8,10 @@
 // size come from that stored build, so a hand-made router call cannot inflate the numbers. Wallets are
 // stored as a short pseudonymous hash, enough to count unique traders; it is not a privacy guarantee
 // (anyone can hash a known address).
-import { createHash } from 'node:crypto';
 import { decodeEventLog, decodeFunctionData, erc20Abi, getAddress, keccak256, parseAbi, type Hex } from 'viem';
 import { ENTRY_POINT_ABIS, ENTRY_POINTS } from '../wallet/userOps';
 import { BUILDER_CODE_SUFFIX } from '../wallet/builderCode';
+import { testWalletIds, walletId } from './testWallets';
 import { getClient } from '../market/quote';
 import { redis } from '../server/redis';
 import { decodeSwapCall, decodeSwapDesc, KYBER_ROUTER, MAX_MEME_SWAP_USD, MAX_SWAP_USD, type SwapTx } from './swap';
@@ -79,7 +79,6 @@ export interface SwapRecord {
   source?: SwapSource;
 }
 
-const walletId = (addr: string) => createHash('sha256').update(addr.toLowerCase()).digest('hex').slice(0, 16);
 
 export type LogResult = { ok: true; records: SwapRecord[]; duplicate: boolean } | { ok: false; reason: string };
 
@@ -384,13 +383,17 @@ export interface SwapStats {
   bySymbol: Record<string, { swaps: number; volumeUsd: number }>;
   /** Swaps by the panel that built them, with distinct (hashed) wallets per panel. */
   bySource: Record<SwapSource, { swaps: number; volumeUsd: number; traders: number }>;
+  /** What the test-wallet filter left out (null when tests were included). */
+  testsLeftOut: { swaps: number; volumeUsd: number } | null;
+  recentAgentLinkSwaps: { hash: string; at: number; symbol: string; side: 'buy' | 'sell'; usd: number }[];
 }
 
-export async function swapStats(days: number): Promise<SwapStats | null> {
-  if (!redis) return null;
-  const since = Date.now() - days * 24 * 60 * 60 * 1000;
-  const hashes = await redis.zrange<string[]>(INDEX, since, '+inf', { byScore: true });
-  const records = hashes.length ? ((await redis.mget<(SwapRecord | null)[]>(...hashes.map(KEY))).filter(Boolean) as SwapRecord[]) : [];
+/** Totals over `records`. Test wallets (lib/swap/testWallets.ts) are left out unless `includeTests`, and
+ *  what was left out is reported, so the numbers can't quietly include Afterbook's own trades. Pure. */
+export function summarizeSwaps(all: SwapRecord[], days: number, testIds: Set<string>, includeTests = false): SwapStats {
+  const isTest = (r: SwapRecord) => testIds.has(r.wallet);
+  const records = includeTests ? all : all.filter((r) => !isTest(r));
+  const tests = all.filter(isTest);
   const bySymbol: SwapStats['bySymbol'] = {};
   for (const r of records) {
     const s = (bySymbol[r.symbol] ??= { swaps: 0, volumeUsd: 0 });
@@ -412,5 +415,26 @@ export async function swapStats(days: number): Promise<SwapStats | null> {
       },
       {} as SwapStats['bySource'],
     ),
+    testsLeftOut: includeTests ? null : { swaps: tests.length, volumeUsd: tests.reduce((a, r) => a + r.usd, 0) },
+    // The newest swaps signed from an agent's plan link, for the maintainer stats only: a hash leads to the
+    // signer's wallet on any explorer, so the public /traction page never shows them (review, 2026-11-21).
+    recentAgentLinkSwaps: records
+      .filter((r) => r.source === 'agent')
+      .sort((x, y) => y.at - x.at)
+      .slice(0, 10)
+      .map((r) => ({ hash: r.hash.split(':')[0], at: r.at, symbol: r.symbol, side: r.side, usd: r.usd })),
   };
+}
+
+/** Every logged swap of the last `days` (two Redis requests). null without a store. */
+export async function swapRecords(days: number): Promise<SwapRecord[] | null> {
+  if (!redis) return null;
+  const since = Date.now() - days * 24 * 60 * 60 * 1000;
+  const hashes = await redis.zrange<string[]>(INDEX, since, '+inf', { byScore: true });
+  return hashes.length ? ((await redis.mget<(SwapRecord | null)[]>(...hashes.map(KEY))).filter(Boolean) as SwapRecord[]) : [];
+}
+
+export async function swapStats(days: number, { includeTests = false }: { includeTests?: boolean } = {}): Promise<SwapStats | null> {
+  const records = await swapRecords(days);
+  return records && summarizeSwaps(records, days, testWalletIds(), includeTests);
 }

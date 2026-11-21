@@ -1,0 +1,121 @@
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { NextRequest } from 'next/server';
+import type { AlertRule } from '../lib/alerts/alerts';
+import type { WalletLoan } from '../lib/lending/loanHealth';
+import { stateAfterSend } from '../lib/alerts/alerts';
+import { LOAN_READ_FAIL_NOTICE } from '../lib/lending/loanHealth';
+
+// The 5-minute alerts cron, offline: the tape, the samples, the rule store, Telegram, the loan reads and
+// the run lock are fakes. What it checks: an alert Telegram didn't accept is tried again (not lost), two
+// runs at once send once, and a wallet that can't be read for 30 minutes gets one heads-up.
+const fx = vi.hoisted(() => ({
+  rules: new Map<string, unknown[]>(),
+  sent: [] as string[],
+  deliver: true as boolean | 'refused',
+  loans: null as unknown,
+  lockHeld: false,
+}));
+vi.mock('../lib/market/tape', () => ({
+  getTape: async () => ({ rows: [], fetchedAt: 0, session: { state: 'open', label: 'Open', nyTime: '10:00', dateKey: '2026-11-21', nextOpenIso: '' } }),
+  recordTapeSamples: async () => {},
+}));
+vi.mock('../lib/market/depthSamples', () => ({ recordDepthSample: async () => {} }));
+vi.mock('../lib/alerts/alerts', async (orig) => ({
+  ...(await orig<typeof import('../lib/alerts/alerts')>()),
+  getAllChatIds: async () => [...fx.rules.keys()],
+  getRules: async (id: string) => fx.rules.get(id) ?? [],
+  setRules: async (id: string, r: unknown[]) => void fx.rules.set(id, r),
+}));
+vi.mock('../lib/alerts/telegram', () => ({
+  sendTelegramMessageStatus: async (_c: string, text: string) => (fx.deliver === 'refused' ? 'refused' : fx.deliver ? (fx.sent.push(text), 'sent') : 'retry'),
+}));
+vi.mock('../lib/lending/loanPositions', () => ({
+  getWalletLoans: async () => {
+    if (fx.loans == null) throw new Error('oracle down');
+    return fx.loans;
+  },
+}));
+vi.mock('../lib/server/redis', () => ({
+  redis: {
+    set: async () => (fx.lockHeld ? null : 'OK'),
+    eval: async () => 1,
+  },
+}));
+vi.mock('../lib/share/siteUrl', () => ({ siteUrl: 'https://afterbook.app' }));
+
+import { GET } from '../app/api/cron/alerts/route';
+
+process.env.CRON_SECRET = 'test-secret';
+const run = async () => (await GET(new NextRequest('https://afterbook.app/api/cron/alerts', { headers: { authorization: 'Bearer test-secret' } }))).json();
+const WALLET = '0x1234567890123456789012345678901234567890';
+const rule = (): AlertRule => ({ id: 'r1', type: 'loan', wallet: WALLET, thresholdHf: 1.2, active: false });
+const lowLoan: WalletLoan = {
+  venue: 'aave',
+  collateral: [{ symbol: 'NVDAc', amount: 1, oraclePriceUsd: 100, aeroPriceUsd: 100, collateralFactor: 0.7 }],
+  debtUsd: 63,
+  healthFactor: 1.11,
+};
+const stored = () => fx.rules.get('chat1')![0] as AlertRule;
+
+beforeEach(() => {
+  fx.rules = new Map([['chat1', [rule()]]]);
+  fx.sent = [];
+  fx.deliver = true;
+  fx.loans = [lowLoan];
+  fx.lockHeld = false;
+});
+
+describe('alerts cron', () => {
+  it('keeps the old state when a message wasn’t delivered', () => {
+    expect(stateAfterSend(false, true, 'x', false)).toBe(false);
+    expect(stateAfterSend(false, true, 'x', true)).toBe(true);
+    expect(stateAfterSend(true, false, null, false)).toBe(false);
+  });
+
+  it('a loan warning Telegram didn’t accept is sent on the next run, once', async () => {
+    fx.deliver = false;
+    expect(await run()).toMatchObject({ ok: true, sent: 0 });
+    expect(stored().active).toBe(false);
+    fx.deliver = true;
+    expect(await run()).toMatchObject({ sent: 1 });
+    expect(fx.sent[0]).toContain('Repay USDC: https://afterbook.app/borrow?rescue=repay');
+    expect(stored().active).toBe(true);
+    expect(await run()).toMatchObject({ sent: 0 });
+  });
+
+  it('a chat that blocked the bot isn’t retried every tick', async () => {
+    fx.deliver = 'refused';
+    await run();
+    expect(stored().active).toBe(true);
+  });
+
+  it('a run that finds another one sending skips, and sends nothing', async () => {
+    fx.lockHeld = true;
+    expect(await run()).toMatchObject({ ok: true, skipped: 'another run is sending' });
+    expect(fx.sent).toEqual([]);
+    expect(stored().active).toBe(false);
+  });
+
+  it('after 30 minutes of failed reads: one heads-up, kept state, and a reset on the next good read', async () => {
+    fx.loans = null;
+    for (let i = 1; i < LOAN_READ_FAIL_NOTICE; i++) await run();
+    expect(fx.sent).toEqual([]);
+    expect(stored().failedReads).toBe(LOAN_READ_FAIL_NOTICE - 1);
+    // The heads-up isn't delivered the first time: it is tried again next tick.
+    fx.deliver = false;
+    await run();
+    fx.deliver = true;
+    await run();
+    expect(fx.sent).toHaveLength(1);
+    expect(fx.sent[0]).toContain('loan warnings are paused');
+    // Still failing: no second heads-up, and the rules aren't rewritten on every tick.
+    await run();
+    await run();
+    expect(fx.sent).toHaveLength(1);
+    expect(stored()).toMatchObject({ active: false, failedReads: LOAN_READ_FAIL_NOTICE });
+    fx.loans = [lowLoan];
+    await run();
+    expect(stored()).toMatchObject({ failedReads: 0, active: true });
+    expect(fx.sent[1]).toContain('Loan warning');
+  });
+});
