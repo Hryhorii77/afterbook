@@ -118,3 +118,7 @@ export function basketRecheck(saved: SavedBasket, fresh: PlanLeg[]): { ok: true;
 }
 
 export const planLinkPath = (id: string) => `/plan/${id}`;
+
+/** Whether a stock plan has anything a link could offer: a buy that isn't a new listing (those are never
+ *  offered from a link), so a plan of held stocks only saves no empty link (review of #212). */
+export const hasLinkableBuy = (plan: Plan) => plan.legs.some((l) => l.verdict === 'buy' && !AUTO_PICK_HOLD[l.symbol]);

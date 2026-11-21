@@ -9,7 +9,7 @@ import { parsePlanInput } from '@/lib/agent/plan';
 import { parseBriefInput } from '@/lib/agent/brief';
 import { runPlan, runBrief } from '@/lib/agent/runPlan';
 import { saveStockPlan, saveBasket } from '@/lib/agent/savedPlan';
-import { planLinkPath } from '@/lib/agent/planLink';
+import { hasLinkableBuy, planLinkPath } from '@/lib/agent/planLink';
 import { siteUrl } from '@/lib/share/siteUrl';
 import { SECTORS, THEMES } from '@/lib/stocks/sectors';
 import { limitRead } from '@/lib/server/readGuard';
@@ -108,7 +108,7 @@ const handler = createMcpHandler((server) => {
       try {
         const out = await runPlan(input, noRequest, { explain: false });
         // Only a plan with a buy is saved, so only that one counts toward the daily cap.
-        const hasBuy = out.plan.legs.some((l) => l.verdict === 'buy');
+        const hasBuy = hasLinkableBuy(out.plan);
         const id = hasBuy && (await linkAllowed()) ? await saveStockPlan(input, out, 'mcp') : null;
         return { content: [{ type: 'text', text: JSON.stringify({ ...out, planUrl: id ? `${siteUrl}${planLinkPath(id)}` : null }) }] };
       } catch (e) {
