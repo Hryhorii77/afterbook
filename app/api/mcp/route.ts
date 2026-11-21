@@ -13,6 +13,9 @@ import { planLinkPath } from '@/lib/agent/planLink';
 import { siteUrl } from '@/lib/share/siteUrl';
 import { SECTORS, THEMES } from '@/lib/stocks/sectors';
 import { limitRead } from '@/lib/server/readGuard';
+import { mcpPlanLimiter, planLinkDailyLimiter } from '@/lib/server/ratelimit';
+import { callerIp } from '@/lib/agent/explainGate';
+import { NextResponse } from 'next/server';
 
 const HISTORY_LOOKBACK_MS = 30 * 24 * 60 * 60_000;
 
@@ -79,6 +82,8 @@ const handler = createMcpHandler((server) => {
   // explained in fixed words (no Claude call, so a free tool can't run up the bill; the x402 routes add
   // Claude's explanation). Read-only: each returns a link where a person opens the plan on afterbook.app
   // and signs its buys after the checks run again. Rate-limited per caller in POST below.
+  // The site-wide daily ceiling on links saved by these free tools; past it the plan answers without one.
+  const linkAllowed = async () => !planLinkDailyLimiter || (await planLinkDailyLimiter.limit('all')).success;
   const err = (error: string) => ({ content: [{ type: 'text' as const, text: JSON.stringify({ error }) }], isError: true });
   // The MCP request has no request of its own here; the explanation gate is skipped, so this is never read.
   const noRequest = new Request(siteUrl);
@@ -102,7 +107,9 @@ const handler = createMcpHandler((server) => {
       if (typeof input === 'string') return err(input);
       try {
         const out = await runPlan(input, noRequest, { explain: false });
-        const id = await saveStockPlan(input, out, 'mcp');
+        // Only a plan with a buy is saved, so only that one counts toward the daily cap.
+        const hasBuy = out.plan.legs.some((l) => l.verdict === 'buy');
+        const id = hasBuy && (await linkAllowed()) ? await saveStockPlan(input, out, 'mcp') : null;
         return { content: [{ type: 'text', text: JSON.stringify({ ...out, planUrl: id ? `${siteUrl}${planLinkPath(id)}` : null }) }] };
       } catch (e) {
         console.error('[/api/mcp make_plan]', e);
@@ -133,7 +140,7 @@ const handler = createMcpHandler((server) => {
       if (typeof input === 'string') return err(input);
       try {
         const out = await runBrief(input, noRequest, { explain: false });
-        const id = await saveBasket(out, 'mcp');
+        const id = out.brief.basket && (await linkAllowed()) ? await saveBasket(out, 'mcp') : null;
         return { content: [{ type: 'text', text: JSON.stringify({ ...out, buyUrl: id ? `${siteUrl}${planLinkPath(id)}` : null }) }] };
       } catch (e) {
         console.error('[/api/mcp make_basket]', e);
@@ -143,9 +150,12 @@ const handler = createMcpHandler((server) => {
   );
 });
 
-/** The plan tools read pools and save a link: held to the same 10 a minute per caller as the plan routes,
- *  one token per plan call (a JSON-RPC batch of several plan calls takes one each). */
+/** The plan tools read pools and save a link. One plan call per request (a JSON-RPC batch with more is
+ *  refused before anything is counted), held to the plan routes' 10 a minute per caller in this
+ *  instance and, across instances, to `mcpPlanLimiter` (Upstash). */
 const PLAN_TOOLS = new Set(['make_plan', 'make_basket']);
+const rpcError = (status: number, message: string, headers?: HeadersInit) =>
+  NextResponse.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message } }, { status, headers });
 async function POST(request: Request) {
   const body: unknown = await request.clone().json().catch(() => null);
   const calls = Array.isArray(body) ? body : [body];
@@ -153,9 +163,14 @@ async function POST(request: Request) {
     const m = c as { method?: unknown; params?: { name?: unknown } } | null;
     return m?.method === 'tools/call' && typeof m.params?.name === 'string' && PLAN_TOOLS.has(m.params.name);
   }).length;
-  for (let i = 0; i < planCalls; i++) {
+  if (planCalls > 1) return rpcError(400, 'one make_plan or make_basket call per request');
+  if (planCalls === 1) {
     const limited = limitRead(request, 'agent-plan', 'lots');
-    if (limited) return limited;
+    if (limited) return rpcError(429, 'too many requests, try again shortly', { 'Retry-After': limited.headers.get('Retry-After') ?? '60' });
+    // No Redis (local): the in-memory count above is the only one.
+    if (mcpPlanLimiter && !(await mcpPlanLimiter.limit(callerIp(request))).success) {
+      return rpcError(429, 'too many requests, try again shortly', { 'Retry-After': '60' });
+    }
   }
   return handler(request);
 }

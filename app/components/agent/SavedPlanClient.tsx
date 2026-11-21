@@ -11,6 +11,7 @@ import type { GeoInfo } from '@/lib/server/geo';
 import type { PlanLeg } from '@/lib/agent/plan';
 import type { RecheckedBuy, SavedPlan, basketRecheck } from '@/lib/agent/planLink';
 import { getStock } from '@/lib/stocks/tokens';
+import { AUTO_PICK_HOLD } from '@/lib/agent/limits';
 import { usd } from '@/lib/format';
 import { SwapPanel } from '../swap/SwapPanel';
 import { BasketBuyPanel } from '../baskets/BasketBuyPanel';
@@ -88,7 +89,7 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
       </header>
       <p className="plan-intro">
         An agent asked Afterbook for this {basket ? 'basket' : 'plan'} and sent you the link. Afterbook’s code chose every stock and amount; the
-        checks ran again when you opened this page, and you can buy only what still passes, once each, up to the amounts the agent was shown. Nothing is
+        checks ran again when you opened this page, and you can buy only what still passes, once each on this visit, up to the amounts the agent was shown. Nothing is
         bought until you review a buy and sign it in your own wallet. This is a tool for your own decisions, not financial advice.
       </p>
 
@@ -121,6 +122,15 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
                 return (
                   <PlanLegCard key={leg.symbol} leg={leg}>
                     {buy && bought.includes(leg.symbol) && <p className="plan-hint">Bought from this page.</p>}
+                    {!buy && leg.verdict === 'buy' && AUTO_PICK_HOLD[leg.symbol] && (
+                      <p className="plan-hint">
+                        <span className="trade-top-new">New listing</span> Not offered from an agent’s link while its pool settles; you can still buy it on its{' '}
+                        <Link href={`/${leg.symbol}#execute`} className="emph-link">
+                          own page
+                        </Link>
+                        .
+                      </p>
+                    )}
                     {buy && !bought.includes(leg.symbol) && (
                       <div className="basket-row">
                         <button
@@ -185,8 +195,8 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
                   <>
                     <p className="geo-note">
                       {basket.basket.map((l) => `${ticker(l.symbol)} ${l.weightPct}%`).join(', ')}, at most {usd(recheck.basket.usd, 2)} in all. One
-                      approval of exactly the total, then one swap per stock, each rebuilt and checked before you sign (one signature with Base
-                      Account).
+                      approval of exactly the total, then one swap per stock, each rebuilt and checked before you sign. With Base Account it is one
+                      signature and goes through whole or not at all; other wallets sign each swap in turn and can stop partway.
                     </p>
                     {gate(
                       <BasketBuyPanel

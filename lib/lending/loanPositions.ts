@@ -52,7 +52,10 @@ async function aaveLoan(wallet: `0x${string}`): Promise<WalletLoan | null> {
         read<readonly [boolean, boolean]>('getUserReserveStatus', [id, wallet]),
       ]);
       const stock = getStock(m.symbol);
-      if (!stock || supplied === BigInt(0) || !usedAsCollateral || m.oraclePriceUsd == null) return null;
+      if (!stock || supplied === BigInt(0) || !usedAsCollateral) return null;
+      // Posted collateral with no oracle price is a failed read, not a smaller loan: leaving it out would
+      // understate the loan (and, sold over x402, answer wrongly), so the whole read fails (review, 2026-11-21).
+      if (m.oraclePriceUsd == null) throw new Error(`no Aave oracle price for ${m.symbol}`);
       return {
         symbol: m.symbol,
         amount: Number(supplied) / 10 ** stock.decimals,
@@ -72,12 +75,16 @@ async function aaveLoan(wallet: `0x${string}`): Promise<WalletLoan | null> {
 
 async function morphoLoans(wallet: `0x${string}`): Promise<WalletLoan[]> {
   const client = getClient();
-  const markets = (await getMorphoStockMarkets()).filter((m) => m.oraclePriceUsd != null);
+  // Every listed market, priced or not: an open position in a market whose oracle couldn't be read is a
+  // failed read (thrown below), never a loan left out (review, 2026-11-21).
+  const markets = await getMorphoStockMarkets();
   const positions = await client.multicall({
     contracts: markets.map((m) => ({ address: MORPHO_BLUE, abi: MORPHO_ABI, functionName: 'position', args: [m.marketId as `0x${string}`, wallet] }) as const),
     allowFailure: false,
   });
   const open = markets.map((m, i) => ({ m, p: positions[i] })).filter(({ p }) => p[1] > BigInt(0));
+  const unpriced = open.find(({ m }) => m.oraclePriceUsd == null);
+  if (unpriced) throw new Error(`no Morpho oracle price for ${unpriced.m.symbol}`);
   return Promise.all(
     open.map(async ({ m, p }) => {
       const stock = getStock(m.symbol)!;

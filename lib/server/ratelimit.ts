@@ -107,3 +107,10 @@ export const readLimiters = {
 const HOUR = 60 * MINUTE;
 export const agentLimiter = redis ? new SafeLimiter('ratelimit:agent', 10, '1 h', HOUR, 5) : null;
 export const agentDailyLimiter = redis ? new SafeLimiter('ratelimit:agent-day', 500, '1 d', 24 * HOUR, 100) : null;
+
+// The free MCP plan tools (app/api/mcp/route.ts) read pools and save a plan link to Redis on every call:
+// per caller across every instance (the in-memory limitRead counts each instance on its own), and a
+// ceiling on links saved site-wide per day. Past the daily one the plan still answers, without a link.
+// Paid x402 plans aren't held to either: payment is their throttle.
+export const mcpPlanLimiter = redis ? new SafeLimiter('ratelimit:mcp-plan', 10, '1 m', MINUTE, 5) : null;
+export const planLinkDailyLimiter = redis ? new SafeLimiter('ratelimit:planlink-day', 300, '1 d', 24 * HOUR, 50) : null;

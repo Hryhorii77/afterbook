@@ -22,6 +22,7 @@ vi.mock('../lib/server/redis', () => ({
   },
 }));
 vi.mock('next/cache', () => ({ unstable_cache: (fn: () => unknown) => fn }));
+vi.mock('../lib/share/siteUrl', () => ({ siteUrl: 'https://afterbook.app' }));
 vi.mock('@x402/next', () => ({ withX402: (h: unknown) => h }));
 vi.mock('../lib/server/x402', () => ({
   x402Configured: true,

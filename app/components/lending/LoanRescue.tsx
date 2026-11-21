@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AavePosition, AaveReserve } from '@/lib/lending/aaveBorrow';
 import { planRescue, RESCUE_FALLS, RESCUE_TARGETS } from '@/lib/lending/rescue';
+import { parseRescuePreset, type RescuePreset } from '@/lib/lending/rescueLink';
 import { formatUnits } from 'viem';
 import { usd } from '../swap/swapClient';
 
@@ -38,7 +39,34 @@ export function LoanRescue({
 }) {
   const [fall, setFall] = useState<number>(0.2);
   const [target, setTarget] = useState<number>(1.5);
+  // A loan warning's link (lib/lending/rescueLink.ts): /borrow?rescue=repay|add&fall=…&target=… presets the
+  // scenario and fills the Repay or Add field once, from this wallet's own loan; the person signs as usual.
+  const [preset, setPreset] = useState<RescuePreset | null>(null);
+  const filled = useRef(false);
+  useEffect(() => {
+    const p = parseRescuePreset(new URLSearchParams(window.location.search));
+    if (!p) return;
+    // Once per visit: the query is dropped after reading, so unticking and re-ticking the eligibility box
+    // (which remounts the panel) doesn't fill the field again (review, 2026-11-21).
+    window.history.replaceState(window.history.state, '', window.location.pathname + window.location.hash);
+    setPreset(p);
+    setFall(p.fall);
+    setTarget(p.target);
+  }, []);
   const plan = planRescue(position, { fall, target, chainHealth, balances, usdcBalance });
+  useEffect(() => {
+    if (!preset || filled.current || disabled || plan.kind !== 'plan' || plan.safe) return;
+    if (fall !== preset.fall || target !== preset.target) return;
+    filled.current = true;
+    if (preset.action === 'repay') {
+      // The same choice as the "Fill" button: nothing when the wallet holds no USDC.
+      if (plan.repay.partial) onRepay(plan.repay.partial.raw, false);
+      else if (usdcBalance > BigInt(0)) onRepay(plan.repay.raw, plan.repay.all);
+    } else {
+      const a = plan.adds[0];
+      if (a) onAdd(a.reserve, a.partial ? a.partial.raw : a.addRaw);
+    }
+  }, [preset, plan, fall, target, disabled, usdcBalance, onRepay, onAdd]);
   if (plan.kind === 'no-loan') return null;
 
   return (
@@ -47,6 +75,13 @@ export function LoanRescue({
       <p className="geo-note" style={{ marginTop: 0 }}>
         Test your loan against a fall in Aave&apos;s stock prices and see what keeps it at a health you choose. A test, not a forecast.
       </p>
+      {preset && (
+        <p className="geo-note" role="status">
+          Opened from a loan warning: the case below is set to {fallLabel(preset.fall).toLowerCase()} and health {preset.target.toFixed(1)}, and, if your wallet holds{' '}
+          {preset.action === 'repay' ? 'USDC, the Repay field' : 'one of the stocks this pool takes, the Add field'} is filled from your own loan. Check it, then sign with
+          the button below, or change it.
+        </p>
+      )}
       <div className="rescue-fields">
         <div className="action-field">
           <label htmlFor="rescue-fall">If</label>

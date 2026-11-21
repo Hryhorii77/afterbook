@@ -9,6 +9,8 @@ import { cronAuthorized } from '@/lib/server/sharedSecret';
 import { getWalletLoans } from '@/lib/lending/loanPositions';
 import { AUTO_PICK_HOLD } from '@/lib/agent/limits';
 import { loanAlertText, nextLoanState, worstHealth, type WalletLoan } from '@/lib/lending/loanHealth';
+import { rescueLinks } from '@/lib/lending/rescueLink';
+import { siteUrl } from '@/lib/share/siteUrl';
 
 export const revalidate = 0;
 export const maxDuration = 60;
@@ -67,7 +69,10 @@ export async function GET(request: NextRequest) {
         const loans = await loansOf(rule.wallet);
         const worst = loans == null ? null : loans.length === 0 ? 'no-loans' : Math.min(...loans.map(worstHealth));
         nowActive = nextLoanState(rule.active, worst, rule.thresholdHf);
-        if (nowActive && !rule.active && loans) message = loanAlertText(rule.wallet, loans, rule.thresholdHf);
+        if (nowActive && !rule.active && loans) {
+          const aave = loans.find((l) => l.venue === 'aave');
+          message = loanAlertText(rule.wallet, loans, rule.thresholdHf, aave ? rescueLinks(aave, rule.thresholdHf, siteUrl) : null);
+        }
       }
 
       if (message) {
