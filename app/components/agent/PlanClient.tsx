@@ -14,10 +14,10 @@ import { EARNINGS_OPTIONS, PLAN_LIMITS } from '@/lib/agent/limits';
 import { getStock } from '@/lib/stocks/tokens';
 import { TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
 import { cleanAmountInput, cleanPercentInput, readNumberFields } from '@/lib/agent/formFields';
-import { bpPct, formatNextOpen, usd } from '@/lib/format';
+import { formatNextOpen, usd } from '@/lib/format';
 import { SwapPanel } from '../swap/SwapPanel';
-import { SymbolTile } from '../ui/SymbolTile';
 import { BriefClient } from './BriefClient';
+import { PlanLegCard } from './PlanLegCard';
 
 const LOG_KEY = 'afterbook-plans';
 const LOG_MAX = 20;
@@ -44,7 +44,6 @@ function writeLog(list: LoggedPlan[]) {
   }
 }
 
-const VERDICT_LABEL: Record<PlanLeg['verdict'], string> = { buy: 'Passes your limits', wait: 'Wait', skip: 'Skip' };
 
 
 export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo: GeoInfo }) {
@@ -289,55 +288,17 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
           <p className="plan-explanation">{result.explanation}</p>
           <p className="plan-hint">{result.explainedBy === 'claude' ? 'Explained by Claude from the numbers below.' : 'Explained in fixed words (Claude wasn’t used for this one).'}</p>
           <ul className="plan-legs">
-            {result.plan.legs.map((leg) => {
-              const stock = getStock(leg.symbol);
-              return (
-                <li key={leg.symbol} className={`plan-leg plan-leg-${leg.verdict}`}>
-                  <div className="plan-leg-head">
-                    <SymbolTile cashTicker={stock?.cashTicker ?? leg.symbol} />
-                    <div className="plan-leg-name">
-                      <strong>{leg.symbol}</strong>
-                      <span>{leg.name}</span>
-                    </div>
-                    <span className="plan-verdict">{VERDICT_LABEL[leg.verdict]}</span>
+            {result.plan.legs.map((leg) => (
+              <PlanLegCard key={leg.symbol} leg={leg}>
+                {leg.verdict === 'buy' && (
+                  <div className="basket-row">
+                    <button type="button" className="btn btn-secondary" onClick={() => review(leg)}>
+                      Review {usd(leg.usd ?? 0, 0)} of {leg.symbol}
+                    </button>
                   </div>
-                  <dl className="plan-figures">
-                    <div>
-                      <dt>Gap vs cash {leg.gapAgainst}</dt>
-                      <dd>{bpPct(leg.gapBp)}</dd>
-                    </div>
-                    <div>
-                      <dt>Onchain price</dt>
-                      <dd>{usd(leg.priceUsd)}</dd>
-                    </div>
-                    {leg.verdict === 'buy' && (
-                      <>
-                        <div>
-                          <dt>Buy</dt>
-                          <dd>{usd(leg.usd ?? 0, 0)}</dd>
-                        </div>
-                        <div>
-                          <dt>Cost to trade</dt>
-                          <dd>{(leg.costBp ?? 0).toFixed(1)} bp</dd>
-                        </div>
-                      </>
-                    )}
-                  </dl>
-                  <ul className="plan-reasons">
-                    {leg.reasons.map((r) => (
-                      <li key={r}>{r}</li>
-                    ))}
-                  </ul>
-                  {leg.verdict === 'buy' && (
-                    <div className="basket-row">
-                      <button type="button" className="btn btn-secondary" onClick={() => review(leg)}>
-                        Review {usd(leg.usd ?? 0, 0)} of {leg.symbol}
-                      </button>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
+                )}
+              </PlanLegCard>
+            ))}
           </ul>
 
           {selected && selectedStock && (

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withX402 } from '@x402/next';
-import { getStock, aerodromeSwapUrl } from '@/lib/stocks/tokens';
+import { getStock } from '@/lib/stocks/tokens';
 import { getBuyQuoter } from '@/lib/market/lotQuote';
 import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE } from '@/lib/server/x402';
 
@@ -32,7 +32,9 @@ async function handler(request: NextRequest) {
 
   try {
     const quoter = await getBuyQuoter(stock);
-    const swapUrl = aerodromeSwapUrl(stock, direction);
+    // The stock's page on Afterbook, at its swap (2026-11-21; Aerodrome's app until then): a person signs
+    // there through the checked swap, with the Builder Code, behind the region gate and eligibility box.
+    const swapUrl = `${request.nextUrl.origin}/${stock.symbol}#execute`;
     if (direction === 'sell') {
       // A sell is sized by its dollar value at the current Aero price
       // (usdcIn = "sell about this much"). Before 2026-10-12 this route
@@ -69,20 +71,12 @@ async function handler(request: NextRequest) {
   }
 }
 
-// Deliberately a link, not raw calldata: this app has no confirmed-working
-// router for these Slipstream pools outside Aerodrome's own frontend —
-// their documented public SwapRouter/Quoter are bound to a different CL
-// factory and revert on these specific pools (verified on-chain,
-// pool.factory() != quoter.factory()), and every alternative checked
-// (Aerodrome's Universal Router — zero real transactions against these
-// pools in a live sample; their classic Router.sol — built for the old
-// stable/volatile AMM pools, architecturally incompatible with Slipstream)
-// came up empty or wrong. Returning calldata this app can't confirm
-// actually executes would risk an agent burning real gas on a revert — the
-// same verified deep link the human UI already uses is the responsible
-// thing to hand back instead. An agent's own execution layer opens/submits
-// it; this route never returns calldata or touches a key (in-app swaps are a separate, browser-only
-// flow with their own checks, lib/swap/swap.ts).
+// Deliberately a link, not raw calldata: this route never returns calldata or touches a key. Until
+// 2026-11-21 the link opened Aerodrome's own app (when it was written, no router this app could confirm
+// worked on these Slipstream pools); a trade signed there skipped Afterbook's swap checks and carried no
+// Builder Code. It now opens the stock's page on Afterbook, whose swap (KyberSwap, checked in
+// lib/swap/swap.ts and again in the browser) is signed in the person's own wallet. For a checked plan
+// with a link that opens already filled in, agents call /api/v1/x402/plan.
 export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configured
   ? withX402<unknown>(
       handler,
@@ -94,7 +88,7 @@ export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configur
           payTo: X402_PAYOUT_ADDRESS!,
         },
         description:
-          'Sized trade estimate plus a verified Aerodrome swap deep link (buy or sell direction) for one of Afterbook\'s tracked stock pools — not raw calldata, see route source for why.',
+          'Sized trade estimate (buy or sell direction) for one of Afterbook\'s tracked stock pools plus swapUrl, the stock\'s page on afterbook.app where a person signs the trade in their own wallet through the checked swap. Not raw calldata.',
       },
       getX402Server(),
     )

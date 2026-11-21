@@ -9,7 +9,19 @@ import { getStock } from '../lib/stocks/tokens';
 // withX402 is stubbed to call the handler, so these test what a paid request gets back; the payment
 // itself (402, then settlement only on a success) is the library's, checked on the live site.
 vi.mock('server-only', () => ({}));
-const fx = vi.hoisted(() => ({ counted: [] as { paid?: boolean }[], fail: false }));
+const fx = vi.hoisted(() => ({ counted: [] as { paid?: boolean }[], fail: false, store: new Map<string, string>(), basisBp: 10, saveFails: false }));
+// The saved-plan store (lib/agent/savedPlan.ts) on an in-memory Redis; the data cache passes through.
+vi.mock('../lib/server/redis', () => ({
+  redis: {
+    set: async (k: string, v: string) => {
+      if (fx.saveFails) throw new Error('redis down');
+      fx.store.set(k, v);
+      return 'OK';
+    },
+    get: async (k: string) => fx.store.get(k) ?? null,
+  },
+}));
+vi.mock('next/cache', () => ({ unstable_cache: (fn: () => unknown) => fn }));
 vi.mock('@x402/next', () => ({ withX402: (h: unknown) => h }));
 vi.mock('../lib/server/x402', () => ({
   x402Configured: true,
@@ -20,7 +32,7 @@ vi.mock('../lib/server/x402', () => ({
 }));
 const row = (symbol: string): TapeRow => ({
   symbol, cashTicker: symbol.replace(/c$/, ''), name: symbol, cashLastUsd: 100, cashAsOfMs: 0, cashPriceType: 'regular', cashStale: false,
-  closeUsd: 100, closeAsOfMs: 0, onchainMidUsd: 100.1, tick: 0, basisBp: 10, depthUsd: 5_000_000, depthShares: 0, multiplier: 1, nextEarningsDate: null,
+  closeUsd: 100, closeAsOfMs: 0, onchainMidUsd: 100 * (1 + fx.basisBp / 10_000), tick: 0, basisBp: fx.basisBp, depthUsd: 5_000_000, depthShares: 0, multiplier: 1, nextEarningsDate: null,
 });
 vi.mock('../lib/market/tape', () => ({
   getTape: async () => {
@@ -48,6 +60,8 @@ vi.mock('../lib/agent/explain', () => ({
 
 import { GET as planGET } from '../app/api/v1/x402/plan/route';
 import { GET as basketGET } from '../app/api/v1/x402/basket/route';
+import { readSavedPlan } from '../lib/agent/savedPlan';
+import { recheckSavedPlan } from '../lib/agent/runPlan';
 
 let ip = 0;
 const get = (handler: (r: NextRequest) => Promise<Response>, path: string) =>
@@ -83,21 +97,59 @@ describe('GET /api/v1/x402/plan and /basket (payment stubbed)', () => {
   beforeEach(() => {
     fx.counted.length = 0;
     fx.fail = false;
+    fx.store.clear();
+    fx.basisBp = 10;
+    fx.saveFails = false;
   });
-  it('a plan: the same plan as the page, where to buy, counted as paid', async () => {
+  it('a plan: the same plan as the page, saved behind a link where a person signs it, counted as paid', async () => {
     const res = await get(planGET, '/api/v1/x402/plan?symbols=NVDAc&budgetUsd=1000');
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.plan.legs[0]).toMatchObject({ symbol: 'NVDAc', verdict: 'buy', usd: 1000 });
     expect(body.explainedBy).toBe('fixed');
-    expect(body.buyAt).toBe('https://afterbook.app/plan');
+    expect(body.planUrl).toMatch(/^https:\/\/afterbook\.app\/plan\/[A-Za-z0-9_-]{16}$/);
+    expect(body.buyAt).toBe(body.planUrl);
     expect(fx.counted).toEqual([expect.objectContaining({ paid: true })]);
+    const saved = await readSavedPlan(body.planUrl.split('/').pop());
+    expect(saved).toMatchObject({ kind: 'plan', via: 'x402', input: { symbols: ['NVDAc'], budgetUsd: 1000, maxPremiumBp: 50 } });
+    expect(saved && 'input' in saved && 'note' in saved.input).toBe(false);
   });
-  it('a basket: picks, sizes and a /build link', async () => {
+  it('a plan with no buy, or one that couldn’t be saved, has no link (the plan page instead)', async () => {
+    fx.basisBp = 200;
+    let body = await (await get(planGET, '/api/v1/x402/plan?symbols=NVDAc&budgetUsd=1000')).json();
+    expect(body.plan.legs[0].verdict).toBe('wait');
+    expect([body.planUrl, body.buyAt]).toEqual([null, 'https://afterbook.app/plan']);
+    fx.basisBp = 10;
+    fx.saveFails = true;
+    body = await (await get(planGET, '/api/v1/x402/plan?symbols=NVDAc&budgetUsd=1000')).json();
+    expect([body.planUrl, body.buyAt]).toEqual([null, 'https://afterbook.app/plan']);
+    expect(fx.store.size).toBe(0);
+  });
+  it('a basket: picks, sizes, a saved link to sign it and its /build page', async () => {
     const body = await (await get(basketGET, '/api/v1/x402/basket?theme=AI+chips&budgetUsd=900&minStocks=3')).json();
     expect(body.brief.picks.map((p: { symbol: string }) => p.symbol).sort()).toEqual(['AMDc', 'MUc', 'NVDAc']);
-    expect(body.buyUrl).toMatch(/^https:\/\/afterbook\.app\/build\/.+/);
+    expect(body.buyUrl).toMatch(/^https:\/\/afterbook\.app\/plan\/[A-Za-z0-9_-]{16}$/);
+    expect(body.buildUrl).toMatch(/^https:\/\/afterbook\.app\/build\/.+/);
     expect(fx.counted).toEqual([expect.objectContaining({ paid: true })]);
+  });
+  it('the link’s page runs the checks again: what still passes, never over the saved amount', async () => {
+    const plan = await (await get(planGET, '/api/v1/x402/plan?symbols=NVDAc,MUc&budgetUsd=1000')).json();
+    const saved = (await readSavedPlan(plan.planUrl.split('/').pop()))!;
+    let again = await recheckSavedPlan(saved);
+    expect(again.buys).toEqual([{ symbol: 'NVDAc', usd: 500 }, { symbol: 'MUc', usd: 500 }]);
+    // The gap widened past the limit since: nothing to buy.
+    fx.basisBp = 200;
+    again = await recheckSavedPlan(saved);
+    expect(again.buys).toEqual([]);
+    expect(again.legs.map((l) => l.verdict)).toEqual(['wait', 'wait']);
+
+    fx.basisBp = 10;
+    const basket = await (await get(basketGET, '/api/v1/x402/basket?theme=AI+chips&budgetUsd=900&minStocks=3')).json();
+    const savedBasket = (await readSavedPlan(basket.buyUrl.split('/').pop()))!;
+    expect((await recheckSavedPlan(savedBasket)).basket).toEqual({ ok: true, usd: basket.brief.investedUsd });
+    fx.basisBp = 200;
+    const no = (await recheckSavedPlan(savedBasket)).basket;
+    expect(no?.ok).toBe(false);
   });
   it('one caller is held to 10 a minute (a 429 isn’t charged)', async () => {
     const codes: number[] = [];
