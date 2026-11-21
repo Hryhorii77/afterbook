@@ -10,6 +10,7 @@ import type { Plan, PlanInput } from './plan';
 import type { Brief } from './brief';
 
 const KEY = (id: string) => `agentplan:${id}`;
+const MISS = 'saved plan: not found';
 
 /** Distributes Omit over the union, so each kind keeps its own fields. */
 type Unsaved<T> = T extends SavedPlan ? Omit<T, 'v' | 'id' | 'at'> : never;
@@ -40,8 +41,22 @@ async function readUncached(id: string): Promise<SavedPlan | null> {
 export async function readSavedPlan(id: string): Promise<SavedPlan | null> {
   if (!PLAN_ID_RE.test(id)) return null;
   // An hour in the data cache; the plan is immutable, and a link that expires inside that hour still
-  // shows (its recheck is fresh either way).
-  return unstable_cache(() => readUncached(id), ['agentplan', id], { revalidate: 3600 })();
+  // shows (its recheck is fresh either way). A miss is thrown, not returned, so it isn't cached: a link
+  // opened a moment before its save landed (or a mistyped one, fixed) works on the next view.
+  try {
+    return await unstable_cache(
+      async () => {
+        const v = await readUncached(id);
+        if (!v) throw new Error(MISS);
+        return v;
+      },
+      ['agentplan', id],
+      { revalidate: 3600 },
+    )();
+  } catch (err) {
+    if (err instanceof Error && err.message === MISS) return null;
+    throw err;
+  }
 }
 
 /** A stock plan's link, saved only when the plan has a buy. */

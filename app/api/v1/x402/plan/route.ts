@@ -12,6 +12,8 @@ import { planFromQuery } from '@/lib/agent/x402Input';
 import { runPlan } from '@/lib/agent/runPlan';
 import { saveStockPlan } from '@/lib/agent/savedPlan';
 import { planLinkPath } from '@/lib/agent/planLink';
+// The production address even on a preview deploy (same Redis), so a link an agent hands on always works.
+import { siteUrl } from '@/lib/share/siteUrl';
 import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE_PREMIUM } from '@/lib/server/x402';
 
 export const revalidate = 0;
@@ -27,7 +29,7 @@ async function handler(request: NextRequest) {
   try {
     const out = await runPlan(input, request, { paid: true });
     const id = await saveStockPlan(input, out, 'x402');
-    const planUrl = id ? `${request.nextUrl.origin}${planLinkPath(id)}` : null;
+    const planUrl = id ? `${siteUrl}${planLinkPath(id)}` : null;
     return NextResponse.json({
       ...out,
       // Where a person opens this plan and signs its buys (null with no buy, or if it couldn't be saved);

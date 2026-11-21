@@ -8,7 +8,7 @@
 // limits, and a buy is offered only where it still passes, at most the amount the agent was shown (the
 // link's spending cap). Nothing here builds or signs a transaction.
 import type { Plan, PlanInput, PlanLeg } from './plan';
-import { PLAN_LIMITS } from './limits';
+import { AUTO_PICK_HOLD, PLAN_LIMITS } from './limits';
 import type { Brief } from './brief';
 
 /** Kept this long; after that the link says it has expired. */
@@ -91,7 +91,9 @@ export function cappedBuys(saved: SavedStockPlan, fresh: PlanLeg[]): RecheckedBu
   const out: RecheckedBuy[] = [];
   for (const leg of fresh) {
     const cap = was.get(leg.symbol);
-    if (leg.verdict !== 'buy' || cap == null || leg.usd == null) continue;
+    // A new listing (AUTO_PICK_HOLD) is never offered from a link: an agent named it, not the person, who can
+    // still buy it on its own page (review of #211).
+    if (leg.verdict !== 'buy' || cap == null || leg.usd == null || AUTO_PICK_HOLD[leg.symbol]) continue;
     const usd = Math.floor(Math.min(leg.usd, cap));
     if (usd < PLAN_LIMITS.minLegUsd) continue;
     out.push(usd < Math.floor(cap) ? { symbol: leg.symbol, usd, wasUsd: Math.floor(cap) } : { symbol: leg.symbol, usd });
@@ -107,7 +109,8 @@ export function basketRecheck(saved: SavedBasket, fresh: PlanLeg[]): { ok: true;
   const why: string[] = [];
   for (const l of b.basket) {
     const leg = fresh.find((f) => f.symbol === l.symbol);
-    if (!leg) why.push(`${l.symbol}: no fresh price to check it against.`);
+    if (AUTO_PICK_HOLD[l.symbol]) why.push(`${l.symbol}: a new listing, not offered from an agent’s link.`);
+    else if (!leg) why.push(`${l.symbol}: no fresh price to check it against.`);
     else if (leg.verdict !== 'buy') why.push(`${l.symbol}: ${leg.decidedBy ?? leg.reasons[0] ?? 'it no longer passes the checks.'}`);
     else if (leg.cutBy) why.push(`${l.symbol}: its full share no longer fits ${leg.cutBy === 'cost limit' ? 'your cost limit' : 'the swap caps'}.`);
   }

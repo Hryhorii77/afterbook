@@ -84,14 +84,22 @@ export function loanStatusText(wallet: string, loans: WalletLoan[]): string {
   return [`${short(wallet)}:`, ...loans.map((l) => `• ${describeLoan(l)}`)].join('\n');
 }
 
-export function loanAlertText(wallet: string, loans: WalletLoan[], threshold: number): string {
+/** `links`: an Aave loan's links to the in-app panel with the rescue planner preset (lib/lending/rescueLink.ts). */
+export function loanAlertText(wallet: string, loans: WalletLoan[], threshold: number, links?: { repayUrl: string; addUrl: string } | null): string {
   const worst = Math.min(...loans.map(worstHealth));
   // Only Aerodrome's price is below the line: the oracle still looks fine, which is the early warning.
   const byAero = loans.every((l) => l.healthFactor >= threshold);
   const why = byAero
     ? `Health at Aero's price is below ${hf(threshold)}: the lending oracle may follow when the cash market moves.`
     : `Health is below ${hf(threshold)}.`;
-  return [`Loan warning for ${short(wallet)} (lowest ${hf(worst)}). ${why}`, ...loans.map((l) => `• ${describeLoan(l)}`), 'Not advice. Afterbook never touches your funds.'].join('\n');
+  const act = links
+    ? [
+        'For the Aave loan, these open Afterbook’s Aave panel with the rescue planner set for this warning; it fills the amount from the loan of the wallet you connect, and you check it and sign:',
+        `Repay USDC: ${links.repayUrl}`,
+        `Add collateral: ${links.addUrl}`,
+      ]
+    : [];
+  return [`Loan warning for ${short(wallet)} (lowest ${hf(worst)}). ${why}`, ...loans.map((l) => `• ${describeLoan(l)}`), ...act, 'Not advice. Afterbook never touches your funds.'].join('\n');
 }
 
 /** `/watch 0xADDRESS [HEALTH]` arguments: a checksummed address and a threshold, or the reason not. */

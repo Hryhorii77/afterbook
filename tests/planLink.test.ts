@@ -56,6 +56,13 @@ describe('saved plan links', () => {
     expect(cappedBuys(stockPlan, [leg('NVDAc', 'wait'), leg('MUc', 'buy', 9)])).toEqual([]);
   });
 
+  it('never offers a new listing (AUTO_PICK_HOLD) from a link, even one the agent named', () => {
+    const withNew = { ...stockPlan, plan: { ...stockPlan.plan, legs: [leg('NVDAc', 'buy', 500), leg('ANTc', 'buy', 500)] } };
+    expect(cappedBuys(withNew, [leg('NVDAc', 'buy', 500), leg('ANTc', 'buy', 500)])).toEqual([{ symbol: 'NVDAc', usd: 500 }]);
+    const newBasket = { ...basket, brief: { ...basket.brief, basket: [{ symbol: 'NVDAc', weightPct: 50 }, { symbol: 'ANTc', weightPct: 50 }] } as Brief };
+    expect(basketRecheck(newBasket, [leg('NVDAc', 'buy', 450), leg('ANTc', 'buy', 450)])).toEqual({ ok: false, why: ['ANTc: a new listing, not offered from an agent’s link.'] });
+  });
+
   it('a basket is offered whole, at its saved total, or not at all', () => {
     expect(basketRecheck(basket, [leg('NVDAc', 'buy', 540), leg('MUc', 'buy', 360)])).toEqual({ ok: true, usd: 900 });
     const cut = basketRecheck(basket, [leg('NVDAc', 'buy', 400, { cutBy: 'cost limit' }), leg('MUc', 'buy', 360)]);

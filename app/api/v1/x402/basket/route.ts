@@ -12,6 +12,8 @@ import { runBrief } from '@/lib/agent/runPlan';
 import { buildPath } from '@/lib/build/customBasket';
 import { saveBasket } from '@/lib/agent/savedPlan';
 import { planLinkPath } from '@/lib/agent/planLink';
+// The production address even on a preview deploy (same Redis), so a link an agent hands on always works.
+import { siteUrl } from '@/lib/share/siteUrl';
 import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE_PREMIUM } from '@/lib/server/x402';
 
 export const revalidate = 0;
@@ -33,7 +35,7 @@ async function handler(request: NextRequest) {
       ...out,
       // Where a person opens this basket and signs its buy, capped at its amount (null when there is no
       // basket; the /build page if it couldn't be saved).
-      buyUrl: id ? `${request.nextUrl.origin}${planLinkPath(id)}` : buildUrl,
+      buyUrl: id ? `${siteUrl}${planLinkPath(id)}` : buildUrl,
       buildUrl,
     });
   } catch (err) {
