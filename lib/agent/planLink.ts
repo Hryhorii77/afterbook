@@ -1,4 +1,4 @@
-// A plan an agent made (x402 or MCP), saved so a person can open it as afterbook.app/plan/<id> and sign its
+// A plan an agent made (x402 or MCP) or a person asked the Telegram bot for (/plan, 2026-11-22), saved so a person can open it as afterbook.app/plan/<id> and sign its
 // buys here: through the checked swap (one per stock) or, for a basket, the basket buy (one signature with
 // Base Account), with the Builder Code on every call. Pure maths, safe for the browser; the store and the
 // recheck are server-only (lib/agent/savedPlan.ts, lib/agent/runPlan.ts).
@@ -17,7 +17,7 @@ export const PLAN_LINK_TTL_S = 7 * 24 * 3600;
 /** 16 characters of base64url (96 random bits). */
 export const PLAN_ID_RE = /^[A-Za-z0-9_-]{16}$/;
 
-export type PlanLinkVia = 'x402' | 'mcp';
+export type PlanLinkVia = 'x402' | 'mcp' | 'telegram';
 
 interface SavedBase {
   v: 1;
@@ -43,7 +43,7 @@ const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 
 /** A record read back from Redis: the fields the page relies on are there and of the right type. */
 export function isSavedPlan(v: unknown): v is SavedPlan {
   if (!isObj(v) || v.v !== 1 || typeof v.id !== 'string' || !PLAN_ID_RE.test(v.id) || typeof v.at !== 'number') return false;
-  if (v.via !== 'x402' && v.via !== 'mcp') return false;
+  if (v.via !== 'x402' && v.via !== 'mcp' && v.via !== 'telegram') return false;
   if (typeof v.explanation !== 'string' || (v.explainedBy !== 'claude' && v.explainedBy !== 'fixed')) return false;
   if (v.kind === 'plan') return isObj(v.input) && isObj(v.plan) && Array.isArray(v.plan.legs);
   if (v.kind === 'basket') return isObj(v.brief) && isObj(v.brief.input) && (v.brief.basket === null || Array.isArray(v.brief.basket));

@@ -55,6 +55,8 @@ export async function sendTelegramMessage(chatId: string | number, text: string)
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text }),
+      // A hung send must not hold the webhook past its limit (Telegram would resend the update).
+      signal: AbortSignal.timeout(10_000),
     });
   } catch {
     // best-effort — a dropped message just means the user doesn't get this

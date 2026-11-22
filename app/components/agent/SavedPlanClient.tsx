@@ -1,6 +1,6 @@
 'use client';
 
-// An agent's saved plan (/plan/<id>, lib/agent/planLink.ts). The server ran the plan's checks again for this
+// An agent's saved plan, or one the person asked the Telegram bot for (/plan/<id>, lib/agent/planLink.ts). The server ran the plan's checks again for this
 // view; a buy is offered only where they still pass, at most the amount the agent was shown, through the
 // normal swap panel (one stock) or basket buy (the whole basket, one signature with Base Account), behind
 // the same region gate and eligibility box as /plan. Nothing is sent without the person's signature.
@@ -34,7 +34,7 @@ export function SavedPlanClient(props: Props) {
         </header>
         <p className="plan-intro">
           {props.state === 'missing'
-            ? 'This link has expired (plan links last 7 days) or isn’t complete. Ask the agent for a new one, or make your own plan.'
+            ? 'This link has expired (plan links last 7 days) or isn’t complete. Ask for a new one (from the agent, or /plan in the Telegram bot), or make your own plan.'
             : 'The plan couldn’t be read just now. Reload the page in a moment.'}
         </p>
         <p className="geo-note">
@@ -63,6 +63,9 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
   const selected: RecheckedBuy | undefined =
     selectedSymbol && !bought.includes(selectedSymbol) ? recheck?.buys.find((b) => b.symbol === selectedSymbol) : undefined;
   const selectedStock = selected ? getStock(selected.symbol) : undefined;
+  // Who asked for it: an agent (x402, MCP) or the person themselves through the Telegram bot's /plan (2026-11-22).
+  const byBot = saved.via === 'telegram';
+  const shownTo = byBot ? 'the bot showed you' : 'the agent was shown';
   const basketStocks = (basket?.basket ?? []).map((l) => ({ symbol: l.symbol, decimals: getStock(l.symbol)?.decimals ?? 8 }));
 
   const gate = (buy: React.ReactNode) =>
@@ -88,8 +91,8 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
         <h1>{basket ? 'Your basket' : 'Your plan'}</h1>
       </header>
       <p className="plan-intro">
-        An agent asked Afterbook for this {basket ? 'basket' : 'plan'} and sent you the link. Afterbook’s code chose every stock and amount; the
-        checks ran again when you opened this page, and you can buy only what still passes, once each on this visit, up to the amounts the agent was shown. Nothing is
+        {byBot ? `You asked Afterbook’s Telegram bot for this ${basket ? 'basket' : 'plan'}.` : `An agent asked Afterbook for this ${basket ? 'basket' : 'plan'} and sent you the link.`} Afterbook’s code chose every stock and amount; the
+        checks ran again when you opened this page, and you can buy only what still passes, once each on this visit, up to the amounts {shownTo}. Nothing is
         bought until you review a buy and sign it in your own wallet. This is a tool for your own decisions, not financial advice.
       </p>
 
@@ -124,7 +127,7 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
                     {buy && bought.includes(leg.symbol) && <p className="plan-hint">Bought from this page.</p>}
                     {!buy && leg.verdict === 'buy' && AUTO_PICK_HOLD[leg.symbol] && (
                       <p className="plan-hint">
-                        <span className="trade-top-new">New listing</span> Not offered from an agent’s link while its pool settles; you can still buy it on its{' '}
+                        <span className="trade-top-new">New listing</span> Not offered from a plan link while its pool settles; you can still buy it on its{' '}
                         <Link href={`/${leg.symbol}#execute`} className="emph-link">
                           own page
                         </Link>
@@ -146,7 +149,7 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
                         </button>
                       </div>
                     )}
-                    {buy?.wasUsd != null && <p className="plan-hint">The agent was shown {usd(buy.wasUsd, 0)}; checked now, {usd(buy.usd, 0)} fits your limits.</p>}
+                    {buy?.wasUsd != null && <p className="plan-hint">{byBot ? 'The bot showed you' : 'The agent was shown'} {usd(buy.wasUsd, 0)}; checked now, {usd(buy.usd, 0)} fits your limits.</p>}
                   </PlanLegCard>
                 );
               })}
@@ -231,7 +234,7 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
       <section className="panel">
         <details>
           <summary>
-            What the agent was shown, <span suppressHydrationWarning>{when(saved.at)}</span>
+            {byBot ? 'What the bot showed you' : 'What the agent was shown'}, <span suppressHydrationWarning>{when(saved.at)}</span>
           </summary>
           <p className="plan-explanation">{saved.explanation}</p>
           <p className="plan-hint">

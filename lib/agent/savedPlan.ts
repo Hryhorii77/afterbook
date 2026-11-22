@@ -1,4 +1,4 @@
-// The store behind afterbook.app/plan/<id> (lib/agent/planLink.ts): one Redis key per agent plan, written
+// The store behind afterbook.app/plan/<id> (lib/agent/planLink.ts): one Redis key per agent plan (or Telegram /plan, 2026-11-22), written
 // once by the x402 plan and basket routes and the MCP plan tools, kept 7 days. The page reads it through
 // Next's data cache (a saved plan never changes), so views don't each cost a Redis request.
 import 'server-only';
