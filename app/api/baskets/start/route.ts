@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAddress } from 'viem';
 import { listPortfolios, startPortfolio } from '@/lib/baskets/glider';
 import { guardBasketRequest, readJson, errorResponse, OWNER_RE, ownerAccountId, strategyId } from '@/lib/baskets/guard';
-import { ownerActionRefusal } from '@/lib/baskets/ownerAuth';
-import { depositAccountProblem, deployedAccountProblem } from '@/lib/baskets/depositAccount';
+import { consumeOwnerAction, ownerActionSignatureRefusal } from '@/lib/baskets/ownerAuth';
+import { depositAccountProblem, deployedAccountStatus } from '@/lib/baskets/depositAccount';
 import { getClient } from '@/lib/market/quote';
 
 export const revalidate = 0;
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   const body = await readJson(request);
   const { owner, issuedAt, signature } = body ?? {};
   if (typeof owner !== 'string' || !OWNER_RE.test(owner)) return NextResponse.json({ error: 'owner must be a 0x address' }, { status: 400 });
-  const refused = await ownerActionRefusal('start', owner, issuedAt, signature);
+  const refused = await ownerActionSignatureRefusal('start', owner, issuedAt, signature);
   if (refused) return refused;
   const wallet = getAddress(owner.toLowerCase());
   try {
@@ -30,9 +30,14 @@ export async function POST(request: NextRequest) {
     const portfolio = portfolios[0];
     if (!portfolio) return NextResponse.json({ error: 'no portfolio for this address' }, { status: 404 });
     const deposit = portfolio.smartAccounts.find((a) => typeof a.accountId === 'string' && a.accountId.startsWith(BASE_PREFIX));
-    const problem =
-      depositAccountProblem(wallet, deposit) ?? (await deployedAccountProblem(getClient(), wallet, getAddress(deposit!.accountId.slice(BASE_PREFIX.length))));
-    if (problem) return NextResponse.json({ error: `Refused: ${problem} Automation stays off.` }, { status: 409 });
+    const maths = depositAccountProblem(wallet, deposit);
+    if (maths) return NextResponse.json({ error: `Refused: ${maths} Automation stays off.` }, { status: 409 });
+    const onChain = await deployedAccountStatus(getClient(), wallet, getAddress(deposit!.accountId.slice(BASE_PREFIX.length)));
+    if (onChain.state === 'mismatch') return NextResponse.json({ error: `Refused: ${onChain.problem} Automation stays off.` }, { status: 409 });
+    // A failed read is not a verdict: try again, with the same signature while it is fresh (it isn't used yet).
+    if (onChain.state === 'unread') return NextResponse.json({ error: 'Couldn\u2019t read your Basis Tilt account on Base just now. Try again in a moment.' }, { status: 503 });
+    const used = await consumeOwnerAction('start', wallet, issuedAt as number);
+    if (used) return used;
     return NextResponse.json(await startPortfolio(portfolio.portfolioId));
   } catch (err) {
     return errorResponse(err);

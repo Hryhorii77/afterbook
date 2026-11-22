@@ -18,7 +18,7 @@ const WHAT: Record<OwnerAction, string[]> = {
   start: ['Action: start Basis Tilt automation', 'This only restarts scheduled rebalancing of your own Basis Tilt portfolio. It moves no funds.'],
   'withdraw-sell': [
     'Action: prepare a withdrawal that sells to USDC',
-    'This only asks Glider for the withdrawal for you to review; nothing is sold or sent until you sign that too.',
+    'This asks Glider to prepare a withdrawal of your own Basis Tilt portfolio that sells it to USDC, paid to your own wallet; you review and sign that withdrawal next.',
   ],
 };
 

@@ -22,7 +22,7 @@ vi.mock('../lib/market/quote', () => ({ getClient: () => ({ verifyMessage }) }))
 // The address maths run for real (the account is derived from the test wallet below); the chain reads are faked.
 vi.mock('../lib/baskets/depositAccount', async (orig) => ({
   ...(await orig<typeof import('../lib/baskets/depositAccount')>()),
-  deployedAccountProblem: async () => fx.chainProblem,
+  deployedAccountStatus: async () => (fx.chainProblem === 'unread' ? { state: 'unread', problem: 'x' } : fx.chainProblem ? { state: 'mismatch', problem: fx.chainProblem } : { state: 'ok' }),
 }));
 const used = new Set<string>();
 vi.mock('../lib/server/redis', () => ({ redis: { set: async (k: string) => (used.has(k) ? null : (used.add(k), 'OK')) } }));
@@ -70,6 +70,16 @@ describe('POST /api/baskets/start', () => {
     signature = await owner.signMessage({ message: startMessage(owner.address, issuedAt) });
     expect((await post({ owner: owner.address, issuedAt, signature })).status).toBe(409);
     expect(fx.started).toEqual([]);
+  });
+
+  it('a chain read that failed asks to try again, and the same signature still works then', async () => {
+    fx.chainProblem = 'unread';
+    const issuedAt = Date.now();
+    const signature = await owner.signMessage({ message: startMessage(owner.address, issuedAt) });
+    expect((await post({ owner: owner.address, issuedAt, signature })).status).toBe(503);
+    fx.chainProblem = null;
+    expect((await post({ owner: owner.address, issuedAt, signature })).status).toBe(200);
+    expect(fx.started).toEqual(['pf-1']);
   });
 
   it('takes the owner in any letter case, a wrong checksum included (never a 500)', async () => {

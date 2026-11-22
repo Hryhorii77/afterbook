@@ -53,8 +53,10 @@ export async function GET(request: NextRequest) {
 const ALERTS_LOCK = 'alerts:lock';
 /** Chats checked at once (each may wait on a loan read or a Telegram send; Telegram allows ~30 messages a second). */
 const CHAT_CONCURRENCY = 8;
-/** Stop starting new chats after this long. A chat started just before it takes at most a 10 s loan read, a 10 s
- *  Telegram send and two Redis requests, so the run ends inside the function's 60 s. */
+/** Stop starting new chats after this long (counted from the start of the chat checks, after the tape and samples).
+ *  A chat started just before it takes at most a 10 s loan read, a 10 s Telegram send and a few Redis requests, so
+ *  the checks end inside the function's 60 s unless the tape build before them was unusually slow; the 120 s lock
+ *  covers that case. */
 const CHAT_BUDGET_MS = 30_000;
 const READ_TIMEOUT_MS = 10_000;
 const RELEASE_LOCK = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
