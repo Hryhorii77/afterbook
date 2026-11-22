@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTape, recordTapeSamples } from '@/lib/market/tape';
 import { recordDepthSample } from '@/lib/market/depthSamples';
 import { splitByLiquidity } from '@/lib/market/liquidity';
-import { getAllChatIds, getRules, getRulesMany, rotate, setRules, nextBasisState, stateAfterSend, type AlertRule } from '@/lib/alerts/alerts';
+import { getAllChatIds, getRulesOrNull, getRulesMany, rotate, setRules, nextBasisState, stateAfterSend, type AlertRule } from '@/lib/alerts/alerts';
 import { sendTelegramMessageStatus } from '@/lib/alerts/telegram';
 import { randomUUID } from 'node:crypto';
 import { redis } from '@/lib/server/redis';
@@ -53,8 +53,10 @@ export async function GET(request: NextRequest) {
 const ALERTS_LOCK = 'alerts:lock';
 /** Chats checked at once (each may wait on a loan read or a Telegram send; Telegram allows ~30 messages a second). */
 const CHAT_CONCURRENCY = 8;
-/** Stop starting new chats after this long, well inside the function's 60 s. */
-const CHAT_BUDGET_MS = 40_000;
+/** Stop starting new chats after this long. A chat started just before it takes at most a 10 s loan read, a 10 s
+ *  Telegram send and two Redis requests, so the run ends inside the function's 60 s. */
+const CHAT_BUDGET_MS = 30_000;
+const READ_TIMEOUT_MS = 10_000;
 const RELEASE_LOCK = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
 
 async function evaluateRules(tape: NonNullable<Awaited<ReturnType<typeof getTape>>>, marketClosed: boolean, closeDigest: string) {
@@ -64,13 +66,14 @@ async function evaluateRules(tape: NonNullable<Awaited<ReturnType<typeof getTape
   // rule keeps its state (nextLoanState), so a flaky RPC can't fire or re-arm an alert.
   const walletReads = new Map<string, Promise<WalletLoan[] | null>>();
   const loansOf = (wallet: string) => {
-    if (!walletReads.has(wallet)) walletReads.set(wallet, getWalletLoans(wallet as `0x${string}`).catch(() => null));
+    // At most 10 s: a slow read counts as a failed one (state kept), so one wallet can't hold the run past its limit.
+    if (!walletReads.has(wallet)) walletReads.set(wallet, Promise.race([getWalletLoans(wallet as `0x${string}`), new Promise<null>((r) => setTimeout(() => r(null), READ_TIMEOUT_MS))]).catch(() => null));
     return walletReads.get(wallet)!;
   };
 
   // All rules in a few MGETs, then the chats several at a time (a loan read or a Telegram send no longer holds
   // up every chat after it), within a time budget under the function's 60 s. A run that stops early says so in
-  // the log and its reply, and the rotation puts the chats it missed first next time (review, 2026-11-22).
+  // the log and its reply; each run starts at a random chat, so the same chats aren't always the ones left.
   const started = Date.now();
   const rulesByChat = await getRulesMany(chatIds);
   // A random starting point each run: if the budget ever cuts a run short, no chat is left at the end every time.
@@ -149,7 +152,8 @@ async function evaluateRules(tape: NonNullable<Awaited<ReturnType<typeof getTape
     // The batched read is up to the whole run old: re-read the chat and carry only the state this run changed
     // onto its current rules, matched by id, so a /stop or a rule changed meanwhile in the bot isn't undone
     // (review, 2026-11-22). A chat that is now empty stays empty.
-    const fresh = await getRules(chatId);
+    // If that re-read fails, this run's state is saved as it was read, so an alert already sent isn't sent again.
+    const fresh = (await getRulesOrNull(chatId)) ?? updated;
     if (fresh.length === 0) return;
     const byId = new Map(updated.map((r) => [r.id, r]));
     await setRules(

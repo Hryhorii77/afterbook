@@ -16,6 +16,7 @@ const fx = vi.hoisted(() => ({
   lockHeld: false,
   unreadable: [] as string[],
   duringSend: null as null | ((chat: string) => void),
+  rereadFails: false,
 }));
 vi.mock('../lib/market/tape', () => ({
   getTape: async () => ({ rows: [], fetchedAt: 0, session: { state: 'open', label: 'Open', nyTime: '10:00', dateKey: '2026-11-21', nextOpenIso: '' } }),
@@ -25,7 +26,7 @@ vi.mock('../lib/market/depthSamples', () => ({ recordDepthSample: async () => {}
 vi.mock('../lib/alerts/alerts', async (orig) => ({
   ...(await orig<typeof import('../lib/alerts/alerts')>()),
   getAllChatIds: async () => [...fx.rules.keys()],
-  getRules: async (id: string) => fx.rules.get(id) ?? [],
+  getRulesOrNull: async (id: string) => (fx.rereadFails ? null : fx.rules.get(id) ?? []),
   getRulesMany: async (ids: string[]) => new Map(ids.filter((id) => !fx.unreadable.includes(id)).map((id) => [id, fx.rules.get(id) ?? []])),
   setRules: async (id: string, r: unknown[]) => void fx.rules.set(id, r),
 }));
@@ -71,6 +72,7 @@ beforeEach(() => {
   fx.lockHeld = false;
   fx.unreadable = [];
   fx.duringSend = null;
+  fx.rereadFails = false;
 });
 
 describe('alerts cron', () => {
@@ -113,6 +115,14 @@ describe('alerts cron', () => {
     fx.duringSend = (c) => fx.rules.set(c, [...(fx.rules.get(c) as AlertRule[]), { id: 'new', type: 'close', active: false }]);
     await run();
     expect((fx.rules.get('chat1') as AlertRule[]).map((r) => [r.id, r.active])).toEqual([['r1', true], ['new', false]]);
+  });
+
+  it('saves the run’s state even if the re-read before the write fails, so an alert isn’t sent twice', async () => {
+    fx.rereadFails = true;
+    await run();
+    expect(stored().active).toBe(true);
+    await run();
+    expect(fx.sent).toHaveLength(1);
   });
 
   it('rotates the order by tick, so a budget-cut run doesn’t always miss the same chats', () => {

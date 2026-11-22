@@ -44,6 +44,16 @@ export function nextBasisState(active: boolean, absBp: number | null, thresholdB
 const CHATS_KEY = 'alerts:chats';
 const chatKey = (chatId: string) => `alerts:chat:${chatId}`;
 
+/** Like getRules, but null when the read failed (instead of an empty list), for the cron's re-read before a write. */
+export async function getRulesOrNull(chatId: string): Promise<AlertRule[] | null> {
+  if (!redis) return null;
+  try {
+    return (await redis.get<AlertRule[]>(chatKey(chatId))) ?? [];
+  } catch {
+    return null;
+  }
+}
+
 export async function getRules(chatId: string): Promise<AlertRule[]> {
   if (!redis) return [];
   try {
