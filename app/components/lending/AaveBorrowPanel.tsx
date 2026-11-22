@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAccount, usePublicClient, useReadContracts, useWriteContract } from 'wagmi';
 import { userOpOutcome } from '@/lib/wallet/userOps';
 import { base } from 'wagmi/chains';
@@ -12,6 +12,7 @@ import {
   AAVE_PRICE_DECIMALS,
   borrowCalls,
   fallToLiquidation,
+  healthAtPrices,
   healthFactor,
   MAX_BORROW_USD,
   MAX_UINT256,
@@ -53,6 +54,50 @@ type Tab = 'borrow' | 'repay' | 'withdraw';
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
 const hfText = (hf: number) => (Number.isFinite(hf) ? hf.toFixed(2) : 'no loan');
 
+/** Base's price per token (the pool's per-share mid times the multiplier) while the cash market is fully shut
+ *  (overnight, weekend, holiday), from the tape; null while it trades (pre-market included) or when the tape is
+ *  unreadable, carried over or old.
+ *  Display only (2026-11-22): the "if Monday opens at Base's price" line, never an amount or a limit. */
+function useClosedMarketPrices(enabled: boolean) {
+  const [state, setState] = useState<{ prices: Map<string, number>; nextOpenDay: string } | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let live = true;
+    let shut = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const load = async () => {
+      try {
+        const res = await fetch('/api/tape');
+        if (!res.ok) throw new Error();
+        const tape = (await res.json()) as {
+          rows: { symbol: string; onchainMidUsd: number | null; multiplier: number | null }[];
+          session: { state: string; nextOpenIso: string };
+          fetchedAt: number;
+          error?: string;
+        };
+        if (!live) return;
+        shut = tape.session.state.startsWith('closed');
+        // Only while the cash market is fully shut, and never from a carried-over or old tape (no stale "Base price").
+        if (!shut || !tape.session.nextOpenIso || tape.error || Date.now() - tape.fetchedAt > 90_000) return setState(null);
+        const prices = new Map<string, number>();
+        for (const r of tape.rows) if (r.onchainMidUsd != null && r.multiplier != null) prices.set(r.symbol, r.onchainMidUsd * r.multiplier);
+        const nextOpenDay = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long' }).format(new Date(tape.session.nextOpenIso));
+        setState({ prices, nextOpenDay });
+      } catch {
+        if (live) setState(null);
+      }
+      // A minute while the market is shut; while it trades, only a slow check for the close.
+      if (live) timer = setTimeout(load, shut ? 60_000 : 10 * 60_000);
+    };
+    void load();
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [enabled]);
+  return enabled ? state : null;
+}
+
 export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrowApr }: AaveBorrowProps) {
   const { address } = useAccount();
   const { notify } = useNotify();
@@ -74,6 +119,7 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
   const [repayAll, setRepayAll] = useState(false);
   const [withdrawText, setWithdrawText] = useState('');
   const [done, setDone] = useState<{ hash: string; text: string } | null>(null);
+  const closed = useClosedMarketPrices(!!address);
 
   const ids = [...stocks.map((s) => BigInt(s.reserveId)), BigInt(usdc.reserveId)];
   const acct = address ?? '0x0000000000000000000000000000000000000000';
@@ -180,6 +226,11 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
   const nextHf = healthFactor(next);
   const nextFall = fallToLiquidation(next);
   const nowFall = fallToLiquidation(position);
+  // Aave's own health scaled by the collateral's value at Base's price over its value at the oracle (as the
+  // alerts' healthAtAero does), so the line starts from the chain's figure, not the panel's model of it.
+  const modelAtBase = owes && closed ? healthAtPrices(position, (r) => closed.prices.get(r.symbol) ?? null) : null;
+  const modelNow = healthFactor(position);
+  const atBase = modelAtBase != null && Number.isFinite(chainHf) && Number.isFinite(modelNow) && modelNow > 0 ? chainHf * (modelAtBase / modelNow) : null;
 
   // ---- wallet steps
   const waitOk = async (hash: `0x${string}`, reverted: string) => {
@@ -316,6 +367,14 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
             {hfText(chainHf)}
             {nowFall != null && ` · liquidated if your collateral falls ${pct(nowFall)} together`}
           </dd>
+          {atBase != null && closed && (
+            <>
+              <dt>If {closed.nextOpenDay} opens at Base&apos;s price</dt>
+              <dd className={atBase < 1.2 ? 'basis-neg' : undefined}>
+                health {hfText(atBase)} · Aave&apos;s stock prices follow the cash market, which is shut until then, while Base keeps trading
+              </dd>
+            </>
+          )}
         </dl>
       </div>
 

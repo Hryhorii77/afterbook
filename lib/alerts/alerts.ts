@@ -19,6 +19,8 @@ export interface AlertRule {
   /** 'loan' rules: reads of the wallet that failed in a row (a lender's oracle or the RPC), for the
    *  heads-up at LOAN_READ_FAIL_NOTICE; 0 or missing after a good read. */
   failedReads?: number;
+  /** 'loan' rules: the close (NY date) whose weekend or holiday heads-up was sent (longBreakClose), so it goes once. */
+  breakSent?: string;
 }
 
 export const MAX_RULES_PER_CHAT = 10;

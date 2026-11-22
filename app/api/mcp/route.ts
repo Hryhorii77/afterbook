@@ -16,6 +16,9 @@ import { limitRead } from '@/lib/server/readGuard';
 import { mcpPlanLimiter, planLinkDailyLimiter } from '@/lib/server/ratelimit';
 import { callerIp } from '@/lib/agent/explainGate';
 import { NextResponse } from 'next/server';
+import { getAddress } from 'viem';
+import { loanHealthReport } from '@/lib/lending/loanReport';
+import { DEFAULT_ALERT_HEALTH, MAX_ALERT_HEALTH, MIN_ALERT_HEALTH } from '@/lib/lending/loanHealth';
 
 const HISTORY_LOOKBACK_MS = 30 * 24 * 60 * 60_000;
 
@@ -148,22 +151,56 @@ const handler = createMcpHandler((server) => {
       }
     },
   );
+  // Free read of a wallet's stock loans (2026-11-22): the same answer as the paid /api/v1/x402/loan-health
+  // (lib/lending/loanReport.ts), including the health if the next open matches Base's price. Read-only; held to
+  // one call per request and the read routes' per-caller limit in POST below.
+  server.registerTool(
+    'check_loan_health',
+    {
+      title: 'Check loan health',
+      description:
+        "A wallet's Aave V4 and Morpho stock-token loans on Base: health at the lending oracle and at Aero's onchain price, which keeps trading while the cash market is shut (healthIfNextOpenAtBase: the loan's health if the next open matches Base's price, e.g. over a weekend), how far the collateral could fall before liquidation, whether it is under the threshold, and for an Aave loan links that open Afterbook's Aave panel with the repay or the added collateral worked out from the connected wallet's own loan, for the person to check and sign. Reads public positions only; signs nothing.",
+      inputSchema: z.object({
+        wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/).describe('The borrower address.'),
+        threshold: z.number().min(MIN_ALERT_HEALTH).max(MAX_ALERT_HEALTH).optional().describe(`Health to flag loans under (default ${DEFAULT_ALERT_HEALTH}).`),
+      }),
+    },
+    async ({ wallet, threshold }) => {
+      try {
+        const report = await loanHealthReport(getAddress(wallet.toLowerCase()), threshold ?? DEFAULT_ALERT_HEALTH);
+        return { content: [{ type: 'text', text: JSON.stringify(report) }] };
+      } catch (e) {
+        console.error('[/api/mcp check_loan_health]', e);
+        return err('loan health unavailable, try again shortly');
+      }
+    },
+  );
 });
 
 /** The plan tools read pools and save a link. One plan call per request (a JSON-RPC batch with more is
  *  refused before anything is counted), held to the plan routes' 10 a minute per caller in this
  *  instance and, across instances, to `mcpPlanLimiter` (Upstash). */
 const PLAN_TOOLS = new Set(['make_plan', 'make_basket']);
+const LOAN_TOOLS = new Set(['check_loan_health']);
 const rpcError = (status: number, message: string, headers?: HeadersInit) =>
   NextResponse.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message } }, { status, headers });
 async function POST(request: Request) {
   const body: unknown = await request.clone().json().catch(() => null);
   const calls = Array.isArray(body) ? body : [body];
-  const planCalls = calls.filter((c) => {
-    const m = c as { method?: unknown; params?: { name?: unknown } } | null;
-    return m?.method === 'tools/call' && typeof m.params?.name === 'string' && PLAN_TOOLS.has(m.params.name);
-  }).length;
+  const named = (set: Set<string>) =>
+    calls.filter((c) => {
+      const m = c as { method?: unknown; params?: { name?: unknown } } | null;
+      return m?.method === 'tools/call' && typeof m.params?.name === 'string' && set.has(m.params.name);
+    }).length;
+  const planCalls = named(PLAN_TOOLS);
+  const loanCalls = named(LOAN_TOOLS);
   if (planCalls > 1) return rpcError(400, 'one make_plan or make_basket call per request');
+  if (loanCalls > 1) return rpcError(400, 'one check_loan_health call per request');
+  if (loanCalls === 1) {
+    // Several chain reads, no Redis: the read routes' in-memory per-caller limit.
+    const limited = limitRead(request, 'mcp-loan-health', 'lots');
+    if (limited) return rpcError(429, 'too many requests, try again shortly', { 'Retry-After': limited.headers.get('Retry-After') ?? '60' });
+  }
   if (planCalls === 1) {
     const limited = limitRead(request, 'agent-plan', 'lots');
     if (limited) return rpcError(429, 'too many requests, try again shortly', { 'Retry-After': limited.headers.get('Retry-After') ?? '60' });
