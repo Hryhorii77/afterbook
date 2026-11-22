@@ -51,6 +51,6 @@ export function planReplyText(plan: Plan, input: Pick<PlanInput, 'maxPremiumBp' 
     ...lines,
     ...tail,
     `Limits used: at most ${pct(input.maxPremiumBp)} over the real stock, ${pct(input.maxCostBp)} to trade, and wait within ${input.earningsDays} days of earnings (the /plan page’s defaults; change them there).`,
-    'Checked by code, not advice.',
+    'Not available in the US or its territories. Checked by code, not advice.',
   ].join('\n');
 }
