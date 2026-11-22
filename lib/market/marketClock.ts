@@ -88,7 +88,6 @@ export interface SessionInfo {
 const PRE_MARKET_START = 4 * 60; // 4:00am
 const OPEN_START = 9 * 60 + 30; // 9:30am
 const OPEN_END = 16 * 60; // 4:00pm
-const AFTER_HOURS_END = 20 * 60; // 8:00pm
 const EARLY_CLOSE_END = 13 * 60; // 1:00pm
 
 export function getSessionInfo(now: Date = new Date()): SessionInfo {
@@ -124,7 +123,8 @@ export function getSessionInfo(now: Date = new Date()): SessionInfo {
       nextOpenIso,
     };
   }
-  if (clock.minutesSinceMidnight < AFTER_HOURS_END) {
+  // After-hours runs four hours past the close: to 8 pm, or 5 pm after a 1 pm early close (owner review, 2026-11-22).
+  if (clock.minutesSinceMidnight < openEnd + AFTER_HOURS_SPAN) {
     return { state: 'after-hours', label: 'After-hours', nyTime, dateKey: clock.dateKey, nextOpenIso };
   }
   return { state: 'closed-overnight', label: 'Overnight — cash market closed', nyTime, dateKey: clock.dateKey, nextOpenIso };

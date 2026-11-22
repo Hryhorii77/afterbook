@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { longBreakClose, nextOpenWeekday } from '../lib/market/marketClock';
+import { getSessionInfo, longBreakClose, nextOpenWeekday } from '../lib/market/marketClock';
 
 // The close that starts a weekend or holiday break, for the loan heads-up (2026-11-22): set only between such a
 // close and the next open, never on a plain weeknight or while the market is open.
@@ -28,5 +28,14 @@ describe('longBreakClose', () => {
     expect(at('2027-01-01T15:00:00Z')).toBe('2026-12-31');
     expect(nextOpenWeekday(new Date('2027-01-01T15:00:00Z'))).toBe('Monday');
     expect(at('2028-01-07T22:00:00Z')).toBeNull();
+  });
+});
+
+describe('session label on an early-close day', () => {
+  it('after-hours ends four hours after the 1 pm close, not at 8 pm', () => {
+    expect(getSessionInfo(new Date('2026-11-27T21:59:00Z')).state).toBe('after-hours'); // 16:59 ET
+    expect(getSessionInfo(new Date('2026-11-27T22:01:00Z')).state).toBe('closed-overnight'); // 17:01 ET
+    expect(getSessionInfo(new Date('2026-11-24T00:59:00Z')).state).toBe('after-hours'); // Monday 19:59 ET, a normal day
+    expect(getSessionInfo(new Date('2026-11-24T01:01:00Z')).state).toBe('closed-overnight'); // 20:01 ET
   });
 });

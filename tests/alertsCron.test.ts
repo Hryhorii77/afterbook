@@ -180,7 +180,7 @@ describe('alerts cron', () => {
     await run();
     expect(fx.sent).toHaveLength(1);
     // Far from the line (1.62 vs an alert at 1.20): calm, no rescue links.
-    expect(fx.sent[0]).toContain("you're fine. Lowest health 1.62");
+    expect(fx.sent[0]).toContain("Market break check for 0x1234…7890: nothing urgent. Lowest health 1.62");
     expect(fx.sent[0]).toContain("shut until Monday's open");
     expect(fx.sent[0]).toContain("if Monday opens at Base's price, health 1.62 (1.80 now)");
     expect(fx.sent[0]).not.toContain('rescue=');

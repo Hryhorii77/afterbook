@@ -121,11 +121,11 @@ export function longBreakText(wallet: string, loans: WalletLoan[], nextOpenDay: 
     return `• ${venueLabel[l.venue]} ${l.collateral.map((c) => c.symbol).join(' + ')}, ${usd(l.debtUsd)} borrowed: ${ifOpen}. Liquidated below 1.00.`;
   });
   // Urgent only near the person's own line (owner, 2026-11-22): the lower of health now and at Base's price
-  // under 1.25x their alert threshold. Otherwise it leads with "you're fine" and carries no rescue links.
+  // under 1.25x their alert threshold. Otherwise it leads with "nothing urgent" and carries no rescue links.
   const lowest = Math.min(...loans.map(worstHealth));
   if (lowest >= threshold * HEADS_UP_URGENT_FACTOR) {
     return [
-      `Weekend check for ${short(wallet)}: you're fine. Lowest health ${hf(lowest)}, well above your alert at ${hf(threshold)}. The cash market is shut until ${nextOpenDay}'s open; lenders' stock prices may barely move until then while Base keeps trading.`,
+      `Market break check for ${short(wallet)}: nothing urgent. Lowest health ${hf(lowest)}, well above your alert at ${hf(threshold)}. The cash market is shut until ${nextOpenDay}'s open; lenders' stock prices may barely move until then while Base keeps trading.`,
       ...lines,
       'Not advice. Afterbook never touches your funds.',
     ].join('\n');
