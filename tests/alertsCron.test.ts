@@ -179,9 +179,11 @@ describe('alerts cron', () => {
     fx.deliver = true;
     await run();
     expect(fx.sent).toHaveLength(1);
+    // Far from the line (1.62 vs an alert at 1.20): calm, no rescue links.
+    expect(fx.sent[0]).toContain("you're fine. Lowest health 1.62");
     expect(fx.sent[0]).toContain("shut until Monday's open");
     expect(fx.sent[0]).toContain("if Monday opens at Base's price, health 1.62 (1.80 now)");
-    expect(fx.sent[0]).toContain('https://afterbook.app/borrow?rescue=repay');
+    expect(fx.sent[0]).not.toContain('rescue=');
     expect(stored()).toMatchObject({ breakSent: '2026-11-20', active: false });
     // Once per break.
     await run();
@@ -208,7 +210,18 @@ describe('alerts cron', () => {
     await run();
     expect(fx.sent).toHaveLength(2);
     expect(fx.sent[1]).toContain('Heads-up');
+    // Already under the line: says so, not "close to".
+    expect(fx.sent[1]).toContain('lowest health 1.11, below your alert at 1.20');
     // The warning's state is untouched by the heads-up.
     expect(stored()).toMatchObject({ active: true, breakSent: '2026-11-20' });
+  });
+  it('near the line (under 1.25x the alert threshold): an urgent heads-up with the rescue links', async () => {
+    // 1.40 now, 1.26 at Base's price: above the 1.20 alert (no warning) but under 1.50.
+    fx.loans = [{ ...lowLoan, collateral: [{ ...lowLoan.collateral[0], aeroPriceUsd: 90 }], debtUsd: 50, healthFactor: 1.4 }];
+    fx.breakClose = '2026-11-20';
+    await run();
+    expect(fx.sent).toHaveLength(1);
+    expect(fx.sent[0]).toContain('Heads-up for 0x1234…7890: lowest health 1.26, close to your alert at 1.20');
+    expect(fx.sent[0]).toContain('https://afterbook.app/borrow?rescue=repay');
   });
 });

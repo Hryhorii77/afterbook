@@ -114,22 +114,35 @@ export function loanAlertText(wallet: string, loans: WalletLoan[], threshold: nu
  *  close per watched wallet with a loan): the lenders' prices follow the cash market and can sit still until the
  *  next open while Base keeps trading, so each loan's health at Base's price is what it would show if the open
  *  matched it. `links`: the Aave loan's rescue links, as in a warning. */
-export function longBreakText(wallet: string, loans: WalletLoan[], nextOpenDay: string, links?: { repayUrl: string; addUrl: string } | null): string {
+export function longBreakText(wallet: string, loans: WalletLoan[], nextOpenDay: string, threshold: number, links?: { repayUrl: string; addUrl: string } | null): string {
   const lines = loans.map((l) => {
     const aero = healthAtAero(l);
     const ifOpen = aero == null ? `Base's price couldn't be read for every stock, health ${hf(l.healthFactor)} now` : `if ${nextOpenDay} opens at Base's price, health ${hf(aero)} (${hf(l.healthFactor)} now)`;
     return `• ${venueLabel[l.venue]} ${l.collateral.map((c) => c.symbol).join(' + ')}, ${usd(l.debtUsd)} borrowed: ${ifOpen}. Liquidated below 1.00.`;
   });
+  // Urgent only near the person's own line (owner, 2026-11-22): the lower of health now and at Base's price
+  // under 1.25x their alert threshold. Otherwise it leads with "you're fine" and carries no rescue links.
+  const lowest = Math.min(...loans.map(worstHealth));
+  if (lowest >= threshold * HEADS_UP_URGENT_FACTOR) {
+    return [
+      `Weekend check for ${short(wallet)}: you're fine. Lowest health ${hf(lowest)}, well above your alert at ${hf(threshold)}. The cash market is shut until ${nextOpenDay}'s open; lenders' stock prices may barely move until then while Base keeps trading.`,
+      ...lines,
+      'Not advice. Afterbook never touches your funds.',
+    ].join('\n');
+  }
   const act = links
     ? ['To repay or add collateral on the Aave loan before then (the panel works the amount out from the wallet you connect; you check it and sign):', `Repay USDC: ${links.repayUrl}`, `Add collateral: ${links.addUrl}`]
     : [];
   return [
-    `Heads-up for ${short(wallet)}: the cash market is shut until ${nextOpenDay}'s open. Lenders' stock prices may barely move until then while Base keeps trading, and interest keeps running.`,
+    `Heads-up for ${short(wallet)}: lowest health ${hf(lowest)}, ${lowest < threshold ? 'below' : 'close to'} your alert at ${hf(threshold)}. The cash market is shut until ${nextOpenDay}'s open; lenders' stock prices may barely move until then while Base keeps trading, and interest keeps running.`,
     ...lines,
     ...act,
     'Not advice. Afterbook never touches your funds.',
   ].join('\n');
 }
+
+/** A weekend heads-up is urgent (with rescue links) under the alert threshold times this. */
+export const HEADS_UP_URGENT_FACTOR = 1.25;
 
 /** `/watch 0xADDRESS [HEALTH]` arguments: a checksummed address and a threshold, or the reason not. */
 export function parseWatchArgs(args: string[]): { wallet: `0x${string}`; threshold: number } | string {

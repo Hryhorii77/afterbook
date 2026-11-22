@@ -185,9 +185,12 @@ export function getNextOpen(now: Date = new Date()): Date {
   return nyOpenInstant(candidateKey); // fallback, should not be reached
 }
 
+/** After-hours trading after a close (4 pm to 8 pm; 1 pm to 5 pm on an early-close day). */
+const AFTER_HOURS_SPAN = 4 * 60;
+
 /** The close (its NY date) that starts a long break, when `now` is inside that break: the market closed on a
  *  trading day and the next trading day is not the next calendar day (a weekend, a holiday, or both). null
- *  while the market is open or in pre-market, and on a plain weeknight. For the loan heads-up before such a
+ *  while the market is open or in pre-market, during the close day's after-hours, and on a plain weeknight. For the loan heads-up before such a
  *  break (2026-11-22): lending oracles follow the cash market, so a loan's oracle health can't move until the
  *  next open while Base's price keeps trading. */
 export function longBreakClose(now: Date = new Date()): string | null {
@@ -196,9 +199,12 @@ export function longBreakClose(now: Date = new Date()): string | null {
   const clock = nyNow(now);
   if (Number(clock.dateKey.slice(0, 4)) > LAST_LISTED_YEAR) return null;
   const closeEnd = (key: string) => (EARLY_CLOSE_2026.has(key) ? EARLY_CLOSE_END : OPEN_END);
-  // The last trading day whose close has passed: today after its close, else the most recent one before today.
+  // The last trading day whose session, after-hours included, has ended: today once after-hours is over (8 pm,
+  // 5 pm after a 1 pm early close; owner review 2026-11-22), else the most recent one before today. On the close
+  // day itself, before that, the stock still trades after hours: no break yet.
   let key = clock.dateKey;
   const weekdayOf = (k: string) => new Date(`${k}T12:00:00.000Z`).getUTCDay();
+  if (isTradingDay(key, clock.weekday) && clock.minutesSinceMidnight >= closeEnd(key) && clock.minutesSinceMidnight < closeEnd(key) + AFTER_HOURS_SPAN) return null;
   if (!(isTradingDay(key, clock.weekday) && clock.minutesSinceMidnight >= closeEnd(key))) {
     key = addDaysToDateKey(key, -1);
     for (let i = 0; i < 10 && !isTradingDay(key, weekdayOf(key)); i++) key = addDaysToDateKey(key, -1);

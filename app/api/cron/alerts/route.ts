@@ -146,7 +146,7 @@ async function evaluateRules(tape: NonNullable<Awaited<ReturnType<typeof getTape
         // warning or read notice due on the same tick goes first, and the heads-up follows on the next one.
         if (!message && breakClose && breakSent !== breakClose && loans && loans.length > 0) {
           const aave = loans.find((l) => l.venue === 'aave');
-          message = longBreakText(rule.wallet, loans, breakOpenDay, aave ? rescueLinks(aave, rule.thresholdHf, siteUrl) : null);
+          message = longBreakText(rule.wallet, loans, breakOpenDay, rule.thresholdHf, aave ? rescueLinks(aave, rule.thresholdHf, siteUrl) : null);
           isHeadsUp = true;
         }
       }

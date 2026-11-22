@@ -176,7 +176,7 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
                     maxUsd={selected.usd}
                     maxLabel="This plan’s buy"
                     buyOnly
-                    source="agent"
+                    source={byBot ? 'telegram' : 'agent'}
                     onBuySent={() => setBuying(true)}
                     onBought={() => {
                       setBuying(false);
@@ -209,7 +209,7 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
                         defaultUsd={recheck.basket.usd}
                         maxUsd={recheck.basket.usd}
                         maxLabel="This basket"
-                        source="agent"
+                        source={byBot ? 'telegram' : 'agent'}
                         onBusy={setBuying}
                         onRunDone={() => setBasketBought(true)}
                       />,

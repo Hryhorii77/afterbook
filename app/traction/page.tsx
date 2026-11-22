@@ -18,7 +18,8 @@ export const metadata = shareMetadata({
 });
 
 const SOURCES: { key: SwapSource; label: string; note: string }[] = [
-  { key: 'agent', label: 'From a plan link', note: 'A plan an agent made (free over MCP, or paid over x402) or a person asked the Telegram bot for; a person opened its link and signed' },
+  { key: 'agent', label: 'From an agent’s plan link', note: 'An agent made a plan (free over MCP, or paid over x402); a person opened its link and signed' },
+  { key: 'telegram', label: 'From the Telegram bot', note: 'A person asked the bot for a plan with /plan, opened its link and signed' },
   { key: 'plan', label: 'Trade plan', note: '/plan, checked by the code, signed by the person' },
   { key: 'rule', label: 'Stock rules', note: 'A recurring buy, signed on each run' },
   { key: 'basket', label: 'Baskets', note: 'Several stocks in one go (/build and Describe a basket)' },
@@ -118,7 +119,8 @@ export default async function TractionPage() {
               )}
             </p>
             <p className="geo-note">
-              Swaps signed from a plan link (agents&apos; and the Telegram bot&apos;s together; they aren&apos;t told apart yet): <strong>{num(t.all.bySource.agent.swaps)}</strong> ({usd(t.all.bySource.agent.volumeUsd, 0)}).
+              Swaps signed from an agent&apos;s plan link: <strong>{num(t.all.bySource.agent.swaps)}</strong> ({usd(t.all.bySource.agent.volumeUsd, 0)}). From a
+              Telegram /plan link, counted apart: <strong>{num(t.all.bySource.telegram.swaps)}</strong> ({usd(t.all.bySource.telegram.volumeUsd, 0)}).
             </p>
           </section>
 

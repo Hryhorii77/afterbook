@@ -14,5 +14,5 @@ export async function GET(request: NextRequest) {
   const days = Math.min(Math.max(Number(request.nextUrl.searchParams.get('days') ?? 30) || 30, 1), 365);
   const [plans, swaps] = await Promise.all([planStats(days), swapStats(days, { includeTests: request.nextUrl.searchParams.get('tests') === '1' })]);
   if (!plans || !swaps) return NextResponse.json({ error: 'store unavailable' }, { status: 503 });
-  return NextResponse.json({ days, plans: plans.total, plansByDay: plans.byDay, planSwaps: swaps.bySource.plan, ruleSwaps: swaps.bySource.rule, agentLinkSwaps: swaps.bySource.agent, testsLeftOut: swaps.testsLeftOut, recentAgentLinkSwaps: swaps.recentAgentLinkSwaps, allSwaps: { swaps: swaps.swaps, traders: swaps.traders, volumeUsd: swaps.volumeUsd } }, { headers: { 'Cache-Control': 'private, no-store' } }); // maintainer data: never in a shared cache
+  return NextResponse.json({ days, plans: plans.total, plansByDay: plans.byDay, planSwaps: swaps.bySource.plan, ruleSwaps: swaps.bySource.rule, agentLinkSwaps: swaps.bySource.agent, telegramLinkSwaps: swaps.bySource.telegram, testsLeftOut: swaps.testsLeftOut, recentAgentLinkSwaps: swaps.recentAgentLinkSwaps, allSwaps: { swaps: swaps.swaps, traders: swaps.traders, volumeUsd: swaps.volumeUsd } }, { headers: { 'Cache-Control': 'private, no-store' } }); // maintainer data: never in a shared cache
 }

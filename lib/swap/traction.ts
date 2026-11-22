@@ -40,4 +40,5 @@ export async function computeTraction(now = Date.now()): Promise<Traction | null
   };
 }
 
-export const getTraction = unstable_cache(() => computeTraction(), ['traction-v1'], { revalidate: 3600 });
+// v2 (2026-11-22): bySource gained 'telegram'; a new key so a cached v1 result (without it) is never read.
+export const getTraction = unstable_cache(() => computeTraction(), ['traction-v2'], { revalidate: 3600 });
