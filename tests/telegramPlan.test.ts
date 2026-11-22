@@ -98,4 +98,10 @@ describe('/plan in the bot', () => {
     expect(text).toContain('Nothing a link can offer now');
     expect(text).toContain('at most 0.50% over the real stock, 0.30% to trade, and wait within 2 days');
   });
+  it('every reply says trading isn’t available in the US or its territories', async () => {
+    await send('/plan NVDA 100');
+    fx.plan = plan([leg('NVDAc', 'skip', { decidedBy: 'The pool is stale.' })]);
+    await send('/plan NVDA 100');
+    for (const r of fx.replies) expect(r).toContain('Not available in the US or its territories.');
+  });
 });

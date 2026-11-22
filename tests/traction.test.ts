@@ -28,20 +28,24 @@ describe('traction numbers', () => {
     rec('0x1111111111111111111111111111111111111111', 20, 'agent', 3, `0x${'3'.repeat(64)}:1`),
     rec('0x1111111111111111111111111111111111111111', 30, 'plan', 4),
     rec('0x2222222222222222222222222222222222222222', 40, 'stock', 5),
+    rec('0x3333333333333333333333333333333333333333', 15, 'telegram', 6),
   ];
   const ids = testWalletIds(OTHER_TEST);
 
   it('leave test wallets out and report what was left out', () => {
     const s = summarizeSwaps(records, 30, ids);
-    expect([s.swaps, s.volumeUsd, s.traders]).toEqual([3, 90, 2]);
+    expect([s.swaps, s.volumeUsd, s.traders]).toEqual([4, 105, 3]);
     expect(s.testsLeftOut).toEqual({ swaps: 2, volumeUsd: 150 });
     expect(s.bySource.agent).toEqual({ swaps: 1, volumeUsd: 20, traders: 1 });
+    // A Telegram /plan link's swap is its own source, never an agent's (owner, 2026-11-22).
+    expect(s.bySource.telegram).toEqual({ swaps: 1, volumeUsd: 15, traders: 1 });
+    expect(s.recentAgentLinkSwaps.map((r) => r.usd)).toEqual([20]);
     expect(s.bySource.stock.swaps).toBe(1);
   });
 
   it('include them only when asked', () => {
     const s = summarizeSwaps(records, 30, ids, true);
-    expect([s.swaps, s.testsLeftOut]).toEqual([5, null]);
+    expect([s.swaps, s.testsLeftOut]).toEqual([6, null]);
   });
 
   it('list agent-link swaps newest first, by transaction hash, with no wallet', () => {

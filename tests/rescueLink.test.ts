@@ -34,6 +34,23 @@ const loan = (venue: 'aave' | 'morpho', healthFactor: number, aeroVsOracle: numb
 });
 
 describe('rescue links', () => {
+  it('never carry a wallet or an amount: only rescue, fall and target, each one of the planner’s own choices', () => {
+    for (const hf of [0.95, 1.1, 1.4, 2.5]) {
+      for (const gap of [null, 0.5, 0.88, 1, 1.2]) {
+        for (const threshold of [1.01, 1.2, 1.5, 3]) {
+          const links = rescueLinks(loan('aave', hf, gap), threshold, 'https://afterbook.app')!;
+          for (const href of [links.repayUrl, links.addUrl]) {
+            const url = new URL(href);
+            expect(url.origin + url.pathname + url.hash).toBe('https://afterbook.app/borrow#borrow-here');
+            expect([...url.searchParams.keys()].sort()).toEqual(['fall', 'rescue', 'target']);
+            expect(parseRescuePreset(url.searchParams)).not.toBeNull();
+            expect(href).not.toMatch(/0x/i);
+          }
+        }
+      }
+    }
+  });
+
   it('sets the fall to where Aero’s price would take the oracle, and the target above the alert line', () => {
     // Aero 12% under the oracle: the planner's next fall at or above 12% is 20%.
     expect(rescueScenario(loan('aave', 1.4, 0.88), 1.2)).toEqual({ fall: 0.2, target: 1.3 });

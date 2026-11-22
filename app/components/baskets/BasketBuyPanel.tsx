@@ -91,8 +91,8 @@ export function BasketBuyPanel({
   onRunNothing?: () => void;
   /** A rule run is one buy: no "Review the rest" after it stops. */
   noRest?: boolean;
-  /** For the swap metrics only (lib/swap/swapLog.ts): 'agent' on an agent's saved plan link. */
-  source?: 'basket' | 'agent';
+  /** For the swap metrics only (lib/swap/swapLog.ts): 'agent' on an agent's saved plan link, 'telegram' on one from the bot's /plan. */
+  source?: 'basket' | 'agent' | 'telegram';
 }) {
   const { notify } = useNotify();
   const wallet = useSwapWallet();

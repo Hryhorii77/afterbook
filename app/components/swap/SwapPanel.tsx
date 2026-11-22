@@ -35,7 +35,7 @@ export function SwapPanel({
 }: {
   stock: CbStock;
   defaultUsd?: number;
-  source?: 'stock' | 'plan' | 'rule' | 'agent';
+  source?: 'stock' | 'plan' | 'rule' | 'agent' | 'telegram';
   buyOnly?: boolean;
   maxUsd?: number;
   /** Names what `maxUsd` caps in the over-cap note: a rule's run, or an agent's plan link. */
