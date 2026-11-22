@@ -87,6 +87,16 @@ export function healthFactor(pos: AavePosition): number {
   return debt > 0 ? borrowPowerUsd(pos) / debt : Infinity;
 }
 
+/** Health with the collateral priced at `priceOf` instead of the oracle (the debt as it is): with Base's prices,
+ *  what the loan would show if the next open matched them (the borrow panel, 2026-11-22). null when a counted,
+ *  posted stock has no price. Display only: never a limit or an amount. */
+export function healthAtPrices(pos: AavePosition, priceOf: (reserve: AaveReserve) => number | null): number | null {
+  const counted = pos.collateral.filter((c) => c.enabled && c.suppliedRaw > BigInt(0));
+  const prices = counted.map((c) => priceOf(c.reserve));
+  if (prices.some((p) => p == null || !(p > 0))) return null;
+  return healthFactor({ ...pos, collateral: counted.map((c, i) => ({ ...c, priceUsd: prices[i]! })) });
+}
+
 /** How far every collateral price can fall together before liquidation (0..1), or null with no debt. */
 export function fallToLiquidation(pos: AavePosition): number | null {
   const hf = healthFactor(pos);

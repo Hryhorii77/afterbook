@@ -3,22 +3,19 @@
 // Telegram loan alerts (lib/lending/loanPositions.ts, loanHealth.ts): health at the lending oracle and at
 // Aero's price (which keeps trading while the cash market is shut), how far the collateral could fall
 // before liquidation, whether the loan is under `threshold`, and for an Aave loan the links that open
-// Afterbook's Aave panel with the rescue planner set (lib/lending/rescueLink.ts), where a person signs.
+// Afterbook's Aave panel with the rescue planner set (lib/lending/rescueLink.ts), where a person signs. The answer
+// is lib/lending/loanReport.ts, shared with the free MCP tool check_loan_health (2026-11-22).
 // Read-only: chain reads of public positions, nothing a wallet could sign. A 400 or 502 isn't charged.
 import { NextRequest, NextResponse } from 'next/server';
 import { withX402 } from '@x402/next';
 import { getAddress, isAddress } from 'viem';
 import { limitRead } from '@/lib/server/readGuard';
-import { getWalletLoans } from '@/lib/lending/loanPositions';
-import { DEFAULT_ALERT_HEALTH, MAX_ALERT_HEALTH, MIN_ALERT_HEALTH, describeLoan, dropToLiquidation, healthAtAero, worstHealth } from '@/lib/lending/loanHealth';
-import { rescueLinks } from '@/lib/lending/rescueLink';
-import { siteUrl } from '@/lib/share/siteUrl';
+import { DEFAULT_ALERT_HEALTH, MAX_ALERT_HEALTH, MIN_ALERT_HEALTH } from '@/lib/lending/loanHealth';
+import { loanHealthReport } from '@/lib/lending/loanReport';
 import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE } from '@/lib/server/x402';
 
 export const revalidate = 0;
 export const maxDuration = 30;
-
-const round = (n: number | null) => (n == null || !Number.isFinite(n) ? null : Math.round(n * 1000) / 1000);
 
 async function handler(request: NextRequest) {
   // Several chain reads per call; the handler runs before the payment settles (as the plan routes).
@@ -37,29 +34,7 @@ async function handler(request: NextRequest) {
   }
   const wallet = getAddress(walletArg);
   try {
-    const loans = await getWalletLoans(wallet);
-    return NextResponse.json({
-      wallet,
-      threshold,
-      loans: loans.map((l) => {
-        const worst = worstHealth(l);
-        return {
-          venue: l.venue,
-          collateral: l.collateral.map((c) => ({ symbol: c.symbol, amount: c.amount, oraclePriceUsd: c.oraclePriceUsd, aeroPriceUsd: c.aeroPriceUsd, collateralFactor: c.collateralFactor })),
-          debtUsd: Math.round(l.debtUsd * 100) / 100,
-          healthFactor: round(l.healthFactor),
-          healthAtAero: round(healthAtAero(l)),
-          worstHealth: round(worst),
-          /** How far all the collateral could fall together, at the oracle, before liquidation (0-1). */
-          dropToLiquidation: round(dropToLiquidation(l.healthFactor)),
-          belowThreshold: worst < threshold,
-          summary: describeLoan(l),
-          // Where a person repays or adds collateral, signed in their own wallet (Aave only).
-          actions: rescueLinks(l, threshold, siteUrl),
-        };
-      }),
-      note: 'Liquidation happens below health 1.00. Health at Aero’s price shows where the oracle may go when the cash market moves. Not advice.',
-    });
+    return NextResponse.json(await loanHealthReport(wallet, threshold));
   } catch (err) {
     console.error('[/api/v1/x402/loan-health]', err);
     return NextResponse.json({ error: 'loan-health unavailable, try again shortly' }, { status: 502 });

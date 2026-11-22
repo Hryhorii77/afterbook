@@ -19,12 +19,26 @@ const HOLIDAYS_2026 = new Set([
   '2026-09-07', // Labor Day
   '2026-11-26', // Thanksgiving
   '2026-12-25', // Christmas
+  // 2027 (NYSE calendar; added 2026-11-22 so the loan heads-up and the panel's line see New Year's Day)
+  '2027-01-01', // New Year's Day
+  '2027-01-18', // MLK Day
+  '2027-02-15', // Washington's Birthday
+  '2027-03-26', // Good Friday
+  '2027-05-31', // Memorial Day
+  '2027-06-18', // Juneteenth (observed, June 19 falls on Saturday)
+  '2027-07-05', // Independence Day (observed, July 4 falls on Sunday)
+  '2027-09-06', // Labor Day
+  '2027-11-25', // Thanksgiving
+  '2027-12-24', // Christmas (observed, December 25 falls on Saturday)
 ]);
+/** The last year the calendar above covers; past it the long-break check stays quiet rather than guess. */
+const LAST_LISTED_YEAR = 2027;
 
 // 1:00pm ET early closes.
 const EARLY_CLOSE_2026 = new Set([
   '2026-11-27', // day after Thanksgiving
   '2026-12-24', // Christmas Eve
+  '2027-11-26', // day after Thanksgiving
 ]);
 
 interface NyClock {
@@ -169,4 +183,31 @@ export function getNextOpen(now: Date = new Date()): Date {
     candidateKey = addDaysToDateKey(candidateKey, 1);
   }
   return nyOpenInstant(candidateKey); // fallback, should not be reached
+}
+
+/** The close (its NY date) that starts a long break, when `now` is inside that break: the market closed on a
+ *  trading day and the next trading day is not the next calendar day (a weekend, a holiday, or both). null
+ *  while the market is open or in pre-market, and on a plain weeknight. For the loan heads-up before such a
+ *  break (2026-11-22): lending oracles follow the cash market, so a loan's oracle health can't move until the
+ *  next open while Base's price keeps trading. */
+export function longBreakClose(now: Date = new Date()): string | null {
+  const session = getSessionInfo(now);
+  if (session.state === 'open' || session.state === 'pre-market') return null;
+  const clock = nyNow(now);
+  if (Number(clock.dateKey.slice(0, 4)) > LAST_LISTED_YEAR) return null;
+  const closeEnd = (key: string) => (EARLY_CLOSE_2026.has(key) ? EARLY_CLOSE_END : OPEN_END);
+  // The last trading day whose close has passed: today after its close, else the most recent one before today.
+  let key = clock.dateKey;
+  const weekdayOf = (k: string) => new Date(`${k}T12:00:00.000Z`).getUTCDay();
+  if (!(isTradingDay(key, clock.weekday) && clock.minutesSinceMidnight >= closeEnd(key))) {
+    key = addDaysToDateKey(key, -1);
+    for (let i = 0; i < 10 && !isTradingDay(key, weekdayOf(key)); i++) key = addDaysToDateKey(key, -1);
+  }
+  const nextOpenKey = nyDateKey(getNextOpen(now));
+  return nextOpenKey !== addDaysToDateKey(key, 1) ? key : null;
+}
+
+/** The weekday of the next open in New York ("Monday"), for "if Monday opens at Base's price". */
+export function nextOpenWeekday(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long' }).format(getNextOpen(now));
 }

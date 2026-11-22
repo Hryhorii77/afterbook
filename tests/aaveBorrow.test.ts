@@ -6,6 +6,7 @@ import {
   borrowCalls,
   borrowPowerUsd,
   fallToLiquidation,
+  healthAtPrices,
   healthFactor,
   LIMIT_MARGIN,
   lendWithdrawArg,
@@ -54,6 +55,15 @@ describe('health', () => {
     // + 4 × 250 × 0.78 = 780 → 2,180 power over 1,000 debt
     expect(borrowPowerUsd(next)).toBeCloseTo(2180);
     expect(healthFactor(next)).toBeCloseTo(2.18);
+  });
+});
+
+describe('health at Base’s price (display only)', () => {
+  it('reprices only the posted, counted collateral; a missing price gives nothing', () => {
+    // NVDAc at $180 on Base instead of the oracle's $200: 10 × 180 × 0.7 / 700 = 1.8.
+    expect(healthAtPrices(pos(), (r) => (r.symbol === 'NVDAc' ? 180 : null))).toBeCloseTo(1.8, 9);
+    expect(healthAtPrices(pos(), () => null)).toBeNull();
+    expect(healthAtPrices(pos(), () => 0)).toBeNull();
   });
 });
 

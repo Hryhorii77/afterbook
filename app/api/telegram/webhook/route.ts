@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { findStock, STOCKS } from '@/lib/stocks/tokens';
+import { longBreakClose } from '@/lib/market/marketClock';
 import { getTape } from '@/lib/market/tape';
 import { getRules, setRules, canAddRule, MAX_RULES_PER_CHAT, MAX_LOAN_RULES_PER_CHAT, REARM_RATIO, type AlertRule } from '@/lib/alerts/alerts';
 import { getWalletLoans } from '@/lib/lending/loanPositions';
@@ -77,7 +78,9 @@ async function handleCommand(chatId: number, text: string): Promise<string> {
     const active = nextLoanState(false, loans.length ? Math.min(...loans.map(worstHealth)) : 'no-loans', parsed.threshold);
     // One wallet per chat (free tier): a new /watch replaces the old one.
     const kept = others.slice(0, MAX_RULES_PER_CHAT - MAX_LOAN_RULES_PER_CHAT);
-    kept.push({ id: newRuleId(), type: 'loan', wallet: parsed.wallet, thresholdHf: parsed.threshold, active });
+    // Watched during a weekend or holiday break: the reply below already shows the loan, so that break's heads-up isn't sent again.
+    const breakClose = longBreakClose();
+    kept.push({ id: newRuleId(), type: 'loan', wallet: parsed.wallet, thresholdHf: parsed.threshold, active, ...(breakClose ? { breakSent: breakClose } : {}) });
     await setRules(String(chatId), kept);
     const rearm = Number((parsed.threshold * LOAN_REARM_FACTOR).toFixed(2));
     return [

@@ -10,7 +10,8 @@ import { bp } from '@/lib/format';
 import { cronAuthorized } from '@/lib/server/sharedSecret';
 import { getWalletLoans } from '@/lib/lending/loanPositions';
 import { AUTO_PICK_HOLD } from '@/lib/agent/limits';
-import { loanAlertText, loanReadFailText, nextLoanState, worstHealth, LOAN_READ_FAIL_NOTICE, type WalletLoan } from '@/lib/lending/loanHealth';
+import { longBreakClose, nextOpenWeekday } from '@/lib/market/marketClock';
+import { loanAlertText, longBreakText, loanReadFailText, nextLoanState, worstHealth, LOAN_READ_FAIL_NOTICE, type WalletLoan } from '@/lib/lending/loanHealth';
 import { rescueLinks } from '@/lib/lending/rescueLink';
 import { siteUrl } from '@/lib/share/siteUrl';
 
@@ -64,6 +65,9 @@ const RELEASE_LOCK = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis
 async function evaluateRules(tape: NonNullable<Awaited<ReturnType<typeof getTape>>>, marketClosed: boolean, closeDigest: string) {
   const chatIds = await getAllChatIds();
   let sent = 0;
+  // Inside a weekend or holiday break: the close that started it, for the loan heads-up (once per close per rule).
+  const breakClose = longBreakClose();
+  const breakOpenDay = breakClose ? nextOpenWeekday() : '';
   // One read per wallet per tick, shared by every chat watching it. null = the read failed: the
   // rule keeps its state (nextLoanState), so a flaky RPC can't fire or re-arm an alert.
   const walletReads = new Map<string, Promise<WalletLoan[] | null>>();
@@ -113,6 +117,8 @@ async function evaluateRules(tape: NonNullable<Awaited<ReturnType<typeof getTape
       let nowActive = rule.active;
       let message: string | null = null;
       let failedReads = rule.failedReads ?? 0;
+      let breakSent = rule.breakSent;
+      let isHeadsUp = false;
 
       if (rule.type === 'close') {
         nowActive = marketClosed;
@@ -136,6 +142,13 @@ async function evaluateRules(tape: NonNullable<Awaited<ReturnType<typeof getTape
           const aave = loans.find((l) => l.venue === 'aave');
           message = loanAlertText(rule.wallet, loans, rule.thresholdHf, aave ? rescueLinks(aave, rule.thresholdHf, siteUrl) : null);
         }
+        // The weekend or holiday heads-up, once per break, only for a wallet that has a loan and was read; a
+        // warning or read notice due on the same tick goes first, and the heads-up follows on the next one.
+        if (!message && breakClose && breakSent !== breakClose && loans && loans.length > 0) {
+          const aave = loans.find((l) => l.venue === 'aave');
+          message = longBreakText(rule.wallet, loans, breakOpenDay, aave ? rescueLinks(aave, rule.thresholdHf, siteUrl) : null);
+          isHeadsUp = true;
+        }
       }
 
       if (message) {
@@ -144,10 +157,15 @@ async function evaluateRules(tape: NonNullable<Awaited<ReturnType<typeof getTape
         const delivered = (await sendTelegramMessageStatus(chatId, message)) !== 'retry';
         if (delivered) sent += 1;
         else if (failedReads === LOAN_READ_FAIL_NOTICE) failedReads -= 1; // the heads-up is tried again next tick
-        nowActive = stateAfterSend(rule.active, nowActive, message, delivered);
+        if (isHeadsUp) {
+          // Not an edge: the rule's warning state moves as worked out above; only the break is marked, once delivered.
+          if (delivered) breakSent = breakClose!;
+        } else {
+          nowActive = stateAfterSend(rule.active, nowActive, message, delivered);
+        }
       }
-      if (nowActive !== rule.active || failedReads !== (rule.failedReads ?? 0)) changed = true;
-      updated.push(rule.type === 'loan' ? { ...rule, active: nowActive, failedReads } : { ...rule, active: nowActive });
+      if (nowActive !== rule.active || failedReads !== (rule.failedReads ?? 0) || breakSent !== rule.breakSent) changed = true;
+      updated.push(rule.type === 'loan' ? { ...rule, active: nowActive, failedReads, ...(breakSent ? { breakSent } : {}) } : { ...rule, active: nowActive });
     }
 
     if (!changed) return;
@@ -163,7 +181,7 @@ async function evaluateRules(tape: NonNullable<Awaited<ReturnType<typeof getTape
       fresh.map((r) => {
         const u = byId.get(r.id);
         if (!u || u.type !== r.type || u.wallet !== r.wallet || u.symbol !== r.symbol) return r;
-        return r.type === 'loan' ? { ...r, active: u.active, failedReads: u.failedReads } : { ...r, active: u.active };
+        return r.type === 'loan' ? { ...r, active: u.active, failedReads: u.failedReads, ...(u.breakSent ? { breakSent: u.breakSent } : {}) } : { ...r, active: u.active };
       }),
     );
   }

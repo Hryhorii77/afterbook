@@ -17,10 +17,16 @@ const fx = vi.hoisted(() => ({
   unreadable: [] as string[],
   duringSend: null as null | ((chat: string) => void),
   rereadFails: false,
+  breakClose: null as string | null,
 }));
 vi.mock('../lib/market/tape', () => ({
   getTape: async () => ({ rows: [], fetchedAt: 0, session: { state: 'open', label: 'Open', nyTime: '10:00', dateKey: '2026-11-21', nextOpenIso: '' } }),
   recordTapeSamples: async () => {},
+}));
+vi.mock('../lib/market/marketClock', async (orig) => ({
+  ...(await orig<typeof import('../lib/market/marketClock')>()),
+  longBreakClose: () => fx.breakClose,
+  nextOpenWeekday: () => 'Monday',
 }));
 vi.mock('../lib/market/depthSamples', () => ({ recordDepthSample: async () => {} }));
 vi.mock('../lib/alerts/alerts', async (orig) => ({
@@ -73,6 +79,7 @@ beforeEach(() => {
   fx.unreadable = [];
   fx.duringSend = null;
   fx.rereadFails = false;
+  fx.breakClose = null;
 });
 
 describe('alerts cron', () => {
@@ -159,5 +166,49 @@ describe('alerts cron', () => {
     await run();
     expect(stored()).toMatchObject({ failedReads: 0, active: true });
     expect(fx.sent[1]).toContain('Loan warning');
+  });
+
+  it('after a close that starts a weekend: one heads-up per watched loan with its health if Monday opens at Base’s price', async () => {
+    const healthy: WalletLoan = { ...lowLoan, collateral: [{ ...lowLoan.collateral[0], aeroPriceUsd: 90 }], debtUsd: 40, healthFactor: 1.8 };
+    fx.loans = [healthy];
+    fx.breakClose = '2026-11-20';
+    // Not delivered: tried again on the next tick.
+    fx.deliver = false;
+    await run();
+    expect(stored().breakSent).toBeUndefined();
+    fx.deliver = true;
+    await run();
+    expect(fx.sent).toHaveLength(1);
+    expect(fx.sent[0]).toContain("shut until Monday's open");
+    expect(fx.sent[0]).toContain("if Monday opens at Base's price, health 1.62 (1.80 now)");
+    expect(fx.sent[0]).toContain('https://afterbook.app/borrow?rescue=repay');
+    expect(stored()).toMatchObject({ breakSent: '2026-11-20', active: false });
+    // Once per break.
+    await run();
+    await run();
+    expect(fx.sent).toHaveLength(1);
+    // The next break gets its own.
+    fx.breakClose = '2026-11-25';
+    await run();
+    expect(fx.sent).toHaveLength(2);
+  });
+
+  it('no heads-up for a wallet with no loan or one that can’t be read, and a warning due on the same tick goes first', async () => {
+    fx.breakClose = '2026-11-20';
+    fx.loans = [];
+    await run();
+    fx.loans = null;
+    await run();
+    expect(fx.sent).toEqual([]);
+    fx.loans = [lowLoan];
+    await run();
+    expect(fx.sent).toHaveLength(1);
+    expect(fx.sent[0]).toContain('Loan warning');
+    expect(stored()).toMatchObject({ active: true });
+    await run();
+    expect(fx.sent).toHaveLength(2);
+    expect(fx.sent[1]).toContain('Heads-up');
+    // The warning's state is untouched by the heads-up.
+    expect(stored()).toMatchObject({ active: true, breakSent: '2026-11-20' });
   });
 });
