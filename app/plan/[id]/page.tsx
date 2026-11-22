@@ -1,5 +1,5 @@
 // An agent's saved plan (afterbook.app/plan/<id>, 2026-11-21; lib/agent/planLink.ts): an agent asked for a plan
-// or a basket over x402 or MCP and got this link to hand to a person. The plan's checks run again on every
+// or a basket over x402 or MCP and got this link to hand to a person (or a person asked the Telegram bot's /plan). The plan's checks run again on every
 // view, and only what still passes is offered, at most the saved amount, through the checked swap or the
 // basket buy, behind the region gate and the eligibility box. Nothing here signs.
 import type { Metadata } from 'next';
@@ -13,7 +13,7 @@ export const maxDuration = 60;
 
 export const metadata: Metadata = {
   title: 'Your plan — Afterbook',
-  description: 'A trade plan an agent made on Afterbook: checked again now, and you sign any buy yourself.',
+  description: 'A trade plan made on Afterbook: checked again now, and you sign any buy yourself.',
   // A private link: never in search results.
   robots: { index: false, follow: false },
 };

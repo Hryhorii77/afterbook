@@ -18,7 +18,7 @@ export const metadata = shareMetadata({
 });
 
 const SOURCES: { key: SwapSource; label: string; note: string }[] = [
-  { key: 'agent', label: 'From an agent’s plan link', note: 'An agent made a plan (free over MCP, or paid over x402); a person opened its link and signed' },
+  { key: 'agent', label: 'From a plan link', note: 'A plan an agent made (free over MCP, or paid over x402) or a person asked the Telegram bot for; a person opened its link and signed' },
   { key: 'plan', label: 'Trade plan', note: '/plan, checked by the code, signed by the person' },
   { key: 'rule', label: 'Stock rules', note: 'A recurring buy, signed on each run' },
   { key: 'basket', label: 'Baskets', note: 'Several stocks in one go (/build and Describe a basket)' },
@@ -106,10 +106,10 @@ export default async function TractionPage() {
           </section>
 
           <section className="panel">
-            <h2>Agents</h2>
+            <h2>Plan links</h2>
             <p className="geo-note" style={{ marginTop: 0 }}>
-              Agents make a checked plan, free over MCP or paid over x402 in USDC on Base, and get a link; a person opens it on Afterbook and signs
-              each buy in their own wallet.
+              Agents make a checked plan, free over MCP or paid over x402 in USDC on Base, and get a link; people can also ask the Telegram bot for
+              one with /plan. A person opens the link on Afterbook and signs each buy in their own wallet.
               {t.paidPlans30 != null && (
                 <>
                   {' '}
@@ -118,7 +118,7 @@ export default async function TractionPage() {
               )}
             </p>
             <p className="geo-note">
-              Swaps signed from an agent&apos;s plan link: <strong>{num(t.all.bySource.agent.swaps)}</strong> ({usd(t.all.bySource.agent.volumeUsd, 0)}).
+              Swaps signed from a plan link (agents&apos; and the Telegram bot&apos;s together; they aren&apos;t told apart yet): <strong>{num(t.all.bySource.agent.swaps)}</strong> ({usd(t.all.bySource.agent.volumeUsd, 0)}).
             </p>
           </section>
 

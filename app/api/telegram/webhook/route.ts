@@ -7,6 +7,18 @@ import { getWalletLoans } from '@/lib/lending/loanPositions';
 import { loanStatusText, nextLoanState, parseWatchArgs, worstHealth, LOAN_REARM_FACTOR } from '@/lib/lending/loanHealth';
 import { sendTelegramMessage } from '@/lib/alerts/telegram';
 import { secretMatches } from '@/lib/server/sharedSecret';
+import { redis } from '@/lib/server/redis';
+import { parsePlanInput } from '@/lib/agent/plan';
+import { runPlan } from '@/lib/agent/runPlan';
+import { saveStockPlan } from '@/lib/agent/savedPlan';
+import { hasLinkableBuy, planLinkPath } from '@/lib/agent/planLink';
+import { siteUrl } from '@/lib/share/siteUrl';
+import { mcpPlanLimiter, planLinkDailyLimiter } from '@/lib/server/ratelimit';
+import { parsePlanCommand, planReplyText } from '@/lib/alerts/telegramPlan';
+
+// A /plan reads pools for each stock before it replies.
+export const maxDuration = 60;
+const PLAN_TIMEOUT_MS = 25_000;
 
 const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 
@@ -16,10 +28,11 @@ const HELP_TEXT = `Afterbook alerts — cash close vs the Aero book, in shares.
 /close — ping once when the cash market closes, with every liquid name's basis
 /watch 0xADDRESS [HEALTH] — warn when that wallet's Aave or Morpho stock loan on Base drops below that health (default 1.2; liquidation is below 1.00). It also checks health at Aero's price, which can move before the lending oracle does while the cash market is shut. One wallet per chat.
 /loans — show the watched wallet's loans and health now
+/plan STOCK [STOCK…] USD — a checked buy plan, e.g. "/plan NVDA 100": a buy, wait or skip per stock with a size within $25k and 10% of the pool, and a link to afterbook.app where you sign each buy in your own wallet after the checks run again
 /list — show your active alerts
 /stop — clear all your alerts
 
-Read-only: a wallet address is public. The bot never asks you to connect a wallet or sign anything.`;
+Read-only: a wallet address is public. The bot never asks you to connect a wallet or sign anything; a /plan link opens afterbook.app, where you connect and sign each buy yourself.`;
 
 function newRuleId(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -102,6 +115,34 @@ async function handleCommand(chatId: number, text: string): Promise<string> {
     }
   }
 
+  if (cmd === '/plan') {
+    const parsed = parsePlanCommand(args, (n) => findStock(n)?.symbol);
+    if (typeof parsed === 'string') return parsed;
+    // Same checks as /plan and the MCP make_plan tool, in fixed words (never Claude), at the default limits.
+    const input = parsePlanInput({ symbols: parsed.symbols, budgetUsd: parsed.budgetUsd }, (sym) => !!findStock(sym));
+    if (typeof input === 'string') return `Can't plan that: ${input}.`;
+    // Per chat across instances, with the MCP plan tools' limit (10 a minute); its own key space.
+    if (mcpPlanLimiter && !(await mcpPlanLimiter.limit(`tg:${chatId}`)).success) return 'Too many plans in a minute. Try again shortly.';
+    try {
+      // Well inside the function's 60 s: a run that hit the limit would answer 5xx and Telegram would resend the update.
+      const out = await Promise.race([
+        runPlan(input, new Request(siteUrl), { explain: false }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('plan timed out')), PLAN_TIMEOUT_MS)),
+      ]);
+      let id: string | null = null;
+      let linkRefused = false;
+      if (hasLinkableBuy(out.plan)) {
+        // The same site-wide daily ceiling on saved links as the MCP tools.
+        linkRefused = !!planLinkDailyLimiter && !(await planLinkDailyLimiter.limit('all')).success;
+        if (!linkRefused) id = await saveStockPlan(input, out, 'telegram');
+      }
+      return planReplyText(out.plan, input, id ? `${siteUrl}${planLinkPath(id)}` : null, linkRefused);
+    } catch (e) {
+      console.error('[telegram /plan]', e);
+      return 'Could not make a plan right now. Try again in a minute.';
+    }
+  }
+
   if (cmd === '/alert') {
     const [symbolArg, bpArg] = args;
     if (!symbolArg || !bpArg) return 'Usage: /alert STOCK BP — e.g. "/alert NVDA 50"';
@@ -147,6 +188,14 @@ export async function POST(request: NextRequest) {
   const update = await request.json().catch(() => null);
   const chatId = update?.message?.chat?.id;
   const text = update?.message?.text;
+
+  // Telegram resends an update it thinks failed (a slow or 5xx answer): answer each update once (2026-11-22), so a
+  // resent /plan doesn't run, save a link and reply twice. A failed check lets it through (a rare second reply).
+  const updateId = update?.update_id;
+  if (redis && typeof updateId === 'number') {
+    const first = await redis.set(`tgupd:${updateId}`, 1, { nx: true, ex: 3600 }).catch(() => 'OK');
+    if (first == null) return NextResponse.json({ ok: true });
+  }
 
   if (typeof chatId === 'number' && typeof text === 'string') {
     const reply = await handleCommand(chatId, text);
