@@ -18,7 +18,9 @@ import { callerIp } from '@/lib/agent/explainGate';
 import { NextResponse } from 'next/server';
 import { getAddress } from 'viem';
 import { loanHealthReport } from '@/lib/lending/loanReport';
-import { DEFAULT_ALERT_HEALTH, MAX_ALERT_HEALTH, MIN_ALERT_HEALTH } from '@/lib/lending/loanHealth';
+import { DEFAULT_ALERT_HEALTH, MAX_ALERT_HEALTH, MIN_ALERT_HEALTH, healthAtAero } from '@/lib/lending/loanHealth';
+import { getWalletLoans } from '@/lib/lending/loanPositions';
+import { rescueLinks, rescueScenario } from '@/lib/lending/rescueLink';
 
 const HISTORY_LOOKBACK_MS = 30 * 24 * 60 * 60_000;
 
@@ -175,13 +177,60 @@ const handler = createMcpHandler((server) => {
       }
     },
   );
+  // A rescue link for agents (2026-11-22): the loan warning's own link to the Aave panel (lib/lending/rescueLink.ts),
+  // preset from the wallet's loan read now. The link carries only the planner's fall and target and which field to
+  // fill, never an amount or a wallet: the panel works the amount out from whichever wallet connects, and the person
+  // checks it and signs. Same limits as check_loan_health.
+  server.registerTool(
+    'make_rescue_link',
+    {
+      title: 'Make a loan rescue link',
+      description:
+        "For a wallet's Aave V4 stock loan on Base: a link that opens Afterbook's Aave panel with its rescue planner set to repay USDC or add collateral, at the price fall implied by Base's price now and a target health above your threshold. The link carries no amount and no wallet: the panel fills the Repay or Add field from the loan of the wallet the person connects, and they check it and sign. Returns null url with a reason for a wallet with no Aave loan (Morpho loans have no in-app panel). Reads public positions only; signs nothing.",
+      inputSchema: z.object({
+        wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/).describe('The borrower address.'),
+        action: z.enum(['repay', 'add']).describe('repay = pay back USDC; add = post more of a stock already in the wallet as collateral.'),
+        threshold: z.number().min(MIN_ALERT_HEALTH).max(MAX_ALERT_HEALTH).optional().describe(`The health line to get back above (default ${DEFAULT_ALERT_HEALTH}).`),
+      }),
+    },
+    async ({ wallet, action, threshold }) => {
+      try {
+        const line = threshold ?? DEFAULT_ALERT_HEALTH;
+        const loans = await getWalletLoans(getAddress(wallet.toLowerCase()));
+        const aave = loans.find((l) => l.venue === 'aave');
+        if (!aave) {
+          const reason = loans.length ? 'only Morpho loans, which have no in-app panel' : 'no Aave stock loan on Base';
+          return { content: [{ type: 'text', text: JSON.stringify({ url: null, reason }) }] };
+        }
+        const links = rescueLinks(aave, line, siteUrl)!;
+        const round = (n: number | null) => (n == null || !Number.isFinite(n) ? null : Math.round(n * 1000) / 1000);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                url: action === 'repay' ? links.repayUrl : links.addUrl,
+                scenario: rescueScenario(aave, line),
+                healthFactor: round(aave.healthFactor),
+                healthAtAero: round(healthAtAero(aave)),
+                note: 'The person opens this, connects the borrowing wallet and ticks the eligibility box; the panel works out and fills the amount, and they check it and sign. Nothing is filled if that wallet holds no USDC (repay) or none of the stocks (add). Not advice.',
+              }),
+            },
+          ],
+        };
+      } catch (e) {
+        console.error('[/api/mcp make_rescue_link]', e);
+        return err('loan unavailable, try again shortly');
+      }
+    },
+  );
 });
 
 /** The plan tools read pools and save a link. One plan call per request (a JSON-RPC batch with more is
  *  refused before anything is counted), held to the plan routes' 10 a minute per caller in this
  *  instance and, across instances, to `mcpPlanLimiter` (Upstash). */
 const PLAN_TOOLS = new Set(['make_plan', 'make_basket']);
-const LOAN_TOOLS = new Set(['check_loan_health']);
+const LOAN_TOOLS = new Set(['check_loan_health', 'make_rescue_link']);
 const rpcError = (status: number, message: string, headers?: HeadersInit) =>
   NextResponse.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message } }, { status, headers });
 async function POST(request: Request) {
@@ -195,7 +244,7 @@ async function POST(request: Request) {
   const planCalls = named(PLAN_TOOLS);
   const loanCalls = named(LOAN_TOOLS);
   if (planCalls > 1) return rpcError(400, 'one make_plan or make_basket call per request');
-  if (loanCalls > 1) return rpcError(400, 'one check_loan_health call per request');
+  if (loanCalls > 1) return rpcError(400, 'one check_loan_health or make_rescue_link call per request');
   if (loanCalls === 1) {
     // Several chain reads, no Redis: the read routes' in-memory per-caller limit.
     const limited = limitRead(request, 'mcp-loan-health', 'lots');

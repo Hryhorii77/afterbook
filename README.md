@@ -341,7 +341,7 @@ Rate limit: 1 request/second per key.
 
 `https://afterbook.app/api/mcp` is a remote [MCP](https://modelcontextprotocol.io) server for agents (Claude, etc.) — no key, no signup, read-only (it never builds or signs a transaction). Add it as a remote MCP server in Claude Code, Claude Desktop, or any MCP-compatible client pointed at that URL.
 
-Six tools:
+Seven tools:
 
 - **`get_tape`** — no input. Same data as `/api/v1/tape` above.
 - **`get_quote`** — `{ symbol, usdcIn }`. Shares out, execution price, and price impact for sizing a USDC → stock trade — the same estimate Lot Lab shows, not a firm quote; the actual fill happens in the swap on afterbook.app, signed in the trader's own wallet.
@@ -349,6 +349,7 @@ Six tools:
 - **`make_plan`** — the same input as `/api/v1/x402/plan` below (`symbols` as an array). The trade plan, explained in fixed words, plus `planUrl`, a saved plan link (see "Plan links" below). 2026-11-21.
 - **`make_basket`** — the same input as `/api/v1/x402/basket` below (`theme` and `exclude` from the fixed lists). The basket, explained in fixed words, plus `buyUrl`, a saved plan link.
 - **`check_loan_health`** — `{ wallet, threshold? }` (2026-11-22). The same answer as `/api/v1/x402/loan-health` below (`lib/lending/loanReport.ts`), free: each loan's health at the oracle and at Base's price, `healthIfNextOpenAtBase` while the cash market is shut, and an Aave loan's repay/add links. Reads public positions only. One call per request, held to the read routes' per-caller limit in memory (no Redis).
+- **`make_rescue_link`** — `{ wallet, action: repay | add, threshold? }` (2026-11-22). For an Aave loan, the loan warning's own link to the Aave panel (`lib/lending/rescueLink.ts`): `url` presets the rescue planner's fall (from Base's price now) and target (above `threshold`, default 1.2) and which field to fill, never an amount or a wallet; the person connects the borrowing wallet, the panel fills the amount from that loan, and they check it and sign. `url: null` with a reason when the wallet has no Aave loan. Shares `check_loan_health`'s limits (one of the two per request).
 
 The two plan tools run the same code as the page and the paid routes (`runPlan`/`runBrief`) but never call Claude (`explain: false`, so a free tool can't run up the Claude bill; `fixedBecause` is `not-requested`); the paid x402 routes add Claude's explanation. The route's `POST` reads the JSON-RPC body before handing it on: one plan call per request (a batch with more is refused before anything is counted), held to the plan routes' 10 a minute per caller in each instance and across instances by `mcpPlanLimiter` (Upstash); links saved by these free tools stop at 300 a day site-wide (`planLinkDailyLimiter`), after which the plan answers without one.
 
