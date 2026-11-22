@@ -3,7 +3,13 @@ import { headers } from 'next/headers';
 export interface GeoInfo {
   country: string | null;
   nonUs: boolean;
+  /** The US or one of its territories (blocked like the US; the copy says "the United States"). */
+  us: boolean;
 }
+
+/** The US and its territories, which Vercel reports under their own codes (2026-11-22, from an outside review:
+ *  a Puerto Rico IP was treated as outside the US). */
+export const US_REGIONS = new Set(['US', 'PR', 'GU', 'VI', 'AS', 'MP', 'UM']);
 
 // Vercel sets x-vercel-ip-country on every request at the edge. This is a
 // best-effort UX gate, not a compliance control — any VPN defeats it. We say
@@ -18,9 +24,11 @@ export async function getGeoInfo(): Promise<GeoInfo> {
   const country = devOverride ?? h.get('x-vercel-ip-country');
 
   return {
-    country: country ?? null,
+    country: country || null,
     // fail closed: unknown (e.g. local dev, or a host that doesn't set the
     // header) is treated as not-unlocked, same as a US IP.
-    nonUs: country !== null && country !== 'US',
+    // An empty header counts as unknown, like a missing one (fail closed).
+    nonUs: !!country && !US_REGIONS.has(country),
+    us: !!country && US_REGIONS.has(country),
   };
 }

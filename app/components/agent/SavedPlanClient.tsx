@@ -76,7 +76,7 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
       </>
     ) : (
       <p className="geo-note geo-note-blocked">
-        {geo.country === 'US'
+        {geo.us
           ? "Trading is off in the United States: Coinbase's stock tokens aren't offered there. The plan itself still shows."
           : "Trading is off because we couldn't tell which country you're in (a VPN or privacy setting can hide it). The plan itself still shows."}
       </p>

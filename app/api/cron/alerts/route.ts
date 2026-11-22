@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getTape, recordTapeSamples } from '@/lib/market/tape';
 import { recordDepthSample } from '@/lib/market/depthSamples';
 import { splitByLiquidity } from '@/lib/market/liquidity';
-import { getAllChatIds, getRules, setRules, nextBasisState, stateAfterSend, type AlertRule } from '@/lib/alerts/alerts';
+import { getAllChatIds, getRules, getRulesMany, rotate, setRules, nextBasisState, stateAfterSend, type AlertRule } from '@/lib/alerts/alerts';
 import { sendTelegramMessageStatus } from '@/lib/alerts/telegram';
 import { randomUUID } from 'node:crypto';
 import { redis } from '@/lib/server/redis';
@@ -51,6 +51,10 @@ export async function GET(request: NextRequest) {
 }
 
 const ALERTS_LOCK = 'alerts:lock';
+/** Chats checked at once (each may wait on a loan read or a Telegram send; Telegram allows ~30 messages a second). */
+const CHAT_CONCURRENCY = 8;
+/** Stop starting new chats after this long, well inside the function's 60 s. */
+const CHAT_BUDGET_MS = 40_000;
 const RELEASE_LOCK = "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
 
 async function evaluateRules(tape: NonNullable<Awaited<ReturnType<typeof getTape>>>, marketClosed: boolean, closeDigest: string) {
@@ -64,9 +68,38 @@ async function evaluateRules(tape: NonNullable<Awaited<ReturnType<typeof getTape
     return walletReads.get(wallet)!;
   };
 
-  for (const chatId of chatIds) {
-    const rules = await getRules(chatId);
-    if (rules.length === 0) continue;
+  // All rules in a few MGETs, then the chats several at a time (a loan read or a Telegram send no longer holds
+  // up every chat after it), within a time budget under the function's 60 s. A run that stops early says so in
+  // the log and its reply, and the rotation puts the chats it missed first next time (review, 2026-11-22).
+  const started = Date.now();
+  const rulesByChat = await getRulesMany(chatIds);
+  // A random starting point each run: if the budget ever cuts a run short, no chat is left at the end every time.
+  const order = rotate(chatIds, Math.floor(Math.random() * Math.max(chatIds.length, 1)));
+  let checked = 0;
+  let unread = 0;
+  let failed = 0;
+  let next = 0;
+  const worker = async () => {
+    while (next < order.length && Date.now() - started < CHAT_BUDGET_MS) {
+      const chatId = order[next++];
+      const rules = rulesByChat.get(chatId);
+      if (rules === undefined) {
+        unread += 1;
+        continue;
+      }
+      checked += 1;
+      if (rules.length === 0) continue;
+      // One chat's bad data must not end the run while other workers are still sending (the lock would be
+      // released under them): count it and go on.
+      try {
+        await checkChat(chatId, rules);
+      } catch (err) {
+        failed += 1;
+        console.error('[alerts] chat check failed', err instanceof Error ? err.message : err);
+      }
+    }
+  };
+  async function checkChat(chatId: string, rules: AlertRule[]) {
 
     let changed = false;
     const updated: AlertRule[] = [];
@@ -112,8 +145,26 @@ async function evaluateRules(tape: NonNullable<Awaited<ReturnType<typeof getTape
       updated.push(rule.type === 'loan' ? { ...rule, active: nowActive, failedReads } : { ...rule, active: nowActive });
     }
 
-    if (changed) await setRules(chatId, updated);
+    if (!changed) return;
+    // The batched read is up to the whole run old: re-read the chat and carry only the state this run changed
+    // onto its current rules, matched by id, so a /stop or a rule changed meanwhile in the bot isn't undone
+    // (review, 2026-11-22). A chat that is now empty stays empty.
+    const fresh = await getRules(chatId);
+    if (fresh.length === 0) return;
+    const byId = new Map(updated.map((r) => [r.id, r]));
+    await setRules(
+      chatId,
+      fresh.map((r) => {
+        const u = byId.get(r.id);
+        if (!u || u.type !== r.type || u.wallet !== r.wallet || u.symbol !== r.symbol) return r;
+        return r.type === 'loan' ? { ...r, active: u.active, failedReads: u.failedReads } : { ...r, active: u.active };
+      }),
+    );
   }
-
-  return { ok: true, chats: chatIds.length, sent };
+  await Promise.all(Array.from({ length: CHAT_CONCURRENCY }, worker));
+  const skipped = chatIds.length - checked - unread;
+  const summary = { ok: true, chats: chatIds.length, checked, unread, skipped, failed, sent, ms: Date.now() - started };
+  // Visible in the function logs: a run that couldn't check every chat must not pass silently.
+  (skipped > 0 || unread > 0 || failed > 0 ? console.error : console.log)('[alerts] chats', JSON.stringify(summary));
+  return summary;
 }

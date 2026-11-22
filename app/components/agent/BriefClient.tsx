@@ -351,7 +351,7 @@ export function BriefClient({ geo }: { geo: GeoInfo }) {
                 </>
               ) : (
                 <p className="geo-note geo-note-blocked">
-                  {geo.country === 'US'
+                  {geo.us
                     ? "Trading is off in the United States: Coinbase's stock tokens aren't offered there. The basket itself still works."
                     : "Trading is off because we couldn't tell which country you're in (a VPN or privacy setting can hide it). The basket itself still works."}
                 </p>

@@ -132,7 +132,7 @@ export function ExecuteSection({ symbol, activeStock, activeRow, quote, depth, g
       {geo.nonUs !== true ? (
         // Said plainly and up front: the greyed-out buttons alone read as broken.
         <p className="geo-note geo-note-blocked" style={{ marginBottom: 2 }}>
-          {geo.country === 'US'
+          {geo.us
             ? "Trading is off in the United States: Coinbase's stock tokens aren't offered there. Everything else on Afterbook works."
             : "Trading is off because we couldn't tell which country you're in (a VPN or privacy setting can hide it). Everything else on Afterbook works."}
         </p>
@@ -145,7 +145,7 @@ export function ExecuteSection({ symbol, activeStock, activeRow, quote, depth, g
         <summary>More</summary>
         <p className="geo-note">
           This is a best-effort geofence based on IP country, not a compliance control — it does not stop a
-          VPN.{geo.country === 'US' && ' Execution stays locked regardless of the checkbox above.'} Buying and
+          VPN.{geo.us && ' Execution stays locked regardless of the checkbox above.'} Buying and
           selling here sends a swap from your own wallet through KyberSwap&apos;s router (it splits the trade across
           Aero, Aerodrome and other Base pools). KyberSwap builds the transaction; Afterbook checks the
           fields that decide what you pay, who receives, the minimum, the fee and the permit before your wallet sees it,

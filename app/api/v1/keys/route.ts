@@ -1,7 +1,7 @@
-import { randomBytes } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/server/redis';
 import { keyCreationLimiter } from '@/lib/server/ratelimit';
+import { issueApiKey } from '@/lib/server/apiKeys';
 
 export const revalidate = 0;
 
@@ -21,11 +21,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'too many keys requested — try again tomorrow' }, { status: 429 });
   }
 
-  const key = `ab_${randomBytes(16).toString('hex')}`;
-  await redis.set(`apikey:${key}`, { createdAt: Date.now(), tier: 'free' });
+  // Only the key's hash is stored, with a one-year expiry (lib/server/apiKeys.ts).
+  const { key, expiresAt } = await issueApiKey();
 
   return NextResponse.json({
     key,
-    note: 'Save this now — it will not be shown again. Use it as "Authorization: Bearer <key>" against /api/v1/tape.',
+    expiresAt: new Date(expiresAt).toISOString(),
+    note: 'Save this now — it will not be shown again (only its hash is stored). Use it as "Authorization: Bearer <key>" against /api/v1/tape. It expires after a year; ask for a new one then.',
   });
 }

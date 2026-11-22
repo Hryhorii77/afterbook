@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import type { AlertRule } from '../lib/alerts/alerts';
 import type { WalletLoan } from '../lib/lending/loanHealth';
-import { stateAfterSend } from '../lib/alerts/alerts';
+import { rotate, stateAfterSend } from '../lib/alerts/alerts';
 import { LOAN_READ_FAIL_NOTICE } from '../lib/lending/loanHealth';
 
 // The 5-minute alerts cron, offline: the tape, the samples, the rule store, Telegram, the loan reads and
@@ -14,6 +14,8 @@ const fx = vi.hoisted(() => ({
   deliver: true as boolean | 'refused',
   loans: null as unknown,
   lockHeld: false,
+  unreadable: [] as string[],
+  duringSend: null as null | ((chat: string) => void),
 }));
 vi.mock('../lib/market/tape', () => ({
   getTape: async () => ({ rows: [], fetchedAt: 0, session: { state: 'open', label: 'Open', nyTime: '10:00', dateKey: '2026-11-21', nextOpenIso: '' } }),
@@ -24,10 +26,14 @@ vi.mock('../lib/alerts/alerts', async (orig) => ({
   ...(await orig<typeof import('../lib/alerts/alerts')>()),
   getAllChatIds: async () => [...fx.rules.keys()],
   getRules: async (id: string) => fx.rules.get(id) ?? [],
+  getRulesMany: async (ids: string[]) => new Map(ids.filter((id) => !fx.unreadable.includes(id)).map((id) => [id, fx.rules.get(id) ?? []])),
   setRules: async (id: string, r: unknown[]) => void fx.rules.set(id, r),
 }));
 vi.mock('../lib/alerts/telegram', () => ({
-  sendTelegramMessageStatus: async (_c: string, text: string) => (fx.deliver === 'refused' ? 'refused' : fx.deliver ? (fx.sent.push(text), 'sent') : 'retry'),
+  sendTelegramMessageStatus: async (c: string, text: string) => {
+    fx.duringSend?.(c);
+    return fx.deliver === 'refused' ? 'refused' : fx.deliver ? (fx.sent.push(text), 'sent') : 'retry';
+  },
 }));
 vi.mock('../lib/lending/loanPositions', () => ({
   getWalletLoans: async () => {
@@ -63,6 +69,8 @@ beforeEach(() => {
   fx.deliver = true;
   fx.loans = [lowLoan];
   fx.lockHeld = false;
+  fx.unreadable = [];
+  fx.duringSend = null;
 });
 
 describe('alerts cron', () => {
@@ -87,6 +95,30 @@ describe('alerts cron', () => {
     fx.deliver = 'refused';
     await run();
     expect(stored().active).toBe(true);
+  });
+
+  it('checks every chat, several at a time, and reports chats it couldn’t read', async () => {
+    for (let i = 2; i <= 20; i++) fx.rules.set(`chat${i}`, [{ ...rule(), id: `r${i}` }]);
+    fx.unreadable = ['chat7'];
+    const out = await run();
+    expect(out).toMatchObject({ chats: 20, checked: 19, unread: 1, skipped: 0, sent: 19 });
+    expect((fx.rules.get('chat7')![0] as AlertRule).active).toBe(false);
+  });
+
+  it('doesn’t undo a /stop or a new rule the person sent while the run was going', async () => {
+    fx.duringSend = (c) => fx.rules.set(c, []);
+    await run();
+    expect(fx.rules.get('chat1')).toEqual([]);
+    fx.rules.set('chat1', [rule()]);
+    fx.duringSend = (c) => fx.rules.set(c, [...(fx.rules.get(c) as AlertRule[]), { id: 'new', type: 'close', active: false }]);
+    await run();
+    expect((fx.rules.get('chat1') as AlertRule[]).map((r) => [r.id, r.active])).toEqual([['r1', true], ['new', false]]);
+  });
+
+  it('rotates the order by tick, so a budget-cut run doesn’t always miss the same chats', () => {
+    expect(rotate(['a', 'b', 'c'], 0)).toEqual(['a', 'b', 'c']);
+    expect(rotate(['a', 'b', 'c'], 4)).toEqual(['b', 'c', 'a']);
+    expect(rotate([], 3)).toEqual([]);
   });
 
   it('a run that finds another one sending skips, and sends nothing', async () => {
