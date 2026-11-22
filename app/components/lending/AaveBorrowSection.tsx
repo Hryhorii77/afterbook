@@ -32,7 +32,7 @@ export function AaveBorrowSection({ geo, ...props }: AaveBorrowProps & { geo: Ge
         <p className={geo.nonUs === true ? 'geo-note' : 'geo-note geo-note-blocked'}>
           {geo.nonUs === true
             ? 'Tick the box to borrow.'
-            : geo.country === 'US'
+            : geo.us
               ? "Borrowing is off in the United States: Coinbase's stock tokens aren't offered there."
               : "Borrowing is off because we couldn't tell which country you're in (a VPN or privacy setting can hide it)."}
         </p>

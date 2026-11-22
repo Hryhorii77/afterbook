@@ -21,6 +21,8 @@ export async function sendTelegramMessageStatus(chatId: string | number, text: s
   if (!TELEGRAM_BOT_TOKEN) return 'retry';
   try {
     const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      // A hung request is a failed one (retried next run), never one that holds the cron past its limit.
+      signal: AbortSignal.timeout(10_000),
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text }),

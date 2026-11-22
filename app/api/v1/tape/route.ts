@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/server/redis';
 import { tapeLimiter } from '@/lib/server/ratelimit';
 import { getTape } from '@/lib/market/tape';
+import { checkApiKey, hashApiKey } from '@/lib/server/apiKeys';
 import { toPublicTape } from '@/lib/market/publicTape';
 
 export const revalidate = 0;
@@ -22,12 +23,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'missing Authorization: Bearer <key> header' }, { status: 401 });
   }
 
-  const record = await redis.get(`apikey:${key}`);
-  if (!record) {
-    return NextResponse.json({ error: 'invalid API key' }, { status: 401 });
+  if (!(await checkApiKey(key))) {
+    return NextResponse.json({ error: 'invalid or expired API key' }, { status: 401 });
   }
 
-  const { success, reset } = await tapeLimiter.limit(key);
+  // Counted by the key's hash, so the limiter's own keys don't hold the key either.
+  const { success, reset } = await tapeLimiter.limit(hashApiKey(key));
   if (!success) {
     return NextResponse.json(
       { error: 'rate limit exceeded — 1 request/sec' },

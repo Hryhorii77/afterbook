@@ -44,6 +44,16 @@ export function nextBasisState(active: boolean, absBp: number | null, thresholdB
 const CHATS_KEY = 'alerts:chats';
 const chatKey = (chatId: string) => `alerts:chat:${chatId}`;
 
+/** Like getRules, but null when the read failed (instead of an empty list), for the cron's re-read before a write. */
+export async function getRulesOrNull(chatId: string): Promise<AlertRule[] | null> {
+  if (!redis) return null;
+  try {
+    return (await redis.get<AlertRule[]>(chatKey(chatId))) ?? [];
+  } catch {
+    return null;
+  }
+}
+
 export async function getRules(chatId: string): Promise<AlertRule[]> {
   if (!redis) return [];
   try {
@@ -52,6 +62,31 @@ export async function getRules(chatId: string): Promise<AlertRule[]> {
   } catch {
     return [];
   }
+}
+
+/** Every chat's rules in a few MGETs (200 keys each) instead of one GET per chat (the cron, 2026-11-22). A chat
+ *  whose read failed is left out of the map, so the cron skips it this tick rather than reading it as empty. */
+export async function getRulesMany(chatIds: string[]): Promise<Map<string, AlertRule[]>> {
+  const out = new Map<string, AlertRule[]>();
+  if (!redis || chatIds.length === 0) return out;
+  for (let i = 0; i < chatIds.length; i += 200) {
+    const ids = chatIds.slice(i, i + 200);
+    try {
+      const rows = await redis.mget<(AlertRule[] | null)[]>(...ids.map(chatKey));
+      ids.forEach((id, j) => out.set(id, rows[j] ?? []));
+    } catch {
+      // this batch is skipped this tick
+    }
+  }
+  return out;
+}
+
+/** The list started at `tick` (the cron passes a random start each run), so if a run ever stops at its time
+ *  budget, it isn't always the same chats that are left unchecked. */
+export function rotate<T>(list: T[], tick: number): T[] {
+  if (list.length === 0) return list;
+  const k = ((tick % list.length) + list.length) % list.length;
+  return [...list.slice(k), ...list.slice(0, k)];
 }
 
 export async function setRules(chatId: string, rules: AlertRule[]): Promise<void> {

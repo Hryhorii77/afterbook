@@ -23,7 +23,7 @@ export function MemeBuySection({ meme, stock, geo }: { meme: { address: `0x${str
         </div>
       )}
       {unlocked ? null : (
-        <p className="geo-note">{geo.nonUs === true ? 'Tick the box to buy.' : geo.country === 'US' ? 'Not available in the US.' : 'Region could not be detected, so buying is off.'}</p>
+        <p className="geo-note">{geo.nonUs === true ? 'Tick the box to buy.' : geo.us ? 'Not available in the US.' : 'Region could not be detected, so buying is off.'}</p>
       )}
       <p className="geo-note">
         {geo.country ? `Detected region: ${geo.country}. ` : ''}Signed in your own wallet; Afterbook never holds your funds and takes no fee on meme buys. The

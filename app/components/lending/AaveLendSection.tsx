@@ -32,7 +32,7 @@ export function AaveLendSection({ geo, ...props }: AaveLendProps & { geo: GeoInf
         <p className={geo.nonUs === true ? 'geo-note' : 'geo-note geo-note-blocked'}>
           {geo.nonUs === true
             ? 'Tick the box to lend.'
-            : geo.country === 'US'
+            : geo.us
               ? "Lending here is off in the United States, like trading and borrowing. Money already lent can always be withdrawn in Aave's own app."
               : "Lending is off because we couldn't tell which country you're in (a VPN or privacy setting can hide it). Money already lent can always be withdrawn in Aave's own app."}
         </p>

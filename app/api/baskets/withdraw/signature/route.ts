@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listPortfolios, withdrawSignature } from '@/lib/baskets/glider';
 import { BASE_CHAIN_ID } from '@/lib/baskets/tilt';
+import { ownerActionRefusal } from '@/lib/baskets/ownerAuth';
 import { guardBasketRequest, readJson, errorResponse, OWNER_RE, BASE_ASSET_RE, RAW_AMOUNT_RE, ownerAccountId, strategyId } from '@/lib/baskets/guard';
 
 export const revalidate = 0;
@@ -13,9 +14,15 @@ export async function POST(request: NextRequest) {
   const blocked = await guardBasketRequest(request);
   if (blocked) return blocked;
   const b = await readJson(request);
-  const { owner, recipient, assets, liquidate } = b ?? {};
+  const { owner, recipient, assets, liquidate, issuedAt, signature } = b ?? {};
   if (liquidate !== undefined && typeof liquidate !== 'boolean') return NextResponse.json({ error: 'liquidate must be a boolean' }, { status: 400 });
   if (typeof owner !== 'string' || !OWNER_RE.test(owner)) return NextResponse.json({ error: 'owner must be a 0x address' }, { status: 400 });
+  // A withdrawal that sells to USDC needs the owner's signature even at this stage, until Glider confirms that
+  // asking for it changes nothing (otherwise anyone who knows the address might set off a sale; review of #214).
+  if (liquidate) {
+    const refused = await ownerActionRefusal('withdraw-sell', owner, issuedAt, signature);
+    if (refused) return refused;
+  }
   const to = recipient ?? owner;
   if (typeof to !== 'string' || !OWNER_RE.test(to)) return NextResponse.json({ error: 'recipient must be a 0x address' }, { status: 400 });
   if (!Array.isArray(assets) || assets.length === 0 || assets.length > 50) return NextResponse.json({ error: 'assets must be a non-empty array' }, { status: 400 });

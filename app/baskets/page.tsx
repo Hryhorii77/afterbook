@@ -122,8 +122,8 @@ export default async function BasketsPage() {
         ) : (
           <button type="button" className="btn" disabled>Enrollment opens soon</button>
         )}
-        <p className={`geo-note${geo.country === 'US' ? ' geo-note-blocked' : ''}`}>
-          {geo.country === 'US'
+        <p className={`geo-note${geo.us ? ' geo-note-blocked' : ''}`}>
+          {geo.us
             ? 'Not available in the US.'
             : geo.country
               ? `Detected region: ${geo.country}.`

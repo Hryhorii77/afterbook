@@ -48,7 +48,7 @@ export function BasketBuySection({ legs, stocks, geo }: { legs: BasketLeg[]; sto
         </>
       )}
       {unlocked ? null : (
-        <p className="geo-note">{geo.nonUs === true ? 'Confirm eligibility to trade.' : geo.country === 'US' ? 'Not available in the US.' : 'Region could not be detected, so trading is off.'}</p>
+        <p className="geo-note">{geo.nonUs === true ? 'Confirm eligibility to trade.' : geo.us ? 'Not available in the US.' : 'Region could not be detected, so trading is off.'}</p>
       )}
       <p className="geo-note">
         {geo.country ? `Detected region: ${geo.country}. ` : ''}Trades are signed in your own wallet; Afterbook never holds your funds. Each stock is a separate

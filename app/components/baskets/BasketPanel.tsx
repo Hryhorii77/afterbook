@@ -9,6 +9,7 @@ import { USDC } from '@/lib/stocks/tokens';
 import { deployedAccountProblem, deployedAccountStatus, depositAccountProblem } from '@/lib/baskets/depositAccount';
 import { ENROLLMENT_PAUSED, ENROLLMENT_PAUSED_MESSAGE } from '@/lib/baskets/enrollPause';
 import { withdrawalProblem } from '@/lib/baskets/withdrawCheck';
+import { ownerActionMessage, startMessage } from '@/lib/baskets/startAuth';
 import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { useNotify } from '../notifications/notify';
 
@@ -207,7 +208,12 @@ export function BasketPanel() {
           ? 'Refused: this account is no longer set up the way it was created, so automation stays off.'
           : 'Your Basis Tilt account hasn\u2019t been confirmed yet, so automation can\u2019t start. Wait a moment or press Refresh.');
       }
-      await api('/api/baskets/start', { method: 'POST', body: { owner: address } });
+      // The owner signs a short, dated text first (no funds move): the route refuses a start without it, so
+      // nobody else can restart this portfolio's automation (lib/baskets/startAuth.ts).
+      if (!address) throw new Error('Connect a wallet first.');
+      const issuedAt = Date.now();
+      const signature = await signMessageAsync({ message: startMessage(address, issuedAt) });
+      await api('/api/baskets/start', { method: 'POST', body: { owner: address, issuedAt, signature } });
       setNotice('Automation started.');
       await refresh();
     });
@@ -251,9 +257,17 @@ export function BasketPanel() {
       const accountProblem = depositAccountProblem(address, deposit);
       if (accountProblem) throw new Error(`Refused: ${accountProblem} Nothing was signed.`);
       const asked = assets.map((a) => ({ assetId: a.assetId, amountRaw: a.balanceRaw }));
+      // Selling to USDC: the owner signs a short dated text first, so nobody else can ask Glider to prepare a sale
+      // of this portfolio (until Glider confirms that step does nothing; lib/baskets/startAuth.ts).
+      let auth = {};
+      if (liquidate) {
+        if (!address) throw new Error('Connect a wallet first.');
+        const issuedAt = Date.now();
+        auth = { issuedAt, signature: await signMessageAsync({ message: ownerActionMessage('withdraw-sell', address, issuedAt) }) };
+      }
       const sig = await api<{ typedData: { domain: object; types: Record<string, unknown>; primaryType: string; message: unknown } }>(
         '/api/baskets/withdraw/signature',
-        { method: 'POST', body: { owner: address, liquidate, assets: asked } },
+        { method: 'POST', body: { owner: address, liquidate, assets: asked, ...auth } },
       );
       // The typed data comes from Glider through our server: sign it only if it is exactly this withdrawal, to this
       // wallet, from this portfolio's account (lib/baskets/withdrawCheck.ts).
