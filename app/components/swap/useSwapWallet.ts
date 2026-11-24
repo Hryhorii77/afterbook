@@ -16,6 +16,8 @@
 // - a one-signature basket batch (sendBatch, lib/swap/basketBatch.ts) is sent only atomically, to a wallet
 //   that says it can do that on Base, and its calls come only from basketBatchCalls (or basketSellBatchCalls);
 //   a single stock swap from such a wallet is the same kind of batch, its exact approval and its swap (2026-11-24);
+//   the Aave panels' one-signature batches go through the same send (sendCheckedBatch) with their own check
+//   (lib/lending/aaveBatch.ts);
 // - a single swap is dry-run on Base just before the wallet sees it (simulateSwapCalls): one that would revert
 //   gets one fresh route and another dry run, and is never sent while it still reverts (owner, 2026-11-24: a
 //   real /rules swap reverted inside KyberSwap's route and the paymaster still charged its fee).
@@ -217,7 +219,15 @@ export function useSwapWallet() {
   const sendBatch = async (calls: BatchCall[], onSigned?: (id: string) => void): Promise<Hex[]> => {
     // Every call checked again: every swap pays this account, every approval is exactly what the batch's swaps spend of that token.
     if (!address) throw new Error('Connect a wallet first.');
-    const problem = basketBatchProblem(calls, address);
+    return sendCheckedBatch(calls, basketBatchProblem, onSigned);
+  };
+
+  /** The atomic send shared by every one-signature batch: `check` is the batch's own rule (the swap batch's
+   *  basketBatchProblem, the Aave panels' aaveBatchProblem), run here against this hook's own connected account;
+   *  any reason it returns refuses the batch before the wallet sees it. */
+  const sendCheckedBatch = async (calls: BatchCall[], check: (calls: BatchCall[], account: `0x${string}`) => string | null, onSigned?: (id: string) => void): Promise<Hex[]> => {
+    if (!address) throw new Error('Connect a wallet first.');
+    const problem = check(calls, address);
     if (problem) throw new Error(`Refused: ${problem}.`);
     // The Builder Code twice: on each call (the rule for every transaction here) and as the batch's
     // `dataSuffix` capability, which a smart account appends to its whole operation: that is where Base's
@@ -285,7 +295,7 @@ export function useSwapWallet() {
     await approveExact(token, BigInt(0), revertedMessage, onSigned);
   };
 
-  return { address, ensureBase, routerAllowance, approveExact, sendSwap, revokeRouter, canBatch, sendBatch, simulateSwapCalls };
+  return { address, ensureBase, routerAllowance, approveExact, sendSwap, revokeRouter, canBatch, sendBatch, sendCheckedBatch, simulateSwapCalls };
 }
 
 /** Wording for a run that stops: what the panel says and what the toast says. */

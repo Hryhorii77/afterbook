@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useAccount, usePublicClient, useReadContracts, useWriteContract } from 'wagmi';
 import { userOpOutcome } from '@/lib/wallet/userOps';
 import { base } from 'wagmi/chains';
-import { erc20Abi, formatUnits, getAddress, type ContractFunctionParameters } from 'viem';
+import { encodeFunctionData, erc20Abi, formatUnits, getAddress, type ContractFunctionParameters } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import {
   AAVE_EQUITIES_HUB,
@@ -21,6 +21,7 @@ import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { fmt, usd } from '../swap/swapClient';
 import { useNotify } from '../notifications/notify';
 import { parseAmount, TX_UNKNOWN, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
+import { sendAaveOneSignature } from './aaveOneSignature';
 
 // Lend USDC into Aave V4's Equities pool through the MAG7 spoke, from the visitor's own wallet (real
 // money; lib/lending/aaveBorrow.ts has the verified contract facts). Two actions:
@@ -29,7 +30,8 @@ import { parseAmount, TX_UNKNOWN, useSwapWallet, useTxRun } from '../swap/useSwa
 // - Withdraw: take USDC back, at most what the pool has free right now.
 // Every call is on behalf of the signer and carries the Builder Code. The USDC reserve's token, decimals,
 // hub and asset id are checked against what the page expects, and a paused or frozen reserve stops it.
-// The one spoke approval call site is approveSpoke below: spender only AAVE_MAG7_SPOKE, exact amount.
+// Spoke approvals: approveSpoke below (two steps) and, with Base Account, lib/lending/aaveBatch.ts (one signature,
+// checked by aaveBatchProblem); both spender only AAVE_MAG7_SPOKE, exact amount.
 
 export interface AaveLendProps {
   usdc: AaveReserve;
@@ -188,11 +190,26 @@ export function AaveLendPanel({ usdc, usdcAssetId, supplyApr, utilization }: Aav
       await wallet.ensureBase();
       const now = await fresh();
       if (depositRaw > now.balance) throw new Error('Your wallet no longer holds that much USDC on Base. Nothing was sent.');
-      if (now.allowance < depositRaw) await approveSpoke(depositRaw);
-      setBusy('sign');
-      const hash = await writeContractAsync({ ...spoke, functionName: 'supply', args: [id, depositRaw, address], dataSuffix: BUILDER_CODE_SUFFIX });
-      setBusy('confirming');
-      await waitOk(hash, 'The deposit reverted onchain. Nothing changed.');
+      const reverted = 'The deposit reverted onchain. Nothing changed.';
+      let hash: `0x${string}`;
+      if (wallet.canBatch) {
+        // One signature (Base Account): the exact approval, if needed, and the deposit together (aaveOneSignature.ts).
+        hash = await sendAaveOneSignature({
+          wallet,
+          reserves: [{ reserveId: usdc.reserveId, token: usdc.token }],
+          spokeData: encodeFunctionData({ abi: SPOKE_ABI, functionName: 'supply', args: [id, depositRaw, address] }),
+          approval: now.allowance < depositRaw ? { token: usdc.token, amount: depositRaw } : null,
+          reverted,
+          wouldRevert: 'This deposit would revert right now.',
+          setBusy,
+        });
+      } else {
+        if (now.allowance < depositRaw) await approveSpoke(depositRaw);
+        setBusy('sign');
+        hash = await writeContractAsync({ ...spoke, functionName: 'supply', args: [id, depositRaw, address], dataSuffix: BUILDER_CODE_SUFFIX });
+        setBusy('confirming');
+        await waitOk(hash, reverted);
+      }
       await finish(hash, `You lent ${fmt(depositRaw, 6, 2)} USDC to Aave's Equities pool.`, 'Deposited');
     });
 
@@ -205,14 +222,28 @@ export function AaveLendPanel({ usdc, usdcAssetId, supplyApr, utilization }: Aav
       const amount = withdrawRaw >= supplied ? now.supplied : withdrawRaw;
       if (amount > now.liquidity) throw new Error(`The pool now has only ${fmt(now.liquidity, 6, 2)} USDC free. Nothing was sent; try less.`);
       const arg = lendWithdrawArg(amount, now.supplied, now.liquidity);
-      setBusy('sign');
-      const hash = await writeContractAsync({ ...spoke, functionName: 'withdraw', args: [id, arg, address], dataSuffix: BUILDER_CODE_SUFFIX });
-      setBusy('confirming');
-      await waitOk(hash, 'The withdrawal reverted onchain (borrowers may have drawn the pool down meanwhile). Nothing changed.');
+      const reverted = 'The withdrawal reverted onchain (borrowers may have drawn the pool down meanwhile). Nothing changed.';
+      let hash: `0x${string}`;
+      if (wallet.canBatch) {
+        hash = await sendAaveOneSignature({
+          wallet,
+          reserves: [{ reserveId: usdc.reserveId, token: usdc.token }],
+          spokeData: encodeFunctionData({ abi: SPOKE_ABI, functionName: 'withdraw', args: [id, arg, address] }),
+          approval: null,
+          reverted,
+          wouldRevert: 'This withdrawal would revert right now (borrowers may have drawn the pool down).',
+          setBusy,
+        });
+      } else {
+        setBusy('sign');
+        hash = await writeContractAsync({ ...spoke, functionName: 'withdraw', args: [id, arg, address], dataSuffix: BUILDER_CODE_SUFFIX });
+        setBusy('confirming');
+        await waitOk(hash, reverted);
+      }
       await finish(hash, arg === MAX_UINT256 ? `You withdrew everything you lent, about ${fmt(amount, 6, 2)} USDC with interest.` : `You withdrew ${fmt(amount, 6, 2)} USDC.`, 'Withdrawn');
     });
 
-  const busyLabel = busy === 'approve' ? 'Approve USDC in wallet…' : busy === 'sign' ? 'Confirm in wallet…' : busy === 'confirming' ? 'Confirming onchain…' : busy ? 'Preparing…' : null;
+  const busyLabel = busy === 'approve' ? 'Approve USDC in wallet…' : busy === 'simulate' ? 'Checking on Base…' : busy === 'sign' ? 'Confirm in wallet…' : busy === 'confirming' ? 'Confirming onchain…' : busy ? 'Preparing…' : null;
   const amountInput = (value: string, set: (v: string) => void, label: string) => (
     <input
       inputMode="decimal"
@@ -295,7 +326,9 @@ export function AaveLendPanel({ usdc, usdcAssetId, supplyApr, utilization }: Aav
       </div>
       <p className="geo-note">
         {tab === 'deposit'
-          ? 'Your wallet asks to approve exactly this USDC (skipped if already approved), then the deposit. '
+          ? wallet.canBatch
+            ? 'One signature: the approval of exactly this USDC (if needed) and the deposit, together or not at all. '
+            : 'Your wallet asks to approve exactly this USDC (skipped if already approved), then the deposit. '
           : 'One transaction. '}
         The rate changes with how much is borrowed. Withdrawals can wait if borrowers have drawn most of the pool, and if a loan&apos;s
         stock can&apos;t be sold in time when its price falls (prices can stop updating while the stock market is closed), lenders can
