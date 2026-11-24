@@ -90,6 +90,7 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
     review: 'Preparing…',
     approve: `Approve ${inToken.symbol} in wallet…`,
     rebuild: 'Refreshing price…',
+    simulate: 'Checking the route…',
     swap: 'Confirm in wallet…',
     confirming: 'Confirming onchain…',
   };

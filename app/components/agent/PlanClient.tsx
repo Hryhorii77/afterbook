@@ -308,7 +308,7 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
               </h3>
               <p className="geo-note">
                 The swap below gets a fresh quote and runs the usual checks. It starts at the plan’s amount; what you type in the box is what you buy. If needed, your wallet
-                asks you to approve exactly the amount you review, then the swap.
+                asks you to approve exactly the amount you review, then the swap (with Base Account, both in one signature).
               </p>
               {geo.nonUs === true ? (
                 <>

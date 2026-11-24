@@ -32,6 +32,9 @@ export function SwapPanel({
   onBuySent,
   onBought,
   onBuyReverted,
+  onBuyStarted,
+  onBuyFailed,
+  oneSignature = true,
 }: {
   stock: CbStock;
   defaultUsd?: number;
@@ -43,6 +46,13 @@ export function SwapPanel({
   onBuySent?: (usd: number, hash: Hex) => void;
   onBought?: (usd: number, hash: Hex) => void;
   onBuyReverted?: (hash: Hex) => void;
+  /** Hash-less bookkeeping for either flow (a plan link's "buying" lock): the wallet took the buy, and it is known
+   *  that nothing was bought. */
+  onBuyStarted?: () => void;
+  onBuyFailed?: () => void;
+  /** With a wallet that can batch atomically (Base Account): the exact approval and the swap as one signature.
+   *  Off whenever a caller needs the swap's hash before it is mined (`onBuySent`, /rules' pending run). */
+  oneSignature?: boolean;
 }) {
   const { notify } = useNotify();
   const [side, setSide] = useState<SwapSide>('buy');
@@ -63,7 +73,8 @@ export function SwapPanel({
   const amountKey = amountIn?.toString() ?? '';
   const { quote, quoteError, clearQuote } = useLiveQuote(amountKey ? `/api/swap/quote?symbol=${stock.symbol}&side=${side}&amountIn=${amountKey}` : null);
 
-  const { address, busy, error, review, setReview, done, setDone, startReview, confirm, reset } = useReviewedSwap({
+  const { address, busy, error, review, setReview, done, setDone, startReview, confirm, reset, oneSignature: batched } = useReviewedSwap({
+    oneSignature: oneSignature && !onBuySent,
     build: async () => buildSwap({ symbol: stock.symbol, side, amountIn: amountKey, account: address, slippageBps, source }),
     sameTrade: (tx, reviewed) => tx.quote.amountIn === reviewed.quote.amountIn && tx.quote.symbol === reviewed.quote.symbol && tx.quote.side === reviewed.quote.side && tx.tokenIn === reviewed.tokenIn,
     texts: {
@@ -79,6 +90,12 @@ export function SwapPanel({
     },
     onSendFailed: (tx, hash) => {
       if (tx.quote.side === 'buy') onBuyReverted?.(hash);
+    },
+    onStarted: (tx) => {
+      if (tx.quote.side === 'buy') onBuyStarted?.();
+    },
+    onStartFailed: (tx) => {
+      if (tx.quote.side === 'buy') onBuyFailed?.();
     },
     onSwapped: (tx, hash) => {
       const text = side === 'buy'
@@ -101,7 +118,8 @@ export function SwapPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stock.symbol, side]);
   // A new amount or slippage limit voids the card.
-  useEffect(() => setReview(null), [amountKey, slippageBps, setReview]);
+  // So does another account: a card is built to pay the account it was made for.
+  useEffect(() => setReview(null), [amountKey, slippageBps, address, setReview]);
 
   if (!address) {
     return (
@@ -117,6 +135,7 @@ export function SwapPanel({
     review: 'Preparing…',
     approve: `Approve ${inToken.symbol} in wallet…`,
     rebuild: 'Refreshing price…',
+    simulate: 'Checking the route…',
     swap: 'Confirm in wallet…',
     confirming: 'Confirming onchain…',
   };
@@ -210,8 +229,19 @@ export function SwapPanel({
             </dd>
           </dl>
           <p className="geo-note">
-            Your wallet may first ask to approve exactly {fmt(review.quote.amountIn, inToken.decimals)} {inToken.symbol} for this router, then the swap. If the
-            price moves while that approval confirms, you see the new numbers before anything else is signed. You need a little ETH on Base for network fees.
+            {batched ? (
+              <>
+                One signature: your wallet signs the approval of exactly {fmt(review.quote.amountIn, inToken.decimals)} {inToken.symbol} for this router (if it
+                needs one) and the swap together, and they go through together or not at all.
+              </>
+            ) : (
+              <>
+                Your wallet may first ask to approve exactly {fmt(review.quote.amountIn, inToken.decimals)} {inToken.symbol} for this router, then the swap. If the
+                price moves while that approval confirms, you see the new numbers before anything else is signed.
+              </>
+            )}{' '}
+            Before your wallet opens, the swap is tried on Base without sending it (when the network allows), and one that would fail isn&apos;t sent. You
+            need a little ETH on Base for network fees (Base Account may pay them in USDC).
           </p>
           <div className="basket-row">
             <button type="button" className="btn" onClick={confirm} disabled={busy !== null}>

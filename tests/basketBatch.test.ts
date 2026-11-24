@@ -3,6 +3,7 @@ import { decodeFunctionData, erc20Abi, type Hex } from 'viem';
 import { basketBatchCalls, basketSellBatchCalls, canBatchAtomically, isBasketBatchCall } from '../lib/swap/basketBatch';
 import { KYBER_ROUTER, type SwapTx } from '../lib/swap/swap';
 import { BUILDER_CODE_SUFFIX } from '../lib/wallet/builderCode';
+import { dryRunVerdict } from '../lib/swap/dryRun';
 import { USDC } from '../lib/stocks/tokens';
 
 const routerAbi = parseAbi([
@@ -164,5 +165,30 @@ describe('basketBatchProblem', () => {
     expect(basketBatchProblem([swapCall(swapData(USDC.address, USDC.address, BigInt(40)))], ME)).toMatch(/not USDC against a tracked stock/);
     expect(basketBatchProblem([swapCall(swapData(USDC.address, '0x5555555555555555555555555555555555555555', BigInt(40)))], ME)).toMatch(/not USDC against a tracked stock/);
     expect(basketBatchProblem([swapCall(swapData(nvda, USDC.address, BigInt(40)))], ME)).toBeNull();
+  });
+});
+
+// A single stock swap from Base Account (2026-11-24): the same batch with one leg, its exact approval and its swap.
+describe('one-signature single swaps', () => {
+  it('a buy: approve exactly its amount, then the swap; passes the batch check; a sell likewise', () => {
+    const buy = basketBatchCalls([legs[0]], true);
+    expect(buy.map((c) => c.to)).toEqual([addr(USDC.address), KYBER_ROUTER]);
+    expect(decodeFunctionData({ abi: erc20Abi, data: buy[0].data }).args).toEqual([KYBER_ROUTER, BigInt(40_000_000)]);
+    expect(basketBatchProblem(buy, ME)).toBeNull();
+    const sell = basketSellBatchCalls([sells[1]], [true]);
+    expect(sell.map((c) => c.to)).toEqual([addr(getStock('NVDAc')!.tokenAddress), KYBER_ROUTER]);
+    expect(basketBatchProblem(sell, ME)).toBeNull();
+    for (const c of [...buy, ...sell]) expect(c.data.toLowerCase().endsWith(suffix)).toBe(true);
+  });
+});
+
+describe('dry run verdict', () => {
+  it('blocks only a dry run that ran and failed; a node that can’t simulate never blocks', () => {
+    expect(dryRunVerdict({ results: [{ status: 'success' }, { status: 'success' }] })).toBe('ok');
+    expect(dryRunVerdict({ results: [{ status: 'success' }, { status: 'failure' }] })).toBe('reverts');
+    expect(dryRunVerdict({ results: [] })).toBe('unknown');
+    expect(dryRunVerdict({ error: { shortMessage: 'Execution reverted with reason: Call failed.' } })).toBe('reverts');
+    expect(dryRunVerdict({ error: { shortMessage: 'HTTP request failed.', details: 'method eth_simulateV1 not found' } })).toBe('unknown');
+    expect(dryRunVerdict({ error: null })).toBe('unknown');
   });
 });
