@@ -10,7 +10,7 @@ export const metadata = shareMetadata({
   title: 'Afterbook for agents',
   description: 'Free MCP tools and paid x402 routes for Coinbase tokenized stocks on Base. The agent proposes, the code checks, the person signs.',
   path: '/agents',
-  card: { page: 'home' },
+  card: { page: 'agents' },
 });
 
 const MCP_URL = 'https://afterbook.app/api/mcp';

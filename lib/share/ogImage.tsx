@@ -562,6 +562,40 @@ export async function buildBorrowOgImage(theme: CardTheme = 'dark', frozen?: { t
   );
 }
 
+/** /agents (2026-11-25): what an agent can do with Afterbook, and the rule it works under. Static: no numbers that
+ *  go stale, so it needs no snapshot. */
+export function buildAgentsOgImage(theme: CardTheme = 'dark') {
+  const c = PALETTES[theme];
+  const rows: [string, string][] = [
+    ['make_plan', 'a checked buy, wait or skip, and a link to sign'],
+    ['check_loan_health', 'loan health if the next open matches Base'],
+    ['make_rescue_link', 'repay or add collateral, worked out from the loan'],
+  ];
+  return new ImageResponse(
+    (
+      <div style={frame(c)}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <Mark px={44} />
+          <span style={{ fontSize: 40, fontWeight: 700, color: c.dim, letterSpacing: '-0.02em' }}>Afterbook · For agents</span>
+        </div>
+        <span style={{ fontSize: 52, fontWeight: 700, color: c.text, marginTop: 34, letterSpacing: '-0.02em' }}>Agents propose. Code checks. You sign.</span>
+        <span style={{ fontSize: 26, color: c.dim, marginTop: 12 }}>Coinbase tokenized stocks on Base · free MCP, 7 tools · x402 from $0.02</span>
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 30, gap: 14 }}>
+          {rows.map(([tool, what]) => (
+            <div key={tool} style={{ display: 'flex', alignItems: 'center', fontSize: 28 }}>
+              <span style={{ width: 330, fontWeight: 700, color: c.text, fontFamily: 'monospace' }}>{tool}</span>
+              <span style={{ color: c.dim }}>{what}</span>
+            </div>
+          ))}
+        </div>
+        <span style={{ fontSize: 24, color: c.footer, marginTop: 28 }}>afterbook.app/api/mcp</span>
+        <CardFooter c={c} />
+      </div>
+    ),
+    { ...OG_SIZE },
+  );
+}
+
 /** /memes/<address>: the meme's 24h move next to its stock's, which is what that page is for. Never
  *  says "buy"; carries the same warning line as the page. */
 /** A meme's logo from Dexscreener's CDN (the only host MemeRow.imageUrl allows) as a data URI, or
