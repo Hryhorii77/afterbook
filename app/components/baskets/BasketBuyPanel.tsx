@@ -253,7 +253,7 @@ export function BasketBuyPanel({
         status[i] = { ...status[i], status: 'sending' };
         setProgress([...status]);
         let sentThis: Hex | null = null;
-        const reverted = `${leg.symbol}'s swap reverted onchain (its price moved past the limit); that USDC did not move.`;
+        const reverted = `${leg.symbol}'s swap reverted onchain (its price may have moved past the limit, or a step in the route failed); that USDC did not move, only the network fee was paid.`;
         try {
           // Rebuilt just before signing (prices move between legs). Sent only if it is the same trade
           // with a minimum at or above the review card's "at least" figure for this leg.
@@ -411,13 +411,13 @@ export function BasketBuyPanel({
             <p className="geo-note">
               You sign once. Your wallet gets one batch: approve exactly {fmt(reviewTotal, USDC.decimals, 2)} USDC for this router (left out if it already can), then{' '}
               {legCount} {legCount === 1 ? 'swap' : 'swaps'}, one per stock. After a minute the prices are fetched again before you sign, and the batch is only sent if
-              every stock still gets at least the amount above. It goes through together or not at all. You need a little ETH on Base for network fees, unless your wallet covers them.
+              every stock still gets at least the amount above. It goes through together or not at all. Network fees are paid in USDC with Base Account (in ETH with other wallets).
             </p>
           ) : (
             <p className="geo-note">
               Your wallet asks to approve exactly {fmt(reviewTotal, USDC.decimals, 2)} USDC for this router (skipped if it already can), then for {legCount} {legCount === 1 ? 'swap' : 'swaps'},
               one per stock. Each is rebuilt just before you sign it and is only sent if you still get at least the amount above. If one stops, you keep what
-              was already bought and can buy the rest. You need a little ETH on Base for network fees.
+              was already bought and can buy the rest. Network fees are paid in ETH on Base, or in USDC with Base Account.
             </p>
           )}
           <div className="basket-row">

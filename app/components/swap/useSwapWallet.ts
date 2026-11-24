@@ -180,6 +180,8 @@ export function useSwapWallet() {
     const outcome = userOpOutcome(receipt, address);
     if (outcome === 'reverted') throw new Error(revertedMessage);
     if (outcome === 'unknown') throw new Error(TX_UNKNOWN);
+    // The block that holds the approval: a dry run right after must see it (simulateSwapCalls' `atLeastBlock`).
+    return receipt.blockNumber;
   };
 
   /** Sends a checked router swap with the Builder Code and waits for it to be mined; returns the hash that
@@ -280,9 +282,19 @@ export function useSwapWallet() {
   /** Dry-runs calls from the connected account on Base now (eth_simulateV1), exactly as they would be sent.
    *  'reverts' only when the node ran them and one failed; a node that can't simulate is 'unknown', which
    *  never blocks a swap (the old behaviour). */
-  const simulateSwapCalls = async (calls: BatchCall[]): Promise<DryRun> => {
+  const simulateSwapCalls = async (calls: BatchCall[], atLeastBlock?: bigint): Promise<DryRun> => {
     if (!address) return 'unknown';
     try {
+      // Right after an approval, a node that hasn't seen its block yet would run the swap without it and report a
+      // revert: then wait (briefly) for that block, and if the node still hasn't got it, don't block on its answer.
+      if (atLeastBlock != null) {
+        let head = await client().getBlockNumber({ cacheTime: 0 });
+        for (let i = 0; i < 4 && head < atLeastBlock; i++) {
+          await new Promise((r) => setTimeout(r, 1000));
+          head = await client().getBlockNumber({ cacheTime: 0 });
+        }
+        if (head < atLeastBlock) return 'unknown';
+      }
       return dryRunVerdict(await client().simulateCalls({ account: address, calls: calls.map((c) => ({ to: c.to, data: c.data, value: c.value })) }));
     } catch (error) {
       return dryRunVerdict({ error });
@@ -306,8 +318,16 @@ export interface RunTexts {
   failedTitle: string;
 }
 
+/** USDC (raw) to leave in a Base Account wallet (`canBatch`): it takes its network fee in USDC from the same wallet
+ *  after the calls run, on one-signature and two-step sends alike, so spending the whole balance can pass the dry run and still fail
+ *  (2026-11-24 review: about 1–2 cents a batch; 5 cents leaves room). */
+export const USDC_FEE_RESERVE_RAW = BigInt(50_000);
+/** What to keep back from `balance` for the fee, never below zero. */
+export const afterFeeReserve = (balance: bigint) => (balance > USDC_FEE_RESERVE_RAW ? balance - USDC_FEE_RESERVE_RAW : BigInt(0));
+export const FEE_RESERVE_NOTE = 'Base Account takes its network fee in USDC from this wallet: leave about $0.05 of USDC so this can go through.';
+
 export const SWAP_CANCELLED = 'The swap was cancelled in your wallet. Nothing was bought or sold.';
-export const BATCH_FAILED = 'The basket’s transaction reverted onchain, so nothing was bought and nothing was approved. Prices may have moved: review it again.';
+export const BATCH_FAILED = 'The basket’s transaction reverted onchain, so nothing was bought and nothing was approved; only the network fee was paid. Prices may have moved: review it again.';
 export const BATCH_UNKNOWN = 'Your wallet sent the basket, but its outcome couldn’t be read yet. Check your wallet activity before buying again.';
 export const TX_UNKNOWN = 'Your wallet sent it, but whether it went through couldn’t be read. Check your wallet activity before trying again.';
 export const SWAP_REPLACED = 'Your wallet replaced the swap with another transaction. Check your wallet activity to see what went through.';
@@ -439,12 +459,12 @@ export function useReviewedSwap(opts: {
 
   /** Dry-runs the swap (with its approval when it goes in the same batch); on a revert, one fresh route, held to
    *  the card, and another dry run. Never returns a swap that still reverts. */
-  const passDryRun = async (tx: SwapTx, reviewed: SwapTx, approve: boolean, approvalDone: boolean): Promise<SwapTx> => {
+  const passDryRun = async (tx: SwapTx, reviewed: SwapTx, approve: boolean, approvalDone: boolean, approvalBlock?: bigint): Promise<SwapTx> => {
     setBusy('simulate');
-    if ((await wallet.simulateSwapCalls(swapCalls(tx, approve))) !== 'reverts') return tx;
+    if ((await wallet.simulateSwapCalls(swapCalls(tx, approve), approvalBlock)) !== 'reverts') return tx;
     const next = await rebuildAgainst(reviewed, approvalDone);
     setBusy('simulate');
-    if ((await wallet.simulateSwapCalls(swapCalls(next, approve))) === 'reverts') throw new Error(approvalDone ? ROUTE_WOULD_FAIL_AFTER_APPROVAL : ROUTE_WOULD_FAIL);
+    if ((await wallet.simulateSwapCalls(swapCalls(next, approve), approvalBlock)) === 'reverts') throw new Error(approvalDone ? ROUTE_WOULD_FAIL_AFTER_APPROVAL : ROUTE_WOULD_FAIL);
     return next;
   };
 
@@ -490,14 +510,15 @@ export function useReviewedSwap(opts: {
       let tx = review;
       let stale = Date.now() - reviewedAt > 60_000;
       let approvalDone = false;
+      let approvalBlock: bigint | undefined;
       if ((await wallet.routerAllowance(review.tokenIn)) < reviewedIn) {
         setBusy('approve');
-        await wallet.approveExact(review.tokenIn, reviewedIn, opts.texts.approvalReverted);
+        approvalBlock = await wallet.approveExact(review.tokenIn, reviewedIn, opts.texts.approvalReverted);
         stale = true;
         approvalDone = true;
       }
       if (stale) tx = await rebuildAgainst(review, approvalDone);
-      tx = await passDryRun(tx, review, false, approvalDone);
+      tx = await passDryRun(tx, review, false, approvalDone, approvalBlock);
 
       setBusy('swap');
       let sent: Hex | null = null;
@@ -530,5 +551,5 @@ export function useReviewedSwap(opts: {
     setDone(null);
   };
 
-  return { address: wallet.address, busy, error, review, setReview, done, setDone, startReview, confirm, reset, oneSignature };
+  return { address: wallet.address, busy, error, review, setReview, done, setDone, startReview, confirm, reset, oneSignature, canBatch: wallet.canBatch };
 }

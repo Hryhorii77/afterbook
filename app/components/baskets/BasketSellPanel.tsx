@@ -29,7 +29,7 @@ import { SlippageControl, useSlippage } from '../swap/slippage';
 const LEG_PAUSE_MS = 4000; // same reason as BasketBuyPanel: let wallet simulations see the last leg
 const BATCH_FRESH_MS = 60_000; // as BasketBuyPanel: a review under a minute old is signed as reviewed
 const REBUILD_GAP_MS = 1000; // and an older one is rebuilt one leg a second (KyberSwap's rate limit)
-const SELL_BATCH_FAILED = 'The sale’s transaction reverted onchain, so nothing was sold and nothing was approved. Prices may have moved: review it again.';
+const SELL_BATCH_FAILED = 'The sale’s transaction reverted onchain, so nothing was sold and nothing was approved; only the network fee was paid. Prices may have moved: review it again.';
 const SELL_BATCH_UNKNOWN = 'Your wallet sent the sale, but its outcome couldn’t be read yet. Check your wallet activity before selling again.';
 
 export interface SellStock {
@@ -204,7 +204,7 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
           if (BigInt(tx.minAmountOut) < legFloor(BigInt(reviewed.minAmountOut))) {
             throw new Error(`${leg.symbol}'s price moved below the "at least" amount since your review, so it was not sold.`);
           }
-          const hash = await wallet.sendSwap(tx, `${leg.symbol}'s swap reverted onchain (its price moved past the limit); that stock did not move.`, () => setBusy(`confirm-${i}`));
+          const hash = await wallet.sendSwap(tx, `${leg.symbol}'s swap reverted onchain (its price may have moved past the limit, or a step in the route failed); that stock did not move, only the network fee was paid.`, () => setBusy(`confirm-${i}`));
           status[i] = { symbol: leg.symbol, status: 'done', hash, text: `${fmt(leg.amountIn, stockOf(leg.symbol).decimals)} ${leg.symbol} for about ${fmt(tx.quote.amountOut, USDC.decimals, 2)} USDC` };
           setProgress([...status]);
           void logSwapHash(hash);
@@ -329,14 +329,14 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
             <p className="geo-note">
               You sign once. Your wallet gets one batch: for each stock, approve exactly the amount above for this router (left out if it already can),
               then its swap to USDC: {n} stock{n === 1 ? '' : 's'}. After a minute the prices are fetched again before you sign, and the batch is only sent if
-              every stock still returns at least the USDC above. It goes through together or not at all. You need a little ETH on Base for network fees,
-              unless your wallet covers them.
+              every stock still returns at least the USDC above. It goes through together or not at all. Network fees are paid in USDC with Base
+              Account (in ETH with other wallets).
             </p>
           ) : (
             <p className="geo-note">
               For each stock your wallet asks to approve exactly the amount above for this router (skipped if it already can), then for the swap: up to{' '}
               {n * 2} requests. Each swap is rebuilt just before you sign it and is only sent if you still get at least the USDC above. If one stops, you keep
-              the USDC from what was already sold and can sell the rest. You need a little ETH on Base for network fees.
+              the USDC from what was already sold and can sell the rest. Network fees are paid in ETH on Base, or in USDC with Base Account.
             </p>
           )}
           <div className="basket-row">
