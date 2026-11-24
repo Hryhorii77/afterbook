@@ -15,6 +15,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${siteUrl}/memes`, lastModified: now, changeFrequency: 'hourly', priority: 0.6 },
     { url: `${siteUrl}/plan`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
     { url: `${siteUrl}/traction`, lastModified: now, changeFrequency: 'daily', priority: 0.4 },
+    { url: `${siteUrl}/agents`, lastModified: now, changeFrequency: 'weekly', priority: 0.5 },
     { url: `${siteUrl}/rules`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
     { url: `${siteUrl}/borrow`, lastModified: now, changeFrequency: 'hourly', priority: 0.8 },
     { url: `${siteUrl}/build`, lastModified: now, changeFrequency: 'hourly', priority: 0.7 },
