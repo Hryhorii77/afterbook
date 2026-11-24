@@ -20,6 +20,7 @@ import {
   maxWithdrawRaw,
   repayAllApproval,
   repayAllApprovalNow,
+  showRepayFeeNote,
   SPOKE_ABI,
   withChange,
   type AavePosition,
@@ -29,7 +30,7 @@ import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { LoanRescue } from './LoanRescue';
 import { fmt, usd } from '../swap/swapClient';
 import { useNotify } from '../notifications/notify';
-import { FEE_RESERVE_NOTE, leavesNoFeeRoom, parseAmount, TX_UNKNOWN, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
+import { FEE_RESERVE_NOTE, parseAmount, TX_UNKNOWN, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
 import { sendAaveOneSignature } from './aaveOneSignature';
 
 // Borrow USDC against stock tokens on Aave V4's MAG7 spoke, from the visitor's own wallet (real
@@ -501,8 +502,7 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
               All
             </button>
           </div>
-          {/* What is actually approved: a full repay's buffered approval is capped at the balance, which then leaves nothing for the fee. */}
-          {wallet.canBatch && leavesNoFeeRoom(repayAll ? repayAllApprovalNow(repayRaw, null, usdcBalance).approval : repayRaw, usdcBalance) && <p className="geo-note">{FEE_RESERVE_NOTE}</p>}
+          {wallet.canBatch && showRepayFeeNote(repayAll, repayRaw, usdcBalance) && <p className="geo-note">{FEE_RESERVE_NOTE}</p>}
         </>
       )}
 

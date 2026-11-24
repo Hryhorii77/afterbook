@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { afterFeeReserve, leavesNoFeeRoom, USDC_FEE_RESERVE_RAW } from '../lib/wallet/feeReserve';
 import { reachesBlock } from '../lib/swap/dryRun';
-import { repayAllApproval, repayAllApprovalNow } from '../lib/lending/aaveBorrow';
+import { repayAllApproval, repayAllApprovalNow, showRepayFeeNote } from '../lib/lending/aaveBorrow';
 
 // Follow-ups of 2026-11-25: Base Account's USDC fee reserve, the dry run's wait for the approval's block, and a
 // full repay's approval from the debt read again before signing.
@@ -65,5 +65,19 @@ describe('a full repay’s approval', () => {
     const { approval } = repayAllApprovalNow(debt, null, balance);
     expect(approval).toBe(balance);
     expect(leavesNoFeeRoom(approval, balance)).toBe(true);
+  });
+  it('the repay form’s note: hidden when the USDC doesn’t cover the repay, shown when it covers it with under $0.05 to spare', () => {
+    const debt = usdc(4.5);
+    // balance < debt: "not enough USDC" already shows and the button is off; no fee note next to it.
+    expect(showRepayFeeNote(true, debt, usdc(4.4))).toBe(false);
+    expect(showRepayFeeNote(false, debt, usdc(4.4))).toBe(false);
+    // debt <= balance < debt + $0.05: the note shows, for All and for a typed amount.
+    expect(showRepayFeeNote(true, debt, debt)).toBe(true);
+    expect(showRepayFeeNote(true, debt, usdc(4.54))).toBe(true);
+    expect(showRepayFeeNote(false, debt, usdc(4.54))).toBe(true);
+    // $0.05 or more to spare: no note.
+    expect(showRepayFeeNote(false, debt, usdc(4.6))).toBe(false);
+    expect(showRepayFeeNote(true, debt, usdc(5))).toBe(false);
+    expect(showRepayFeeNote(false, BigInt(0), usdc(1))).toBe(false);
   });
 });
