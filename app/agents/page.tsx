@@ -95,7 +95,7 @@ export default function AgentsPage() {
             </tbody>
           </table>
         </div>
-        <p className="geo-note">All seven only read. None builds or signs a transaction.</p>
+        <p className="geo-note">None of the seven builds or signs a transaction. They read public data; make_plan and make_basket also save the plan so its link works for 7 days.</p>
       </section>
 
       <section className="panel">
