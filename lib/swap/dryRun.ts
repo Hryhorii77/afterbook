@@ -8,3 +8,15 @@ export function dryRunVerdict(outcome: { results: { status: string }[] } | { err
   const e = outcome.error as { shortMessage?: string; details?: string } | null;
   return /revert/i.test(`${e?.shortMessage ?? ''} ${e?.details ?? ''}`) ? 'reverts' : 'unknown';
 }
+
+/** Right after an approval: whether the node has reached `target` (the approval's block), reading its head up to
+ *  `tries` more times, `pauseMs` apart. False means it is still behind, and its dry run shouldn't be trusted to block
+ *  a swap (2026-11-25: a lagging backup node could report a revert for a swap whose approval it hadn't seen). */
+export async function reachesBlock(head: () => Promise<bigint>, target: bigint, tries = 4, pauseMs = 1000, sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))): Promise<boolean> {
+  let now = await head();
+  for (let i = 0; i < tries && now < target; i++) {
+    await sleep(pauseMs);
+    now = await head();
+  }
+  return now >= target;
+}

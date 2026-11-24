@@ -11,7 +11,7 @@ import { basketBatchCalls } from '@/lib/swap/basketBatch';
 import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { useNotify } from '../notifications/notify';
 import { fmt, logSwapHash, usd, venueNames } from '../swap/swapClient';
-import { BATCH_FAILED, SWAP_CANCELLED, buildSwap, parseAmount, useSwapWallet, useTokenBalance, useTxRun } from '../swap/useSwapWallet';
+import { afterFeeReserve, BATCH_FAILED, FEE_RESERVE_NOTE, leavesNoFeeRoom, SWAP_CANCELLED, buildSwap, parseAmount, useSwapWallet, useTokenBalance, useTxRun } from '../swap/useSwapWallet';
 import { GetUsdcGuide } from '../swap/GetUsdcGuide';
 import { SlippageControl, useSlippage } from '../swap/slippage';
 
@@ -231,7 +231,7 @@ export function BasketBuyPanel({
       setMaybeSent(false);
       if (allowance < total) {
         // From the moment it is signed the router may spend the total, so a stop before any leg is bought still says so.
-        const approvalReverted = 'The USDC approval reverted onchain. Nothing was bought.';
+        const approvalReverted = 'The USDC approval reverted onchain. Nothing was bought; only the network fee was paid.';
         try {
           await wallet.approveExact(USDC.address, total, approvalReverted, () => setApprovedFor(review.legs.map((l) => l.plan)));
         } catch (e) {
@@ -357,7 +357,8 @@ export function BasketBuyPanel({
           }}
           disabled={busy !== null}
         />
-        <button type="button" className="btn btn-secondary" onClick={() => balance !== undefined && setAmount(formatUnits(balance, USDC.decimals))} disabled={busy !== null || !balance}>
+        {/* Base Account takes its network fee in USDC from this wallet: Max leaves a few cents (lib/wallet/feeReserve.ts). */}
+        <button type="button" className="btn btn-secondary" onClick={() => balance !== undefined && setAmount(formatUnits(wallet.canBatch ? afterFeeReserve(balance) : balance, USDC.decimals))} disabled={busy !== null || !balance}>
           Max
         </button>
         {!review && (
@@ -367,6 +368,7 @@ export function BasketBuyPanel({
         )}
       </div>
       {overBalance && <p className="geo-note">That is more USDC than your wallet holds on Base.</p>}
+      {wallet.canBatch && totalRaw !== null && balance !== undefined && leavesNoFeeRoom(totalRaw, balance) && <p className="geo-note">{FEE_RESERVE_NOTE}</p>}
       <GetUsdcGuide balance={balance} needed={totalRaw} refetch={refetchBalance} />
       {overMax && maxUsd != null && <p className="geo-note">{maxLabel} is at most {usd(maxUsd)}.</p>}
       {overSized && !overMax && (

@@ -194,7 +194,7 @@ export function BasketSellPanel({ stocks, onBusy }: { stocks: SellStock[]; onBus
           // This stock's own approval: exactly what this leg sells, only the router, never unlimited.
           if ((await wallet.routerAllowance(token)) < leg.amountIn) {
             setBusy(`approve-${i}`);
-            await wallet.approveExact(token, leg.amountIn, `The ${leg.symbol} approval reverted onchain. It was not sold.`);
+            await wallet.approveExact(token, leg.amountIn, `The ${leg.symbol} approval reverted onchain. It was not sold; only the network fee was paid.`);
             setBusy(`pause-${i}`);
             await new Promise((res) => setTimeout(res, LEG_PAUSE_MS));
           }
