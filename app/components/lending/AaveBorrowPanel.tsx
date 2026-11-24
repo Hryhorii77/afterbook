@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAccount, usePublicClient, useReadContracts, useWriteContract } from 'wagmi';
 import { userOpOutcome } from '@/lib/wallet/userOps';
 import { base } from 'wagmi/chains';
-import { erc20Abi, formatUnits, getAddress, type ContractFunctionParameters } from 'viem';
+import { encodeFunctionData, erc20Abi, formatUnits, getAddress, type ContractFunctionParameters } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import {
   AAVE_MAG7_SPOKE,
@@ -29,6 +29,7 @@ import { LoanRescue } from './LoanRescue';
 import { fmt, usd } from '../swap/swapClient';
 import { useNotify } from '../notifications/notify';
 import { parseAmount, TX_UNKNOWN, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
+import { sendAaveOneSignature } from './aaveOneSignature';
 
 // Borrow USDC against stock tokens on Aave V4's MAG7 spoke, from the visitor's own wallet (real
 // money; lib/lending/aaveBorrow.ts has the verified contract facts). Three actions:
@@ -39,7 +40,10 @@ import { parseAmount, TX_UNKNOWN, useSwapWallet, useTxRun } from '../swap/useSwa
 // The rescue planner (LoanRescue.tsx) only fills the Repay or Add field; these buttons do the rest.
 // Every call is on behalf of the signer and carries the Builder Code. Before acting, each reserve's
 // token and the oracle are checked against what the page expects; any mismatch stops everything.
-// Spoke approvals have one call site, approveSpoke below: spender only AAVE_MAG7_SPOKE, exact amount.
+// Spoke approvals have two call sites, both spender only AAVE_MAG7_SPOKE and the exact amount: approveSpoke below,
+// and, with a wallet that runs batches atomically on Base (Base Account), lib/lending/aaveBatch.ts, where the
+// approval and the call go as one signature (2026-11-24: the second window was blocked on every borrow and
+// repay), checked by aaveBatchProblem before the wallet sees it.
 
 export interface AaveBorrowProps {
   stocks: AaveReserve[];
@@ -271,16 +275,28 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
     await refetch();
   };
 
+  // One signature (Base Account): see aaveOneSignature.ts.
+  const reserveTokens = [...stocks, usdc].map((r) => ({ reserveId: r.reserveId, token: r.token }));
+  const sendOneSignature = (spokeData: `0x${string}`, approval: { token: `0x${string}`; amount: bigint } | null, reverted: string, wouldRevert: string, repayAllCap?: bigint) =>
+    sendAaveOneSignature({ wallet, reserves: reserveTokens, spokeData, approval, reverted, wouldRevert, repayAllCap, setBusy });
+
   const doBorrow = () =>
     run('start', async () => {
       setDone(null);
       await wallet.ensureBase();
-      if (addRaw > BigInt(0) && sel.allowance < addRaw) await approveSpoke(sel.s.token, addRaw, sel.s.symbol);
       const calls = borrowCalls(address, { stock: sel.s, addRaw, enableCollateral: !sel.enabled, usdc, borrowRaw });
-      setBusy('sign');
-      const hash = await writeContractAsync({ ...spoke, functionName: 'multicall', args: [calls], dataSuffix: BUILDER_CODE_SUFFIX });
-      setBusy('confirming');
-      await waitOk(hash, 'The transaction reverted onchain (the price or the limit moved). Nothing changed.');
+      const reverted = 'The transaction reverted onchain (the price or the limit moved). Nothing changed.';
+      const needsApproval = addRaw > BigInt(0) && sel.allowance < addRaw;
+      let hash: `0x${string}`;
+      if (wallet.canBatch) {
+        hash = await sendOneSignature(encodeFunctionData({ abi: SPOKE_ABI, functionName: 'multicall', args: [calls] }), needsApproval ? { token: sel.s.token, amount: addRaw } : null, reverted, 'This would revert right now (the price or the limit moved).');
+      } else {
+        if (needsApproval) await approveSpoke(sel.s.token, addRaw, sel.s.symbol);
+        setBusy('sign');
+        hash = await writeContractAsync({ ...spoke, functionName: 'multicall', args: [calls], dataSuffix: BUILDER_CODE_SUFFIX });
+        setBusy('confirming');
+        await waitOk(hash, reverted);
+      }
       const parts = [addRaw > BigInt(0) ? `added ${fmt(addRaw, sel.s.decimals)} ${sel.s.symbol} as collateral` : '', borrowRaw > BigInt(0) ? `borrowed ${fmt(borrowRaw, 6, 2)} USDC` : ''].filter(Boolean);
       await finish(hash, `You ${parts.join(' and ')}.`, borrowRaw > BigInt(0) ? 'Borrowed' : 'Collateral added');
     });
@@ -292,11 +308,19 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
       // "All": the debt plus a hair for interest, but never more than the wallet holds (only the debt is taken).
       const allApproval = repayAllApproval(position.debtRaw);
       const approval = repayAll ? (allApproval < usdcBalance ? allApproval : usdcBalance) : repayRaw;
-      if (usdcAllowance < approval) await approveSpoke(usdc.token, approval, 'USDC');
-      setBusy('sign');
-      const hash = await writeContractAsync({ ...spoke, functionName: 'repay', args: [BigInt(usdc.reserveId), repayAll ? MAX_UINT256 : repayRaw, address], dataSuffix: BUILDER_CODE_SUFFIX });
-      setBusy('confirming');
-      await waitOk(hash, 'The repay reverted onchain. Nothing changed.');
+      const amountArg = repayAll ? MAX_UINT256 : repayRaw;
+      const reverted = 'The repay reverted onchain. Nothing changed.';
+      let hash: `0x${string}`;
+      if (wallet.canBatch) {
+        const data = encodeFunctionData({ abi: SPOKE_ABI, functionName: 'repay', args: [BigInt(usdc.reserveId), amountArg, address] });
+        hash = await sendOneSignature(data, usdcAllowance < approval ? { token: usdc.token, amount: approval } : null, reverted, 'This repay would revert right now.', repayAll ? allApproval : undefined);
+      } else {
+        if (usdcAllowance < approval) await approveSpoke(usdc.token, approval, 'USDC');
+        setBusy('sign');
+        hash = await writeContractAsync({ ...spoke, functionName: 'repay', args: [BigInt(usdc.reserveId), amountArg, address], dataSuffix: BUILDER_CODE_SUFFIX });
+        setBusy('confirming');
+        await waitOk(hash, reverted);
+      }
       await finish(hash, repayAll ? 'You repaid your whole USDC loan.' : `You repaid ${fmt(repayRaw, 6, 2)} USDC.`, 'Repaid');
     });
 
@@ -305,16 +329,25 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
       setDone(null);
       await wallet.ensureBase();
       const all = withdrawRaw === sel.supplied && !owes;
-      setBusy('sign');
-      const hash = await writeContractAsync({ ...spoke, functionName: 'withdraw', args: [BigInt(sel.s.reserveId), all ? MAX_UINT256 : withdrawRaw, address], dataSuffix: BUILDER_CODE_SUFFIX });
-      setBusy('confirming');
-      await waitOk(hash, 'The withdrawal reverted onchain (it would have put the loan over the limit). Nothing changed.');
+      const amountArg = all ? MAX_UINT256 : withdrawRaw;
+      const reverted = 'The withdrawal reverted onchain (it would have put the loan over the limit). Nothing changed.';
+      let hash: `0x${string}`;
+      if (wallet.canBatch) {
+        hash = await sendOneSignature(encodeFunctionData({ abi: SPOKE_ABI, functionName: 'withdraw', args: [BigInt(sel.s.reserveId), amountArg, address] }), null, reverted, 'This withdrawal would revert right now (it would put the loan over the limit).');
+      } else {
+        setBusy('sign');
+        hash = await writeContractAsync({ ...spoke, functionName: 'withdraw', args: [BigInt(sel.s.reserveId), amountArg, address], dataSuffix: BUILDER_CODE_SUFFIX });
+        setBusy('confirming');
+        await waitOk(hash, reverted);
+      }
       await finish(hash, `You withdrew ${fmt(withdrawRaw, sel.s.decimals)} ${sel.s.symbol}.`, 'Collateral withdrawn');
     });
 
   const busyLabel = busy?.startsWith('approve-')
     ? `Approve ${busy.slice(8)} in wallet…`
-    : busy === 'sign'
+    : busy === 'simulate'
+      ? 'Checking on Base…'
+      : busy === 'sign'
       ? 'Confirm in wallet…'
       : busy === 'confirming'
         ? 'Confirming onchain…'
@@ -499,9 +532,13 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
       </div>
       <p className="geo-note">
         {tab === 'borrow'
-          ? 'Your wallet asks to approve exactly the stock you add (skipped if already approved), then one transaction that posts it and borrows. '
+          ? wallet.canBatch
+            ? 'One signature: the approval of exactly the stock you add (if needed) and the transaction that posts it and borrows, together or not at all. '
+            : 'Your wallet asks to approve exactly the stock you add (skipped if already approved), then one transaction that posts it and borrows. '
           : tab === 'repay'
-            ? `Your wallet asks to approve the USDC${repayAll ? ' (what you owe plus 0.01% for interest until it is mined; only what is owed is taken)' : ''}, then the repay. `
+            ? wallet.canBatch
+              ? `One signature: the USDC approval${repayAll ? ' (what you owe plus 0.01% for interest until it is mined; only what is owed is taken)' : ''} (if needed) and the repay, together or not at all. `
+              : `Your wallet asks to approve the USDC${repayAll ? ' (what you owe plus 0.01% for interest until it is mined; only what is owed is taken)' : ''}, then the repay. `
             : 'One transaction; it reverts if it would put your loan over the limit. '}
         Aave&apos;s stock prices can stop updating while the stock market is closed, and interest keeps running all weekend. You need a
         little ETH on Base for network fees.

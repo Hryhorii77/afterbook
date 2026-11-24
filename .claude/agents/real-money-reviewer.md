@@ -247,6 +247,19 @@ check passes, say so in one short line; do not pad.
   (sell), so `basketBatchProblem` applies; `BATCH_FAILED` maps to the panel's own
   "reverted" text, `BATCH_UNKNOWN` to `TX_UNKNOWN`, and an error before the wallet took
   it keeps the card.
+- One signature in the Aave panels (2026-11-24, `lib/lending/aaveBatch.ts`,
+  `app/components/lending/aaveOneSignature.ts`, `sendCheckedBatch` in `useSwapWallet.ts`): only
+  with `canBatch`; the calls come only from `aaveBatchCalls` (approve(spoke, exact) of the
+  reserve's token, only when the allowance is short, then one spoke call) and `aaveBatchProblem`
+  must pass: approvals only of a known reserve's token, spender the spoke, never zero or
+  unlimited, one per token, each equal to what the batch's supply/repay pulls (a MAX repay at
+  most `repayAllApproval(debt)`), spoke calls only supply/withdraw/borrow/repay/
+  setUsingAsCollateral or one non-nested multicall of them, every one `onBehalfOf` the signer,
+  value 0, Builder Code on each call and as the batch capability. `BATCH_FAILED` maps to the
+  panel's own reverted text, `BATCH_UNKNOWN` to `TX_UNKNOWN`. `sendCheckedBatch` takes the check
+  as a function and runs it against the hook's own account; each Aave batch is dry-run
+  (`simulateSwapCalls`) first and not sent while it reverts. A third approve call site, a
+  spender other than the spoke, or a call for someone else is a finding.
   Both batch builders (`assertSignedIsShown`) refuse a swap whose calldata spends
   another amount than `quote.amountIn` or signs another minimum than
   `tx.minAmountOut` (the card's "at least"), or whose split amounts exceed it.
@@ -267,9 +280,11 @@ check passes, say so in one short line; do not pad.
   target (rounded up, never down) and it must stay off when its health differs
   from the spoke's by over `RESCUE_MAX_MODEL_GAP`.
 - In-app Aave borrowing (`lib/lending/aaveBorrow.ts`, `AaveBorrowPanel.tsx`):
-  only the MAG7 spoke `AAVE_MAG7_SPOKE`; spoke approvals have one call site per
-  panel, `approveSpoke` in `AaveBorrowPanel.tsx` and in `AaveLendPanel.tsx`
-  (any other is a finding); the borrow panel's are exact (the added
+  only the MAG7 spoke `AAVE_MAG7_SPOKE`; spoke approvals have two call sites:
+  `approveSpoke` in `AaveBorrowPanel.tsx` and in `AaveLendPanel.tsx` (two-step
+  path), and `spokeApprovalCall` in `lib/lending/aaveBatch.ts`, reached only
+  through `aaveBatchCalls` and checked by `aaveBatchProblem` (one signature;
+  any other is a finding); the borrow panel's are exact (the added
   stock, the repay amount, or the debt plus `REPAY_ALL_BUFFER_BPS` and one
   unit for "All") and name only the spoke; every spoke call passes
   `onBehalfOf` = the connected account (`borrowCalls` and the repay/withdraw
@@ -284,8 +299,9 @@ check passes, say so in one short line; do not pad.
   gate is a finding). A new spoke function or ABI change needs the deployed
   source re-checked (the `verify-deployed-contract-version` skill).
 - In-app Aave lending (`AaveLendPanel.tsx`, the lending part of
-  `lib/lending/aaveBorrow.ts`): only the USDC reserve of the same spoke; the one
-  approval call site is `approveSpoke` in `AaveLendPanel.tsx`, exactly the
+  `lib/lending/aaveBorrow.ts`): only the USDC reserve of the same spoke; the
+  approval call sites are `approveSpoke` in `AaveLendPanel.tsx` and, for one
+  signature, `aaveBatchCalls` (checked by `aaveBatchProblem`), exactly the
   deposit, spender the spoke; `supply` and `withdraw` pass `onBehalfOf` = the
   connected account and the Builder Code; deposits capped at `MAX_LEND_USD`
   and the balance; withdrawals at what was supplied and the hub's free
