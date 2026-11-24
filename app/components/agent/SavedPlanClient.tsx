@@ -166,7 +166,7 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
                 </h3>
                 <p className="geo-note">
                   The swap below gets a fresh quote and runs the usual checks. It starts at the plan’s amount and won’t go above it. If needed, your
-                  wallet asks you to approve exactly the amount you review, then the swap.
+                  wallet asks you to approve exactly the amount you review, then the swap (with Base Account, both in one signature).
                 </p>
                 {gate(
                   <SwapPanel
@@ -177,13 +177,13 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
                     maxLabel="This plan’s buy"
                     buyOnly
                     source={byBot ? 'telegram' : 'agent'}
-                    onBuySent={() => setBuying(true)}
+                    onBuyStarted={() => setBuying(true)}
                     onBought={() => {
                       setBuying(false);
                       setBought((b) => [...b, selected.symbol]);
                       setSelectedSymbol(null);
                     }}
-                    onBuyReverted={() => setBuying(false)}
+                    onBuyFailed={() => setBuying(false)}
                   />,
                 )}
               </div>

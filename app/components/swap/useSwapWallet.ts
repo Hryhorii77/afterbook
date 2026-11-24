@@ -14,7 +14,11 @@
 //   the pool's liquidity read from the chain here, not from the server;
 // - a transaction that reverts onchain is an error, never a success;
 // - a one-signature basket batch (sendBatch, lib/swap/basketBatch.ts) is sent only atomically, to a wallet
-//   that says it can do that on Base, and its calls come only from basketBatchCalls.
+//   that says it can do that on Base, and its calls come only from basketBatchCalls (or basketSellBatchCalls);
+//   a single stock swap from such a wallet is the same kind of batch, its exact approval and its swap (2026-11-24);
+// - a single swap is dry-run on Base just before the wallet sees it (simulateSwapCalls): one that would revert
+//   gets one fresh route and another dry run, and is never sent while it still reverts (owner, 2026-11-24: a
+//   real /rules swap reverted inside KyberSwap's route and the paymaster still charged its fee).
 // Each panel keeps its own review card, wording and progress; this file never decides what to trade.
 
 import { useEffect, useState } from 'react';
@@ -24,8 +28,9 @@ import { base } from 'wagmi/chains';
 import { concat, erc20Abi, getAddress, parseUnits, type Hex } from 'viem';
 import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import { KYBER_ROUTER, type SwapQuote, type SwapTx } from '@/lib/swap/swap';
-import { basketBatchProblem, canBatchAtomically, type BatchCall } from '@/lib/swap/basketBatch';
+import { basketBatchCalls, basketBatchProblem, basketSellBatchCalls, canBatchAtomically, type BatchCall } from '@/lib/swap/basketBatch';
 import { userOpOutcome } from '@/lib/wallet/userOps';
+import { dryRunVerdict, type DryRun } from '@/lib/swap/dryRun';
 import { wagmiConfig } from '@/lib/wallet/wagmiConfig';
 import { getStock, USDC } from '@/lib/stocks/tokens';
 import { poolFillProblem, signedFloorProblem } from '@/lib/swap/swapFloor';
@@ -262,13 +267,25 @@ export function useSwapWallet() {
     throw new Error(BATCH_UNKNOWN);
   };
 
+  /** Dry-runs calls from the connected account on Base now (eth_simulateV1), exactly as they would be sent.
+   *  'reverts' only when the node ran them and one failed; a node that can't simulate is 'unknown', which
+   *  never blocks a swap (the old behaviour). */
+  const simulateSwapCalls = async (calls: BatchCall[]): Promise<DryRun> => {
+    if (!address) return 'unknown';
+    try {
+      return dryRunVerdict(await client().simulateCalls({ account: address, calls: calls.map((c) => ({ to: c.to, data: c.data, value: c.value })) }));
+    } catch (error) {
+      return dryRunVerdict({ error });
+    }
+  };
+
   /** Sets the router's allowance for `token` back to zero (Portfolio's Revoke): approve(router, 0). */
   const revokeRouter = async (token: `0x${string}`, revertedMessage: string, onSigned?: () => void) => {
     await ensureBase();
     await approveExact(token, BigInt(0), revertedMessage, onSigned);
   };
 
-  return { address, ensureBase, routerAllowance, approveExact, sendSwap, revokeRouter, canBatch, sendBatch };
+  return { address, ensureBase, routerAllowance, approveExact, sendSwap, revokeRouter, canBatch, sendBatch, simulateSwapCalls };
 }
 
 /** Wording for a run that stops: what the panel says and what the toast says. */
@@ -284,6 +301,10 @@ export const BATCH_FAILED = 'The basket’s transaction reverted onchain, so not
 export const BATCH_UNKNOWN = 'Your wallet sent the basket, but its outcome couldn’t be read yet. Check your wallet activity before buying again.';
 export const TX_UNKNOWN = 'Your wallet sent it, but whether it went through couldn’t be read. Check your wallet activity before trying again.';
 export const SWAP_REPLACED = 'Your wallet replaced the swap with another transaction. Check your wallet activity to see what went through.';
+export const ROUTE_WOULD_FAIL =
+  'This swap would fail right now: it reverts in a dry run on Base, even with a fresh route. Nothing was sent, so it cost no network fee. Try again in a moment.';
+export const ROUTE_WOULD_FAIL_AFTER_APPROVAL =
+  'This swap would fail right now: it reverts in a dry run on Base, even with a fresh route, so it wasn’t sent. Only the approval went through; it stays for your next try (no approval needed then). Try again in a moment.';
 
 /** Busy label, error line and the try/catch every panel wraps a wallet run in. */
 export function useTxRun(texts: RunTexts) {
@@ -363,6 +384,14 @@ export function useReviewedSwap(opts: {
   onSent?: (tx: SwapTx, hash: Hex) => void;
   /** Bookkeeping only: a sent swap was mined and reverted, or cancelled in the wallet (nothing swapped). */
   onSendFailed?: (tx: SwapTx, hash: Hex) => void;
+  /** Bookkeeping only, either flow: the wallet has taken the swap (two steps: sent; one signature: the batch
+   *  accepted), with no hash needed; and `onStartFailed` once it is known nothing was swapped. */
+  onStarted?: (tx: SwapTx) => void;
+  onStartFailed?: (tx: SwapTx) => void;
+  /** A tracked stock's swap (not a meme) from a wallet that can batch atomically: the exact approval, when
+   *  needed, and the swap as one signature (lib/swap/basketBatch.ts). False for a /rules run, whose pending
+   *  record needs a transaction hash before the swap is mined (onSent), which a batch doesn't have. */
+  oneSignature?: boolean;
 }) {
   const wallet = useSwapWallet();
   const { busy, setBusy, error, setError, run } = useTxRun(opts.texts);
@@ -377,29 +406,88 @@ export function useReviewedSwap(opts: {
       setReviewedAt(Date.now());
     });
 
+  const oneSignature = !!opts.oneSignature && wallet.canBatch;
+
+  /** A rebuild held to the reviewed card: the same trade with a minimum at least as good, or the new numbers
+   *  are shown and nothing is signed. */
+  const rebuildAgainst = async (reviewed: SwapTx, approvalDone: boolean): Promise<SwapTx> => {
+    setBusy('rebuild');
+    const next = await opts.build();
+    if (!opts.sameTrade(next, reviewed) || BigInt(next.minAmountOut) < BigInt(reviewed.minAmountOut)) {
+      setReview(next);
+      setReviewedAt(Date.now());
+      throw new Error(`The price moved since you reviewed it. Check the new numbers and confirm again${approvalDone ? ' (no approval needed this time)' : ''}.`);
+    }
+    return next;
+  };
+
+  /** The calls to dry-run (and, for one signature, to send): the exact approval when `approve`, then the swap. */
+  const swapCalls = (tx: SwapTx, approve: boolean): BatchCall[] => {
+    if (!approve) return [{ to: tx.to, data: concat([tx.data, BUILDER_CODE_SUFFIX]), value: BigInt(0) }];
+    return tx.quote.side === 'sell' ? basketSellBatchCalls([tx], [true]) : basketBatchCalls([tx], true);
+  };
+
+  /** Dry-runs the swap (with its approval when it goes in the same batch); on a revert, one fresh route, held to
+   *  the card, and another dry run. Never returns a swap that still reverts. */
+  const passDryRun = async (tx: SwapTx, reviewed: SwapTx, approve: boolean, approvalDone: boolean): Promise<SwapTx> => {
+    setBusy('simulate');
+    if ((await wallet.simulateSwapCalls(swapCalls(tx, approve))) !== 'reverts') return tx;
+    const next = await rebuildAgainst(reviewed, approvalDone);
+    setBusy('simulate');
+    if ((await wallet.simulateSwapCalls(swapCalls(next, approve))) === 'reverts') throw new Error(approvalDone ? ROUTE_WOULD_FAIL_AFTER_APPROVAL : ROUTE_WOULD_FAIL);
+    return next;
+  };
+
+  const confirmOneSignature = async (reviewed: SwapTx) => {
+    const reviewedIn = BigInt(reviewed.quote.amountIn);
+    let tx = Date.now() - reviewedAt > 60_000 ? await rebuildAgainst(reviewed, false) : reviewed;
+    const approve = (await wallet.routerAllowance(reviewed.tokenIn)) < reviewedIn;
+    tx = await passDryRun(tx, reviewed, approve, false);
+    const calls = approve ? swapCalls(tx, true) : [{ to: tx.to, data: concat([tx.data, BUILDER_CODE_SUFFIX]), value: BigInt(0) }];
+    setBusy('swap');
+    let signed = false;
+    let hashes: Hex[];
+    try {
+      hashes = await wallet.sendBatch(calls, () => {
+        signed = true;
+        setReview(null);
+        setBusy('confirming');
+        opts.onStarted?.(tx);
+      });
+    } catch (e) {
+      const msg = (e as Error).message;
+      // Declined or refused before the wallet took it: nothing was sent, the card stays.
+      if (!signed) throw e;
+      // An atomic batch that reverted did nothing at all; anything else may have gone through.
+      if (msg === BATCH_FAILED) {
+        opts.onStartFailed?.(tx);
+        throw new Error(opts.texts.reverted);
+      }
+      if (msg === BATCH_UNKNOWN) throw new Error(TX_UNKNOWN);
+      throw e;
+    }
+    opts.onSwapped(tx, hashes[hashes.length - 1]);
+  };
+
   const confirm = () =>
     run('swap', async () => {
       if (!wallet.address || !review) return;
       await wallet.ensureBase();
+      if (oneSignature) return confirmOneSignature(review);
 
       // Everything below uses the reviewed values, never the live input field.
       const reviewedIn = BigInt(review.quote.amountIn);
       let tx = review;
       let stale = Date.now() - reviewedAt > 60_000;
+      let approvalDone = false;
       if ((await wallet.routerAllowance(review.tokenIn)) < reviewedIn) {
         setBusy('approve');
         await wallet.approveExact(review.tokenIn, reviewedIn, opts.texts.approvalReverted);
         stale = true;
+        approvalDone = true;
       }
-      if (stale) {
-        setBusy('rebuild');
-        tx = await opts.build();
-        if (!opts.sameTrade(tx, review) || BigInt(tx.minAmountOut) < BigInt(review.minAmountOut)) {
-          setReview(tx);
-          setReviewedAt(Date.now());
-          throw new Error('The price moved since you reviewed it. Check the new numbers and confirm again (no approval needed this time).');
-        }
-      }
+      if (stale) tx = await rebuildAgainst(review, approvalDone);
+      tx = await passDryRun(tx, review, false, approvalDone);
 
       setBusy('swap');
       let sent: Hex | null = null;
@@ -410,12 +498,16 @@ export function useReviewedSwap(opts: {
           setReview(null);
           setBusy('confirming');
           opts.onSent?.(tx, h);
+          opts.onStarted?.(tx);
         });
       } catch (e) {
         // Only a mined revert or a wallet cancel is a failure; a receipt that couldn't be read, or an unknown
         // replacement, may still have swapped.
         const msg = (e as Error).message;
-        if (sent && (msg === opts.texts.reverted || msg === SWAP_CANCELLED)) opts.onSendFailed?.(tx, sent);
+        if (sent && (msg === opts.texts.reverted || msg === SWAP_CANCELLED)) {
+          opts.onSendFailed?.(tx, sent);
+          opts.onStartFailed?.(tx);
+        }
         throw e;
       }
       opts.onSwapped(tx, hash);
@@ -428,5 +520,5 @@ export function useReviewedSwap(opts: {
     setDone(null);
   };
 
-  return { address: wallet.address, busy, error, review, setReview, done, setDone, startReview, confirm, reset };
+  return { address: wallet.address, busy, error, review, setReview, done, setDone, startReview, confirm, reset, oneSignature };
 }

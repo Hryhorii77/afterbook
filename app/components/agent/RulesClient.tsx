@@ -755,6 +755,8 @@ export function RulesClient({ initialTape, geo }: { initialTape: TapeResult; geo
                           onBuySent={sent(checkedRule, check.slot)}
                           onBought={bought(checkedRule, check.slot)}
                           onBuyReverted={reverted(checkedRule, check.slot)}
+                          // A run is saved as pending under its swap's hash before it is mined; a batch has none yet.
+                          oneSignature={false}
                         />
                       ) : (
                         <p className="geo-note">Tick the box above to review the buy.</p>

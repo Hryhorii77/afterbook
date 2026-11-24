@@ -230,6 +230,23 @@ check passes, say so in one short line; do not pad.
   `STOCKS` token, and each approval equals exactly what the batch's
   swaps spend of that token (at most one per token). The sell's failure wording
   is its own (`SELL_BATCH_FAILED` / `SELL_BATCH_UNKNOWN`), never the buy's.
+- Single swaps (2026-11-24, `useReviewedSwap` in `useSwapWallet.ts`): every single swap
+  (stock or meme, either flow) is dry-run with `simulateSwapCalls` (viem `simulateCalls`,
+  `eth_simulateV1`, from the connected account, exactly the calls to be sent) just before
+  the wallet sees it. `dryRunVerdict` (`lib/swap/dryRun.ts`) blocks only on a dry run that
+  ran and failed; a node that can't simulate never blocks. On a revert: one rebuild held to
+  the card (`rebuildAgainst`: same trade, minimum at least the card's, else the new numbers
+  are shown and nothing is signed), another dry run, and `ROUTE_WOULD_FAIL` if it still
+  reverts (`ROUTE_WOULD_FAIL_AFTER_APPROVAL` when an approval was already mined); never a
+  loop, never a send while it reverts. With `oneSignature` (SwapPanel's default, but off
+  whenever the caller passes `onBuySent`, which needs the hash before it is mined: `/rules`;
+  never for memes; a plan link keeps it and locks its other legs with the hash-less
+  `onBuyStarted`/`onBuyFailed`) and a
+  wallet that can batch atomically, the exact approval (only if short) and the swap go as
+  one `sendBatch` from `basketBatchCalls([tx], …)` (buy) or `basketSellBatchCalls([tx], …)`
+  (sell), so `basketBatchProblem` applies; `BATCH_FAILED` maps to the panel's own
+  "reverted" text, `BATCH_UNKNOWN` to `TX_UNKNOWN`, and an error before the wallet took
+  it keeps the card.
   Both batch builders (`assertSignedIsShown`) refuse a swap whose calldata spends
   another amount than `quote.amountIn` or signs another minimum than
   `tx.minAmountOut` (the card's "at least"), or whose split amounts exceed it.
