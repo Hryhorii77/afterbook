@@ -3,6 +3,7 @@ import { withX402 } from '@x402/next';
 import { getStock } from '@/lib/stocks/tokens';
 import { getBuyQuoter } from '@/lib/market/lotQuote';
 import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE } from '@/lib/server/x402';
+import { bazaarListing } from '@/lib/server/x402Discovery';
 
 export const revalidate = 0;
 
@@ -81,6 +82,7 @@ export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configur
   ? withX402<unknown>(
       handler,
       {
+        ...bazaarListing('execute-link'),
         accepts: {
           scheme: 'exact',
           price: X402_PRICE,

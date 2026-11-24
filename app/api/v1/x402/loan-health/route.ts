@@ -13,6 +13,7 @@ import { limitRead } from '@/lib/server/readGuard';
 import { DEFAULT_ALERT_HEALTH, MAX_ALERT_HEALTH, MIN_ALERT_HEALTH } from '@/lib/lending/loanHealth';
 import { loanHealthReport } from '@/lib/lending/loanReport';
 import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE } from '@/lib/server/x402';
+import { bazaarListing } from '@/lib/server/x402Discovery';
 
 export const revalidate = 0;
 export const maxDuration = 30;
@@ -46,6 +47,7 @@ export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configur
       handler,
       {
         accepts: { scheme: 'exact', price: X402_PRICE, network: X402_NETWORK, payTo: X402_PAYOUT_ADDRESS! },
+        ...bazaarListing('loan-health'),
         description:
           "A wallet's Aave V4 and Morpho stock-token loans on Base: health at the lending oracle and at Aero's onchain price (which keeps trading while the cash market is shut), how far the collateral could fall before liquidation, whether it is under your threshold, and for an Aave loan links that open Afterbook's Aave panel with the repay or the added collateral worked out, for the person to sign. Read-only.",
       },
