@@ -343,6 +343,8 @@ Rate limit: 1 request/second per key.
 
 ## Agent / MCP
 
+The page **`/agents`** (2026-11-25, `app/agents/page.tsx`, linked from More) says the same for people: how to connect (Claude Code, Claude Desktop and claude.ai, any MCP client), the seven tools, a plan-to-signed-buy example, the paid x402 routes with their prices (read from `lib/server/x402.ts`), and what an agent can't do. A plan link page (`/plan/<id>`) has **Copy link** and, where the browser has one, **Share** (`PlanLinkShare.tsx`), so a person can pass a plan on; the link carries no wallet or amount and is checked again on every visit.
+
 `https://afterbook.app/api/mcp` is a remote [MCP](https://modelcontextprotocol.io) server for agents (Claude, etc.) — no key, no signup, read-only (it never builds or signs a transaction). Add it as a remote MCP server in Claude Code, Claude Desktop, or any MCP-compatible client pointed at that URL.
 
 Seven tools:

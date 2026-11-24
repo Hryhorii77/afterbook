@@ -16,6 +16,7 @@ import { usd } from '@/lib/format';
 import { SwapPanel } from '../swap/SwapPanel';
 import { BasketBuyPanel } from '../baskets/BasketBuyPanel';
 import { PlanLegCard } from './PlanLegCard';
+import { PlanLinkShare } from './PlanLinkShare';
 
 type Recheck = { legs: PlanLeg[]; checkedAt: number; buys: RecheckedBuy[]; basket: ReturnType<typeof basketRecheck> | null };
 type Props =
@@ -95,6 +96,8 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
         checks ran again when you opened this page, and you can buy only what still passes, once each on this visit, up to the amounts {shownTo}. Nothing is
         bought until you review a buy and sign it in your own wallet. This is a tool for your own decisions, not financial advice.
       </p>
+
+      <PlanLinkShare title={basket ? 'A basket on Afterbook' : 'A plan on Afterbook'} />
 
       <section className="panel plan-result">
         <h2>Checked now</h2>

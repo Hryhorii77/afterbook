@@ -35,6 +35,7 @@ const GROUPS: { title: string; items: { href: string; label: string; note: strin
       { href: '/traction', label: 'Traction', note: 'Swaps people signed through Afterbook, each checked onchain' },
       { href: 'https://t.me/afterbook_bot', label: 'Telegram alerts', note: 'A message when a gap crosses your level, or a loan gets close to liquidation', external: true },
       { href: README, label: 'How it works', note: 'Where every number comes from, and the checks on each trade', external: true },
+      { href: '/agents', label: 'For agents', note: 'Free MCP tools and paid x402 routes: the agent proposes, the code checks, the person signs' },
       { href: 'https://github.com/Hryhorii77/afterbook#public-api', label: 'API and MCP', note: 'The same data for your own scripts and agents', external: true },
     ],
   },
