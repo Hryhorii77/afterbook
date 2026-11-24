@@ -20,7 +20,7 @@ import {
 import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { fmt, usd } from '../swap/swapClient';
 import { useNotify } from '../notifications/notify';
-import { parseAmount, TX_UNKNOWN, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
+import { afterFeeReserve, FEE_RESERVE_NOTE, parseAmount, TX_UNKNOWN, useSwapWallet, useTxRun, USDC_FEE_RESERVE_RAW } from '../swap/useSwapWallet';
 import { sendAaveOneSignature } from './aaveOneSignature';
 
 // Lend USDC into Aave V4's Equities pool through the MAG7 spoke, from the visitor's own wallet (real
@@ -129,7 +129,9 @@ export function AaveLendPanel({ usdc, usdcAssetId, supplyApr, utilization }: Aav
   const withdrawRaw = tab === 'withdraw' ? parseAmount(withdrawText, 6) ?? ZERO : ZERO;
   const maxDeposit = (() => {
     const cap = BigInt(MAX_LEND_USD) * BigInt(1e6);
-    return balance < cap ? balance : cap;
+    // One signature (Base Account) takes its network fee in USDC from this wallet: leave a few cents.
+    const spendable = wallet.canBatch ? afterFeeReserve(balance) : balance;
+    return spendable < cap ? spendable : cap;
   })();
 
   const problem = (() => {
@@ -190,7 +192,7 @@ export function AaveLendPanel({ usdc, usdcAssetId, supplyApr, utilization }: Aav
       await wallet.ensureBase();
       const now = await fresh();
       if (depositRaw > now.balance) throw new Error('Your wallet no longer holds that much USDC on Base. Nothing was sent.');
-      const reverted = 'The deposit reverted onchain. Nothing changed.';
+      const reverted = 'The deposit reverted onchain. Nothing changed except the network fee.';
       let hash: `0x${string}`;
       if (wallet.canBatch) {
         // One signature (Base Account): the exact approval, if needed, and the deposit together (aaveOneSignature.ts).
@@ -222,7 +224,7 @@ export function AaveLendPanel({ usdc, usdcAssetId, supplyApr, utilization }: Aav
       const amount = withdrawRaw >= supplied ? now.supplied : withdrawRaw;
       if (amount > now.liquidity) throw new Error(`The pool now has only ${fmt(now.liquidity, 6, 2)} USDC free. Nothing was sent; try less.`);
       const arg = lendWithdrawArg(amount, now.supplied, now.liquidity);
-      const reverted = 'The withdrawal reverted onchain (borrowers may have drawn the pool down meanwhile). Nothing changed.';
+      const reverted = 'The withdrawal reverted onchain (borrowers may have drawn the pool down meanwhile). Nothing changed except the network fee.';
       let hash: `0x${string}`;
       if (wallet.canBatch) {
         hash = await sendAaveOneSignature({
@@ -301,6 +303,7 @@ export function AaveLendPanel({ usdc, usdcAssetId, supplyApr, utilization }: Aav
               Max
             </button>
           </div>
+          {wallet.canBatch && depositRaw > ZERO && depositRaw <= balance && depositRaw + USDC_FEE_RESERVE_RAW > balance && <p className="geo-note">{FEE_RESERVE_NOTE}</p>}
         </>
       )}
 
@@ -332,7 +335,7 @@ export function AaveLendPanel({ usdc, usdcAssetId, supplyApr, utilization }: Aav
           : 'One transaction. '}
         The rate changes with how much is borrowed. Withdrawals can wait if borrowers have drawn most of the pool, and if a loan&apos;s
         stock can&apos;t be sold in time when its price falls (prices can stop updating while the stock market is closed), lenders can
-        lose part of what they lent. You need a little ETH on Base for network fees.
+        lose part of what they lent. Network fees are paid in ETH on Base, or in USDC with Base Account.
       </p>
       {error && <p className="geo-note geo-note-blocked">{error}</p>}
       {done && (

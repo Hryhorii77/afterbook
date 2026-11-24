@@ -52,7 +52,7 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
       declinedBody: 'Nothing was submitted.',
       failedTitle: 'Buy failed',
       approvalReverted: `The ${inToken.symbol} approval reverted onchain. Nothing was bought.`,
-      reverted: `The buy reverted onchain (price moved past the ${slippageBps / 100}% limit). Your funds did not move.`,
+      reverted: `The buy reverted onchain (the price may have moved past your ${slippageBps / 100}% limit, or a step in the route failed). Nothing was bought; only the network fee was paid.`,
     },
     onSwapped: (tx, hash) => {
       const text = `Bought ${meme.symbol} with ${fmt(tx.quote.amountIn, inToken.decimals)} ${inToken.symbol}.`;
@@ -191,8 +191,8 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
             buy what you can lose.
           </p>
           <p className="geo-note">
-            Your wallet may first ask to approve exactly {fmt(review.quote.amountIn, inToken.decimals)} {inToken.symbol} for this router, then the buy. You need a
-            little ETH on Base for network fees.
+            Your wallet may first ask to approve exactly {fmt(review.quote.amountIn, inToken.decimals)} {inToken.symbol} for this router, then the buy. Network fees are paid in ETH on Base, or in USDC with
+            Base Account.
           </p>
           <div className="basket-row">
             <button type="button" className="btn" onClick={confirm} disabled={busy !== null}>

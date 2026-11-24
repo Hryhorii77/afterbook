@@ -28,7 +28,7 @@ import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { LoanRescue } from './LoanRescue';
 import { fmt, usd } from '../swap/swapClient';
 import { useNotify } from '../notifications/notify';
-import { parseAmount, TX_UNKNOWN, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
+import { FEE_RESERVE_NOTE, parseAmount, TX_UNKNOWN, useSwapWallet, useTxRun, USDC_FEE_RESERVE_RAW } from '../swap/useSwapWallet';
 import { sendAaveOneSignature } from './aaveOneSignature';
 
 // Borrow USDC against stock tokens on Aave V4's MAG7 spoke, from the visitor's own wallet (real
@@ -285,11 +285,11 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
       setDone(null);
       await wallet.ensureBase();
       const calls = borrowCalls(address, { stock: sel.s, addRaw, enableCollateral: !sel.enabled, usdc, borrowRaw });
-      const reverted = 'The transaction reverted onchain (the price or the limit moved). Nothing changed.';
+      const reverted = 'The transaction reverted onchain (the price or the limit may have moved). Nothing changed except the network fee.';
       const needsApproval = addRaw > BigInt(0) && sel.allowance < addRaw;
       let hash: `0x${string}`;
       if (wallet.canBatch) {
-        hash = await sendOneSignature(encodeFunctionData({ abi: SPOKE_ABI, functionName: 'multicall', args: [calls] }), needsApproval ? { token: sel.s.token, amount: addRaw } : null, reverted, 'This would revert right now (the price or the limit moved).');
+        hash = await sendOneSignature(encodeFunctionData({ abi: SPOKE_ABI, functionName: 'multicall', args: [calls] }), needsApproval ? { token: sel.s.token, amount: addRaw } : null, reverted, 'This would revert right now (the price or the limit may have moved).');
       } else {
         if (needsApproval) await approveSpoke(sel.s.token, addRaw, sel.s.symbol);
         setBusy('sign');
@@ -306,10 +306,15 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
       setDone(null);
       await wallet.ensureBase();
       // "All": the debt plus a hair for interest, but never more than the wallet holds (only the debt is taken).
-      const allApproval = repayAllApproval(position.debtRaw);
+      // The debt is read again now, not taken from the page's last read: a tab left open for a day or more would
+      // otherwise approve less than the interest has grown to (2026-11-24 review).
+      const debtNow = repayAll && publicClient
+        ? ((await publicClient.readContract({ ...spoke, functionName: 'getUserTotalDebt', args: [BigInt(usdc.reserveId), address] }).catch(() => position.debtRaw)) as bigint)
+        : position.debtRaw;
+      const allApproval = repayAllApproval(debtNow > position.debtRaw ? debtNow : position.debtRaw);
       const approval = repayAll ? (allApproval < usdcBalance ? allApproval : usdcBalance) : repayRaw;
       const amountArg = repayAll ? MAX_UINT256 : repayRaw;
-      const reverted = 'The repay reverted onchain. Nothing changed.';
+      const reverted = 'The repay reverted onchain. Nothing changed except the network fee.';
       let hash: `0x${string}`;
       if (wallet.canBatch) {
         const data = encodeFunctionData({ abi: SPOKE_ABI, functionName: 'repay', args: [BigInt(usdc.reserveId), amountArg, address] });
@@ -330,10 +335,10 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
       await wallet.ensureBase();
       const all = withdrawRaw === sel.supplied && !owes;
       const amountArg = all ? MAX_UINT256 : withdrawRaw;
-      const reverted = 'The withdrawal reverted onchain (it would have put the loan over the limit). Nothing changed.';
+      const reverted = 'The withdrawal reverted onchain (it may have put the loan over the limit). Nothing changed except the network fee.';
       let hash: `0x${string}`;
       if (wallet.canBatch) {
-        hash = await sendOneSignature(encodeFunctionData({ abi: SPOKE_ABI, functionName: 'withdraw', args: [BigInt(sel.s.reserveId), amountArg, address] }), null, reverted, 'This withdrawal would revert right now (it would put the loan over the limit).');
+        hash = await sendOneSignature(encodeFunctionData({ abi: SPOKE_ABI, functionName: 'withdraw', args: [BigInt(sel.s.reserveId), amountArg, address] }), null, reverted, 'This withdrawal would revert right now (it may put the loan over the limit).');
       } else {
         setBusy('sign');
         hash = await writeContractAsync({ ...spoke, functionName: 'withdraw', args: [BigInt(sel.s.reserveId), amountArg, address], dataSuffix: BUILDER_CODE_SUFFIX });
@@ -495,6 +500,7 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
               All
             </button>
           </div>
+          {wallet.canBatch && repayRaw > BigInt(0) && (repayAll ? repayAllApproval(repayRaw) : repayRaw) + USDC_FEE_RESERVE_RAW > usdcBalance && repayRaw <= usdcBalance && <p className="geo-note">{FEE_RESERVE_NOTE}</p>}
         </>
       )}
 
@@ -540,8 +546,8 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
               ? `One signature: the USDC approval${repayAll ? ' (what you owe plus 0.01% for interest until it is mined; only what is owed is taken)' : ''} (if needed) and the repay, together or not at all. `
               : `Your wallet asks to approve the USDC${repayAll ? ' (what you owe plus 0.01% for interest until it is mined; only what is owed is taken)' : ''}, then the repay. `
             : 'One transaction; it reverts if it would put your loan over the limit. '}
-        Aave&apos;s stock prices can stop updating while the stock market is closed, and interest keeps running all weekend. You need a
-        little ETH on Base for network fees.
+        Aave&apos;s stock prices can stop updating while the stock market is closed, and interest keeps running all weekend. Network fees are paid in ETH on Base, or in USDC with
+        Base Account.
       </p>
       {error && <p className="geo-note geo-note-blocked">{error}</p>}
       {done && (

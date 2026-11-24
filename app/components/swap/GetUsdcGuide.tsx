@@ -95,8 +95,8 @@ export function GetUsdcGuide({ balance, needed, refetch }: { balance: bigint | u
           . Bridged USDbC is a different token and can&apos;t be used here. Your balance above updates by itself once it arrives.
         </p>
         <p>
-          <strong>Network fees.</strong> A buy also needs a little ETH on Base for network fees, unless your wallet covers
-          them. If you only have USDC, get a few dollars of ETH on Base the same way.
+          <strong>Network fees.</strong> A buy also needs a little ETH on Base for network fees, unless your wallet pays
+          them in USDC (Base Account does: leave a few cents of USDC). If you only have USDC, get a few dollars of ETH on Base the same way.
         </p>
       </div>
     </details>

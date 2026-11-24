@@ -7,7 +7,7 @@ import { USDC, type CbStock } from '@/lib/stocks/tokens';
 import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { fmt, logSwapHash, usd, venueNames } from './swapClient';
 import { useNotify } from '../notifications/notify';
-import { buildSwap, parseAmount, useLiveQuote, useReviewedSwap, useTokenBalance } from './useSwapWallet';
+import { afterFeeReserve, buildSwap, FEE_RESERVE_NOTE, parseAmount, useLiveQuote, useReviewedSwap, USDC_FEE_RESERVE_RAW, useTokenBalance } from './useSwapWallet';
 import { GetUsdcGuide } from './GetUsdcGuide';
 import { SlippageControl, useSlippage } from './slippage';
 
@@ -73,7 +73,7 @@ export function SwapPanel({
   const amountKey = amountIn?.toString() ?? '';
   const { quote, quoteError, clearQuote } = useLiveQuote(amountKey ? `/api/swap/quote?symbol=${stock.symbol}&side=${side}&amountIn=${amountKey}` : null);
 
-  const { address, busy, error, review, setReview, done, setDone, startReview, confirm, reset, oneSignature: batched } = useReviewedSwap({
+  const { address, busy, error, review, setReview, done, setDone, startReview, confirm, reset, oneSignature: batched, canBatch: paysFeeInUsdc } = useReviewedSwap({
     oneSignature: oneSignature && !onBuySent,
     build: async () => buildSwap({ symbol: stock.symbol, side, amountIn: amountKey, account: address, slippageBps, source }),
     sameTrade: (tx, reviewed) => tx.quote.amountIn === reviewed.quote.amountIn && tx.quote.symbol === reviewed.quote.symbol && tx.quote.side === reviewed.quote.side && tx.tokenIn === reviewed.tokenIn,
@@ -83,7 +83,7 @@ export function SwapPanel({
       declinedBody: 'Nothing was submitted.',
       failedTitle: 'Swap failed',
       approvalReverted: `The ${inToken.symbol} approval reverted onchain. Nothing was swapped.`,
-      reverted: `The swap reverted onchain (price moved past the ${slippageBps / 100}% limit). Your funds did not move.`,
+      reverted: `The swap reverted onchain (the price may have moved past your ${slippageBps / 100}% limit, or a step in KyberSwap’s route failed). Nothing was bought or sold; only the network fee was paid.`,
     },
     onSent: (tx, hash) => {
       if (tx.quote.side === 'buy') onBuySent?.(Number(formatUnits(BigInt(tx.quote.amountIn), USDC.decimals)), hash);
@@ -185,7 +185,8 @@ export function SwapPanel({
         <button
           type="button"
           className="btn btn-secondary"
-          onClick={() => balance !== undefined && setAmount(formatUnits(balance, inToken.decimals))}
+          // Base Account (one signature or two steps, /rules included) takes its network fee in USDC: a USDC buy leaves a few cents.
+          onClick={() => balance !== undefined && setAmount(formatUnits(side === 'buy' && paysFeeInUsdc ? afterFeeReserve(balance) : balance, inToken.decimals))}
           disabled={busy !== null || !balance}
         >
           Max
@@ -197,6 +198,9 @@ export function SwapPanel({
         )}
       </div>
       {overBalance && <p className="geo-note">That is more {inToken.symbol} than your wallet holds on Base.</p>}
+      {!overBalance && side === 'buy' && paysFeeInUsdc && amountIn !== null && balance !== undefined && amountIn + USDC_FEE_RESERVE_RAW > balance && (
+        <p className="geo-note">{FEE_RESERVE_NOTE}</p>
+      )}
       {side === 'buy' && <GetUsdcGuide balance={balance} needed={amountIn} refetch={refetchBalance} />}
       {overMax && maxUsd != null && <p className="geo-note">{maxLabel} is at most {usd(maxUsd)}.</p>}
       {!review && <SlippageControl disabled={busy !== null} />}
@@ -240,8 +244,8 @@ export function SwapPanel({
                 price moves while that approval confirms, you see the new numbers before anything else is signed.
               </>
             )}{' '}
-            Before your wallet opens, the swap is tried on Base without sending it (when the network allows), and one that would fail isn&apos;t sent. You
-            need a little ETH on Base for network fees (Base Account may pay them in USDC).
+            Before your wallet opens, the swap is tried on Base without sending it (when the network allows), and one that would fail isn&apos;t sent. Network
+            fees are paid in ETH on Base, or in USDC with Base Account.
           </p>
           <div className="basket-row">
             <button type="button" className="btn" onClick={confirm} disabled={busy !== null}>
