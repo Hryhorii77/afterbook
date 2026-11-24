@@ -14,6 +14,7 @@
 // - multicall delegatecalls the spoke itself, so msg.sender stays the user;
 // - health factor = Σ(collateral value × collateral factor) / debt, liquidatable below 1.0.
 
+import { leavesNoFeeRoom } from '../wallet/feeReserve';
 import { encodeFunctionData, getAddress, parseAbi } from 'viem';
 
 export const AAVE_EQUITIES_HUB = '0xa4d5947Eb727A052bae69C593FfC84247EC9864E' as const;
@@ -150,6 +151,14 @@ export const MAX_UINT256 = BigInt(2) ** BigInt(256) - BigInt(1);
  *  that read failed): the buffer on the larger of the two, so a tab left open for days can't approve less than the
  *  interest has grown to (2026-11-25), and never more than the wallet holds (only the debt is taken). `cap` is what
  *  aaveBatchProblem checks the approval against. */
+/** Whether the repay form shows the "leave about $0.05" note for a Base Account wallet: only when the repay fits
+ *  the USDC balance (below it the form already says there isn't enough, and the button is off; 2026-11-25 review),
+ *  and what is actually approved (a full repay's buffer capped at the balance) leaves less than the reserve. */
+export function showRepayFeeNote(repayAll: boolean, repayRaw: bigint, usdcBalanceRaw: bigint): boolean {
+  if (repayRaw <= BigInt(0) || repayRaw > usdcBalanceRaw) return false;
+  return leavesNoFeeRoom(repayAll ? repayAllApprovalNow(repayRaw, null, usdcBalanceRaw).approval : repayRaw, usdcBalanceRaw);
+}
+
 export function repayAllApprovalNow(pageDebtRaw: bigint, freshDebtRaw: bigint | null, usdcBalanceRaw: bigint): { approval: bigint; cap: bigint } {
   const debt = freshDebtRaw != null && freshDebtRaw > pageDebtRaw ? freshDebtRaw : pageDebtRaw;
   const cap = repayAllApproval(debt);
