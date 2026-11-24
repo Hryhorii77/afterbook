@@ -19,6 +19,7 @@ import {
   maxBorrowRaw,
   maxWithdrawRaw,
   repayAllApproval,
+  repayAllApprovalNow,
   SPOKE_ABI,
   withChange,
   type AavePosition,
@@ -28,7 +29,7 @@ import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { LoanRescue } from './LoanRescue';
 import { fmt, usd } from '../swap/swapClient';
 import { useNotify } from '../notifications/notify';
-import { FEE_RESERVE_NOTE, parseAmount, TX_UNKNOWN, useSwapWallet, useTxRun, USDC_FEE_RESERVE_RAW } from '../swap/useSwapWallet';
+import { FEE_RESERVE_NOTE, leavesNoFeeRoom, parseAmount, TX_UNKNOWN, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
 import { sendAaveOneSignature } from './aaveOneSignature';
 
 // Borrow USDC against stock tokens on Aave V4's MAG7 spoke, from the visitor's own wallet (real
@@ -262,7 +263,7 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
     setBusy(`approve-${sym}`);
     const hash = await writeContractAsync({ address: token, abi: erc20Abi, functionName: 'approve', args: [AAVE_MAG7_SPOKE, amount], chainId: base.id, dataSuffix: BUILDER_CODE_SUFFIX });
     setBusy('confirming');
-    await waitOk(hash, `The ${sym} approval reverted onchain. Nothing else was sent.`);
+    await waitOk(hash, `The ${sym} approval reverted onchain. Nothing else was sent; only the network fee was paid.`);
   };
   const finish = async (hash: `0x${string}`, text: string, title: string) => {
     setDone({ hash, text });
@@ -308,11 +309,11 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
       // "All": the debt plus a hair for interest, but never more than the wallet holds (only the debt is taken).
       // The debt is read again now, not taken from the page's last read: a tab left open for a day or more would
       // otherwise approve less than the interest has grown to (2026-11-24 review).
-      const debtNow = repayAll && publicClient
-        ? ((await publicClient.readContract({ ...spoke, functionName: 'getUserTotalDebt', args: [BigInt(usdc.reserveId), address] }).catch(() => position.debtRaw)) as bigint)
-        : position.debtRaw;
-      const allApproval = repayAllApproval(debtNow > position.debtRaw ? debtNow : position.debtRaw);
-      const approval = repayAll ? (allApproval < usdcBalance ? allApproval : usdcBalance) : repayRaw;
+      const freshDebt = repayAll && publicClient
+        ? ((await publicClient.readContract({ ...spoke, functionName: 'getUserTotalDebt', args: [BigInt(usdc.reserveId), address] }).catch(() => null)) as bigint | null)
+        : null;
+      const { approval: allApprovalNow, cap: allApproval } = repayAllApprovalNow(position.debtRaw, freshDebt, usdcBalance);
+      const approval = repayAll ? allApprovalNow : repayRaw;
       const amountArg = repayAll ? MAX_UINT256 : repayRaw;
       const reverted = 'The repay reverted onchain. Nothing changed except the network fee.';
       let hash: `0x${string}`;
@@ -500,7 +501,8 @@ export function AaveBorrowPanel({ stocks, usdc, oracle, poolLiquidityUsd, borrow
               All
             </button>
           </div>
-          {wallet.canBatch && repayRaw > BigInt(0) && (repayAll ? repayAllApproval(repayRaw) : repayRaw) + USDC_FEE_RESERVE_RAW > usdcBalance && repayRaw <= usdcBalance && <p className="geo-note">{FEE_RESERVE_NOTE}</p>}
+          {/* What is actually approved: a full repay's buffered approval is capped at the balance, which then leaves nothing for the fee. */}
+          {wallet.canBatch && leavesNoFeeRoom(repayAll ? repayAllApprovalNow(repayRaw, null, usdcBalance).approval : repayRaw, usdcBalance) && <p className="geo-note">{FEE_RESERVE_NOTE}</p>}
         </>
       )}
 

@@ -7,7 +7,7 @@ import { USDC, type CbStock } from '@/lib/stocks/tokens';
 import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { fmt, logSwapHash, usd, venueNames } from './swapClient';
 import { useNotify } from '../notifications/notify';
-import { afterFeeReserve, buildSwap, FEE_RESERVE_NOTE, parseAmount, useLiveQuote, useReviewedSwap, USDC_FEE_RESERVE_RAW, useTokenBalance } from './useSwapWallet';
+import { afterFeeReserve, buildSwap, FEE_RESERVE_NOTE, leavesNoFeeRoom, parseAmount, useLiveQuote, useReviewedSwap, useTokenBalance } from './useSwapWallet';
 import { GetUsdcGuide } from './GetUsdcGuide';
 import { SlippageControl, useSlippage } from './slippage';
 
@@ -82,7 +82,7 @@ export function SwapPanel({
       declinedTitle: 'Swap declined',
       declinedBody: 'Nothing was submitted.',
       failedTitle: 'Swap failed',
-      approvalReverted: `The ${inToken.symbol} approval reverted onchain. Nothing was swapped.`,
+      approvalReverted: `The ${inToken.symbol} approval reverted onchain. Nothing was swapped; only the network fee was paid.`,
       reverted: `The swap reverted onchain (the price may have moved past your ${slippageBps / 100}% limit, or a step in KyberSwap’s route failed). Nothing was bought or sold; only the network fee was paid.`,
     },
     onSent: (tx, hash) => {
@@ -198,7 +198,7 @@ export function SwapPanel({
         )}
       </div>
       {overBalance && <p className="geo-note">That is more {inToken.symbol} than your wallet holds on Base.</p>}
-      {!overBalance && side === 'buy' && paysFeeInUsdc && amountIn !== null && balance !== undefined && amountIn + USDC_FEE_RESERVE_RAW > balance && (
+      {side === 'buy' && paysFeeInUsdc && amountIn !== null && balance !== undefined && leavesNoFeeRoom(amountIn, balance) && (
         <p className="geo-note">{FEE_RESERVE_NOTE}</p>
       )}
       {side === 'buy' && <GetUsdcGuide balance={balance} needed={amountIn} refetch={refetchBalance} />}

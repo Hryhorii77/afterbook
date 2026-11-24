@@ -51,7 +51,7 @@ export function MemeBuyPanel({ meme, stock }: { meme: { address: `0x${string}`; 
       declinedTitle: 'Buy declined',
       declinedBody: 'Nothing was submitted.',
       failedTitle: 'Buy failed',
-      approvalReverted: `The ${inToken.symbol} approval reverted onchain. Nothing was bought.`,
+      approvalReverted: `The ${inToken.symbol} approval reverted onchain. Nothing was bought; only the network fee was paid.`,
       reverted: `The buy reverted onchain (the price may have moved past your ${slippageBps / 100}% limit, or a step in the route failed). Nothing was bought; only the network fee was paid.`,
     },
     onSwapped: (tx, hash) => {

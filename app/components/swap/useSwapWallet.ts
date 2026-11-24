@@ -32,7 +32,7 @@ import { BUILDER_CODE_SUFFIX } from '@/lib/wallet/builderCode';
 import { KYBER_ROUTER, type SwapQuote, type SwapTx } from '@/lib/swap/swap';
 import { basketBatchCalls, basketBatchProblem, basketSellBatchCalls, canBatchAtomically, type BatchCall } from '@/lib/swap/basketBatch';
 import { userOpOutcome } from '@/lib/wallet/userOps';
-import { dryRunVerdict, type DryRun } from '@/lib/swap/dryRun';
+import { dryRunVerdict, reachesBlock, type DryRun } from '@/lib/swap/dryRun';
 import { wagmiConfig } from '@/lib/wallet/wagmiConfig';
 import { getStock, USDC } from '@/lib/stocks/tokens';
 import { poolFillProblem, signedFloorProblem } from '@/lib/swap/swapFloor';
@@ -287,14 +287,7 @@ export function useSwapWallet() {
     try {
       // Right after an approval, a node that hasn't seen its block yet would run the swap without it and report a
       // revert: then wait (briefly) for that block, and if the node still hasn't got it, don't block on its answer.
-      if (atLeastBlock != null) {
-        let head = await client().getBlockNumber({ cacheTime: 0 });
-        for (let i = 0; i < 4 && head < atLeastBlock; i++) {
-          await new Promise((r) => setTimeout(r, 1000));
-          head = await client().getBlockNumber({ cacheTime: 0 });
-        }
-        if (head < atLeastBlock) return 'unknown';
-      }
+      if (atLeastBlock != null && !(await reachesBlock(() => client().getBlockNumber({ cacheTime: 0 }), atLeastBlock))) return 'unknown';
       return dryRunVerdict(await client().simulateCalls({ account: address, calls: calls.map((c) => ({ to: c.to, data: c.data, value: c.value })) }));
     } catch (error) {
       return dryRunVerdict({ error });
@@ -318,13 +311,8 @@ export interface RunTexts {
   failedTitle: string;
 }
 
-/** USDC (raw) to leave in a Base Account wallet (`canBatch`): it takes its network fee in USDC from the same wallet
- *  after the calls run, on one-signature and two-step sends alike, so spending the whole balance can pass the dry run and still fail
- *  (2026-11-24 review: about 1–2 cents a batch; 5 cents leaves room). */
-export const USDC_FEE_RESERVE_RAW = BigInt(50_000);
-/** What to keep back from `balance` for the fee, never below zero. */
-export const afterFeeReserve = (balance: bigint) => (balance > USDC_FEE_RESERVE_RAW ? balance - USDC_FEE_RESERVE_RAW : BigInt(0));
-export const FEE_RESERVE_NOTE = 'Base Account takes its network fee in USDC from this wallet: leave about $0.05 of USDC so this can go through.';
+// The USDC fee reserve lives in lib/wallet/feeReserve.ts (pure, tested); re-exported for the panels.
+export { afterFeeReserve, FEE_RESERVE_NOTE, leavesNoFeeRoom, USDC_FEE_RESERVE_RAW } from '@/lib/wallet/feeReserve';
 
 export const SWAP_CANCELLED = 'The swap was cancelled in your wallet. Nothing was bought or sold.';
 export const BATCH_FAILED = 'The basket’s transaction reverted onchain, so nothing was bought and nothing was approved; only the network fee was paid. Prices may have moved: review it again.';

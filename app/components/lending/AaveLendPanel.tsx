@@ -20,7 +20,7 @@ import {
 import { WalletConnectButton } from '../layout/WalletConnectButton';
 import { fmt, usd } from '../swap/swapClient';
 import { useNotify } from '../notifications/notify';
-import { afterFeeReserve, FEE_RESERVE_NOTE, parseAmount, TX_UNKNOWN, useSwapWallet, useTxRun, USDC_FEE_RESERVE_RAW } from '../swap/useSwapWallet';
+import { afterFeeReserve, FEE_RESERVE_NOTE, leavesNoFeeRoom, parseAmount, TX_UNKNOWN, useSwapWallet, useTxRun } from '../swap/useSwapWallet';
 import { sendAaveOneSignature } from './aaveOneSignature';
 
 // Lend USDC into Aave V4's Equities pool through the MAG7 spoke, from the visitor's own wallet (real
@@ -176,7 +176,7 @@ export function AaveLendPanel({ usdc, usdcAssetId, supplyApr, utilization }: Aav
     setBusy('approve');
     const hash = await writeContractAsync({ address: usdc.token, abi: erc20Abi, functionName: 'approve', args: [AAVE_MAG7_SPOKE, amount], chainId: base.id, dataSuffix: BUILDER_CODE_SUFFIX });
     setBusy('confirming');
-    await waitOk(hash, 'The USDC approval reverted onchain. Nothing else was sent.');
+    await waitOk(hash, 'The USDC approval reverted onchain. Nothing else was sent; only the network fee was paid.');
   };
   const finish = async (hash: `0x${string}`, text: string, title: string) => {
     setDone({ hash, text });
@@ -303,7 +303,7 @@ export function AaveLendPanel({ usdc, usdcAssetId, supplyApr, utilization }: Aav
               Max
             </button>
           </div>
-          {wallet.canBatch && depositRaw > ZERO && depositRaw <= balance && depositRaw + USDC_FEE_RESERVE_RAW > balance && <p className="geo-note">{FEE_RESERVE_NOTE}</p>}
+          {wallet.canBatch && leavesNoFeeRoom(depositRaw, balance) && <p className="geo-note">{FEE_RESERVE_NOTE}</p>}
         </>
       )}
 

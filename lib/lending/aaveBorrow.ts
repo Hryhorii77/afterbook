@@ -146,6 +146,16 @@ export function repayAllApproval(debtRaw: bigint): bigint {
 
 export const MAX_UINT256 = BigInt(2) ** BigInt(256) - BigInt(1);
 
+/** A full repay's approval, from the debt the page last read and the debt read again just before signing (null if
+ *  that read failed): the buffer on the larger of the two, so a tab left open for days can't approve less than the
+ *  interest has grown to (2026-11-25), and never more than the wallet holds (only the debt is taken). `cap` is what
+ *  aaveBatchProblem checks the approval against. */
+export function repayAllApprovalNow(pageDebtRaw: bigint, freshDebtRaw: bigint | null, usdcBalanceRaw: bigint): { approval: bigint; cap: bigint } {
+  const debt = freshDebtRaw != null && freshDebtRaw > pageDebtRaw ? freshDebtRaw : pageDebtRaw;
+  const cap = repayAllApproval(debt);
+  return { approval: cap < usdcBalanceRaw ? cap : usdcBalanceRaw, cap };
+}
+
 /** The one transaction that adds collateral and/or borrows: supply, setUsingAsCollateral (when the
  *  stock is not collateral yet), borrow, batched with the spoke's own multicall. Always onBehalfOf =
  *  the account that signs. */
