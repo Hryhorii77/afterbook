@@ -36,8 +36,20 @@ export async function refreshOpenLeaderboard({ save = true, now = Date.now() }: 
   return rows.length;
 }
 
+const finite = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
+
+/** Every row the page draws must be whole (review of #243): a string symbol and finite counts, or the page computes
+ *  it itself rather than crash on a bad row. */
+function isRow(r: unknown): r is LeaderboardRow {
+  if (!r || typeof r !== 'object') return false;
+  const { symbol, stats } = r as { symbol?: unknown; stats?: Record<string, unknown> };
+  return typeof symbol === 'string' && !!stats && typeof stats === 'object' && finite(stats.days30) && finite(stats.revertedPct30);
+}
+
 function isSaved(v: unknown): v is SavedLeaderboard {
-  return !!v && typeof v === 'object' && typeof (v as SavedLeaderboard).at === 'number' && Array.isArray((v as SavedLeaderboard).rows);
+  if (!v || typeof v !== 'object') return false;
+  const { at, rows } = v as { at?: unknown; rows?: unknown };
+  return finite(at) && Array.isArray(rows) && rows.every(isRow);
 }
 
 /** The saved leaderboard, or null when there is none (or it can't be read). */
