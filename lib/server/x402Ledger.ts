@@ -77,3 +77,28 @@ export function summarizePaidCalls(calls: PaidCall[], since = 0): PaidCallStats 
 }
 
 export const last30Days = (now: number) => now - 30 * DAY;
+
+/** What the x402 server's after-settle hook hands over (the fields this ledger reads). */
+export interface SettlementLike {
+  result: { success: boolean; transaction?: string; amount?: string; payer?: string };
+  requirements: { amount: string };
+  paymentPayload: { resource?: { url?: string } };
+}
+
+/** The x402 server's after-settle hook: records a successful settlement once; skips a failed one. Never throws:
+ *  an error here must not fail a call that was already paid (and x402 fails a paid answer whose hook throws an
+ *  AfterSettleAbortError, so nothing is allowed to escape). */
+export async function recordSettlement(ctx: SettlementLike, now = Date.now()): Promise<void> {
+  try {
+    if (!ctx.result.success || !ctx.result.transaction) return;
+    await recordPaidCall({
+      tx: ctx.result.transaction,
+      route: routeOf(ctx.paymentPayload.resource?.url),
+      amount: ctx.result.amount ?? ctx.requirements.amount,
+      payer: ctx.result.payer ?? null,
+      at: now,
+    });
+  } catch (err) {
+    console.error('[x402] after-settle record failed', err instanceof Error ? err.message : err);
+  }
+}
