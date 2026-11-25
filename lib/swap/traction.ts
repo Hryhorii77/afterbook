@@ -1,12 +1,13 @@
 // The public traction page's numbers (/traction, 2026-11-21): swaps signed through Afterbook and found
 // onchain with its Builder Code (the swap log, lib/swap/swapLog.ts), test wallets left out
-// (lib/swap/testWallets.ts), and paid agent plans. Read through Next's data cache for an hour, so views
-// don't each cost Redis requests (two for the swaps, one pipeline of 30 for the plans).
+// (lib/swap/testWallets.ts), paid agent plans and paid x402 calls. Read through Next's data cache for an hour, so
+// views don't each cost Redis requests (two for the swaps, one pipeline of 30 for the plans, one for paid calls).
 import 'server-only';
 import { unstable_cache } from 'next/cache';
 import { swapRecords, summarizeSwaps, type SwapStats } from './swapLog';
 import { testWalletIds } from './testWallets';
 import { planStats } from '../agent/planStats';
+import { last30Days, paidCalls, summarizePaidCalls, type PaidCallStats } from '../server/x402Ledger';
 
 const DAY = 86_400_000;
 
@@ -18,11 +19,13 @@ export interface Traction {
   sinceMs: number | null;
   /** Plans agents paid for over x402 in the last 30 days (planStats `paid`). */
   paidPlans30: number | null;
+  /** x402 calls paid and settled onchain (lib/server/x402Ledger.ts); null when the ledger couldn't be read. */
+  paid: { month: PaidCallStats; all: PaidCallStats } | null;
   at: number;
 }
 
 export async function computeTraction(now = Date.now()): Promise<Traction | null> {
-  const [records, plans] = await Promise.all([swapRecords(400), planStats(30, now).catch(() => null)]);
+  const [records, plans, calls] = await Promise.all([swapRecords(400), planStats(30, now).catch(() => null), paidCalls().catch(() => null)]);
   if (!records) return null;
   const ids = testWalletIds();
   const all = summarizeSwaps(records, 400, ids);
@@ -36,9 +39,10 @@ export async function computeTraction(now = Date.now()): Promise<Traction | null
     all,
     sinceMs: counted.length ? Math.min(...counted.map((r) => r.at)) : null,
     paidPlans30: plans?.total.paid ?? null,
+    paid: calls ? { month: summarizePaidCalls(calls, last30Days(now)), all: summarizePaidCalls(calls) } : null,
     at: now,
   };
 }
 
-// v2 (2026-11-22): bySource gained 'telegram'; a new key so a cached v1 result (without it) is never read.
-export const getTraction = unstable_cache(() => computeTraction(), ['traction-v2'], { revalidate: 3600 });
+// v3 (2026-11-25): `paid` added; a new key so a cached v2 result (without it) is never read.
+export const getTraction = unstable_cache(() => computeTraction(), ['traction-v3'], { revalidate: 3600 });

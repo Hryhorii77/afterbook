@@ -7,6 +7,7 @@ import { getTraction } from '@/lib/swap/traction';
 import type { SwapSource, SwapStats } from '@/lib/swap/swapLog';
 import { usd } from '@/lib/format';
 import { shareMetadata } from '@/lib/share/shareMeta';
+import type { PaidCall } from '@/lib/server/x402Ledger';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,19 @@ const SOURCES: { key: SwapSource; label: string; note: string }[] = [
   { key: 'basket', label: 'Baskets', note: 'Several stocks in one go (/build and Describe a basket)' },
   { key: 'stock', label: 'Single stock', note: 'The swap on the home page and stock pages' },
   { key: 'meme', label: 'Memestocks', note: 'Base memes priced in stock tokens' },
+];
+
+const PAID_ROUTES: { key: PaidCall['route']; label: string }[] = [
+  { key: 'plan', label: 'Trade plan' },
+  { key: 'basket', label: 'Basket' },
+  { key: 'loan-health', label: 'Loan health' },
+  { key: 'liquidation-capacity', label: 'Liquidation capacity' },
+  { key: 'lp-range', label: 'LP range' },
+  { key: 'history', label: 'Gap history' },
+  { key: 'quote', label: 'Quote' },
+  { key: 'tape', label: 'Tape' },
+  { key: 'execute-link', label: 'Trade link' },
+  { key: 'other', label: 'Other' },
 ];
 
 const date = (ms: number) => new Date(ms).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
@@ -111,18 +125,64 @@ export default async function TractionPage() {
             <p className="geo-note" style={{ marginTop: 0 }}>
               Agents make a checked plan, free over MCP or paid over x402 in USDC on Base, and get a link; people can also ask the Telegram bot for
               one with /plan. A person opens the link on Afterbook and signs each buy in their own wallet.
-              {t.paidPlans30 != null && (
-                <>
-                  {' '}
-                  Plans paid for in the last 30 days: <strong>{num(t.paidPlans30)}</strong> (plans carry no wallet, so this includes Afterbook&apos;s own tests).
-                </>
-              )}
             </p>
             <p className="geo-note">
               Swaps signed from an agent&apos;s plan link: <strong>{num(t.all.bySource.agent.swaps)}</strong> ({usd(t.all.bySource.agent.volumeUsd, 0)}). From a
               Telegram /plan link, counted apart: <strong>{num(t.all.bySource.telegram.swaps)}</strong> ({usd(t.all.bySource.telegram.volumeUsd, 0)}).
             </p>
           </section>
+
+          {t.paid && (
+            <section className="panel">
+              <h2>Paid agent calls</h2>
+              <p className="geo-note" style={{ marginTop: 0 }}>
+                Calls to Afterbook&apos;s paid routes, each paid in USDC on Base over x402 and settled onchain; one payment, one call.
+              </p>
+              <div className="stat-grid traction-grid">
+                <div className="stat-card">
+                  <div className="stat-value">{num(t.paid.month.calls)}</div>
+                  <div className="stat-label">Paid calls, 30 days</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-value">{num(t.paid.all.calls)}</div>
+                  <div className="stat-label">Paid calls, all</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-value">{usd(t.paid.all.usdc, 2)}</div>
+                  <div className="stat-label">USDC paid, all</div>
+                </div>
+              </div>
+              {t.paid.all.calls > 0 && (
+                <div className="traction-scroll">
+                  <table className="traction-table">
+                    <thead>
+                      <tr>
+                        <th>Route</th>
+                        <th className="num">Calls, 30 days</th>
+                        <th className="num">Calls, all</th>
+                        <th className="num">USDC, all</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {PAID_ROUTES.filter((r) => t.paid!.all.byRoute[r.key]).map((r) => (
+                        <tr key={r.key}>
+                          <th scope="row">{r.label}</th>
+                          <td className="num">{num(t.paid!.month.byRoute[r.key]?.calls ?? 0)}</td>
+                          <td className="num">{num(t.paid!.all.byRoute[r.key]!.calls)}</td>
+                          <td className="num">{usd(t.paid!.all.byRoute[r.key]!.usdc, 2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <p className="geo-note">
+                <Link href="/agents" className="page-link">
+                  How agents use Afterbook<span className="arrow">→</span>
+                </Link>
+              </p>
+            </section>
+          )}
 
           <p className="geo-note">
             Left out as Afterbook&apos;s own tests: {num(t.all.testsLeftOut?.swaps ?? 0)} swaps ({usd(t.all.testsLeftOut?.volumeUsd ?? 0, 0)}). A swap from a
