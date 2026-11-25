@@ -48,6 +48,8 @@ export function parseBasketCommand(
     args = args.slice(0, -1);
   }
   if (args.length < 1 || args.length > 2) return BASKET_USAGE;
+  // "/basket 100 1": a stock count out of range, not a theme (review of #237).
+  if (args.length === 2 && /^\$?[\d,]+(\.\d+)?$/.test(args[0]) && /^\d$/.test(args[1])) return `The stock count must be 2, 3 or 4. ${BASKET_USAGE}`;
   const budgetArg = args[args.length - 1].replace(/^\$/, '').replace(/,/g, '');
   const budgetUsd = Number(budgetArg);
   if (!/^\d+(\.\d+)?$/.test(budgetArg) || !Number.isFinite(budgetUsd)) return `The last word should be the amount in USD. ${BASKET_USAGE}`;

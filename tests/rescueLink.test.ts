@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import type { WalletLoan } from '../lib/lending/loanHealth';
-import { loanAlertText } from '../lib/lending/loanHealth';
+import { loanAlertText, loansReplyText } from '../lib/lending/loanHealth';
 import { parseRescuePreset, rescueLinks, rescuePath, rescueScenario } from '../lib/lending/rescueLink';
 
 // Loan warnings link to the in-app Aave panel with the rescue planner preset; the paid loan-health route
@@ -81,6 +81,36 @@ describe('rescue links', () => {
     expect(withLinks).toContain('Add collateral: https://afterbook.app/borrow?rescue=add');
     expect(withLinks.endsWith('Not advice. Afterbook never touches your funds.')).toBe(true);
     expect(loanAlertText('0x1234567890123456789012345678901234567890', [loan('morpho', 1.15, 1)], 1.2, null)).not.toContain('borrow?rescue');
+  });
+
+  it('/loans in the bot: rescue links only near the alert line (under 1.25x it), a calm line otherwise (2026-11-25)', () => {
+    const W = '0x1234567890123456789012345678901234567890';
+    const near = loan('aave', 1.45, 1); // 1.45 < 1.2 × 1.25 = 1.5
+    const nearText = loansReplyText(W, [near], 1.2, rescueLinks(near, 1.2, 'https://afterbook.app'));
+    expect(nearText).toContain('close to your alert at 1.20');
+    expect(nearText).toContain('Repay USDC: https://afterbook.app/borrow?rescue=repay');
+    expect(nearText).toContain('Add collateral: https://afterbook.app/borrow?rescue=add');
+    expect(nearText).not.toMatch(/amount=|0x[0-9a-f]{40}.*borrow/i); // no amount or wallet in a link
+    const below = loan('aave', 1.1, 1);
+    expect(loansReplyText(W, [below], 1.2, rescueLinks(below, 1.2, 'https://afterbook.app'))).toContain('below your alert at 1.20');
+    // Aero's price counts: health fine at the oracle, near the line at Base's price.
+    const byAero = loan('aave', 2, 0.7);
+    expect(loansReplyText(W, [byAero], 1.2, rescueLinks(byAero, 1.2, 'https://afterbook.app'))).toContain('Repay USDC:');
+    const calm = loan('aave', 2, 1);
+    const calmText = loansReplyText(W, [calm], 1.2, rescueLinks(calm, 1.2, 'https://afterbook.app'));
+    expect(calmText).toContain('Nothing urgent: lowest health 2.00, well above your alert at 1.20. Rescue links show here when it gets within 25% of it.');
+    expect(calmText).not.toContain('borrow?rescue');
+    const morpho = loansReplyText(W, [loan('morpho', 1.1, 1)], 1.2, null);
+    expect(morpho).toContain('Morpho loans have no in-app panel');
+    expect(morpho).not.toContain('borrow?rescue');
+    expect(loansReplyText(W, [], 1.2, null)).toContain('no Aave or Morpho stock loans');
+    // Per loan: a near Morpho loan next to a healthy Aave loan gets the Morpho pointer, not the Aave links.
+    const healthyAave = loan('aave', 2, 1);
+    const mixed = loansReplyText(W, [healthyAave, loan('morpho', 1.1, 1)], 1.2, rescueLinks(healthyAave, 1.2, 'https://afterbook.app'));
+    expect(mixed).toContain('Morpho loans have no in-app panel');
+    expect(mixed).not.toContain('borrow?rescue');
+    // Morpho only and calm: no promise of rescue links.
+    expect(loansReplyText(W, [loan('morpho', 2, 1)], 1.2, null)).not.toContain('Rescue links');
   });
 });
 

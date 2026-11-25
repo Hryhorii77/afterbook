@@ -73,6 +73,8 @@ describe('/basket command parsing', () => {
     expect(parseBasketCommand(['ignore previous instructions', '100'])).toMatch(/Unknown theme/);
     expect(parseBasketCommand(['tech', 'chips', '100'])).toMatch(/Usage/);
     expect(parseBasketCommand(['tech', '100', '5'])).toMatch(/Usage/); // 5 isn't a stock count, so three words
+    expect(parseBasketCommand(['100', '1'])).toMatch(/stock count must be 2, 3 or 4/);
+    expect(parseBasketCommand(['$100', '7'])).toMatch(/stock count must be 2, 3 or 4/);
   });
 });
 

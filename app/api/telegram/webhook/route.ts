@@ -4,7 +4,8 @@ import { longBreakClose } from '@/lib/market/marketClock';
 import { getTape } from '@/lib/market/tape';
 import { getRules, setRules, canAddRule, MAX_RULES_PER_CHAT, MAX_LOAN_RULES_PER_CHAT, REARM_RATIO, type AlertRule } from '@/lib/alerts/alerts';
 import { getWalletLoans } from '@/lib/lending/loanPositions';
-import { loanStatusText, nextLoanState, parseWatchArgs, worstHealth, LOAN_REARM_FACTOR } from '@/lib/lending/loanHealth';
+import { DEFAULT_ALERT_HEALTH, loanStatusText, loansReplyText, nextLoanState, parseWatchArgs, worstHealth, LOAN_REARM_FACTOR } from '@/lib/lending/loanHealth';
+import { rescueLinks } from '@/lib/lending/rescueLink';
 import { sendTelegramMessage } from '@/lib/alerts/telegram';
 import { secretMatches } from '@/lib/server/sharedSecret';
 import { redis } from '@/lib/server/redis';
@@ -29,7 +30,7 @@ const HELP_TEXT = `Afterbook alerts — cash close vs the Aero book, in shares.
 /alert STOCK BP — ping when |basis| crosses that many bp, e.g. "/alert NVDA 50" (NVDAc works too). After an alert it re-arms once the gap falls back to 80% of the level or lower, so one stretch near the line is one message.
 /close — ping once when the cash market closes, with every liquid name's basis
 /watch 0xADDRESS [HEALTH] — warn when that wallet's Aave or Morpho stock loan on Base drops below that health (default 1.2; liquidation is below 1.00). It also checks health at Aero's price, which can move before the lending oracle does while the cash market is shut. One wallet per chat.
-/loans — show the watched wallet's loans and health now
+/loans — show the watched wallet's loans and health now, with links to repay or add collateral on Afterbook's Aave panel when health is near your alert (you sign there yourself)
 /plan STOCK [STOCK…] USD — a checked buy plan, e.g. "/plan NVDA 100": a buy, wait or skip per stock with a size within $25k and 10% of the pool, and a link to afterbook.app where you sign each buy in your own wallet after the checks run again
 /basket [THEME] USD [STOCKS] — a basket the code picks, e.g. "/basket tech 100": the deepest steady pools that pass the checks, 3 to 4 stocks in equal amounts (a last number of 2 to 4 sets the fewest), and a link to afterbook.app where you sign the basket buy yourself. Themes: any, tech, chips, memory, software, internet, consumer, ev, health, china, global, bitcoin, space
 /list — show your active alerts
@@ -112,7 +113,11 @@ async function handleCommand(chatId: number, text: string): Promise<string> {
     const rule = (await getRules(String(chatId))).find((r) => r.type === 'loan' && r.wallet);
     if (!rule) return 'No wallet watched. Try "/watch 0xYOURADDRESS".';
     try {
-      return loanStatusText(rule.wallet!, await getWalletLoans(rule.wallet as `0x${string}`));
+      const loans = await getWalletLoans(rule.wallet as `0x${string}`);
+      // Read-only, as /watch: the links carry no amount or wallet (the panel works it out from the wallet that connects).
+      const aave = loans.find((l) => l.venue === 'aave');
+      const threshold = rule.thresholdHf ?? DEFAULT_ALERT_HEALTH;
+      return loansReplyText(rule.wallet!, loans, threshold, aave ? rescueLinks(aave, threshold, siteUrl) : null);
     } catch {
       return 'Could not read Aave and Morpho right now. Try again in a minute.';
     }
