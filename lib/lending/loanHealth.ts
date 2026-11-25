@@ -92,6 +92,37 @@ export function loanStatusText(wallet: string, loans: WalletLoan[]): string {
   return [`${short(wallet)}:`, ...loans.map((l) => `• ${describeLoan(l)}`)].join('\n');
 }
 
+/** The bot's `/loans` (2026-11-25): the watched wallet's loans now, against the person's own alert line. Near it
+ *  (the lowest of health now and at Aero's price under the line times HEADS_UP_URGENT_FACTOR, the weekend heads-up's
+ *  rule) an Aave loan gets its rescue links, as in a warning; otherwise a calm line and none. `links` are the Aave
+ *  loan's (lib/lending/rescueLink.ts): they carry no amount or wallet, and the person checks and signs on the panel. */
+export function loansReplyText(wallet: string, loans: WalletLoan[], threshold: number, links: { repayUrl: string; addUrl: string } | null): string {
+  if (loans.length === 0) return loanStatusText(wallet, loans);
+  const line = threshold * HEADS_UP_URGENT_FACTOR;
+  const lowest = Math.min(...loans.map(worstHealth));
+  const near = lowest < line;
+  // Per loan (review of this change): the Aave links only when the Aave loan itself is near, and the Morpho pointer
+  // whenever a Morpho loan is, so the loan that is near always gets its own next step.
+  const aaveNear = !!links && loans.some((l) => l.venue === 'aave' && worstHealth(l) < line);
+  const morphoNear = loans.some((l) => l.venue === 'morpho' && worstHealth(l) < line);
+  const status = !near
+    ? `Nothing urgent: lowest health ${hf(lowest)}, well above your alert at ${hf(threshold)}.${
+        links ? ` Rescue links show here when it gets within ${Math.round((HEADS_UP_URGENT_FACTOR - 1) * 100)}% of it.` : ''
+      }`
+    : `Lowest health ${hf(lowest)}, ${lowest < threshold ? 'below' : 'close to'} your alert at ${hf(threshold)}.`;
+  const act = [
+    ...(aaveNear && links
+      ? [
+          'For the Aave loan, these open Afterbook’s Aave panel with the rescue planner set; it fills the amount from the loan of the wallet you connect, and you check it and sign:',
+          `Repay USDC: ${links.repayUrl}`,
+          `Add collateral: ${links.addUrl}`,
+        ]
+      : []),
+    ...(morphoNear ? ['Morpho loans have no in-app panel: repay or add collateral on Morpho’s own site.'] : []),
+  ];
+  return [`${short(wallet)}:`, ...loans.map((l) => `• ${describeLoan(l)}`), status, ...act, 'Not advice. Afterbook never touches your funds.'].join('\n');
+}
+
 /** `links`: an Aave loan's links to the in-app panel with the rescue planner preset (lib/lending/rescueLink.ts). */
 export function loanAlertText(wallet: string, loans: WalletLoan[], threshold: number, links?: { repayUrl: string; addUrl: string } | null): string {
   const worst = Math.min(...loans.map(worstHealth));
