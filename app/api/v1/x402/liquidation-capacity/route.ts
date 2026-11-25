@@ -4,6 +4,7 @@ import { getStock } from '@/lib/stocks/tokens';
 import { getStockLiquidationRisk } from '@/lib/lending/liquidationRisk';
 import { positionRisk } from '@/lib/lending/liquidationMath';
 import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE_PREMIUM } from '@/lib/server/x402';
+import { bazaarListing, x402Route } from '@/lib/server/x402Discovery';
 
 export const revalidate = 0;
 
@@ -83,7 +84,8 @@ async function handler(request: NextRequest) {
 export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configured
   ? withX402<unknown>(
       handler,
-      {
+      x402Route('liquidation-capacity', {
+        ...bazaarListing('liquidation-capacity'),
         accepts: {
           scheme: 'exact',
           price: X402_PRICE_PREMIUM,
@@ -92,7 +94,7 @@ export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configur
         },
         description:
           "Liquidation capacity for a Base tokenized stock: Morpho and Aave V4 USDC markets using it as collateral, the Aero-vs-oracle gap, the largest liquidation Aero can absorb at a profit, a sell-side impact curve, and optional per-position liquidation price and risk.",
-      },
+      }),
       getX402Server(),
     )
   : async () => NextResponse.json({ error: 'x402 tier not configured' }, { status: 503 });

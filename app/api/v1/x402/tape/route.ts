@@ -3,6 +3,7 @@ import { withX402 } from '@x402/next';
 import { getTape } from '@/lib/market/tape';
 import { toPublicTape } from '@/lib/market/publicTape';
 import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE } from '@/lib/server/x402';
+import { bazaarListing, x402Route } from '@/lib/server/x402Discovery';
 
 export const revalidate = 0;
 
@@ -17,7 +18,8 @@ async function handler(_request: NextRequest) {
 export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configured
   ? withX402<unknown>(
       handler,
-      {
+      x402Route('tape', {
+        ...bazaarListing('tape'),
         accepts: {
           scheme: 'exact',
           price: X402_PRICE,
@@ -26,7 +28,7 @@ export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configur
         },
         description:
           "Live cash-vs-onchain (Aero) basis, mid price, and pool depth for Afterbook's tracked tokenized-stock pools on Base.",
-      },
+      }),
       getX402Server(),
     )
   : async () => NextResponse.json({ error: 'x402 tier not configured' }, { status: 503 });

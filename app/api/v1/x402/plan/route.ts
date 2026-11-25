@@ -15,6 +15,7 @@ import { planLinkPath } from '@/lib/agent/planLink';
 // The production address even on a preview deploy (same Redis), so a link an agent hands on always works.
 import { siteUrl } from '@/lib/share/siteUrl';
 import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE_PREMIUM } from '@/lib/server/x402';
+import { bazaarListing, x402Route } from '@/lib/server/x402Discovery';
 
 export const revalidate = 0;
 export const maxDuration = 60;
@@ -46,11 +47,12 @@ async function handler(request: NextRequest) {
 export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configured
   ? withX402<unknown>(
       handler,
-      {
+      x402Route('plan', {
         accepts: { scheme: 'exact', price: X402_PRICE_PREMIUM, network: X402_NETWORK, payTo: X402_PAYOUT_ADDRESS! },
+        ...bazaarListing('plan'),
         description:
           'Checked trade plan for Coinbase tokenized stocks on Base: for each stock a buy, wait or skip verdict with reasons (gap to the real stock, stale pool, earnings, depth) and a size within your cost limit, $25k and 10% of the pool, plus a plain-English explanation and planUrl, a link where a person opens this plan and signs its buys on afterbook.app after the checks run again. Read-only.',
-      },
+      }),
       getX402Server(),
     )
   : async () => NextResponse.json({ error: 'x402 tier not configured' }, { status: 503 });

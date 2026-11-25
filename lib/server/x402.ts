@@ -2,6 +2,7 @@ import { x402ResourceServer } from '@x402/next';
 import { HTTPFacilitatorClient } from '@x402/core/server';
 import { ExactEvmScheme } from '@x402/evm/exact/server';
 import { createFacilitatorConfig } from '@coinbase/x402';
+import { bazaarResourceServerExtension } from '@x402/extensions/bazaar';
 
 // Machine-payable tier for agents: x402 settles via the facilitator (CDP's
 // hosted service, confirmed to default to the real mainnet endpoint
@@ -27,7 +28,9 @@ export function getX402Server(): x402ResourceServer {
   if (!server) {
     const facilitatorConfig = createFacilitatorConfig(CDP_API_KEY_ID, CDP_API_KEY_SECRET);
     const facilitatorClient = new HTTPFacilitatorClient(facilitatorConfig);
-    server = new x402ResourceServer(facilitatorClient).register(BASE_MAINNET_CAIP2, new ExactEvmScheme());
+    // Bazaar discovery (2026-11-25): routes declare their inputs and an example output (lib/server/x402Discovery.ts) so
+    // the facilitator can list them where agents search for paid services.
+    server = new x402ResourceServer(facilitatorClient).register(BASE_MAINNET_CAIP2, new ExactEvmScheme()).registerExtension(bazaarResourceServerExtension);
   }
   return server;
 }

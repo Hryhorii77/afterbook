@@ -343,6 +343,8 @@ Rate limit: 1 request/second per key.
 
 ## Agent / MCP
 
+**Listed for agents (2026-11-25).** `server.json` (repo root) is the server's entry in the official MCP Registry (`io.github.Hryhorii77/afterbook`, remote Streamable HTTP at `https://afterbook.app/api/mcp`), published with `mcp-publisher` (`mcp-publisher validate`, `login github`, `publish`) by the repo owner; bump its `version` to publish a change. Each paid x402 route declares a Bazaar discovery entry (`lib/server/x402Discovery.ts`, `bazaarResourceServerExtension` registered in `lib/server/x402.ts`): service name, tags, icon, input schema and an example output, so Coinbase's facilitator can list it in the x402 Bazaar. Listing metadata only: no price, payee, check or answer changes.
+
 The page **`/agents`** (2026-11-25, `app/agents/page.tsx`, linked from More) says the same for people: how to connect (Claude Code, Claude Desktop and claude.ai, any MCP client), the seven tools, a plan-to-signed-buy example, the paid x402 routes with their prices (read from `lib/server/x402.ts`), and what an agent can't do. A plan link page (`/plan/<id>`) has **Copy link** and, where the browser has one, **Share** (`PlanLinkShare.tsx`), so a person can pass a plan on; the link carries no wallet or amount and is checked again on every visit. `/agents` has its own share card (`/card?page=agents`, `buildAgentsOgImage`, static text, CARD_VERSION 21).
 
 `https://afterbook.app/api/mcp` is a remote [MCP](https://modelcontextprotocol.io) server for agents (Claude, etc.) — no key, no signup, read-only (it never builds or signs a transaction). Add it as a remote MCP server in Claude Code, Claude Desktop, or any MCP-compatible client pointed at that URL.

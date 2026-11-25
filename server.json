@@ -1,0 +1,11 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Hryhorii77/afterbook",
+  "title": "Afterbook",
+  "description": "Checked trade plans, baskets and loan health for Coinbase tokenized stocks on Base. You sign.",
+  "version": "1.0.0",
+  "websiteUrl": "https://afterbook.app/agents",
+  "repository": { "url": "https://github.com/Hryhorii77/afterbook", "source": "github" },
+  "icons": [{ "src": "https://afterbook.app/icon1.png", "mimeType": "image/png" }],
+  "remotes": [{ "type": "streamable-http", "url": "https://afterbook.app/api/mcp" }]
+}

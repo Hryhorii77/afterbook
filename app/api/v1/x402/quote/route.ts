@@ -3,6 +3,7 @@ import { withX402 } from '@x402/next';
 import { getStock } from '@/lib/stocks/tokens';
 import { getBuyQuoter } from '@/lib/market/lotQuote';
 import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE } from '@/lib/server/x402';
+import { bazaarListing, x402Route } from '@/lib/server/x402Discovery';
 
 export const revalidate = 0;
 
@@ -42,7 +43,8 @@ async function handler(request: NextRequest) {
 export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configured
   ? withX402<unknown>(
       handler,
-      {
+      x402Route('quote', {
+        ...bazaarListing('quote'),
         accepts: {
           scheme: 'exact',
           price: X402_PRICE,
@@ -50,7 +52,7 @@ export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configur
           payTo: X402_PAYOUT_ADDRESS!,
         },
         description: 'Sized USDC-to-share quote (execution price, impact, impact curve) for one of Afterbook\'s tracked stock pools.',
-      },
+      }),
       getX402Server(),
     )
   : async () => NextResponse.json({ error: 'x402 tier not configured' }, { status: 503 });
