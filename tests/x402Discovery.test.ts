@@ -1,6 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { bazaarResourceServerExtension, validateDiscoveryExtension } from '@x402/extensions/bazaar';
-import { X402_DISCOVERY, bazaarListing, type X402Route } from '../lib/server/x402Discovery';
+import { existsSync } from 'node:fs';
+import { x402HTTPResourceServer, x402ResourceServer } from '@x402/core/server';
+import { X402_DISCOVERY, bazaarListing, x402Path, x402Route, type X402Route } from '../lib/server/x402Discovery';
+import type { HistorySample } from '../lib/market/history';
+import type { LiquidityDistribution } from '../lib/market/depth';
+import type { BasketLeg } from '../lib/build/customBasket';
+import type { PublicTape } from '../lib/market/publicTape';
+import type { Plan } from '../lib/agent/plan';
+import type { LotEstimate } from '../lib/market/quote';
+
+// Compile-time: each example is a partial of the route's real answer, so a renamed or reshaped field fails the
+// typecheck (npm run typecheck covers tests/). Routes without an exported answer type are checked below at runtime.
+type DeepPartial<T> = T extends (infer U)[] ? DeepPartial<U>[] : T extends object ? { [K in keyof T]?: DeepPartial<T[K]> } : T;
+X402_DISCOVERY.history.output satisfies DeepPartial<{ symbol: string; since: number; basisHistory: HistorySample[]; tickDistribution: LiquidityDistribution }>;
+X402_DISCOVERY.basket.output satisfies DeepPartial<{ brief: { basket: BasketLeg[] }; explanation: string; buyUrl: string }>;
+X402_DISCOVERY.tape.output satisfies DeepPartial<PublicTape>;
+X402_DISCOVERY.plan.output satisfies DeepPartial<{ plan: Plan; explanation: string; planUrl: string }>;
+X402_DISCOVERY.quote.output satisfies DeepPartial<LotEstimate & { symbol: string; curve: unknown[] }>;
 
 // Bazaar listings for the nine paid routes (2026-11-25): each must pass the x402 library's own check, carry the
 // service name, tags and icon, and require only parameters the route reads.
@@ -23,6 +40,38 @@ describe('x402 Bazaar listings', () => {
       // Every required parameter is one the schema describes.
       const d = X402_DISCOVERY[route];
       for (const r of d.required) expect(Object.keys(d.properties)).toContain(r);
+    });
+  }
+
+  it('the examples use the real field names (runtime check of the shapes fixed in review)', () => {
+    const h = X402_DISCOVERY.history.output;
+    expect(Object.keys(h.basisHistory[0]).sort()).toEqual(['basisBp', 'ts']);
+    expect(Object.keys(h.tickDistribution).sort()).toEqual(['buckets', 'currentPriceUsd', 'currentTick']);
+    expect(Object.keys(X402_DISCOVERY.basket.output.brief.basket[0]).sort()).toEqual(['symbol', 'weightPct']);
+  });
+});
+
+// The keyed routes form: a key that doesn't match the request path makes x402 answer "no payment required", so
+// every route's key is checked against its real path with the library's own matcher.
+describe('x402 route keys', () => {
+  const routes = Object.keys(X402_DISCOVERY) as X402Route[];
+  const http = (route: X402Route) =>
+    new x402HTTPResourceServer(
+      new x402ResourceServer({} as never),
+      x402Route(route, { accepts: { scheme: 'exact', price: '$0.02', network: 'eip155:8453', payTo: '0x0000000000000000000000000000000000000001' } }) as never,
+    );
+  for (const route of routes) {
+    it(`${route}: the key is the route's own folder and matches its requests`, () => {
+      expect(existsSync(`app${x402Path(route)}/route.ts`)).toBe(true);
+      const server = http(route);
+      const paid = (path: string, method = 'GET') => server.requiresPayment({ path, method, adapter: { getMethod: () => method, getPath: () => path } } as never);
+      for (const path of [x402Path(route), `${x402Path(route)}/`, `${x402Path(route)}?symbol=NVDAc&budgetUsd=100`, x402Path(route).toUpperCase()]) {
+        expect(paid(path), path).toBe(true);
+      }
+      expect(paid(x402Path(route), 'HEAD')).toBe(true);
+      // Not another route's path.
+      const other = routes.find((r) => r !== route)!;
+      expect(paid(x402Path(other))).toBe(false);
     });
   }
 });

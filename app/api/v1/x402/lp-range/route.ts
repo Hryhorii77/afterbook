@@ -6,7 +6,7 @@ import { getPriceHistory, computeInRangeBounds } from '@/lib/market/volatility';
 import { getNextEarnings } from '@/lib/stocks/earningsCalendar';
 import { computeDivergenceLossAtBoundary } from '@/lib/lp/lpRange';
 import { x402Configured, getX402Server, X402_PAYOUT_ADDRESS, X402_NETWORK, X402_PRICE_PREMIUM } from '@/lib/server/x402';
-import { bazaarListing } from '@/lib/server/x402Discovery';
+import { bazaarListing, x402Route } from '@/lib/server/x402Discovery';
 
 export const revalidate = 0;
 
@@ -102,7 +102,7 @@ async function handler(request: NextRequest) {
 export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configured
   ? withX402<unknown>(
       handler,
-      {
+      x402Route('lp-range', {
         ...bazaarListing('lp-range'),
         accepts: {
           scheme: 'exact',
@@ -111,7 +111,7 @@ export const GET: (request: NextRequest) => Promise<NextResponse> = x402Configur
           payTo: X402_PAYOUT_ADDRESS!,
         },
         description: 'Recommended concentrated-liquidity tick range for one of Afterbook\'s tracked stock pools, sized from realized volatility and a target holding period, plus the divergence-loss benchmark at each edge of that range.',
-      },
+      }),
       getX402Server(),
     )
   : async () => NextResponse.json({ error: 'x402 tier not configured' }, { status: 503 });

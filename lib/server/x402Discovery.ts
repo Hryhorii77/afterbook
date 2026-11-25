@@ -39,7 +39,7 @@ export const X402_DISCOVERY = {
     input: { symbols: 'NVDAc,AAPLc', budgetUsd: 100 },
     properties: { symbols: { type: 'string', description: 'Comma-separated tracked stocks; none = the deepest pools' }, budgetUsd: { type: 'number', description: 'USDC to plan for' }, ...LIMITS },
     required: ['budgetUsd'],
-    output: { plan: { legs: [{ symbol: 'NVDAc', verdict: 'buy', usd: 50, costBp: 3.4, gapBp: -2.2 }] }, explanation: '…', planUrl: 'https://afterbook.app/plan/AbCdEfGhIjKlMnOp' },
+    output: { plan: { legs: [{ symbol: 'NVDAc', verdict: 'buy' as const, usd: 50, costBp: 3.4, gapBp: -2.2 }] }, explanation: '…', planUrl: 'https://afterbook.app/plan/AbCdEfGhIjKlMnOp' },
   },
   basket: {
     tags: ['trading', 'agents', 'basket'],
@@ -53,7 +53,7 @@ export const X402_DISCOVERY = {
       ...LIMITS,
     },
     required: ['budgetUsd'],
-    output: { brief: { basket: [{ symbol: 'NVDAc', usd: 100 }, { symbol: 'MSFTc', usd: 100 }] }, explanation: '…', buyUrl: 'https://afterbook.app/plan/AbCdEfGhIjKlMnOp' },
+    output: { brief: { basket: [{ symbol: 'NVDAc', weightPct: 50 }, { symbol: 'MSFTc', weightPct: 50 }] }, explanation: '…', buyUrl: 'https://afterbook.app/plan/AbCdEfGhIjKlMnOp' },
   },
   'loan-health': {
     tags: ['lending', 'aave', 'morpho', 'risk'],
@@ -67,7 +67,7 @@ export const X402_DISCOVERY = {
     input: { symbol: 'NVDAc' },
     properties: { symbol: SYMBOL, since: { type: 'integer', description: 'Start, in epoch milliseconds (default 30 days ago)' } },
     required: ['symbol'],
-    output: { symbol: 'NVDAc', since: 1761400000000, basisHistory: [{ t: 1764000000000, basisBp: 4.4 }], tickDistribution: [] },
+    output: { symbol: 'NVDAc', since: 1761400000000, basisHistory: [{ ts: 1764000000000, basisBp: 4.4 }], tickDistribution: { currentTick: 50210, currentPriceUsd: 153.4, buckets: [] } },
   },
   'lp-range': {
     tags: ['liquidity', 'lp', 'volatility'],
@@ -110,3 +110,13 @@ export type X402Route = keyof typeof X402_DISCOVERY;
 
 /** The route config fields that list `route` in the x402 Bazaar: spread into withX402's config. */
 export const bazaarListing = (route: X402Route) => discoverable(X402_DISCOVERY[route]);
+
+/** The path each paid route is served at. */
+export const x402Path = (route: X402Route) => `/api/v1/x402/${route}`;
+
+/** withX402's routes argument in the keyed form: the route's own fixed path, so the Bazaar lists that path rather
+ *  than a wildcard. The key MUST match the request path: x402 answers "no payment required" for a path no key
+ *  matches, so a wrong key would make the route free (tests/x402Discovery.test.ts checks every route). */
+export function x402Route<C extends object>(route: X402Route, config: C): Record<string, C> {
+  return { [x402Path(route)]: config };
+}
