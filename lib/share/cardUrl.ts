@@ -5,7 +5,7 @@
 // X and Telegram cache a card by its exact URL. Bump CARD_VERSION whenever a card's look changes
 // (lib/share/ogImage.tsx), or previews keep showing the old one. Shared URLs also carry `s`, the
 // share's snapshot id (lib/share/shareSnapshot.ts): its card is drawn from the numbers frozen at share time.
-export const CARD_VERSION = 20;
+export const CARD_VERSION = 21;
 
 export type CardTheme = 'dark' | 'light';
 
@@ -15,7 +15,8 @@ export type CardSpec =
   | { page: 'today'; sym?: string }
   | { page: 'build'; spec: string }
   | { page: 'borrow' }
-  | { page: 'meme'; addr: string };
+  | { page: 'meme'; addr: string }
+  | { page: 'agents' };
 
 export function cardPath(card: CardSpec, opts: { theme?: CardTheme; s?: string } = {}): string {
   const q = new URLSearchParams({ page: card.page });
