@@ -5,7 +5,7 @@
 // active stock, the calculator size, the eligibility box) and the data; each section is its own
 // component in ./markets/.
 import { useMemo, useState } from 'react';
-import { STOCKS } from '@/lib/stocks/tokens';
+import { STOCKS, getStock, poolVenue } from '@/lib/stocks/tokens';
 import type { TapeResult } from '@/lib/market/tape';
 import { isLiquid, TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
 import type { GeoInfo } from '@/lib/server/geo';
@@ -31,17 +31,20 @@ interface HomeClientProps {
   initialTape: TapeResult;
   initialGeo: GeoInfo;
   initialSymbol?: string;
+  /** A stock's own page (/NVDAc): the heading names that stock. /markets also passes initialSymbol, but keeps its own heading. */
+  stockPage?: boolean;
   /** Dividends and splits of every tracked token (lib/stocks/multiplierHistory.ts); scanned false hides the panel. */
   corporateActions?: { actions: CorporateAction[]; scanned: boolean };
 }
 
-export default function HomeClient({ initialTape, initialGeo, initialSymbol, corporateActions }: HomeClientProps) {
+export default function HomeClient({ initialTape, initialGeo, initialSymbol, corporateActions, stockPage = false }: HomeClientProps) {
   const { tape, refreshFailed, eventLog } = useTapePoll(initialTape);
   const trend = useTrend();
   const now = useNow();
   const [geo] = useState<GeoInfo>(initialGeo);
   const [eligibleChecked, setEligibleChecked] = useState(false);
   const [symbol, setSymbol] = useState(initialSymbol ?? STOCKS[0].symbol);
+  const pageStock = stockPage && initialSymbol ? getStock(initialSymbol) : undefined;
   const [usdcInput, setUsdcInput] = useState('2500');
 
   const cashClosedAsOfMs =
@@ -83,13 +86,27 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol, cor
 
   return (
     <main>
-      <header className="home-intro">
-        <h1>Stock prices on Base 24/7 next to the real market</h1>
-        <p>
-          Coinbase&apos;s stock tokens trade around the clock on Aero. See how far each one is from its real stock price
-          and how much is really in its pool, then trade from your own wallet.
-        </p>
-      </header>
+      {/* A stock's own page (/NVDAc) leads with that stock (2026-11-26); /markets keeps the general heading. The
+          heading stays on the page's stock even when another row on the tape is picked. */}
+      {pageStock ? (
+        <header className="home-intro">
+          <h1>
+            {pageStock.name} ({pageStock.cashTicker}) on Base
+          </h1>
+          <p>
+            {pageStock.symbol} is Coinbase&apos;s token for {pageStock.cashTicker}, trading around the clock on {poolVenue(pageStock)}. See how far it is
+            from the real stock&apos;s price and how much is really in its pool, then trade from your own wallet.
+          </p>
+        </header>
+      ) : (
+        <header className="home-intro">
+          <h1>Stock prices on Base 24/7 next to the real market</h1>
+          <p>
+            Coinbase&apos;s stock tokens trade around the clock on Aero. See how far each one is from its real stock price
+            and how much is really in its pool, then trade from your own wallet.
+          </p>
+        </header>
+      )}
 
       <MarketsHero
         tape={tape}

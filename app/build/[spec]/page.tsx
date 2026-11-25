@@ -75,7 +75,15 @@ export default async function BuildPage({ params }: PageProps) {
         <div className="today-top">
           <div className="sym-cell-text">
             <span className="today-id-label">Your basket</span>
-            <span className="symbol">{basketLabel(legs)}</span>
+            {/* Each leg stays whole ("GOOGLc 33%"), and the line wraps between legs on phones (review, 2026-11-26). */}
+            <span className="symbol basket-legs">
+              {legs.map((l, i) => (
+                <span key={l.symbol} className="basket-leg">
+                  {i > 0 && ' · '}
+                  {l.symbol} {l.weightPct}%
+                </span>
+              ))}
+            </span>
           </div>
           {tape && <SessionPill state={tape.session.state} label={tape.session.label} nyTime={tape.session.nyTime} />}
         </div>
