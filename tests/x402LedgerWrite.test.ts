@@ -16,7 +16,7 @@ vi.mock('../lib/server/redis', () => ({
   },
 }));
 
-import { paidCalls, recordPaidCall, summarizePaidCalls } from '../lib/server/x402Ledger';
+import { paidCalls, recordPaidCall, recordSettlement, summarizePaidCalls } from '../lib/server/x402Ledger';
 
 const TX = '0x94CCAA1A784DE047B268C5146A6A0C76EBF919E23C2F989808653D1D5C7425B5';
 const call = (tx = TX) => ({ tx, route: 'plan' as const, amount: '50000', payer: '0x5338acAc2c7F5dbdfAfe0Ef4829B5c419d8c3F38', at: 1764074751000 });
@@ -43,5 +43,26 @@ describe('x402 ledger write', () => {
   it('a store error is swallowed, so the paid answer still goes through', async () => {
     fx.fail = true;
     await expect(recordPaidCall(call())).resolves.toBeUndefined();
+  });
+
+  it('the after-settle hook records a successful settlement with its route, amount and payer', async () => {
+    await recordSettlement(
+      { result: { success: true, transaction: TX, payer: '0xPayer' }, requirements: { amount: '20000' }, paymentPayload: { resource: { url: 'https://afterbook.app/api/v1/x402/tape' } } },
+      1764074765000,
+    );
+    expect(await paidCalls()).toEqual([{ tx: TX, route: 'tape', amount: '20000', payer: '0xPayer', at: 1764074765000 }]);
+  });
+  it('skips a failed settlement or one without a transaction, and never throws', async () => {
+    await recordSettlement({ result: { success: false, transaction: TX }, requirements: { amount: '20000' }, paymentPayload: {} });
+    await recordSettlement({ result: { success: true }, requirements: { amount: '20000' }, paymentPayload: {} });
+    expect(fx.hash.size).toBe(0);
+    fx.fail = true;
+    await expect(
+      recordSettlement({ result: { success: true, transaction: TX }, requirements: { amount: '20000' }, paymentPayload: { resource: { url: '/api/v1/x402/plan' } } }),
+    ).resolves.toBeUndefined();
+  });
+  it('uses the settled amount when the facilitator reports one', async () => {
+    await recordSettlement({ result: { success: true, transaction: TX, amount: '19000' }, requirements: { amount: '20000' }, paymentPayload: { resource: { url: '/api/v1/x402/quote' } } });
+    expect((await paidCalls())?.[0]).toMatchObject({ route: 'quote', amount: '19000' });
   });
 });
