@@ -9,12 +9,14 @@ import { sendTelegramMessage } from '@/lib/alerts/telegram';
 import { secretMatches } from '@/lib/server/sharedSecret';
 import { redis } from '@/lib/server/redis';
 import { parsePlanInput } from '@/lib/agent/plan';
-import { runPlan } from '@/lib/agent/runPlan';
-import { saveStockPlan } from '@/lib/agent/savedPlan';
+import { runPlan, runBrief } from '@/lib/agent/runPlan';
+import { parseBriefInput } from '@/lib/agent/brief';
+import { saveStockPlan, saveBasket } from '@/lib/agent/savedPlan';
 import { hasLinkableBuy, planLinkPath } from '@/lib/agent/planLink';
 import { siteUrl } from '@/lib/share/siteUrl';
 import { mcpPlanLimiter, planLinkDailyLimiter } from '@/lib/server/ratelimit';
 import { parsePlanCommand, planReplyText } from '@/lib/alerts/telegramPlan';
+import { parseBasketCommand, basketReplyText } from '@/lib/alerts/telegramBasket';
 
 // A /plan reads pools for each stock before it replies.
 export const maxDuration = 60;
@@ -29,10 +31,11 @@ const HELP_TEXT = `Afterbook alerts — cash close vs the Aero book, in shares.
 /watch 0xADDRESS [HEALTH] — warn when that wallet's Aave or Morpho stock loan on Base drops below that health (default 1.2; liquidation is below 1.00). It also checks health at Aero's price, which can move before the lending oracle does while the cash market is shut. One wallet per chat.
 /loans — show the watched wallet's loans and health now
 /plan STOCK [STOCK…] USD — a checked buy plan, e.g. "/plan NVDA 100": a buy, wait or skip per stock with a size within $25k and 10% of the pool, and a link to afterbook.app where you sign each buy in your own wallet after the checks run again
+/basket [THEME] USD [STOCKS] — a basket the code picks, e.g. "/basket tech 100": the deepest steady pools that pass the checks, 3 to 4 stocks in equal amounts (a last number of 2 to 4 sets the fewest), and a link to afterbook.app where you sign the basket buy yourself. Themes: any, tech, chips, memory, software, internet, consumer, ev, health, china, global, bitcoin, space
 /list — show your active alerts
 /stop — clear all your alerts
 
-Read-only: a wallet address is public. The bot never asks you to connect a wallet or sign anything; a /plan link opens afterbook.app, where you connect and sign each buy yourself.`;
+Read-only: a wallet address is public. The bot never asks you to connect a wallet or sign anything; a /plan or /basket link opens afterbook.app, where you connect and sign each buy yourself.`;
 
 function newRuleId(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -140,6 +143,33 @@ async function handleCommand(chatId: number, text: string): Promise<string> {
     } catch (e) {
       console.error('[telegram /plan]', e);
       return 'Could not make a plan right now. Try again in a minute.';
+    }
+  }
+
+  if (cmd === '/basket') {
+    const parsed = parseBasketCommand(args);
+    if (typeof parsed === 'string') return parsed;
+    // The basket tab's and the MCP make_basket tool's code (fixed words, never Claude), at the page's default limits;
+    // the theme is a fixed one, never free text.
+    const input = parseBriefInput({ theme: parsed.theme, exclude: parsed.exclude, budgetUsd: parsed.budgetUsd, minStocks: parsed.minStocks });
+    if (typeof input === 'string') return `Can't make that basket: ${input}.`;
+    // Shares /plan's per-chat limit (10 a minute across instances).
+    if (mcpPlanLimiter && !(await mcpPlanLimiter.limit(`tg:${chatId}`)).success) return 'Too many plans in a minute. Try again shortly.';
+    try {
+      const out = await Promise.race([
+        runBrief(input, new Request(siteUrl), { explain: false }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('basket timed out')), PLAN_TIMEOUT_MS)),
+      ]);
+      let id: string | null = null;
+      let linkRefused = false;
+      if (out.brief.basket) {
+        linkRefused = !!planLinkDailyLimiter && !(await planLinkDailyLimiter.limit('all')).success;
+        if (!linkRefused) id = await saveBasket(out, 'telegram');
+      }
+      return basketReplyText(out.brief, input, parsed.label, parsed.command, id ? `${siteUrl}${planLinkPath(id)}` : null, linkRefused);
+    } catch (e) {
+      console.error('[telegram /basket]', e);
+      return 'Could not make a basket right now. Try again in a minute.';
     }
   }
 
