@@ -50,5 +50,14 @@ describe('open leaderboard', () => {
     expect(await readOpenLeaderboard()).toBeNull();
     fx.store.set('today:openleaderboard', { at: 1, rows: [] });
     expect(await readOpenLeaderboard()).toBeNull();
+    // A bad row anywhere (review of #243): none, so the page computes rather than crash.
+    fx.store.set('today:openleaderboard', { at: 1, rows: [{}] });
+    expect(await readOpenLeaderboard()).toBeNull();
+    fx.store.set('today:openleaderboard', { at: 1, rows: [{ symbol: 'NVDAc', stats: { days30: 20, revertedPct30: 50 } }, { symbol: 'AAPLc', stats: { days30: 'x', revertedPct30: 50 } }] });
+    expect(await readOpenLeaderboard()).toBeNull();
+    fx.store.set('today:openleaderboard', { at: Number.NaN, rows: [{ symbol: 'NVDAc', stats: { days30: 20, revertedPct30: 50 } }] });
+    expect(await readOpenLeaderboard()).toBeNull();
+    fx.store.set('today:openleaderboard', { at: 1, rows: [{ symbol: 'NVDAc', stats: { days30: 20, revertedPct30: 50 } }] });
+    expect(await readOpenLeaderboard()).toHaveLength(1);
   });
 });
