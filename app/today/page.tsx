@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { SymbolTile } from '@/app/components/ui/SymbolTile';
 import { SessionPill } from '@/app/components/ui/SessionPill';
 import { ShareButton } from '@/app/components/ui/ShareButton';
@@ -86,9 +87,50 @@ async function computeLeaderboard(): Promise<LeaderboardRow[]> {
 
 // The stat is a 30-day window over 5-minute samples, so it barely moves
 // between page loads — but computing it pulls thousands of history samples
-// per symbol from Redis (~2.5s for all ten), which was the bulk of this
+// per symbol from Redis (~2.5s for ten stocks; ~14s cold for 39 on 2026-11-25), the bulk of this
 // page's load time. Cached for 10 minutes; the rest of the page stays live.
 const getLeaderboard = unstable_cache(computeLeaderboard, ['today-open-snap-leaderboard'], { revalidate: 600 });
+
+/** "Who mean-reverts at the open": its own server component so the page can stream it (the Suspense in TodayPage). */
+async function Leaderboard() {
+  const leaderboard = await getLeaderboard().catch(() => [] as LeaderboardRow[]);
+  if (leaderboard.length === 0) return null;
+  return (
+    <section className="panel">
+      <h2>Who mean-reverts at the open</h2>
+      <p className="geo-note" style={{ marginTop: 0 }}>
+        Last {STATS_LOOKBACK_MS / 86_400_000} days: how often each name&apos;s basis moved toward $0 within 30 min of
+        the 9:30 ET open, rather than holding or widening. Higher means the overnight gap usually fades fast; lower
+        means it tends to stick.
+      </p>
+      <div className="weight-grid">
+        {leaderboard.map((row) => {
+          const stock = getStock(row.symbol);
+          const p = row.stats.revertedPct30;
+          return (
+            <div className="weight-card" key={row.symbol}>
+              <div className="weight-card-top">
+                <SymbolTile cashTicker={stock?.cashTicker ?? row.symbol} />
+                <div className="sym-cell-text">
+                  <span className="symbol">{row.symbol}</span>
+                  <span className="symbol-name" title={stock?.name}>{stock?.name}</span>
+                </div>
+              </div>
+              <div className="weight-pct">{p.toFixed(0)}%</div>
+              <div className="weight-bar" aria-hidden="true">
+                <span style={{ width: `${Math.max(0, Math.min(100, p))}%` }} />
+              </div>
+              <div className="weight-meta">
+                <span>{row.stats.days30} sessions</span>
+                <span>{p >= 80 ? 'Usually fades' : p >= 50 ? 'Mixed' : 'Tends to stick'}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 export default async function TodayPage() {
   const tape = await getTape().catch(() => null);
@@ -99,10 +141,7 @@ export default async function TodayPage() {
   const ref = headline && tape ? todayReference(headline, tape.session) : null;
   const headlineBp = ref?.bp ?? null;
 
-  const [sizing, leaderboard] = await Promise.all([
-    headline ? getSizingInfo(headline.symbol) : Promise.resolve(null),
-    getLeaderboard(),
-  ]);
+  const sizing = headline ? await getSizingInfo(headline.symbol) : null;
 
   return (
     <main>
@@ -229,41 +268,12 @@ export default async function TodayPage() {
         </section>
       )}
 
-      {leaderboard.length > 0 && (
-        <section className="panel">
-          <h2>Who mean-reverts at the open</h2>
-          <p className="geo-note" style={{ marginTop: 0 }}>
-            Last {STATS_LOOKBACK_MS / 86_400_000} days: how often each name&apos;s basis moved toward $0 within 30 min of
-            the 9:30 ET open, rather than holding or widening. Higher means the overnight gap usually fades fast; lower
-            means it tends to stick.
-          </p>
-          <div className="weight-grid">
-            {leaderboard.map((row) => {
-              const stock = getStock(row.symbol);
-              const p = row.stats.revertedPct30;
-              return (
-                <div className="weight-card" key={row.symbol}>
-                  <div className="weight-card-top">
-                    <SymbolTile cashTicker={stock?.cashTicker ?? row.symbol} />
-                    <div className="sym-cell-text">
-                      <span className="symbol">{row.symbol}</span>
-                      <span className="symbol-name" title={stock?.name}>{stock?.name}</span>
-                    </div>
-                  </div>
-                  <div className="weight-pct">{p.toFixed(0)}%</div>
-                  <div className="weight-bar" aria-hidden="true">
-                    <span style={{ width: `${Math.max(0, Math.min(100, p))}%` }} />
-                  </div>
-                  <div className="weight-meta">
-                    <span>{row.stats.days30} sessions</span>
-                    <span>{p >= 80 ? 'Usually fades' : p >= 50 ? 'Mixed' : 'Tends to stick'}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
+      {/* Streamed (2026-11-25): computed cold it reads 30 days of history for every stock (~14 s after a deploy, when
+          its 10-minute cache is empty), and the whole page used to wait for it; once it held /today for 35 s live. Now
+          the page renders at once and this section arrives when ready (instantly while cached). */}
+      <Suspense fallback={null}>
+        <Leaderboard />
+      </Suspense>
 
       <p className="geo-note">
         <Link href="/build" className="page-link">
