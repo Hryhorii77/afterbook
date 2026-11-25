@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import type { WalletLoan } from '../lib/lending/loanHealth';
-import { loanAlertText, loansReplyText, longBreakText } from '../lib/lending/loanHealth';
+import { loanAlertText, loanNearness, loansReplyText, longBreakText } from '../lib/lending/loanHealth';
 import { parseRescuePreset, rescueLinks, rescuePath, rescueScenario } from '../lib/lending/rescueLink';
 
 // Loan warnings link to the in-app Aave panel with the rescue planner preset; the paid loan-health route
@@ -81,6 +81,13 @@ describe('rescue links', () => {
     expect(withLinks).toContain('Add collateral: https://afterbook.app/borrow?rescue=add');
     expect(withLinks.endsWith('Not advice. Afterbook never touches your funds.')).toBe(true);
     expect(loanAlertText('0x1234567890123456789012345678901234567890', [loan('morpho', 1.15, 1)], 1.2, null)).not.toContain('borrow?rescue');
+  });
+
+  it('one nearness rule for /loans and the heads-up: per loan, under the line × 1.25, at the lower of oracle and Aero health', () => {
+    expect(loanNearness([loan('aave', 1.45, 1)], 1.2)).toEqual({ lowest: 1.45, near: true, aaveNear: true, morphoNear: false });
+    expect(loanNearness([loan('aave', 1.5, 1)], 1.2)).toMatchObject({ near: false, aaveNear: false }); // exactly on 1.5: not near
+    expect(loanNearness([loan('aave', 2, 0.7), loan('morpho', 3, 1)], 1.2)).toMatchObject({ near: true, aaveNear: true, morphoNear: false });
+    expect(loanNearness([loan('aave', 2, 1), loan('morpho', 1.1, 1)], 1.2)).toMatchObject({ near: true, aaveNear: false, morphoNear: true });
   });
 
   it('the weekend heads-up gives each loan its own next step: Aave links only when the Aave loan is near (review of #238)', () => {
