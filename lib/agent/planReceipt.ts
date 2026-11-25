@@ -84,3 +84,40 @@ export function planReceipts(
       ];
     });
 }
+
+/** What the page gets for one receipt (review of #234): display text and pass/fail checks only, worked out on the
+ *  server. The exact amounts, tokens, price and times never reach the browser, where they would sit in the page
+ *  source and could be searched in the router's events to find the transaction and the buyer. */
+export interface ReceiptView {
+  symbol: string;
+  /** Coarse: "within an hour", "the same day", "N days later". */
+  when: string;
+  planSaid: string;
+  filled: string;
+  checks: { label: string; ok: boolean }[];
+}
+
+const money = (n: number) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const pctOf = (bp: number) => `${(Math.abs(bp) / 100).toFixed(2)}%`;
+
+export function receiptView(r: PlanReceipt): ReceiptView {
+  const hours = r.afterPlanMs / 3_600_000;
+  const when = hours < 1 ? 'within an hour of the plan' : hours < 24 ? 'the same day as the plan' : `${Math.round(hours / 24)} days after the plan`;
+  const planSaid = [
+    r.plannedUsd != null ? `buy up to ${money(r.plannedUsd)}` : 'buy',
+    r.plannedPriceUsd != null ? ` at about ${money(r.plannedPriceUsd)} a share` : '',
+    r.plannedCostBp != null ? `, cost about ${pctOf(r.plannedCostBp)}` : '',
+    ` (limit ${pctOf(r.costLimitBp)})`,
+  ].join('');
+  // Rounded: whole dollars, tokens to 2 significant figures, the price a share to whole dollars.
+  const paid = r.paidUsd >= 1 ? `about $${Math.round(r.paidUsd).toLocaleString('en-US')}` : 'under $1';
+  const tokens = Number(r.tokens.toPrecision(2)).toLocaleString('en-US', { maximumFractionDigits: 8 });
+  const versus =
+    r.vsPlanPriceBp == null ? '' : Math.abs(r.vsPlanPriceBp) < 5 ? ' (about the plan’s price)' : ` (about ${pctOf(Math.round(r.vsPlanPriceBp / 5) * 5)} ${r.vsPlanPriceBp > 0 ? 'above' : 'below'} the plan’s price)`;
+  const filled = `${paid} for about ${tokens} ${r.symbol}, about $${Math.round(r.fillPriceUsd).toLocaleString('en-US')} a share${versus}`;
+  const checks: ReceiptView['checks'] = [];
+  if (r.vsQuoteBp != null) checks.push({ label: r.vsQuoteBp >= 0 ? 'at least what was quoted at signing' : 'a little less than quoted at signing', ok: r.vsQuoteBp >= -50 });
+  if (r.metMinimum != null) checks.push({ label: r.metMinimum ? 'at least the signed minimum' : 'below the signed minimum', ok: r.metMinimum });
+  if (r.withinPlan != null) checks.push({ label: r.withinPlan ? 'within the plan’s amount' : 'over the plan’s amount', ok: r.withinPlan });
+  return { symbol: r.symbol, when, planSaid, filled, checks };
+}

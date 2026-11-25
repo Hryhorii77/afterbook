@@ -8,7 +8,7 @@
 // size come from that stored build, so a hand-made router call cannot inflate the numbers. Wallets are
 // stored as a short pseudonymous hash, enough to count unique traders; it is not a privacy guarantee
 // (anyone can hash a known address).
-import { PLAN_ID_RE } from '../agent/planLink';
+import { PLAN_ID_RE, isSavedPlan, savedBuys } from '../agent/planLink';
 import { decodeEventLog, decodeFunctionData, erc20Abi, getAddress, keccak256, parseAbi, type Hex } from 'viem';
 import { ENTRY_POINT_ABIS, ENTRY_POINTS } from '../wallet/userOps';
 import { BUILDER_CODE_SUFFIX } from '../wallet/builderCode';
@@ -28,6 +28,16 @@ const USED = (data: Hex) => `swapused:${keccak256(data)}`;
 /** A plan link's verified buys, in order (2026-11-25): kept a little longer than the plan link itself (7 days). */
 const PLAN_FILLS = (planId: string) => `agentplan:${planId}:fills`;
 const PLAN_FILLS_TTL_S = 8 * 24 * 60 * 60;
+
+/** Whether a verified buy belongs on its plan's receipts: the saved plan exists, listed the stock, and the buy is
+ *  within the amount it showed for it (a cent of slack for rounding). One Redis read, only for a plan link's buy. */
+async function fillsPlan(record: SwapRecord): Promise<boolean> {
+  if (!redis || !record.planId) return false;
+  const saved = await redis.get<unknown>(`agentplan:${record.planId}`).catch(() => null);
+  if (!isSavedPlan(saved)) return false;
+  const planned = savedBuys(saved).get(record.symbol);
+  return planned != null && record.usd <= planned + 0.01;
+}
 
 /** The verified buys signed from one plan link, oldest first (two Redis requests; [] when there are none). */
 export async function planFills(planId: string): Promise<SwapRecord[]> {
@@ -307,8 +317,10 @@ export async function logSwap(hash: Hex): Promise<LogResult> {
     if (created) {
       await redis.zadd(INDEX, { score: checked.record.at, member: id });
       duplicate = false;
-      // A plan link's buy: listed under that plan for its receipts. Bookkeeping: a failure here only loses the receipt.
-      if (checked.record.planId) {
+      // A plan link's buy: listed under that plan for its receipts, only when the plan exists, listed this stock and
+      // the buy is within its amount (review of #234: off-plan buys can't push real receipts out of the 50 kept).
+      // Bookkeeping: a failure here only loses the receipt.
+      if (checked.record.planId && (await fillsPlan(checked.record))) {
         await redis
           .pipeline()
           .rpush(PLAN_FILLS(checked.record.planId), id)

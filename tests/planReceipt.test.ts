@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planReceipts } from '../lib/agent/planReceipt';
+import { planReceipts, receiptView } from '../lib/agent/planReceipt';
 import type { SavedStockPlan } from '../lib/agent/planLink';
 import type { SwapRecord } from '../lib/swap/swapLog';
 
@@ -66,5 +66,20 @@ describe('plan receipts', () => {
   it('orders fills oldest first', () => {
     const rs = planReceipts(saved, [fill({ at: saved.at + 5000 }), fill({ at: saved.at + 1000 })], dec);
     expect(rs.map((r) => r.afterPlanMs)).toEqual([1000, 5000]);
+  });
+
+  it('what the page gets holds no exact amount, tokens, price or time: display text and pass/fail only (review of #234)', () => {
+    // An odd, searchable fill: $49.37 for 0.33912345 NVDAc, 2 h 13 min after the plan.
+    const [r] = planReceipts(saved, [fill({ usd: 49.37, amountOut: '33912345', at: saved.at + (2 * 60 + 13) * 60_000 })], dec);
+    const view = receiptView(r);
+    const json = JSON.stringify(view);
+    for (const exact of ['49.37', '0.339', '33912345', '145.58', String(saved.at + (2 * 60 + 13) * 60_000), '2 h', '13']) expect(json).not.toContain(exact);
+    expect(view.filled).toMatch(/^about \$49 for about 0\.34 NVDAc, about \$146 a share \(about [\d.]+% below the plan’s price\)$/);
+    expect(view.when).toBe('the same day as the plan');
+    // Only strings and booleans reach the client.
+    const leaves: unknown[] = [];
+    const walk = (v: unknown) => (v && typeof v === 'object' ? Object.values(v).forEach(walk) : leaves.push(v));
+    walk(view);
+    expect(leaves.every((v) => typeof v === 'string' || typeof v === 'boolean')).toBe(true);
   });
 });

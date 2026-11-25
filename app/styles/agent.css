@@ -100,3 +100,4 @@
   .plan-receipt dl { grid-template-columns: 1fr; gap: 2px; }
   .plan-receipt dd { margin-bottom: 6px; }
 }
+.plan-receipt-check-bad { color: var(--red); }

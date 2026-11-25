@@ -18,12 +18,12 @@ import { BasketBuyPanel } from '../baskets/BasketBuyPanel';
 import { PlanLegCard } from './PlanLegCard';
 import { PlanLinkShare } from './PlanLinkShare';
 import { PlanReceipts } from './PlanReceipts';
-import type { PlanReceipt } from '@/lib/agent/planReceipt';
+import type { ReceiptView } from '@/lib/agent/planReceipt';
 
 type Recheck = { legs: PlanLeg[]; checkedAt: number; buys: RecheckedBuy[]; basket: ReturnType<typeof basketRecheck> | null };
 type Props =
   | { state: 'missing' | 'error' }
-  | { state: 'ok'; saved: SavedPlan; recheck: Recheck | null; geo: GeoInfo; receipts?: PlanReceipt[] };
+  | { state: 'ok'; saved: SavedPlan; recheck: Recheck | null; geo: GeoInfo; receipts?: ReceiptView[] };
 
 const when = (ms: number) => new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const ticker = (sym: string) => getStock(sym)?.cashTicker ?? sym;
@@ -51,7 +51,7 @@ export function SavedPlanClient(props: Props) {
   return <SavedPlanView {...props} />;
 }
 
-function SavedPlanView({ saved, recheck, geo, receipts = [] }: { saved: SavedPlan; recheck: Recheck | null; geo: GeoInfo; receipts?: PlanReceipt[] }) {
+function SavedPlanView({ saved, recheck, geo, receipts = [] }: { saved: SavedPlan; recheck: Recheck | null; geo: GeoInfo; receipts?: ReceiptView[] }) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   // Only the symbol is kept: the amount always comes from the latest recheck, so "Check again" can never

@@ -140,6 +140,15 @@ function mine(tx: { to: Hex; from: Hex; input: Hex }, logs: ReturnType<typeof op
   chain.receipt = { status: 'success', blockNumber: BigInt(1), logs };
 }
 
+/** A saved stock plan (the shape isSavedPlan accepts) buying `buys` (symbol → USD). */
+function savedPlanWith(id: string, buys: Record<string, number>) {
+  return {
+    v: 1, id, at: 1, via: 'mcp', kind: 'plan', explanation: '', explainedBy: 'fixed',
+    input: { symbols: Object.keys(buys), budgetUsd: 100, maxPremiumBp: 50, maxCostBp: 30, earningsDays: 2 },
+    plan: { legs: Object.entries(buys).map(([symbol, usd]) => ({ symbol, verdict: 'buy', usd, reasons: [] })), budgetUsd: 100, plannedUsd: 10, session: {}, createdAt: 1 },
+  };
+}
+
 beforeEach(() => {
   chain.code = chain.codeBefore = PROXY;
   chain.slot = chain.slotBefore = IMPL_V11;
@@ -200,6 +209,7 @@ describe('logSwap', () => {
   it('a plan link’s buy keeps its plan id, the stock received and the quote, and is listed under that plan (2026-11-25)', async () => {
     const d = buyData('NVDAc', 10);
     const PLAN = 'AbCdEfGhIjKlMnOp';
+    r.store.set(`agentplan:${PLAN}`, savedPlanWith(PLAN, { NVDAc: 10 }));
     await rememberBuiltSwap({ data: d, minAmountOut: '6482000', quote: { symbol: 'NVDAc', side: 'buy', feeBps: 0, amountInUsd: 10, amountOut: '6514000' } } as unknown as SwapTx, ACCOUNT, 'agent', PLAN);
     mine({ to: KYBER_ROUTER, from: ACCOUNT, input: withCode(d) }, [swappedEvent('USDC', 'NVDAc', BigInt(10e6), BigInt(6543264))]);
     const res = await logSwap(HASH);
@@ -208,6 +218,23 @@ describe('logSwap', () => {
     // Reported again: still one fill.
     await logSwap(HASH);
     expect(await planFills(PLAN)).toHaveLength(1);
+  });
+  it('lists a fill only when the saved plan exists, listed the stock, and the buy is within its amount (review of #234)', async () => {
+    const PLAN = 'AbCdEfGhIjKlMnOp';
+    const run = async (plan: unknown, symbol: string, usdc: number) => {
+      r.store.clear();
+      if (plan) r.store.set(`agentplan:${PLAN}`, plan);
+      const d = buyData(symbol, usdc);
+      await rememberBuiltSwap({ data: d, minAmountOut: '1', quote: { symbol, side: 'buy', feeBps: 0, amountInUsd: usdc, amountOut: '2' } } as unknown as SwapTx, ACCOUNT, 'agent', PLAN);
+      mine({ to: KYBER_ROUTER, from: ACCOUNT, input: withCode(d) }, [bought(symbol, usdc)]);
+      const res = await logSwap(HASH);
+      expect(res.ok).toBe(true); // still counted as a swap either way
+      return (await planFills(PLAN)).length;
+    };
+    expect(await run(savedPlanWith(PLAN, { NVDAc: 10 }), 'NVDAc', 10)).toBe(1);
+    expect(await run(null, 'NVDAc', 10)).toBe(0); // no such plan
+    expect(await run(savedPlanWith(PLAN, { NVDAc: 10 }), 'AAPLc', 10)).toBe(0); // a stock the plan didn't list
+    expect(await run(savedPlanWith(PLAN, { NVDAc: 10 }), 'NVDAc', 12)).toBe(0); // over the plan's amount
   });
   it('a plan id is kept only for a valid id on an agent or Telegram link’s buy', async () => {
     for (const [source, planId] of [['stock', 'AbCdEfGhIjKlMnOp'], ['agent', 'not-a-plan-id'], ['agent', undefined]] as const) {

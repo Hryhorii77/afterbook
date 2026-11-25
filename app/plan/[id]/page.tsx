@@ -12,7 +12,7 @@ import { unstable_cache } from 'next/cache';
 
 // A plan page's fills through Next's data cache for a minute (keyed by the id), so views don't each read Redis.
 const cachedPlanFills = unstable_cache((id: string) => planFills(id), ['plan-fills-v1'], { revalidate: 60 });
-import { planReceipts } from '@/lib/agent/planReceipt';
+import { planReceipts, receiptView } from '@/lib/agent/planReceipt';
 import { getTape } from '@/lib/market/tape';
 import { getStock } from '@/lib/stocks/tokens';
 
@@ -44,7 +44,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       const [fills, tape] = await Promise.all([cachedPlanFills(saved.id), getTape().catch(() => null)]);
       if (!fills.length) return [];
       const multiplier = new Map((tape?.rows ?? []).map((r) => [r.symbol, r.multiplier]));
-      return planReceipts(saved, fills, (sym) => getStock(sym)?.decimals, (sym) => multiplier.get(sym));
+      // Display text only: the exact numbers stay on the server (receiptView).
+      return planReceipts(saved, fills, (sym) => getStock(sym)?.decimals, (sym) => multiplier.get(sym)).map(receiptView);
     })().catch((err) => {
       console.error('[/plan/[id]] receipts', err instanceof Error ? err.message : err);
       return [];
