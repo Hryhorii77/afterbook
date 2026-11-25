@@ -1,4 +1,5 @@
 import { createMcpHandler } from 'mcp-handler';
+import { BRIEF_LIMITS, PLAN_LIMITS } from '@/lib/agent/limits';
 import { z } from 'zod';
 import { getTape } from '@/lib/market/tape';
 import { toPublicTape } from '@/lib/market/publicTape';
@@ -101,10 +102,10 @@ const handler = createMcpHandler((server) => {
         'A checked trade plan for Coinbase tokenized stocks on Base: for each stock a buy, wait or skip verdict with reasons (gap to the real stock, stale pool, earnings, depth) and a size within your cost limit, $25k and 10% of the pool. Returns planUrl, a link where a person opens the plan on afterbook.app and signs each buy in their own wallet, after the checks run again and never for more than the plan shows. Reads only; signs nothing.',
       inputSchema: z.object({
         symbols: z.array(z.enum(SYMBOLS)).max(8).optional().describe('Stocks to check; none = the deepest pools.'),
-        budgetUsd: z.number().positive(),
-        maxPremiumBp: z.number().optional().describe('Most the token may trade above the cash price, in bp (default 50).'),
-        maxCostBp: z.number().optional().describe('Most a fill may cost, price impact plus pool fee, in bp (default 30).'),
-        earningsDays: z.number().int().optional().describe('Wait if earnings are within this many days: 0, 2 or 7 (default 2).'),
+        budgetUsd: z.number().min(PLAN_LIMITS.minBudgetUsd).max(PLAN_LIMITS.maxBudgetUsd).describe(`USDC to plan, $${PLAN_LIMITS.minBudgetUsd} to $${PLAN_LIMITS.maxBudgetUsd.toLocaleString('en-US')}; each buy is still capped at $25,000 and 10% of its pool.`),
+        maxPremiumBp: z.number().min(0).max(PLAN_LIMITS.maxPremiumBp).optional().describe(`Most the token may trade above the cash price, in bp, 0 to ${PLAN_LIMITS.maxPremiumBp} (default 50).`),
+        maxCostBp: z.number().min(1).max(PLAN_LIMITS.maxCostBp).optional().describe(`Most a fill may cost, price impact plus pool fee, in bp, 1 to ${PLAN_LIMITS.maxCostBp} (default 30).`),
+        earningsDays: z.number().int().min(0).max(PLAN_LIMITS.maxEarningsDays).optional().describe(`Wait if earnings are within this many days, 0 to ${PLAN_LIMITS.maxEarningsDays} (default 2).`),
       }),
     },
     async (args) => {
@@ -132,12 +133,12 @@ const handler = createMcpHandler((server) => {
       inputSchema: z.object({
         theme: z.enum(['Any', ...THEMES]).optional().describe('One of Afterbook\'s fixed themes (default: Any).'),
         exclude: z.array(z.enum(SECTORS)).optional().describe('GICS sectors to leave out.'),
-        minStocks: z.number().int().optional(),
-        budgetUsd: z.number().positive(),
-        cashPct: z.number().optional(),
-        maxPremiumBp: z.number().optional(),
-        maxCostBp: z.number().optional(),
-        earningsDays: z.number().int().optional(),
+        minStocks: z.number().int().min(BRIEF_LIMITS.minStocks).max(BRIEF_LIMITS.maxStocks).optional().describe(`Spread over at least this many stocks, ${BRIEF_LIMITS.minStocks} to ${BRIEF_LIMITS.maxStocks} (default 3).`),
+        budgetUsd: z.number().min(PLAN_LIMITS.minBudgetUsd).max(BRIEF_LIMITS.maxBudgetUsd).describe(`USDC for the basket, $${PLAN_LIMITS.minBudgetUsd} to $${BRIEF_LIMITS.maxBudgetUsd.toLocaleString('en-US')} (one basket buy).`),
+        cashPct: z.number().min(0).max(BRIEF_LIMITS.maxCashPct).optional().describe(`Percent of the budget to keep as cash, 0 to ${BRIEF_LIMITS.maxCashPct} (default 0).`),
+        maxPremiumBp: z.number().min(0).max(PLAN_LIMITS.maxPremiumBp).optional().describe(`Most a token may trade above the cash price, in bp, 0 to ${PLAN_LIMITS.maxPremiumBp} (default 50).`),
+        maxCostBp: z.number().min(1).max(PLAN_LIMITS.maxCostBp).optional().describe(`Most a fill may cost, price impact plus pool fee, in bp, 1 to ${PLAN_LIMITS.maxCostBp} (default 30).`),
+        earningsDays: z.number().int().min(0).max(PLAN_LIMITS.maxEarningsDays).optional().describe(`Wait if earnings are within this many days, 0 to ${PLAN_LIMITS.maxEarningsDays} (default 2).`),
       }),
     },
     async (args) => {
@@ -224,7 +225,8 @@ const handler = createMcpHandler((server) => {
       }
     },
   );
-});
+  // How the server names itself to clients (it said "mcp-typescript server on vercel" before, 2026-11-25).
+}, { serverInfo: { name: 'afterbook', version: '1.0.0' } });
 
 /** The plan tools read pools and save a link. One plan call per request (a JSON-RPC batch with more is
  *  refused before anything is counted), held to the plan routes' 10 a minute per caller in this

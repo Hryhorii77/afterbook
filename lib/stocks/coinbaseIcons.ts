@@ -12,7 +12,24 @@ export const ICON_HOST = 'https://metadata.coinbase.com/equity_icons/';
  *  AND the URL is an https icon on Coinbase's own metadata host, so a wrong or
  *  odd record can never swap in a different token's image or an arbitrary URL.
  *  Any failure returns an empty map and the app keeps its letter tiles. */
-export async function getTokenIcons(): Promise<Record<string, string>> {
+// The root layout awaits this on every page, and the list can take several 8-second pages from Coinbase: once it
+// held a page for ~30 s (review, 2026-11-25). So the wait is boxed at ICONS_WAIT_MS: past it the page gets the last
+// map this instance read (or none: letter tiles) while the read carries on and fills that map for the next page.
+const ICONS_WAIT_MS = 1500;
+let lastIcons: Record<string, string> | null = null;
+let inFlight: Promise<Record<string, string>> | null = null;
+
+export async function getTokenIcons(waitMs = ICONS_WAIT_MS): Promise<Record<string, string>> {
+  inFlight ??= readTokenIcons().then((icons) => {
+    if (Object.keys(icons).length) lastIcons = icons;
+    inFlight = null;
+    return icons;
+  });
+  const timedOut = new Promise<null>((resolve) => setTimeout(() => resolve(null), waitMs));
+  return (await Promise.race([inFlight, timedOut])) ?? lastIcons ?? {};
+}
+
+async function readTokenIcons(): Promise<Record<string, string>> {
   try {
     const tokens = await getCoinbaseStockList({ next: { revalidate: 6 * 60 * 60 } });
     const byAddress = new Map<string, string>();

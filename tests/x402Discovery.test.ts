@@ -43,6 +43,11 @@ describe('x402 Bazaar listings', () => {
     });
   }
 
+  it('execute-link lists usdcIn as required, as the route refuses a request without it (review, 2026-11-25)', () => {
+    expect(X402_DISCOVERY['execute-link'].required).toEqual(['symbol', 'usdcIn']);
+    expect(X402_DISCOVERY['execute-link'].input).toHaveProperty('usdcIn');
+  });
+
   it('the examples use the real field names (runtime check of the shapes fixed in review)', () => {
     const h = X402_DISCOVERY.history.output;
     expect(Object.keys(h.basisHistory[0]).sort()).toEqual(['basisBp', 'ts']);
