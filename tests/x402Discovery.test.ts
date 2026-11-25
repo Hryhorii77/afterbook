@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bazaarResourceServerExtension, validateDiscoveryExtension } from '@x402/extensions/bazaar';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { x402HTTPResourceServer, x402ResourceServer } from '@x402/core/server';
 import { X402_DISCOVERY, bazaarListing, x402Path, x402Route, type X402Route } from '../lib/server/x402Discovery';
 import type { HistorySample } from '../lib/market/history';
@@ -63,6 +63,13 @@ describe('x402 route keys', () => {
   for (const route of routes) {
     it(`${route}: the key is the route's own folder and matches its requests`, () => {
       expect(existsSync(`app${x402Path(route)}/route.ts`)).toBe(true);
+      // The route file passes its own folder name, to both the path key and the listing (a copied route
+      // that still said another name would put the wrong path or listing on it).
+      const source = readFileSync(`app${x402Path(route)}/route.ts`, 'utf8');
+      expect(source).toContain(`x402Route('${route}',`);
+      expect(source).toContain(`bazaarListing('${route}')`);
+      expect(source.match(/x402Route\('/g)).toHaveLength(1);
+      expect(source.match(/bazaarListing\('/g)).toHaveLength(1);
       const server = http(route);
       const paid = (path: string, method = 'GET') => server.requiresPayment({ path, method, adapter: { getMethod: () => method, getPath: () => path } } as never);
       for (const path of [x402Path(route), `${x402Path(route)}/`, `${x402Path(route)}?symbol=NVDAc&budgetUsd=100`, x402Path(route).toUpperCase()]) {
