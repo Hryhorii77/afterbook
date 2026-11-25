@@ -25,8 +25,13 @@ export async function getTokenIcons(waitMs = ICONS_WAIT_MS): Promise<Record<stri
     inFlight = null;
     return icons;
   });
-  const timedOut = new Promise<null>((resolve) => setTimeout(() => resolve(null), waitMs));
-  return (await Promise.race([inFlight, timedOut])) ?? lastIcons ?? {};
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<null>((resolve) => (timer = setTimeout(() => resolve(null), waitMs)));
+  try {
+    return (await Promise.race([inFlight, timedOut])) ?? lastIcons ?? {};
+  } finally {
+    clearTimeout(timer); // icons first: no timer left behind (review of #241)
+  }
 }
 
 async function readTokenIcons(): Promise<Record<string, string>> {

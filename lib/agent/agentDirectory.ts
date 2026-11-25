@@ -31,5 +31,5 @@ export const PAID: { route: string; price: string; does: string }[] = [
 export const FREE_KEY = {
   issue: 'POST https://afterbook.app/api/v1/keys',
   use: 'GET https://afterbook.app/api/v1/tape with Authorization: Bearer <key>',
-  note: 'Free, no sign-up: the key is shown once (only its hash is stored), lasts a year and is rate-limited.',
+  note: 'Free, no sign-up: the key is shown once (only its hash is stored) and lasts a year. Limits: 1 request a second per key, and 5 new keys a day per IP.',
 };

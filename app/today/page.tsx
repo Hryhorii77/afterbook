@@ -9,9 +9,10 @@ import { getTape } from '@/lib/market/tape';
 import { LIQUID_DEPTH_THRESHOLD_USD } from '@/lib/market/liquidity';
 import { buildTodaySnapshot, todayReference } from '@/lib/market/todaySnapshot';
 import { bp, bpPct, usd, usdCompact, formatDuration, formatNextOpen, gapVsText, bpClass } from '@/lib/format';
-import { STOCKS, getStock } from '@/lib/stocks/tokens';
+import { getStock } from '@/lib/stocks/tokens';
 import { getBuyQuoter } from '@/lib/market/lotQuote';
-import { getOpenSnapStats, STATS_LOOKBACK_MS, type OpenSnapStats } from '@/lib/market/history';
+import { STATS_LOOKBACK_MS } from '@/lib/market/history';
+import { computeOpenLeaderboard, readOpenLeaderboard, type LeaderboardRow } from '@/lib/market/openLeaderboard';
 import { shareMetadata } from '@/lib/share/shareMeta';
 import { firstParam } from '@/lib/share/cardUrl';
 import { todayShareText } from '@/lib/share/shareText';
@@ -67,29 +68,15 @@ async function getSizingInfo(symbol: string): Promise<SizingInfo | null> {
   }
 }
 
-interface LeaderboardRow {
-  symbol: string;
-  stats: OpenSnapStats;
-}
-
-/** Same "did the gap mean-revert after 9:30 ET open" stat HomeClient shows
- *  for one symbol at a time — run across all 10 so /today can show which
- *  names actually fade vs which gaps stick, not just today's biggest one. */
-async function computeLeaderboard(): Promise<LeaderboardRow[]> {
-  const since = Date.now() - STATS_LOOKBACK_MS;
-  const results = await Promise.all(
-    STOCKS.map(async (stock) => ({ symbol: stock.symbol, stats: await getOpenSnapStats(stock.symbol, since).catch(() => null) })),
-  );
-  return results
-    .filter((r): r is LeaderboardRow => r.stats != null)
-    .sort((a, b) => b.stats.revertedPct30 - a.stats.revertedPct30);
-}
-
-// The stat is a 30-day window over 5-minute samples, so it barely moves
-// between page loads — but computing it pulls thousands of history samples
-// per symbol from Redis (~2.5s for ten stocks; ~14s cold for 39 on 2026-11-25), the bulk of this
-// page's load time. Cached for 10 minutes; the rest of the page stays live.
-const getLeaderboard = unstable_cache(computeLeaderboard, ['today-open-snap-leaderboard'], { revalidate: 600 });
+// The leaderboard (lib/market/openLeaderboard.ts) is computed once a day by the discover-tokens cron and saved as one
+// key; this reads it through the data cache for 10 minutes. Without a saved one (its first day, or failed runs) the
+// page computes it itself, which reads 30 days of history for every stock (~14 s cold for 39), streamed (Suspense
+// below) so the rest of the page never waits.
+const getLeaderboard = unstable_cache(
+  async (): Promise<LeaderboardRow[]> => (await readOpenLeaderboard()) ?? computeOpenLeaderboard(),
+  ['today-open-snap-leaderboard-v2'],
+  { revalidate: 600 },
+);
 
 /** "Who mean-reverts at the open": its own server component so the page can stream it (the Suspense in TodayPage). */
 async function Leaderboard() {
@@ -271,7 +258,16 @@ export default async function TodayPage() {
       {/* Streamed (2026-11-25): computed cold it reads 30 days of history for every stock (~14 s after a deploy, when
           its 10-minute cache is empty), and the whole page used to wait for it; once it held /today for 35 s live. Now
           the page renders at once and this section arrives when ready (instantly while cached). */}
-      <Suspense fallback={null}>
+      <Suspense
+        fallback={
+          <section className="panel" aria-busy="true">
+            <h2>Who mean-reverts at the open</h2>
+            <p className="geo-note" style={{ marginTop: 0 }}>
+              Working out the last {STATS_LOOKBACK_MS / 86_400_000} days…
+            </p>
+          </section>
+        }
+      >
         <Leaderboard />
       </Suspense>
 

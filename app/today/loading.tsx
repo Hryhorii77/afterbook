@@ -1,7 +1,6 @@
-// Shown instantly on navigation while /today's server render finishes
-// (force-dynamic: a live tape read, a pool-state read and ten history
-// lookups, which take a few seconds). Without it the previous page just
-// sits there looking frozen after the click.
+// Shown instantly on navigation while /today's server render starts (force-dynamic: a live tape read and a
+// pool-state read, about a second; the open leaderboard streams in separately, see page.tsx). Without it the
+// previous page just sits there looking frozen after the click.
 export default function Loading() {
   return (
     <main>
