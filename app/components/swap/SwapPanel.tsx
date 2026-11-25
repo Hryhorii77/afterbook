@@ -35,6 +35,7 @@ export function SwapPanel({
   onBuyStarted,
   onBuyFailed,
   oneSignature = true,
+  planId,
 }: {
   stock: CbStock;
   defaultUsd?: number;
@@ -53,6 +54,8 @@ export function SwapPanel({
   /** With a wallet that can batch atomically (Base Account): the exact approval and the swap as one signature.
    *  Off whenever a caller needs the swap's hash before it is mined (`onBuySent`, /rules' pending run). */
   oneSignature?: boolean;
+  /** A plan link's id (/plan/<id>): sent with the build so the fill shows on that plan's receipts. Label only. */
+  planId?: string;
 }) {
   const { notify } = useNotify();
   const [side, setSide] = useState<SwapSide>('buy');
@@ -75,7 +78,7 @@ export function SwapPanel({
 
   const { address, busy, error, review, setReview, done, setDone, startReview, confirm, reset, oneSignature: batched, canBatch: paysFeeInUsdc } = useReviewedSwap({
     oneSignature: oneSignature && !onBuySent,
-    build: async () => buildSwap({ symbol: stock.symbol, side, amountIn: amountKey, account: address, slippageBps, source }),
+    build: async () => buildSwap({ symbol: stock.symbol, side, amountIn: amountKey, account: address, slippageBps, source, ...(planId ? { planId } : {}) }),
     sameTrade: (tx, reviewed) => tx.quote.amountIn === reviewed.quote.amountIn && tx.quote.symbol === reviewed.quote.symbol && tx.quote.side === reviewed.quote.side && tx.tokenIn === reviewed.tokenIn,
     texts: {
       declined: 'Declined in your wallet — nothing was submitted.',

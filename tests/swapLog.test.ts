@@ -21,6 +21,17 @@ const r = vi.hoisted(() => {
       zadd: async (_k: string, m: { member: string }) => void index.push(m.member),
       zrange: async () => [...index],
       mget: async (...keys: string[]) => keys.map((k) => store.get(k) ?? null),
+      lrange: async (k: string, start: number) => ((store.get(k) as string[] | undefined) ?? []).slice(start),
+      pipeline: () => {
+        const ops: (() => void)[] = [];
+        const p = {
+          rpush: (k: string, v: string) => (ops.push(() => store.set(k, [...((store.get(k) as string[] | undefined) ?? []), v])), p),
+          ltrim: (k: string, start: number) => (ops.push(() => store.set(k, ((store.get(k) as string[] | undefined) ?? []).slice(start))), p),
+          expire: () => p,
+          exec: async () => ops.forEach((o) => o()),
+        };
+        return p;
+      },
     },
   };
 });
@@ -46,7 +57,7 @@ vi.mock('../lib/market/quote', () => ({
   }),
 }));
 
-import { logSwap, rememberBuiltSwap, routerCalls, swapStats } from '../lib/swap/swapLog';
+import { logSwap, planFills, rememberBuiltSwap, routerCalls, swapStats } from '../lib/swap/swapLog';
 import { KYBER_ROUTER, type SwapTx } from '../lib/swap/swap';
 import { BUILDER_CODE_SUFFIX } from '../lib/wallet/builderCode';
 import { getStock, USDC } from '../lib/stocks/tokens';
@@ -185,6 +196,28 @@ describe('logSwap', () => {
     mine({ to: KYBER_ROUTER, from: ACCOUNT, input: withCode(d) }, [bought('NVDAc', 25)]);
     const res = await logSwap(HASH);
     expect(res.ok && res.records.map((x) => [x.hash, x.usd])).toEqual([[HASH, 25]]);
+  });
+  it('a plan link’s buy keeps its plan id, the stock received and the quote, and is listed under that plan (2026-11-25)', async () => {
+    const d = buyData('NVDAc', 10);
+    const PLAN = 'AbCdEfGhIjKlMnOp';
+    await rememberBuiltSwap({ data: d, minAmountOut: '6482000', quote: { symbol: 'NVDAc', side: 'buy', feeBps: 0, amountInUsd: 10, amountOut: '6514000' } } as unknown as SwapTx, ACCOUNT, 'agent', PLAN);
+    mine({ to: KYBER_ROUTER, from: ACCOUNT, input: withCode(d) }, [swappedEvent('USDC', 'NVDAc', BigInt(10e6), BigInt(6543264))]);
+    const res = await logSwap(HASH);
+    expect(res.ok && res.records[0]).toMatchObject({ source: 'agent', planId: PLAN, amountOut: '6543264', quotedOut: '6514000', minOut: '6482000' });
+    expect((await planFills(PLAN)).map((x) => x.hash)).toEqual([HASH]);
+    // Reported again: still one fill.
+    await logSwap(HASH);
+    expect(await planFills(PLAN)).toHaveLength(1);
+  });
+  it('a plan id is kept only for a valid id on an agent or Telegram link’s buy', async () => {
+    for (const [source, planId] of [['stock', 'AbCdEfGhIjKlMnOp'], ['agent', 'not-a-plan-id'], ['agent', undefined]] as const) {
+      r.store.clear();
+      const d = buyData('NVDAc', 10);
+      await rememberBuiltSwap({ data: d, minAmountOut: '1', quote: { symbol: 'NVDAc', side: 'buy', feeBps: 0, amountInUsd: 10, amountOut: '2' } } as unknown as SwapTx, ACCOUNT, source, planId);
+      mine({ to: KYBER_ROUTER, from: ACCOUNT, input: withCode(d) }, [bought('NVDAc', 10)]);
+      const res = await logSwap(HASH);
+      expect(res.ok && res.records[0].planId).toBeUndefined();
+    }
   });
   it('refuses a swap built for another account, and one whose user operation reverted', async () => {
     const d = buyData('NVDAc', 40);

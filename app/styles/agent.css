@@ -87,3 +87,16 @@
   .agent-table .num { text-align: left; color: var(--text-dim); }
 }
 .agent-steps { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 8px; font-size: 14px; line-height: 1.55; color: var(--text); }
+
+/* Plan receipts (2026-11-25): one card per verified fill on a plan link page. */
+.plan-receipt-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 12px; }
+.plan-receipt { border: 1px solid var(--panel-border); border-radius: 12px; padding: 12px 14px; }
+.plan-receipt-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; }
+.plan-receipt-when { font-size: 13px; color: var(--text-dim); }
+.plan-receipt dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 10px 0 0; font-size: 14px; line-height: 1.5; }
+.plan-receipt dt { color: var(--text-dim); }
+.plan-receipt dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .plan-receipt dl { grid-template-columns: 1fr; gap: 2px; }
+  .plan-receipt dd { margin-bottom: 6px; }
+}

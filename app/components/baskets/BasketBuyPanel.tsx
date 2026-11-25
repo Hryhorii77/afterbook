@@ -71,6 +71,7 @@ export function BasketBuyPanel({
   onRunNothing,
   noRest,
   source = 'basket',
+  planId,
 }: {
   legs: BasketLeg[];
   stocks: StockInfo[];
@@ -93,6 +94,8 @@ export function BasketBuyPanel({
   noRest?: boolean;
   /** For the swap metrics only (lib/swap/swapLog.ts): 'agent' on an agent's saved plan link, 'telegram' on one from the bot's /plan. */
   source?: 'basket' | 'agent' | 'telegram';
+  /** A plan link's id (/plan/<id>): sent with each leg's build so the fills show on that plan's receipts. Label only. */
+  planId?: string;
 }) {
   const { notify } = useNotify();
   const wallet = useSwapWallet();
@@ -137,7 +140,7 @@ export function BasketBuyPanel({
   const overMax = totalRaw !== null && maxRaw !== null && totalRaw > maxRaw;
 
   const buildLeg = async (leg: BasketLegAmount): Promise<SwapTx> => {
-    const tx = await buildSwap({ symbol: leg.symbol, side: 'buy', amountIn: leg.amountIn.toString(), account: address, source, slippageBps });
+    const tx = await buildSwap({ symbol: leg.symbol, side: 'buy', amountIn: leg.amountIn.toString(), account: address, source, slippageBps, ...(planId ? { planId } : {}) });
     if (tx.quote.symbol !== leg.symbol || tx.quote.side !== 'buy' || tx.quote.amountIn !== leg.amountIn.toString()) throw new Error('Refused: the server built a different trade.');
     return tx;
   };

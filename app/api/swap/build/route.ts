@@ -24,7 +24,8 @@ export async function POST(request: NextRequest) {
     const account = getAddress(body.account);
     const tx = await buildSwap(req, account);
     const source = req.meme ? 'meme' : body.source === 'basket' ? 'basket' : body.source === 'plan' ? 'plan' : body.source === 'rule' ? 'rule' : body.source === 'agent' ? 'agent' : body.source === 'telegram' ? 'telegram' : 'stock';
-    await rememberBuiltSwap(tx, account, source);
+    // A plan link's buy carries the plan's id, for its receipts (rememberBuiltSwap keeps only a valid one).
+    await rememberBuiltSwap(tx, account, source, typeof body.planId === 'string' ? body.planId : undefined);
     return NextResponse.json(tx);
   } catch (err) {
     return NextResponse.json({ error: err instanceof SwapError ? err.message : 'could not build the swap' }, { status: err instanceof SwapError ? err.status : 502 });
