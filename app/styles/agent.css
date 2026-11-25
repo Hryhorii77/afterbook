@@ -101,3 +101,5 @@
   .plan-receipt dd { margin-bottom: 6px; }
 }
 .plan-receipt-check-bad { color: var(--red); }
+.plan-telegram { align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+.plan-telegram .plan-hint { margin: 0; min-width: 0; font-size: 14px; }

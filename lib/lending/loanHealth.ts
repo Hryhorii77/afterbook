@@ -74,7 +74,8 @@ export function nextLoanState(active: boolean, worst: number | null | 'no-loans'
 
 const venueLabel: Record<LendingVenue, string> = { aave: 'Aave', morpho: 'Morpho' };
 const short = (wallet: string) => `${wallet.slice(0, 6)}…${wallet.slice(-4)}`;
-const hf = (n: number) => n.toFixed(2);
+// A loan with no debt has infinite health: say so rather than "Infinity" (review of #238).
+const hf = (n: number) => (Number.isFinite(n) ? n.toFixed(2) : 'no debt');
 const usd = (n: number) => `$${n >= 1000 ? Math.round(n).toLocaleString('en-US') : n.toFixed(2)}`;
 
 /** One line per loan: venue, collateral, debt, health now and at Aerodrome's price. */
@@ -118,7 +119,7 @@ export function loansReplyText(wallet: string, loans: WalletLoan[], threshold: n
           `Add collateral: ${links.addUrl}`,
         ]
       : []),
-    ...(morphoNear ? ['Morpho loans have no in-app panel: repay or add collateral on Morpho’s own site.'] : []),
+    ...(morphoNear ? ['For the Morpho loan: Afterbook has no Morpho panel, so repay or add collateral on Morpho’s own app.'] : []),
   ];
   return [`${short(wallet)}:`, ...loans.map((l) => `• ${describeLoan(l)}`), status, ...act, 'Not advice. Afterbook never touches your funds.'].join('\n');
 }
@@ -161,9 +162,17 @@ export function longBreakText(wallet: string, loans: WalletLoan[], nextOpenDay: 
       'Not advice. Afterbook never touches your funds.',
     ].join('\n');
   }
-  const act = links
-    ? ['To repay or add collateral on the Aave loan before then (the panel works the amount out from the wallet you connect; you check it and sign):', `Repay USDC: ${links.repayUrl}`, `Add collateral: ${links.addUrl}`]
-    : [];
+  // Per loan, as /loans (review of #238): the Aave links only when the Aave loan itself is near the line, and the
+  // Morpho sentence when a Morpho loan is.
+  const line = threshold * HEADS_UP_URGENT_FACTOR;
+  const aaveNear = loans.some((l) => l.venue === 'aave' && worstHealth(l) < line);
+  const morphoNear = loans.some((l) => l.venue === 'morpho' && worstHealth(l) < line);
+  const act = [
+    ...(links && aaveNear
+      ? ['To repay or add collateral on the Aave loan before then (the panel works the amount out from the wallet you connect; you check it and sign):', `Repay USDC: ${links.repayUrl}`, `Add collateral: ${links.addUrl}`]
+      : []),
+    ...(morphoNear ? ['For the Morpho loan: Afterbook has no Morpho panel, so repay or add collateral on Morpho’s own app.'] : []),
+  ];
   return [
     `Heads-up for ${short(wallet)}: lowest health ${hf(lowest)}, ${lowest < threshold ? 'below' : 'close to'} your alert at ${hf(threshold)}. The cash market is shut until ${nextOpenDay}'s open; lenders' stock prices may barely move until then while Base keeps trading, and interest keeps running.`,
     ...lines,

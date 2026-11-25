@@ -177,6 +177,16 @@ export function PlanClient({ initialTape, geo }: { initialTape: TapeResult; geo:
         depth and what the trade would cost, then Claude explains the result. Nothing is bought until you review a buy and sign it in your
         own wallet. This is a tool for your own decisions, not financial advice.
       </p>
+      {/* Plans in Telegram (2026-11-25): the bot's /plan and /basket run the same checks and reply with a link to sign
+          here. The deep link's `start=plan` only picks the bot's welcome text; it carries nothing else. */}
+      <div className="basket-row plan-telegram">
+        <a className="btn btn-secondary" href="https://t.me/afterbook_bot?start=plan" target="_blank" rel="noopener noreferrer">
+          Get plans in Telegram&nbsp;<span className="ext-arrow">↗</span>
+        </a>
+        <span className="plan-hint">
+          Send <code>/plan NVDA 100</code> or <code>/basket tech 100</code> to the bot: same checks, and a link back here to sign.
+        </span>
+      </div>
 
       <div className="carry-direction-toggle swap-side-toggle plan-mode" role="tablist" aria-label="How to choose stocks">
         {(
