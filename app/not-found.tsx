@@ -16,8 +16,8 @@ export default function NotFound() {
         stock Coinbase issues on Base is listed on the Stocks page.
       </p>
       <div className="basket-row">
-        <Link href="/" className="btn">
-          Go to the tape
+        <Link href="/markets" className="btn">
+          Open Markets
         </Link>
         <Link href="/stocks" className="btn btn-secondary">
           All stocks

@@ -40,5 +40,5 @@ export default async function SymbolPage({ params }: PageProps) {
   }
 
   const [tape, geo, corporateActions] = await Promise.all([getTape(), getGeoInfo(), getMultiplierHistory()]);
-  return <HomeClient initialTape={tape} initialGeo={geo} corporateActions={corporateActions} initialSymbol={stock.symbol} />;
+  return <HomeClient initialTape={tape} initialGeo={geo} corporateActions={corporateActions} initialSymbol={stock.symbol} stockPage />;
 }

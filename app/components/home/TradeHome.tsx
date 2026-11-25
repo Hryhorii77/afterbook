@@ -252,6 +252,11 @@ export default function TradeHome({
                   )}
                 </select>
               </label>
+              {/* The card opens on the day's biggest liquid gap (owner, 2026-11-03), which needn't be one of the five
+                  deepest in the table: say so rather than look like a mismatch (review, 2026-11-26). */}
+              {row.symbol === initialSymbol && !top.some((t) => t.symbol === row.symbol) && (
+                <p className="action-hint">Today&apos;s biggest gap. Pick any stock above, or Buy one from the table.</p>
+              )}
 
               <dl className="action-prices">
                 <div>

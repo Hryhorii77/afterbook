@@ -171,3 +171,6 @@
   .action-prices { grid-template-columns: 1fr 1fr; }
   .action-prices div:last-child { grid-column: span 2; }
 }
+
+/* Why the card opened on a stock outside the table (2026-11-26). */
+.action-hint { margin: 6px 0 0; font-size: 14px; color: var(--text-dim); }
