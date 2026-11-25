@@ -24,8 +24,8 @@ export default function PageError({ error, reset }: { error: Error & { digest?: 
         <button type="button" className="btn" onClick={reset}>
           Try again
         </button>
-        <Link href="/" className="btn btn-secondary">
-          Go to the tape
+        <Link href="/markets" className="btn btn-secondary">
+          Open Markets
         </Link>
       </div>
     </main>

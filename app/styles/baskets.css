@@ -51,4 +51,4 @@
 
 /* /build's hero line lists every leg: wrap it on phones instead of cutting it off (review, 2026-11-26). */
 .sym-cell-text .symbol.basket-legs { white-space: normal; overflow: visible; text-overflow: clip; }
-.basket-leg { white-space: nowrap; }
+.basket-leg { display: inline-block; white-space: nowrap; }

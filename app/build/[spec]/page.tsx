@@ -78,9 +78,13 @@ export default async function BuildPage({ params }: PageProps) {
             {/* Each leg stays whole ("GOOGLc 33%"), and the line wraps between legs on phones (review, 2026-11-26). */}
             <span className="symbol basket-legs">
               {legs.map((l, i) => (
-                <span key={l.symbol} className="basket-leg">
-                  {i > 0 && ' · '}
-                  {l.symbol} {l.weightPct}%
+                // A space between legs is where the line may wrap; the dot ends the leg before it, so a wrapped line
+                // never starts with one.
+                <span key={l.symbol}>
+                  {i > 0 && ' '}
+                  <span className="basket-leg">
+                    {l.symbol} {l.weightPct}%{i < legs.length - 1 && ' ·'}
+                  </span>
                 </span>
               ))}
             </span>
