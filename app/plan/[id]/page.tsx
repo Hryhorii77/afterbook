@@ -15,16 +15,36 @@ const cachedPlanFills = unstable_cache((id: string) => planFills(id), ['plan-fil
 import { planReceipts, receiptView } from '@/lib/agent/planReceipt';
 import { getTape } from '@/lib/market/tape';
 import { getStock } from '@/lib/stocks/tokens';
+import { planCardContent } from '@/lib/share/planCard';
+import { cardPath, firstParam, parseTheme } from '@/lib/share/cardUrl';
+import { OG_SIZE } from '@/lib/share/ogImage';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-export const metadata: Metadata = {
-  title: 'Your plan — Afterbook',
-  description: 'A trade plan made on Afterbook: checked again now, and you sign any buy yourself.',
-  // A private link: never in search results.
-  robots: { index: false, follow: false },
-};
+const TITLE = 'Your plan — Afterbook';
+const DESCRIPTION = 'A trade plan made on Afterbook: checked again now, and you sign any buy yourself.';
+
+// The link preview (2026-11-25): the plan's own card (/card?page=plan&id=…, lib/share/planCard.ts), drawn from the saved
+// plan, so a link shared on X or Telegram shows its stocks and verdicts. The saved plan is read through its data cache
+// (the page reads the same entry). A private link: never in search results.
+export async function generateMetadata({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
+  const [{ id }, sp] = await Promise.all([params, searchParams]);
+  const robots = { index: false, follow: false };
+  const saved = await readSavedPlan(id).catch(() => null);
+  if (!saved) return { title: TITLE, description: DESCRIPTION, robots };
+  const content = planCardContent(saved);
+  const title = `A ${content.kind.toLowerCase()} on Afterbook: ${content.headline}`;
+  const description = `${content.rows.map((r) => `${r.symbol} ${r.verdict.toLowerCase()}`).join(', ')}${content.more ? `, and ${content.more} more` : ''}. Checked again when you open it; you sign any buy yourself.`;
+  const image = { url: cardPath({ page: 'plan', id: saved.id }, { theme: parseTheme(firstParam(sp.theme)) }), ...OG_SIZE, alt: `${title}. ${description}`, type: 'image/png' };
+  return {
+    title,
+    description,
+    robots,
+    openGraph: { title, description, url: `/plan/${saved.id}`, siteName: 'Afterbook', type: 'website', images: [image] },
+    twitter: { card: 'summary_large_image', title, description, images: [image] },
+  };
+}
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

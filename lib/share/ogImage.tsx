@@ -19,6 +19,7 @@ import { bp as bpSpaced, bpPct, isFlatBp, usdCompact } from '../format';
 import { getMemeRow, venueLabel, type MemeRow } from '../memes/memestocks';
 import { AUTO_PICK_HOLD } from '../agent/limits';
 import { memePrice, pctMove } from '../memes/memeFormat';
+import type { PlanCardContent } from './planCard';
 
 /** A share's frozen numbers (lib/share/shareSnapshot.ts). Without one a card reads the live tape. */
 export interface FrozenCard {
@@ -674,6 +675,61 @@ export async function buildMemeOgImage(address: string, theme: CardTheme = 'dark
         </span>
         <span style={{ fontSize: 22, color: c.dimmer, marginTop: 10 }}>Any memecoin can go to zero. The stock in the pool does not make the meme safer.</span>
 
+        <CardFooter c={c} />
+      </div>
+    ),
+    { ...OG_SIZE },
+  );
+}
+
+/** A plan link (/plan/<id>, 2026-11-25): what the saved plan said (lib/share/planCard.ts), from the plan itself,
+ *  never the URL. A saved plan never changes, so no snapshot is needed; `content` null (expired or unknown) draws
+ *  a plain card that says links last 7 days. */
+export async function buildPlanOgImage(content: PlanCardContent | null, theme: CardTheme = 'dark') {
+  const c = PALETTES[theme];
+  const icons = content ? await Promise.all(content.rows.map((r) => iconDataUri(r.cashTicker))) : [];
+  return new ImageResponse(
+    (
+      <div style={frame(c)}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <Mark px={44} />
+          <span style={{ fontSize: 40, fontWeight: 700, color: c.dim, letterSpacing: '-0.02em' }}>Afterbook · {content?.kind ?? 'Plan'}</span>
+          {content && <span style={{ fontSize: 22, color: c.dimmer }}>{content.made}</span>}
+        </div>
+        {content ? (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: 50, fontWeight: 700, color: c.text, marginTop: 26, letterSpacing: '-0.02em' }}>{content.headline}</span>
+            <span style={{ fontSize: 24, color: c.dim, marginTop: 6 }}>{content.from} · checked again when opened · you sign any buy yourself</span>
+            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 22, gap: 10 }}>
+              {content.rows.map((r, i) => {
+                const icon = icons[i];
+                return (
+                  <div key={r.symbol} style={{ display: 'flex', alignItems: 'center', fontSize: 28 }}>
+                    {icon ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={icon} width={44} height={44} style={{ borderRadius: 12, marginRight: 16 }} />
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 12, marginRight: 16, fontSize: 13, fontWeight: 700, ...tileColors(r.cashTicker) }}>
+                        {r.cashTicker}
+                      </div>
+                    )}
+                    <span style={{ width: 150, fontWeight: 700, color: c.text }}>{r.symbol}</span>
+                    <span style={{ width: 200, fontSize: 26, fontWeight: r.buy ? 700 : 400, color: r.buy ? c.text : c.dim, whiteSpace: 'nowrap' }}>{r.verdict}</span>
+                    <span style={{ fontSize: 22, color: c.dim, whiteSpace: 'nowrap' }}>{r.detail}</span>
+                  </div>
+                );
+              })}
+              {content.more > 0 && <span style={{ fontSize: 24, color: c.dimmer }}>and {content.more} more</span>}
+            </div>
+            {/* Only where there is room: a short plan would otherwise leave the card half empty. */}
+            {content.rows.length <= 2 && <span style={{ fontSize: 30, fontWeight: 700, color: c.footer, marginTop: 30 }}>Agents propose. Code checks. You sign.</span>}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: 50, fontWeight: 700, color: c.text, marginTop: 34, letterSpacing: '-0.02em' }}>Agents propose. Code checks. You sign.</span>
+            <span style={{ fontSize: 28, color: c.dim, marginTop: 12 }}>Plan links last 7 days. Make your own at afterbook.app/plan</span>
+          </div>
+        )}
         <CardFooter c={c} />
       </div>
     ),
