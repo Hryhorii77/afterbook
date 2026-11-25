@@ -8,6 +8,7 @@ import { saveDirectoryPools } from '@/lib/stocks/stockDirectory';
 import { fetchCoinbaseStockList } from '@/lib/stocks/coinbaseStockList';
 import { checkCoinbaseList, recordGuardAlerts } from '@/lib/stocks/coinbaseListGuard';
 import { computeLiquidBar } from '@/lib/market/liquidityBar';
+import { refreshOpenLeaderboard } from '@/lib/market/openLeaderboard';
 
 export const revalidate = 0;
 // 120 s: after Denim (2026-11-05) each pool over $50k needs ~27 log reads for its three-hour low.
@@ -59,7 +60,12 @@ export async function GET(request: NextRequest) {
   // The daily "Liquid" label (lib/market/liquidityBar.ts): each tracked stock's 72-hour depth low, saved for
   // /stocks and /memes. Display only; best effort, it never stops discovery, and it runs before the
   // Coinbase fetch so a failed fetch doesn't skip it. `?dry=1&bar=1` returns it unsaved.
-  const bar = await computeLiquidBar({ save: !dry }).catch(() => null);
+  // And /today's open leaderboard (lib/market/openLeaderboard.ts), once a day before the open, so no visitor computes
+  // it cold after a deploy. Best effort too; run alongside the bar.
+  const [bar] = await Promise.all([
+    computeLiquidBar({ save: !dry }).catch(() => null),
+    refreshOpenLeaderboard({ save: !dry }).catch((err) => console.error('[discover-tokens] open leaderboard', err instanceof Error ? err.message : err)),
+  ]);
   if (dry && request.nextUrl.searchParams.get('bar') === '1') return NextResponse.json({ ok: true, dry: true, bar });
 
   const raw = await fetchCoinbaseStockList({ cache: 'no-store' }).catch(() => null);
