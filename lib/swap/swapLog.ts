@@ -8,6 +8,7 @@
 // size come from that stored build, so a hand-made router call cannot inflate the numbers. Wallets are
 // stored as a short pseudonymous hash, enough to count unique traders; it is not a privacy guarantee
 // (anyone can hash a known address).
+import { PLAN_ID_RE, isSavedPlan, savedBuys } from '../agent/planLink';
 import { decodeEventLog, decodeFunctionData, erc20Abi, getAddress, keccak256, parseAbi, type Hex } from 'viem';
 import { ENTRY_POINT_ABIS, ENTRY_POINTS } from '../wallet/userOps';
 import { BUILDER_CODE_SUFFIX } from '../wallet/builderCode';
@@ -24,6 +25,29 @@ const BUILT_TTL_S = 2 * 60 * 60;
 const MAX_ACCOUNTS_PER_TX = 4;
 const DONE = (hash: string) => `swapdone:${hash.toLowerCase()}`;
 const USED = (data: Hex) => `swapused:${keccak256(data)}`;
+/** A plan link's verified buys, in order (2026-11-25): kept a little longer than the plan link itself (7 days). */
+const PLAN_FILLS = (planId: string) => `agentplan:${planId}:fills`;
+const PLAN_FILLS_TTL_S = 8 * 24 * 60 * 60;
+
+/** Whether a verified buy belongs on its plan's receipts: the saved plan exists, listed the stock, and the buy is
+ *  within the amount it showed for it (a cent of slack for rounding). One Redis read, only for a plan link's buy. */
+async function fillsPlan(record: SwapRecord): Promise<boolean> {
+  if (!redis || !record.planId) return false;
+  const saved = await redis.get<unknown>(`agentplan:${record.planId}`).catch(() => null);
+  if (!isSavedPlan(saved)) return false;
+  const planned = savedBuys(saved).get(record.symbol);
+  return planned != null && record.usd <= planned + 0.01;
+}
+
+/** The verified buys signed from one plan link, oldest first (two Redis requests; [] when there are none). */
+export async function planFills(planId: string): Promise<SwapRecord[]> {
+  if (!redis || !PLAN_ID_RE.test(planId)) return [];
+  // The latest 50 (the list is trimmed to them on write).
+  const ids = await redis.lrange<string>(PLAN_FILLS(planId), -50, -1);
+  if (!ids.length) return [];
+  const rows = await redis.mget<(SwapRecord | null)[]>(...ids.map(KEY));
+  return rows.filter((r): r is SwapRecord => !!r && r.planId === planId);
+}
 
 /** Which panel built it: one stock's Buy/Sell, a /build basket bought in one go, a meme buy on /memes,
  *  a buy reviewed from a trade plan on /plan, or a due run of a personal stock rule on /rules. The label is
@@ -44,13 +68,24 @@ interface BuiltSwap {
   /** Meme buys only: the exact tokens built, which the mined call must match. */
   tokenIn?: string;
   tokenOut?: string;
+  /** A buy built from a plan link (/plan/<id>, 2026-11-25): its id, for that plan's receipts. Label only. */
+  planId?: string;
+  /** What the build quoted and the minimum it signed (raw units of the token bought), for a receipt. */
+  quotedOut?: string;
+  minOut?: string;
 }
 
 /** Called by /api/swap/build for every transaction it returns, so the log can tell our swaps from any
  *  other router call that happens to carry the (public) Builder Code. */
-export async function rememberBuiltSwap(tx: SwapTx, account: `0x${string}`, source: SwapSource = 'stock'): Promise<void> {
+export async function rememberBuiltSwap(tx: SwapTx, account: `0x${string}`, source: SwapSource = 'stock', planId?: string): Promise<void> {
   if (!redis) return;
   const built: BuiltSwap = { account, symbol: tx.quote.symbol, side: tx.quote.side, feeBps: tx.quote.feeBps, amountInUsd: tx.quote.amountInUsd, source };
+  // Only a plan link's own buys carry its id (a valid id, from an agent or Telegram link); anything else is ignored.
+  if (planId && PLAN_ID_RE.test(planId) && (source === 'agent' || source === 'telegram') && tx.quote.side === 'buy') {
+    built.planId = planId;
+    built.quotedOut = tx.quote.amountOut;
+    built.minOut = tx.minAmountOut;
+  }
   if (source === 'meme' && tx.quote.meme) {
     built.tokenIn = tx.tokenIn;
     built.tokenOut = tx.quote.meme;
@@ -78,6 +113,12 @@ export interface SwapRecord {
   wallet: string;
   /** Missing on swaps logged before baskets could be bought (2026-10-14): those were all 'stock'. */
   source?: SwapSource;
+  /** A plan link's buy (2026-11-25): the plan's id, and the stock received (from the router's own Swapped event),
+   *  what was quoted and the signed minimum, all raw units of the stock token. */
+  planId?: string;
+  amountOut?: string;
+  quotedOut?: string;
+  minOut?: string;
 }
 
 
@@ -276,6 +317,18 @@ export async function logSwap(hash: Hex): Promise<LogResult> {
     if (created) {
       await redis.zadd(INDEX, { score: checked.record.at, member: id });
       duplicate = false;
+      // A plan link's buy: listed under that plan for its receipts, only when the plan exists, listed this stock and
+      // the buy is within its amount (review of #234: off-plan buys can't push real receipts out of the 50 kept).
+      // Bookkeeping: a failure here only loses the receipt.
+      if (checked.record.planId && (await fillsPlan(checked.record))) {
+        await redis
+          .pipeline()
+          .rpush(PLAN_FILLS(checked.record.planId), id)
+          .ltrim(PLAN_FILLS(checked.record.planId), -50, -1)
+          .expire(PLAN_FILLS(checked.record.planId), PLAN_FILLS_TTL_S)
+          .exec()
+          .catch((err) => console.error('[swapLog] plan fill', err instanceof Error ? err.message : err));
+      }
     }
     records.push(checked.record);
   }
@@ -371,7 +424,18 @@ async function checkRouterCall(
   return {
     ok: true,
     built: builtData,
-    record: { hash: id, at, symbol: swap.stock.symbol, side: swap.side, usd, feeBps: built.feeBps, feeUsd: (usd * built.feeBps) / 10_000, wallet: walletId(call.account), source: built.source ?? 'stock' },
+    record: {
+      hash: id,
+      at,
+      symbol: swap.stock.symbol,
+      side: swap.side,
+      usd,
+      feeBps: built.feeBps,
+      feeUsd: (usd * built.feeBps) / 10_000,
+      wallet: walletId(call.account),
+      source: built.source ?? 'stock',
+      ...(built.planId && swap.side === 'buy' ? { planId: built.planId, amountOut: ran.returnAmount.toString(), quotedOut: built.quotedOut, minOut: built.minOut } : {}),
+    },
   };
 }
 

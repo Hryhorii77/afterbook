@@ -17,11 +17,13 @@ import { SwapPanel } from '../swap/SwapPanel';
 import { BasketBuyPanel } from '../baskets/BasketBuyPanel';
 import { PlanLegCard } from './PlanLegCard';
 import { PlanLinkShare } from './PlanLinkShare';
+import { PlanReceipts } from './PlanReceipts';
+import type { ReceiptView } from '@/lib/agent/planReceipt';
 
 type Recheck = { legs: PlanLeg[]; checkedAt: number; buys: RecheckedBuy[]; basket: ReturnType<typeof basketRecheck> | null };
 type Props =
   | { state: 'missing' | 'error' }
-  | { state: 'ok'; saved: SavedPlan; recheck: Recheck | null; geo: GeoInfo };
+  | { state: 'ok'; saved: SavedPlan; recheck: Recheck | null; geo: GeoInfo; receipts?: ReceiptView[] };
 
 const when = (ms: number) => new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 const ticker = (sym: string) => getStock(sym)?.cashTicker ?? sym;
@@ -49,7 +51,7 @@ export function SavedPlanClient(props: Props) {
   return <SavedPlanView {...props} />;
 }
 
-function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Recheck | null; geo: GeoInfo }) {
+function SavedPlanView({ saved, recheck, geo, receipts = [] }: { saved: SavedPlan; recheck: Recheck | null; geo: GeoInfo; receipts?: ReceiptView[] }) {
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   // Only the symbol is kept: the amount always comes from the latest recheck, so "Check again" can never
@@ -180,6 +182,7 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
                     maxLabel="This plan’s buy"
                     buyOnly
                     source={byBot ? 'telegram' : 'agent'}
+                    planId={saved.id}
                     onBuyStarted={() => setBuying(true)}
                     onBought={() => {
                       setBuying(false);
@@ -213,6 +216,7 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
                         maxUsd={recheck.basket.usd}
                         maxLabel="This basket"
                         source={byBot ? 'telegram' : 'agent'}
+                        planId={saved.id}
                         onBusy={setBuying}
                         onRunDone={() => setBasketBought(true)}
                       />,
@@ -233,6 +237,8 @@ function SavedPlanView({ saved, recheck, geo }: { saved: SavedPlan; recheck: Rec
           </>
         )}
       </section>
+
+      {receipts.length > 0 && <PlanReceipts receipts={receipts} byBot={byBot} />}
 
       <section className="panel">
         <details>
