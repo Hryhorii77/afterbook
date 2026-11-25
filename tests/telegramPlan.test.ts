@@ -105,6 +105,7 @@ describe('/plan in the bot', () => {
     expect(fx.replies[0]).toContain('/basket tech 100');
     expect(fx.replies[0]).toContain('Not available in the US or its territories.');
     expect(fx.replies[1]).toContain('/alert STOCK BP');
+    expect(fx.replies[1]).toContain('not available in the US or its territories');
     expect(fx.runs).toBe(0);
   });
   it('every reply says trading isn’t available in the US or its territories', async () => {

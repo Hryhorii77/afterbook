@@ -36,7 +36,7 @@ const HELP_TEXT = `Afterbook alerts — cash close vs the Aero book, in shares.
 /list — show your active alerts
 /stop — clear all your alerts
 
-Read-only: a wallet address is public. The bot never asks you to connect a wallet or sign anything; a /plan or /basket link opens afterbook.app, where you connect and sign each buy yourself.`;
+Read-only: a wallet address is public. The bot never asks you to connect a wallet or sign anything; a /plan or /basket link opens afterbook.app, where you connect and sign each buy yourself. Trading is not available in the US or its territories. Checked by code, not advice.`;
 
 const PLAN_WELCOME = `Plans from Afterbook, here in Telegram.
 

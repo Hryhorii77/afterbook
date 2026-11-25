@@ -93,34 +93,45 @@ export function loanStatusText(wallet: string, loans: WalletLoan[]): string {
   return [`${short(wallet)}:`, ...loans.map((l) => `• ${describeLoan(l)}`)].join('\n');
 }
 
+/** Which loans are near the person's alert line (owner, 2026-11-22): the lower of health now and at Aero's price
+ *  under the line times HEADS_UP_URGENT_FACTOR. Decided per loan, so the loan that is near gets its own next step
+ *  (review of #238). Shared by `/loans` and the weekend heads-up so they can't drift apart. */
+export function loanNearness(loans: WalletLoan[], threshold: number) {
+  const line = threshold * HEADS_UP_URGENT_FACTOR;
+  const lowest = Math.min(...loans.map(worstHealth));
+  const nearOf = (venue: WalletLoan['venue']) => loans.some((l) => l.venue === venue && worstHealth(l) < line);
+  return { lowest, near: lowest < line, aaveNear: nearOf('aave'), morphoNear: nearOf('morpho') };
+}
+
+const MORPHO_NEXT_STEP = 'For the Morpho loan: Afterbook has no Morpho panel, so repay or add collateral on Morpho’s own app.';
+
+/** The next steps for the loans that are near: the Aave loan's rescue links (after `aaveIntro`) only when that loan is
+ *  near, and the Morpho sentence when a Morpho loan is. */
+function nearNextSteps(n: ReturnType<typeof loanNearness>, links: { repayUrl: string; addUrl: string } | null | undefined, aaveIntro: string): string[] {
+  return [
+    ...(links && n.aaveNear ? [aaveIntro, `Repay USDC: ${links.repayUrl}`, `Add collateral: ${links.addUrl}`] : []),
+    ...(n.morphoNear ? [MORPHO_NEXT_STEP] : []),
+  ];
+}
+
 /** The bot's `/loans` (2026-11-25): the watched wallet's loans now, against the person's own alert line. Near it
  *  (the lowest of health now and at Aero's price under the line times HEADS_UP_URGENT_FACTOR, the weekend heads-up's
  *  rule) an Aave loan gets its rescue links, as in a warning; otherwise a calm line and none. `links` are the Aave
  *  loan's (lib/lending/rescueLink.ts): they carry no amount or wallet, and the person checks and signs on the panel. */
 export function loansReplyText(wallet: string, loans: WalletLoan[], threshold: number, links: { repayUrl: string; addUrl: string } | null): string {
   if (loans.length === 0) return loanStatusText(wallet, loans);
-  const line = threshold * HEADS_UP_URGENT_FACTOR;
-  const lowest = Math.min(...loans.map(worstHealth));
-  const near = lowest < line;
-  // Per loan (review of this change): the Aave links only when the Aave loan itself is near, and the Morpho pointer
-  // whenever a Morpho loan is, so the loan that is near always gets its own next step.
-  const aaveNear = !!links && loans.some((l) => l.venue === 'aave' && worstHealth(l) < line);
-  const morphoNear = loans.some((l) => l.venue === 'morpho' && worstHealth(l) < line);
+  const n = loanNearness(loans, threshold);
+  const { lowest, near } = n;
   const status = !near
     ? `Nothing urgent: lowest health ${hf(lowest)}, well above your alert at ${hf(threshold)}.${
         links ? ` Rescue links show here when it gets within ${Math.round((HEADS_UP_URGENT_FACTOR - 1) * 100)}% of it.` : ''
       }`
     : `Lowest health ${hf(lowest)}, ${lowest < threshold ? 'below' : 'close to'} your alert at ${hf(threshold)}.`;
-  const act = [
-    ...(aaveNear && links
-      ? [
-          'For the Aave loan, these open Afterbook’s Aave panel with the rescue planner set; it fills the amount from the loan of the wallet you connect, and you check it and sign:',
-          `Repay USDC: ${links.repayUrl}`,
-          `Add collateral: ${links.addUrl}`,
-        ]
-      : []),
-    ...(morphoNear ? ['For the Morpho loan: Afterbook has no Morpho panel, so repay or add collateral on Morpho’s own app.'] : []),
-  ];
+  const act = nearNextSteps(
+    n,
+    links,
+    'For the Aave loan, these open Afterbook’s Aave panel with the rescue planner set; it fills the amount from the loan of the wallet you connect, and you check it and sign:',
+  );
   return [`${short(wallet)}:`, ...loans.map((l) => `• ${describeLoan(l)}`), status, ...act, 'Not advice. Afterbook never touches your funds.'].join('\n');
 }
 
@@ -154,25 +165,17 @@ export function longBreakText(wallet: string, loans: WalletLoan[], nextOpenDay: 
   });
   // Urgent only near the person's own line (owner, 2026-11-22): the lower of health now and at Base's price
   // under 1.25x their alert threshold. Otherwise it leads with "nothing urgent" and carries no rescue links.
-  const lowest = Math.min(...loans.map(worstHealth));
-  if (lowest >= threshold * HEADS_UP_URGENT_FACTOR) {
+  const n = loanNearness(loans, threshold);
+  const { lowest } = n;
+  if (!n.near) {
     return [
       `Market break check for ${short(wallet)}: nothing urgent. Lowest health ${hf(lowest)}, well above your alert at ${hf(threshold)}. The cash market is shut until ${nextOpenDay}'s open; lenders' stock prices may barely move until then while Base keeps trading.`,
       ...lines,
       'Not advice. Afterbook never touches your funds.',
     ].join('\n');
   }
-  // Per loan, as /loans (review of #238): the Aave links only when the Aave loan itself is near the line, and the
-  // Morpho sentence when a Morpho loan is.
-  const line = threshold * HEADS_UP_URGENT_FACTOR;
-  const aaveNear = loans.some((l) => l.venue === 'aave' && worstHealth(l) < line);
-  const morphoNear = loans.some((l) => l.venue === 'morpho' && worstHealth(l) < line);
-  const act = [
-    ...(links && aaveNear
-      ? ['To repay or add collateral on the Aave loan before then (the panel works the amount out from the wallet you connect; you check it and sign):', `Repay USDC: ${links.repayUrl}`, `Add collateral: ${links.addUrl}`]
-      : []),
-    ...(morphoNear ? ['For the Morpho loan: Afterbook has no Morpho panel, so repay or add collateral on Morpho’s own app.'] : []),
-  ];
+  // Per loan, as /loans (loanNearness).
+  const act = nearNextSteps(n, links, 'To repay or add collateral on the Aave loan before then (the panel works the amount out from the wallet you connect; you check it and sign):');
   return [
     `Heads-up for ${short(wallet)}: lowest health ${hf(lowest)}, ${lowest < threshold ? 'below' : 'close to'} your alert at ${hf(threshold)}. The cash market is shut until ${nextOpenDay}'s open; lenders' stock prices may barely move until then while Base keeps trading, and interest keeps running.`,
     ...lines,
