@@ -3,6 +3,7 @@ import { HTTPFacilitatorClient } from '@x402/core/server';
 import { ExactEvmScheme } from '@x402/evm/exact/server';
 import { createFacilitatorConfig } from '@coinbase/x402';
 import { bazaarResourceServerExtension } from '@x402/extensions/bazaar';
+import { recordPaidCall, routeOf } from './x402Ledger';
 
 // Machine-payable tier for agents: x402 settles via the facilitator (CDP's
 // hosted service, confirmed to default to the real mainnet endpoint
@@ -30,7 +31,25 @@ export function getX402Server(): x402ResourceServer {
     const facilitatorClient = new HTTPFacilitatorClient(facilitatorConfig);
     // Bazaar discovery (2026-11-25): routes declare their inputs and an example output (lib/server/x402Discovery.ts) so
     // the facilitator can list them where agents search for paid services.
-    server = new x402ResourceServer(facilitatorClient).register(BASE_MAINNET_CAIP2, new ExactEvmScheme()).registerExtension(bazaarResourceServerExtension);
+    server = new x402ResourceServer(facilitatorClient)
+      .register(BASE_MAINNET_CAIP2, new ExactEvmScheme())
+      .registerExtension(bazaarResourceServerExtension)
+      // Every settled payment, once, for /traction's paid-call count (lib/server/x402Ledger.ts). Never throws:
+      // an error here must not fail a call that was already paid.
+      .onAfterSettle(async (ctx) => {
+        try {
+          if (!ctx.result.success || !ctx.result.transaction) return;
+          await recordPaidCall({
+            tx: ctx.result.transaction,
+            route: routeOf(ctx.paymentPayload.resource?.url),
+            amount: ctx.result.amount ?? ctx.requirements.amount,
+            payer: ctx.result.payer ?? null,
+            at: Date.now(),
+          });
+        } catch (err) {
+          console.error('[x402] after-settle record failed', err instanceof Error ? err.message : err);
+        }
+      });
   }
   return server;
 }
