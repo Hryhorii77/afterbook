@@ -98,6 +98,15 @@ describe('/plan in the bot', () => {
     expect(text).toContain('Nothing a link can offer now');
     expect(text).toContain('at most 0.50% over the real stock, 0.30% to trade, and wait within 2 days');
   });
+  it('the site’s "Get plans in Telegram" link (/start plan) gets the plans welcome; a plain /start the full help', async () => {
+    await send('/start plan');
+    await send('/start');
+    expect(fx.replies[0]).toContain('Plans from Afterbook, here in Telegram.');
+    expect(fx.replies[0]).toContain('/basket tech 100');
+    expect(fx.replies[0]).toContain('Not available in the US or its territories.');
+    expect(fx.replies[1]).toContain('/alert STOCK BP');
+    expect(fx.runs).toBe(0);
+  });
   it('every reply says trading isn’t available in the US or its territories', async () => {
     await send('/plan NVDA 100');
     fx.plan = plan([leg('NVDAc', 'skip', { decidedBy: 'The pool is stale.' })]);

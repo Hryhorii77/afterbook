@@ -38,6 +38,15 @@ const HELP_TEXT = `Afterbook alerts — cash close vs the Aero book, in shares.
 
 Read-only: a wallet address is public. The bot never asks you to connect a wallet or sign anything; a /plan or /basket link opens afterbook.app, where you connect and sign each buy yourself.`;
 
+const PLAN_WELCOME = `Plans from Afterbook, here in Telegram.
+
+/plan NVDA 100 — a buy, wait or skip for each stock you name (up to 4), sized within your budget
+/basket tech 100 — a basket the code picks: the deepest steady pools that pass (themes: any, tech, chips, memory, software, internet, consumer, ev, health, china, global, bitcoin, space)
+
+Each reply has a link to afterbook.app. Open it, connect your own wallet, and the checks run again before you sign each buy yourself. The bot never asks for a wallet or a signature. Not available in the US or its territories. Checked by code, not advice.
+
+/help lists everything else: gap alerts, the close digest and loan alerts.`;
+
 function newRuleId(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
@@ -52,6 +61,8 @@ async function handleCommand(chatId: number, text: string): Promise<string> {
   const [cmdRaw, ...args] = text.trim().split(/\s+/);
   const cmd = cmdRaw.toLowerCase().split('@')[0]; // strip @BotName suffix from group chats
 
+  // The site's "Get plans in Telegram" button opens t.me/afterbook_bot?start=plan, which arrives as "/start plan".
+  if (cmd === '/start' && args[0] === 'plan') return PLAN_WELCOME;
   if (cmd === '/start' || cmd === '/help') {
     return HELP_TEXT;
   }
