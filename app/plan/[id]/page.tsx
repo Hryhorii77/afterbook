@@ -4,6 +4,7 @@
 // basket buy, behind the region gate and the eligibility box. Nothing here signs.
 import type { Metadata } from 'next';
 import { readSavedPlan } from '@/lib/agent/savedPlan';
+import { PLAN_ID_RE } from '@/lib/agent/planLink';
 import { recheckSavedPlan } from '@/lib/agent/runPlan';
 import { getGeoInfo } from '@/lib/server/geo';
 import { SavedPlanClient } from '../../components/agent/SavedPlanClient';
@@ -32,7 +33,18 @@ export async function generateMetadata({ params, searchParams }: { params: Promi
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const robots = { index: false, follow: false };
   const saved = await readSavedPlan(id).catch(() => null);
-  if (!saved) return { title: TITLE, description: DESCRIPTION, robots };
+  if (!saved) {
+    // No plan data on a miss. A well-formed id (expired, or not saved yet) previews the plain "links last 7 days"
+    // card; a malformed one gets no image at all. Both replace the root layout's home card, which otherwise showed.
+    const image = PLAN_ID_RE.test(id) ? [{ url: cardPath({ page: 'plan', id }, { theme: parseTheme(firstParam(sp.theme)) }), ...OG_SIZE, alt: 'Afterbook plan links last 7 days', type: 'image/png' }] : [];
+    return {
+      title: TITLE,
+      description: DESCRIPTION,
+      robots,
+      openGraph: { title: TITLE, description: DESCRIPTION, siteName: 'Afterbook', type: 'website', images: image },
+      twitter: { card: image.length ? 'summary_large_image' : 'summary', title: TITLE, description: DESCRIPTION, images: image },
+    };
+  }
   const content = planCardContent(saved);
   const title = `A ${content.kind.toLowerCase()} on Afterbook: ${content.headline}`;
   const description = `${content.rows.map((r) => `${r.symbol} ${r.verdict.toLowerCase()}`).join(', ')}${content.more ? `, and ${content.more} more` : ''}. Checked again when you open it; you sign any buy yourself.`;
