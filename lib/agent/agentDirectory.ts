@@ -24,7 +24,7 @@ export const PAID: { route: string; price: string; does: string }[] = [
   { route: '/api/v1/x402/liquidation-capacity', price: X402_PRICE_PREMIUM, does: 'A stock’s borrow markets, the onchain-vs-oracle gap and the largest liquidation its pool can absorb' },
   { route: '/api/v1/x402/tape', price: X402_PRICE, does: 'get_tape, without an API key' },
   { route: '/api/v1/x402/quote', price: X402_PRICE, does: 'get_quote, without an API key' },
-  { route: '/api/v1/x402/execute-link', price: X402_PRICE, does: 'A link to the stock’s own page on Afterbook to buy it' },
+  { route: '/api/v1/x402/execute-link', price: X402_PRICE, does: 'A link to the stock’s own page on Afterbook with the buy amount filled in, priced live; the person signs' },
 ];
 
 /** The free key for the plain JSON tape (app/api/v1/keys, app/api/v1/tape): POST once, then a Bearer header. */

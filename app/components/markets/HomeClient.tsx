@@ -33,11 +33,13 @@ interface HomeClientProps {
   initialSymbol?: string;
   /** A stock's own page (/NVDAc): the heading names that stock. /markets also passes initialSymbol, but keeps its own heading. */
   stockPage?: boolean;
+  /** A buy amount the page's link asked for (lib/swap/prefill.ts, already checked): it fills the amount, nothing else. */
+  initialUsdc?: number | null;
   /** Dividends and splits of every tracked token (lib/stocks/multiplierHistory.ts); scanned false hides the panel. */
   corporateActions?: { actions: CorporateAction[]; scanned: boolean };
 }
 
-export default function HomeClient({ initialTape, initialGeo, initialSymbol, corporateActions, stockPage = false }: HomeClientProps) {
+export default function HomeClient({ initialTape, initialGeo, initialSymbol, corporateActions, stockPage = false, initialUsdc = null }: HomeClientProps) {
   const { tape, refreshFailed, eventLog } = useTapePoll(initialTape);
   const trend = useTrend();
   const now = useNow();
@@ -45,7 +47,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol, cor
   const [eligibleChecked, setEligibleChecked] = useState(false);
   const [symbol, setSymbol] = useState(initialSymbol ?? STOCKS[0].symbol);
   const pageStock = stockPage && initialSymbol ? getStock(initialSymbol) : undefined;
-  const [usdcInput, setUsdcInput] = useState('2500');
+  const [usdcInput, setUsdcInput] = useState(initialUsdc != null ? String(initialUsdc) : '2500');
 
   const cashClosedAsOfMs =
     tape.session.state !== 'open' ? Math.max(0, ...tape.rows.map((r) => r.closeAsOfMs ?? 0)) : 0;
@@ -197,6 +199,7 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol, cor
         eligibleChecked={eligibleChecked}
         setEligibleChecked={setEligibleChecked}
         unlocked={unlocked}
+        linkUsdc={initialUsdc != null && symbol === initialSymbol ? initialUsdc : null}
       />
 
       <MarketsFooter activeStock={activeStock} />
