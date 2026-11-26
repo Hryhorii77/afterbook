@@ -1,7 +1,8 @@
 // What an agent can use on Afterbook (2026-11-25): the free MCP tools, the free API key and the paid x402 routes, in
 // one place so /agents and /llms.txt say the same thing. Every tool, route and price is the code's own
-// (app/api/mcp/route.ts, app/api/v1/*, lib/server/x402.ts).
-import { X402_PRICE, X402_PRICE_PREMIUM } from '../server/x402';
+// (app/api/mcp/route.ts, app/api/v1/*, lib/server/x402Prices.ts). /llms.txt and /AGENTS.md are built from it
+// (lib/agent/agentsMd.ts).
+import { X402_PRICE, X402_PRICE_PREMIUM } from '../server/x402Prices';
 
 export const MCP_URL = 'https://afterbook.app/api/mcp';
 

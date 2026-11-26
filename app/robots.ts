@@ -5,7 +5,8 @@ import { siteUrl } from '@/lib/share/siteUrl';
 // agents and paying clients, not for search results. Shared links (`?s=…`) must stay allowed:
 // X's and Telegram's preview crawlers obey robots.txt, and a `Disallow: /*?s=` here (until
 // 2026-10-13) meant every shared link showed on X as a bare URL with no card. Duplicates in
-// search are handled by each page's canonical URL instead (lib/share/shareMeta.ts).
+// search are handled by each page's canonical URL instead (lib/share/shareMeta.ts). /AGENTS.md and /llms.txt (for
+// agents) are outside /api and stay allowed.
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [{ userAgent: '*', allow: '/', disallow: ['/api/'] }],

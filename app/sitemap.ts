@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 import { STOCKS } from '@/lib/stocks/tokens';
 import { siteUrl } from '@/lib/share/siteUrl';
 
-// The pages people land on: home, Markets (the tape), More, the biggest-gap page, every tokenized stock (/stocks), memestocks (/memes), Borrow, the basket builder, Baskets and its risks page, and one page
+// The pages people land on: home, Markets (the tape), More, the biggest-gap page, every tokenized stock (/stocks), memestocks (/memes), Borrow, the basket builder, Baskets and its risks page, the two pages for agents (/AGENTS.md, /llms.txt), and one page
 // per tracked stock (so it follows lib/stocks/tokens.ts by itself). All of it is live data.
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
@@ -21,6 +21,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${siteUrl}/build`, lastModified: now, changeFrequency: 'hourly', priority: 0.7 },
     { url: `${siteUrl}/baskets`, lastModified: now, changeFrequency: 'weekly', priority: 0.6 },
     { url: `${siteUrl}/baskets/risks`, lastModified: now, changeFrequency: 'monthly', priority: 0.4 },
+    { url: `${siteUrl}/AGENTS.md`, lastModified: now, changeFrequency: 'weekly', priority: 0.2 },
+    { url: `${siteUrl}/llms.txt`, lastModified: now, changeFrequency: 'weekly', priority: 0.2 },
     ...STOCKS.map((s) => ({ url: `${siteUrl}/${s.symbol}`, lastModified: now, changeFrequency: 'hourly' as const, priority: 0.7 })),
   ];
 }
