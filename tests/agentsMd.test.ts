@@ -44,6 +44,9 @@ describe('AGENTS.md', () => {
     expect(md).toContain('A gap is not risk-free arbitrage');
     expect(md).toContain('not available in the US or its territories');
     expect(md).toContain('new enrollments are paused');
+    // The fee is an env setting; text fixed at build time must not claim its state.
+    expect(md).not.toMatch(/fee is (off|on)|are not set|they are not/i);
+    expect(md).toContain('Read any fee from the live quote');
   });
 
   it('lists only site routes that have a page or route file', () => {

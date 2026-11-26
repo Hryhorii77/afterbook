@@ -120,7 +120,8 @@ export function buildAgentsMd(): string {
     '- A gap is not risk-free arbitrage. While the cash market is shut there is nothing to hedge with, and the gap can widen before it closes.',
     `- The trade plan waits instead of buying when a stock's gap is wider than ${PLAN_LIMITS.maxAbsGapBp / 100}% (${PLAN_LIMITS.maxAbsGapBp} bp) either way: the pool may be stale, or something happened to the stock.`,
     '- The real stock\'s price comes from Yahoo Finance, an unofficial source. Treat it as a reference, not an exchange feed.',
-    '- Afterbook\'s swap fee is off: it applies only if SWAP_FEE_BPS and a fee recipient are both set, and they are not.',
+    // Never state the fee's current setting here: this text is fixed at build time and the fee is an env setting.
+    '- Afterbook\'s own swap fee is a setting that can change. Read any fee from the live quote the person reviews before signing, not from this file.',
     `- Every transaction Afterbook asks a wallet to sign carries its Builder Code, ${BUILDER_CODE}, so the activity is attributed onchain.`,
     '- Approvals are for the exact amount and only for the swap router or the Aave spoke, never unlimited.',
     '- A stock buy is capped at the lower of $25,000 and 10% of its pool\'s live depth.',
