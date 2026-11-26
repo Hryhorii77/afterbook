@@ -18,9 +18,11 @@ interface Props {
   eligibleChecked: boolean;
   setEligibleChecked: (v: boolean) => void;
   unlocked: boolean;
+  /** The buy amount this page's link filled in (lib/swap/prefill.ts), while it is still the amount on screen. */
+  linkUsdc?: number | null;
 }
 
-export function ExecuteSection({ symbol, activeStock, activeRow, quote, depth, geo, eligibleChecked, setEligibleChecked, unlocked }: Props) {
+export function ExecuteSection({ symbol, activeStock, activeRow, quote, depth, geo, eligibleChecked, setEligibleChecked, unlocked, linkUsdc = null }: Props) {
   const lotCopy = useCopy();
   const amountCopy = useCopy();
 
@@ -51,13 +53,19 @@ export function ExecuteSection({ symbol, activeStock, activeRow, quote, depth, g
         // stay gated; this preview line doesn't need to be.
         <div className="trade-summary-row">
           <p className="trade-summary">
-            {activeStock.symbol} · {usd(quote.usdcIn, 0)} · ~{quote.sharesOut.toFixed(2)} sh · pool{' '}
+            {activeStock.symbol} · {usd(quote.usdcIn, quote.usdcIn % 1 ? 2 : 0)} · ~{quote.sharesOut.toFixed(2)} sh · pool{' '}
             {truncateAddr(activeStock.pool.address)}
           </p>
           <button type="button" className="btn btn-secondary" onClick={copyLot}>
             {lotCopy.copied ? 'Copied ✓' : 'Copy lot'}
           </button>
         </div>
+      )}
+      {linkUsdc != null && (
+        // Say where the amount came from, so a link someone else made is never mistaken for the person's own choice.
+        <p className="geo-note">
+          This link filled in {usd(linkUsdc, 0)}, priced live above. Change it if you like; nothing is bought until you sign.
+        </p>
       )}
       <label className="eligibility">
         <input

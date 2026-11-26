@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prefillPath } from '@/lib/swap/prefill';
 import { withX402 } from '@x402/next';
 import { getStock } from '@/lib/stocks/tokens';
 import { getBuyQuoter } from '@/lib/market/lotQuote';
@@ -35,7 +36,9 @@ async function handler(request: NextRequest) {
     const quoter = await getBuyQuoter(stock);
     // The stock's page on Afterbook, at its swap (2026-11-21; Aerodrome's app until then): a person signs
     // there through the checked swap, with the Builder Code, behind the region gate and eligibility box.
-    const swapUrl = `${request.nextUrl.origin}/${stock.symbol}#execute`;
+    // A buy's link arrives with its amount filled in (2026-11-26, lib/swap/prefill.ts): the page quotes it live and
+    // the person still signs. A sell's link has no amount (the page's sell field is in shares).
+    const swapUrl = `${request.nextUrl.origin}${direction === 'buy' ? prefillPath(stock.symbol, usdcIn) : `/${stock.symbol}#execute`}`;
     if (direction === 'sell') {
       // A sell is sized by its dollar value at the current Aero price
       // (usdcIn = "sell about this much"). Before 2026-10-12 this route

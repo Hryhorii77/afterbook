@@ -103,7 +103,7 @@ export const X402_DISCOVERY = {
     // usdcIn is required: the route refuses a request without it (review, 2026-11-25).
     properties: { symbol: SYMBOL, usdcIn: { type: 'number', exclusiveMinimum: 0, maximum: 10_000_000 }, direction: { type: 'string', enum: ['buy', 'sell'] } },
     required: ['symbol', 'usdcIn'],
-    output: { symbol: 'NVDAc', direction: 'buy', usdcIn: 100, sharesOut: 0.65, execPriceUsd: 153.5, impactBp: 0.4, largeTradeCaveat: false, swapUrl: 'https://afterbook.app/NVDAc#execute' },
+    output: { symbol: 'NVDAc', direction: 'buy', usdcIn: 100, sharesOut: 0.65, execPriceUsd: 153.5, impactBp: 0.4, largeTradeCaveat: false, swapUrl: 'https://afterbook.app/NVDAc?side=buy&usdc=100#execute' },
   },
 } satisfies Record<string, RouteDiscovery>;
 
