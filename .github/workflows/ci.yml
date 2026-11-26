@@ -28,4 +28,5 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      - run: npm run generate-agents-md -- --check
       - run: npm run build

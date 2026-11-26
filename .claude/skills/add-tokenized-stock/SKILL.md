@@ -121,6 +121,7 @@ grep -rnE "\bten\b|10 stocks" app lib README.md | grep -v "^app/baskets/risks"
   state, public API / MCP descriptions, README). Wording that describes
   the **basket** ("ten Base tokenized stocks" on `/baskets`) stays — the
   basket is still `BASKET_SYMBOLS`.
+- Run `npm run generate-agents-md` and commit `docs/agents/AGENTS.md` and `docs/agents/llms.txt`: /AGENTS.md lists every tracked token and pool, and the test and CI check fail until the committed copies match.
 - Add the token + pool row to the README's contract address table, and
   note the verification date in "Why the math is done the way it is".
 - The earnings/history/trend data for a new symbol starts empty and

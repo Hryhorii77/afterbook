@@ -63,6 +63,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" className={poppins.variable} suppressHydrationWarning>
       <head>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* For agents: the "read me first" and the short index (lib/agent/agentsMd.ts). In the head, not in
+            metadata.alternates, which a page's own canonical would replace. */}
+        <link rel="alternate" type="text/markdown" href="/AGENTS.md" title="Afterbook for agents" />
+        <link rel="alternate" type="text/plain" href="/llms.txt" title="Afterbook index for LLMs" />
       </head>
       <body>
         <Providers>

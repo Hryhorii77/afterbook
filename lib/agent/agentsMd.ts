@@ -1,0 +1,196 @@
+// /AGENTS.md and /llms.txt (2026-11-26): the "read me first" pages for AI agents, modelled on base.org/AGENTS.md. Both
+// are built here from the code's own lists, never typed by hand: the stocks and pools from lib/stocks/tokens.ts, the
+// MCP tools, paid routes and free key from agentDirectory.ts (the same list /agents shows), the Builder Code and the
+// plan's limits. The routes app/AGENTS.md and app/llms.txt serve them; scripts/generate-agents-md.mts writes the same
+// text to docs/agents/ so the repo shows it (not public/: a file there would be served instead of the routes, without
+// their CORS and cache headers), and a test fails when the two drift. Pure: no env, no Redis, no chain read,
+// and relative imports only, so the generator runs in plain Node.
+import { AERO_CL_FACTORY, CL_FACTORY, STOCKS, USDC } from '../stocks/tokens';
+import { BUILDER_CODE } from '../wallet/builderCode';
+import { AUTO_PICK_HOLD, PLAN_LIMITS } from './limits';
+import { FREE_KEY, MCP_URL, PAID, TOOLS } from './agentDirectory';
+
+export const SITE = 'https://afterbook.app';
+export const REPO = 'https://github.com/Hryhorii77/afterbook';
+export const TELEGRAM_BOT = 'https://t.me/afterbook_bot';
+export const MCP_REGISTRY_NAME = 'io.github.Hryhorii77/afterbook';
+export const GENERATOR = 'scripts/generate-agents-md.mts';
+
+const TAGLINE =
+  "Coinbase's tokenized stocks on Base: how far each token trades from the real stock, what a trade would cost in its pool, checked buy plans, and stock-loan health. Agents propose, Afterbook's code checks every number, and a person signs in their own wallet. No agent gets a key, a wallet or a way to sign. Trading is not available in the US or its territories.";
+
+const venue = (factory: string) => (factory === AERO_CL_FACTORY ? 'Aero' : factory === CL_FACTORY ? 'Aerodrome (older factory)' : 'unknown');
+
+/** Pages that exist in app/ (a test checks each one has a page file). */
+export const SITE_ROUTES: { path: string; what: string }[] = [
+  { path: '/', what: 'Trade: the five deepest stocks and one card to swap, borrow or lend' },
+  { path: '/markets', what: 'The tape: every tracked stock, its gap, depth and calculators' },
+  { path: '/today', what: 'The day’s biggest gap and who reverts at the open' },
+  { path: '/[symbol]', what: 'One stock, e.g. /NVDAc (/NVDA redirects); /NVDAc?side=buy&usdc=100#execute fills in a buy' },
+  { path: '/stocks', what: 'Every tokenized stock Coinbase lists on Base, tracked or not' },
+  { path: '/memes', what: 'Memestocks: meme tokens priced in stock tokens (not stocks)' },
+  { path: '/borrow', what: 'Aave and Morpho stock loans, in-app Aave borrowing and lending, look up any wallet’s loans' },
+  { path: '/build', what: 'Build a basket of stocks and buy or sell it' },
+  { path: '/baskets', what: 'The Basis Tilt basket (new enrollments paused since 2026-11-19)' },
+  { path: '/plan', what: 'The trade plan and “Describe a basket”; /plan/<id> is a saved plan link a person signs' },
+  { path: '/rules', what: 'Recurring buys and rebalance rules, kept in the browser' },
+  { path: '/portfolio', what: 'A wallet’s positions and router approvals; look up any address or Basename' },
+  { path: '/agents', what: 'The MCP tools and API routes, with an example' },
+  { path: '/traction', what: 'Swaps signed through Afterbook, verified onchain' },
+  { path: '/more', what: 'Everything else: baskets, build, memestocks, Telegram, how it works' },
+  { path: '/llms.txt', what: 'The short index for agents' },
+  { path: '/AGENTS.md', what: 'This file' },
+  { path: '/api/mcp', what: 'The MCP server' },
+  { path: '/api/v1/*', what: 'The free-key tape and the x402 paid routes' },
+];
+
+const held = Object.keys(AUTO_PICK_HOLD);
+
+/** The short index at /llms.txt. */
+export function buildLlmsTxt(): string {
+  return [
+    '# Afterbook',
+    '',
+    `> ${TAGLINE}`,
+    '',
+    `Read ${SITE}/AGENTS.md first for the routing rules, every token and pool address, the network and the safety rules.`,
+    '',
+    '## Free MCP server (no key, no sign-up)',
+    '',
+    `- Endpoint (streamable HTTP): ${MCP_URL}`,
+    `- Claude Code: claude mcp add --transport http afterbook ${MCP_URL}`,
+    `- MCP Registry: ${MCP_REGISTRY_NAME}`,
+    ...TOOLS.map((t) => `- ${t.name}: ${t.does}`),
+    '',
+    '## Pay per call over x402 (USDC on Base, no key)',
+    '',
+    ...PAID.map((r) => `- ${r.route} (${r.price}): ${r.does}`),
+    '',
+    '## Free API key',
+    '',
+    `- ${FREE_KEY.issue}`,
+    `- ${FREE_KEY.use}`,
+    `- ${FREE_KEY.note}`,
+    '',
+    '## Pages',
+    '',
+    `- ${SITE}/AGENTS.md: the full map for agents (addresses, routes, rules)`,
+    `- ${SITE}/agents: the tools and routes above, with an example`,
+    `- ${SITE}/plan: the trade plan and "Describe a basket" for people`,
+    `- ${SITE}/markets: the tape of every tracked stock`,
+    `- ${TELEGRAM_BOT}: /plan, /basket, gap and loan alerts in Telegram`,
+    `- ${REPO}: source and README`,
+    '',
+    `Generated by ${GENERATOR} from the code; do not edit by hand.`,
+    '',
+  ].join('\n');
+}
+
+/** The long "read me first" at /AGENTS.md. */
+export function buildAgentsMd(): string {
+  const aero = STOCKS.filter((s) => s.pool.factory === AERO_CL_FACTORY).length;
+  const older = STOCKS.length - aero;
+  return [
+    `<!-- This file is generated by ${GENERATOR}. Do not edit by hand. -->`,
+    '',
+    '# Afterbook AGENTS.md',
+    '',
+    `> ${TAGLINE}`,
+    '',
+    'This is the entry point for AI agents and the models behind them: what Afterbook does, how to route a request, where its MCP server and APIs are, every token and pool address, and the rules that keep people safe. It is built from the code, so it always matches what the site does.',
+    '',
+    `- Site: ${SITE}`,
+    `- Source: ${REPO}`,
+    `- For agents: ${SITE}/agents`,
+    `- Short index: ${SITE}/llms.txt`,
+    `- Telegram bot: ${TELEGRAM_BOT}`,
+    '',
+    '## What Afterbook does',
+    '',
+    `- Tracks ${STOCKS.length} of Coinbase's tokenized stocks on Base (B20 tokens, symbols ending in "c", e.g. NVDAc), each against its deepest USDC pool: ${aero} on Aero (formerly Aerodrome) and ${older} on the older Aerodrome factory.`,
+    '- For each one: the real stock\'s price, the token\'s onchain mid price in its pool, the gap between them in basis points (100 bp = 1%), and the pool\'s real depth.',
+    '- The real stock\'s price is the live regular-session price while the US market is open. When it is shut, it is the latest pre-market or after-hours print if there is one, otherwise the last close; the tape labels which.',
+    '- Trade plans and baskets: the code checks and sizes every buy; Claude only explains the finished plan in words. A person opens the plan link and signs each buy in their own wallet.',
+    '- Stock loans: Aave and Morpho loans backed by stock tokens, their health now and if the next open matches Base\'s price, and in-app Aave borrowing and USDC lending.',
+    '- The Basis Tilt basket: new enrollments are paused since 2026-11-19. Do not tell anyone they can join it.',
+    '',
+    '## Safety',
+    '',
+    '- Afterbook is non-custodial. It never holds funds or keys. Agents never sign: every trade, loan and approval is signed by a person in their own wallet, after Afterbook\'s checks.',
+    '- A gap is not risk-free arbitrage. While the cash market is shut there is nothing to hedge with, and the gap can widen before it closes.',
+    `- The trade plan waits instead of buying when a stock's gap is wider than ${PLAN_LIMITS.maxAbsGapBp / 100}% (${PLAN_LIMITS.maxAbsGapBp} bp) either way: the pool may be stale, or something happened to the stock.`,
+    '- The real stock\'s price comes from Yahoo Finance, an unofficial source. Treat it as a reference, not an exchange feed.',
+    '- Afterbook\'s swap fee is off: it applies only if SWAP_FEE_BPS and a fee recipient are both set, and they are not.',
+    `- Every transaction Afterbook asks a wallet to sign carries its Builder Code, ${BUILDER_CODE}, so the activity is attributed onchain.`,
+    '- Approvals are for the exact amount and only for the swap router or the Aave spoke, never unlimited.',
+    '- A stock buy is capped at the lower of $25,000 and 10% of its pool\'s live depth.',
+    '- A read that fails is reported as a failure, never as "no gap" or "no loans".',
+    '- Trading is not available in the US or its territories.',
+    '',
+    '## Agent routing rules',
+    '',
+    '- For prices, gaps and depth, use get_tape (MCP), the free-key /api/v1/tape, or the x402 tape. Do not scrape the pages.',
+    '- Use the c-suffixed onchain symbols (NVDAc) and the addresses in the table below. Do not guess token addresses: many tokens share the 0xb200… prefix.',
+    '- To help someone buy, make a plan (make_plan, make_basket, or the x402 plan and basket routes) or an execute link, and give the person the link. They review it on Afterbook and sign.',
+    '- For a stock loan over a weekend or holiday, use check_loan_health; for an Aave loan near its limit, make_rescue_link.',
+    `- New listings (${held.join(', ') || 'none right now'}) are left out of automatic picks. Naming one still works, under the same caps.`,
+    '- Never present a plan, a gap or a basket as a recommendation or a forecast.',
+    '',
+    '## Discovery: MCP and APIs',
+    '',
+    '### MCP server (free, no key)',
+    '',
+    `- Endpoint (streamable HTTP): ${MCP_URL}`,
+    `- MCP Registry: ${MCP_REGISTRY_NAME}`,
+    `- Claude Code: \`claude mcp add --transport http afterbook ${MCP_URL}\``,
+    '- make_plan and make_basket: 10 calls a minute per caller and at most 300 saved plan links a day; check_loan_health: 10 a minute.',
+    '',
+    '| Tool | What it does |',
+    '| --- | --- |',
+    ...TOOLS.map((t) => `| ${t.name} | ${t.does} |`),
+    '',
+    '### Free HTTP reads',
+    '',
+    `- ${FREE_KEY.issue}, then ${FREE_KEY.use}. ${FREE_KEY.note}`,
+    '- The free-key tape returns, per stock: symbol, cashUsd, midUsd, basisBp, depthUsd, plus the market session. It does not include the close or which kind of price cashUsd is.',
+    '- The site\'s own read routes are limited per IP: 60 a minute for most, 10 a minute for /api/lots and /api/loans, 20 a minute for /api/basename. They are for the site\'s pages; agents should prefer MCP or /api/v1.',
+    '',
+    '### Pay per call over x402 (USDC on Base, no key)',
+    '',
+    '| Route | Price | What it returns |',
+    '| --- | --- | --- |',
+    ...PAID.map((r) => `| ${r.route} | ${r.price} | ${r.does} |`),
+    '',
+    '- An unpaid call returns 402 with the payment terms in the payment-required header (base64). A deploy without x402 configured returns 503.',
+    '',
+    '## Network reference',
+    '',
+    '- Base mainnet only. Chain ID 8453.',
+    '- RPC: https://mainnet.base.org, then https://base-rpc.publicnode.com',
+    '- Explorer: https://basescan.org',
+    `- USDC: ${USDC.address} (${USDC.decimals} decimals)`,
+    `- Aero CL factory: ${AERO_CL_FACTORY}`,
+    `- Aerodrome CL factory (older): ${CL_FACTORY}`,
+    '',
+    `## Tracked stocks and pools (${STOCKS.length})`,
+    '',
+    'Each stock\'s deepest USDC pool. Addresses are checksummed and come from lib/stocks/tokens.ts.',
+    '',
+    '| Symbol | Stock | Token | Decimals | USDC pool | Venue |',
+    '| --- | --- | --- | --- | --- | --- |',
+    ...STOCKS.map((s) => `| ${s.symbol} | ${s.name} (${s.cashTicker}) | ${s.tokenAddress} | ${s.decimals} | ${s.pool.address} | ${venue(s.pool.factory)} |`),
+    '',
+    '## Site routes',
+    '',
+    ...SITE_ROUTES.map((r) => `- ${r.path}: ${r.what}`),
+    '',
+    '## Generation',
+    '',
+    `- Script: ${GENERATOR}`,
+    '- Built from: lib/agent/agentsMd.ts',
+    '- Output: docs/agents/AGENTS.md and docs/agents/llms.txt (the same text the site serves at /AGENTS.md and /llms.txt)',
+    '- Run: npm run generate-agents-md',
+    '- Check: npm run generate-agents-md -- --check',
+    '',
+  ].join('\n');
+}
