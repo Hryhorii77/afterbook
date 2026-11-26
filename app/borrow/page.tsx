@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { LoanLookup } from '../components/lending/LoanLookup';
 import Link from 'next/link';
 import { SymbolTile } from '@/app/components/ui/SymbolTile';
 import { BorrowCalculator, type CalculatorMarket } from '@/app/components/lending/BorrowCalculator';
@@ -125,6 +126,8 @@ export default async function BorrowPage() {
           {aave && aaveUsdc && (
             <AaveLendSection geo={geo} usdc={aaveUsdc} usdcAssetId={aave.usdcAssetId} supplyApr={aave.hub.supplyApr} utilization={aave.hub.utilization} />
           )}
+
+          <LoanLookup />
 
           <section className="panel">
             <h2>Markets</h2>

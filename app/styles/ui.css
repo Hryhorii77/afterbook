@@ -326,3 +326,10 @@ a.btn:focus-visible, button.btn:focus-visible {
 /* A long address in a note (the Baskets deposit address) must wrap instead of pushing past its
    card, which on phones under ~370px made the whole page scroll sideways. */
 .geo-note code { overflow-wrap: anywhere; }
+
+/* "Look up a wallet" (2026-11-26, /portfolio and /borrow). */
+.wallet-lookup { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.wallet-lookup-label { font-size: 14px; color: var(--text-dim); }
+.wallet-lookup .wallet-lookup-row { flex-wrap: nowrap; align-items: stretch; }
+.wallet-lookup-row input { flex: 1 1 auto; min-width: 0; font-family: var(--font-mono, ui-monospace, monospace); }
+.wallet-lookup-row .btn { flex: 0 0 auto; }

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useAccount, useDisconnect } from 'wagmi';
+import { WalletLookup, type LookedUp } from '../wallet/WalletLookup';
+import { parseWalletInput } from '@/lib/wallet/walletInput';
 import { formatWindow } from '@/lib/format';
 import { getStock } from '@/lib/stocks/tokens';
 import { SymbolTile } from '../ui/SymbolTile';
@@ -87,12 +89,15 @@ export function MyLotsContent({
   lots,
   error,
   onDisconnect,
+  actionLabel = 'Disconnect',
 }: {
   label: string;
   isName: boolean;
   lots: MyLotsResponse | null;
   error: string | null;
   onDisconnect: () => void;
+  /** "Disconnect" for the connected wallet; "Stop viewing" for a looked-up one. */
+  actionLabel?: string;
 }) {
   const spotUsd = lots ? lots.spot.reduce((sum, h) => sum + h.usdValue, 0) : 0;
   const lpUsd = lots ? lots.lp.reduce((sum, h) => sum + h.usdValue, 0) : 0;
@@ -106,7 +111,7 @@ export function MyLotsContent({
               {label}
             </span>
             <button type="button" className="btn btn-secondary" onClick={onDisconnect}>
-              Disconnect
+              {actionLabel}
             </button>
           </div>
 
@@ -260,7 +265,36 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
   // address state before.
   const { address: connectedAddress } = useAccount();
   const { disconnect } = useDisconnect();
-  const address = connectedAddress ?? null;
+  // A wallet looked up by address or Basename (2026-11-26): its public positions, read-only, instead of the connected
+  // one while it is shown. Kept in the URL (?wallet=) so the view can be shared; read after mount, not during render.
+  const [viewing, setViewing] = useState<LookedUp | null>(null);
+  const [lookupInitial, setLookupInitial] = useState('');
+  const address = viewing?.address ?? connectedAddress ?? null;
+  const setWalletParam = (value: string | null) => {
+    const url = new URL(window.location.href);
+    if (value) url.searchParams.set('wallet', value);
+    else url.searchParams.delete('wallet');
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+  };
+  const view = (w: LookedUp) => {
+    setViewing(w);
+    setWalletParam(w.name ?? w.address);
+  };
+  const stopViewing = () => {
+    setViewing(null);
+    setWalletParam(null);
+  };
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get('wallet');
+    const parsed = raw ? parseWalletInput(raw) : null;
+    if (!parsed) return;
+    if (parsed.kind === 'address') return void setViewing({ address: parsed.address, name: null });
+    setLookupInitial(parsed.name);
+    fetch(`/api/basename?name=${encodeURIComponent(parsed.name)}`)
+      .then((r) => r.json())
+      .then((j: { address?: `0x${string}` | null }) => j.address && setViewing({ address: j.address, name: parsed.name }))
+      .catch(() => {});
+  }, []);
 
   // wagmi's disconnect() only clears its own connection state — for an
   // injected connector (MetaMask, Rabby, etc.) the extension itself still
@@ -324,7 +358,7 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
 
   return (
     <section className="panel">
-      <h2>{title}</h2>
+      <h2>{viewing ? 'A looked-up wallet' : title}</h2>
 
       {!address ? (
         <>
@@ -333,9 +367,24 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
           </p>
           <WalletConnectButton />
         </>
+      ) : viewing ? (
+        <>
+          <p className="geo-note" style={{ marginTop: 0 }}>
+            Viewing someone&apos;s public positions, read-only. Nothing here can trade or sign for this wallet.
+          </p>
+          <MyLotsContent
+            label={viewing.name ?? basename ?? `${address.slice(0, 6)}…${address.slice(-4)}`}
+            isName={!!(viewing.name ?? basename)}
+            lots={lots}
+            error={error}
+            onDisconnect={stopViewing}
+            actionLabel={connectedAddress ? 'Back to my wallet' : 'Stop viewing'}
+          />
+        </>
       ) : (
         <MyLotsContent label={basename ?? `${address.slice(0, 6)}…${address.slice(-4)}`} isName={!!basename} lots={lots} error={error} onDisconnect={handleDisconnect} />
       )}
+      <WalletLookup key={lookupInitial} initial={lookupInitial} onFound={view} label={address ? 'Look up another wallet' : 'Or look up any wallet, no connecting'} />
     </section>
   );
 }
