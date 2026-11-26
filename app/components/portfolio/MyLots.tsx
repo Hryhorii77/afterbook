@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAccount, useDisconnect } from 'wagmi';
+import { WalletLookup, type LookedUp } from '../wallet/WalletLookup';
+import { parseWalletInput } from '@/lib/wallet/walletInput';
 import { formatWindow } from '@/lib/format';
 import { getStock } from '@/lib/stocks/tokens';
 import { SymbolTile } from '../ui/SymbolTile';
@@ -87,12 +89,15 @@ export function MyLotsContent({
   lots,
   error,
   onDisconnect,
+  actionLabel = 'Disconnect',
 }: {
   label: string;
   isName: boolean;
   lots: MyLotsResponse | null;
   error: string | null;
   onDisconnect: () => void;
+  /** "Disconnect" for the connected wallet; "Stop viewing" for a looked-up one. */
+  actionLabel?: string;
 }) {
   const spotUsd = lots ? lots.spot.reduce((sum, h) => sum + h.usdValue, 0) : 0;
   const lpUsd = lots ? lots.lp.reduce((sum, h) => sum + h.usdValue, 0) : 0;
@@ -106,7 +111,7 @@ export function MyLotsContent({
               {label}
             </span>
             <button type="button" className="btn btn-secondary" onClick={onDisconnect}>
-              Disconnect
+              {actionLabel}
             </button>
           </div>
 
@@ -260,7 +265,46 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
   // address state before.
   const { address: connectedAddress } = useAccount();
   const { disconnect } = useDisconnect();
-  const address = connectedAddress ?? null;
+  // A wallet looked up by address or Basename (2026-11-26): its public positions, read-only, instead of the connected
+  // one while it is shown. Kept in the URL (?wallet=) so the view can be shared; read after mount, not during render.
+  const [viewing, setViewing] = useState<LookedUp | null>(null);
+  const [lookupInitial, setLookupInitial] = useState('');
+  const [walletParamError, setWalletParamError] = useState<string | null>(null);
+  const address = viewing?.address ?? connectedAddress ?? null;
+  const setWalletParam = (value: string | null) => {
+    const url = new URL(window.location.href);
+    if (value) url.searchParams.set('wallet', value);
+    else url.searchParams.delete('wallet');
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+  };
+  const lookedUpByHand = useRef(false);
+  const view = (w: LookedUp) => {
+    lookedUpByHand.current = true;
+    setWalletParamError(null);
+    setViewing(w);
+    setWalletParam(w.name ?? w.address);
+  };
+  const stopViewing = () => {
+    setViewing(null);
+    setWalletParam(null);
+  };
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get('wallet');
+    if (!raw) return;
+    const parsed = parseWalletInput(raw);
+    if (!parsed) return void setWalletParamError('The link’s wallet isn’t a 0x address or a Basename.');
+    if (parsed.kind === 'address') return void setViewing({ address: parsed.address, name: null });
+    setLookupInitial(parsed.name);
+    fetch(`/api/basename?name=${encodeURIComponent(parsed.name)}`)
+      .then(async (r) => {
+        const j = (await r.json()) as { address?: `0x${string}` | null };
+        if (lookedUpByHand.current) return; // the person already looked up another wallet
+        if (!r.ok) setWalletParamError(`Couldn’t look up ${parsed.name}. Try again.`);
+        else if (!j.address) setWalletParamError(`${parsed.name} doesn’t point to a wallet.`);
+        else setViewing({ address: j.address, name: parsed.name });
+      })
+      .catch(() => !lookedUpByHand.current && setWalletParamError(`Couldn’t look up ${parsed.name}. Try again.`));
+  }, []);
 
   // wagmi's disconnect() only clears its own connection state — for an
   // injected connector (MetaMask, Rabby, etc.) the extension itself still
@@ -274,29 +318,30 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
     window.ethereum?.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] }).catch(() => {});
     disconnect();
   };
-  const [lots, setLots] = useState<MyLotsResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [basename, setBasename] = useState<string | null>(null);
+  // Each answer is kept with the address it belongs to and shown only while that address is on screen (review of
+  // #247): resetting in an effect left one painted frame of the old wallet's balances under a new name.
+  const [lots, setLots] = useState<{ for: string; data: MyLotsResponse } | null>(null);
+  const [basenameOf, setBasename] = useState<{ for: string; name: string | null } | null>(null);
+  const [errorOf, setErrorOf] = useState<{ for: string; message: string } | null>(null);
 
   useEffect(() => {
-    if (!address) {
-      setLots(null);
-      return;
-    }
+    // A new address starts empty (review of #247): the previous wallet's balances never sit under it.
+    setLots(null);
+    setErrorOf(null);
+    if (!address) return;
     let cancelled = false;
-    setError(null);
     fetch(`/api/lots?address=${address}`)
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return;
         if (json.error) {
-          setError(json.error);
+          setErrorOf({ for: address, message: json.error });
           return;
         }
-        setLots(json);
+        setLots({ for: address, data: json });
       })
       .catch(() => {
-        if (!cancelled) setError('lots unavailable');
+        if (!cancelled) setErrorOf({ for: address, message: 'lots unavailable' });
       });
     return () => {
       cancelled = true;
@@ -304,15 +349,14 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
   }, [address]);
 
   useEffect(() => {
-    if (!address) {
-      setBasename(null);
-      return;
-    }
+    // Nor the previous wallet's name.
+    setBasename(null);
+    if (!address) return;
     let cancelled = false;
     fetch(`/api/basename?address=${address}`)
       .then((res) => res.json())
       .then((json) => {
-        if (!cancelled) setBasename(json.name ?? null);
+        if (!cancelled) setBasename({ for: address, name: json.name ?? null });
       })
       .catch(() => {
         if (!cancelled) setBasename(null);
@@ -322,9 +366,14 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
     };
   }, [address]);
 
+  // Only what belongs to the address on screen.
+  const shownLots = address && lots?.for === address ? lots.data : null;
+  const basename = address && basenameOf?.for === address ? basenameOf.name : null;
+  const error = address && errorOf?.for === address ? errorOf.message : null;
+
   return (
     <section className="panel">
-      <h2>{title}</h2>
+      <h2>{viewing ? 'A looked-up wallet' : title}</h2>
 
       {!address ? (
         <>
@@ -333,9 +382,29 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
           </p>
           <WalletConnectButton />
         </>
+      ) : viewing ? (
+        <>
+          <p className="geo-note" style={{ marginTop: 0 }}>
+            Viewing someone&apos;s public positions, read-only. Nothing here can trade or sign for this wallet.
+          </p>
+          <MyLotsContent
+            label={viewing.name ?? basename ?? `${address.slice(0, 6)}…${address.slice(-4)}`}
+            isName={!!(viewing.name ?? basename)}
+            lots={shownLots}
+            error={error}
+            onDisconnect={stopViewing}
+            actionLabel={connectedAddress ? 'Back to my wallet' : 'Stop viewing'}
+          />
+        </>
       ) : (
-        <MyLotsContent label={basename ?? `${address.slice(0, 6)}…${address.slice(-4)}`} isName={!!basename} lots={lots} error={error} onDisconnect={handleDisconnect} />
+        <MyLotsContent label={basename ?? `${address.slice(0, 6)}…${address.slice(-4)}`} isName={!!basename} lots={shownLots} error={error} onDisconnect={handleDisconnect} />
       )}
+      {walletParamError && !viewing && (
+        <p className="geo-note" role="alert">
+          {walletParamError}
+        </p>
+      )}
+      <WalletLookup key={lookupInitial} initial={lookupInitial} onFound={view} label={address ? 'Look up another wallet' : 'Or look up any wallet, no connecting'} />
     </section>
   );
 }

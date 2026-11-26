@@ -55,7 +55,8 @@ export function RouterApprovals() {
 
   return (
     <section className="panel" id="approvals">
-      <h2>Approvals</h2>
+      {/* Always the connected wallet's, even while Portfolio shows a looked-up one (review of #247). */}
+      <h2>Your wallet&apos;s approvals</h2>
       <p className="geo-note" style={{ marginTop: 0 }}>
         What KyberSwap&apos;s router, the contract Afterbook&apos;s swaps go through, may still spend from this wallet. A swap here approves exactly its own
         amount and uses it up; something is left only if a run stopped part way, or if you approved the router somewhere else.
