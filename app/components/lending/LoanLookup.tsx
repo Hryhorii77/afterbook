@@ -49,8 +49,8 @@ export function LoanLookup() {
     <section className="panel" id="look-up-loans">
       <h2>Look up a wallet&apos;s stock loans</h2>
       <p className="geo-note" style={{ marginTop: 0 }}>
-        Any wallet&apos;s Aave and Morpho loans against stock tokens on Base, read-only, no connecting. Health at Base&apos;s price is where the lender&apos;s may go when
-        the cash market moves; liquidation starts below 1.00.
+        Any wallet&apos;s Aave and Morpho loans against stock tokens on Base, read-only, no connecting. &quot;Base price&quot; is the loan&apos;s health at Base&apos;s price,
+        where the lender&apos;s may go when the cash market moves; &quot;Room&quot; is how far the collateral can fall before liquidation, which starts below 1.00.
       </p>
       <WalletLookup onFound={found} label="Address or Basename" />
       {error && <p className="geo-note" role="alert">{error}</p>}
@@ -66,8 +66,8 @@ export function LoanLookup() {
                 <th scope="col">Loan</th>
                 <th scope="col">Borrowed</th>
                 <th scope="col">Health</th>
-                <th scope="col">At Base&apos;s price</th>
-                <th scope="col">Room to fall</th>
+                <th scope="col">Base price</th>
+                <th scope="col">Room</th>
               </tr>
             </thead>
             <tbody>
@@ -84,6 +84,7 @@ export function LoanLookup() {
               ))}
             </tbody>
           </table>
+          <p className="loan-lookup-hint geo-note">Swipe for more →</p>
         </div>
       )}
     </section>

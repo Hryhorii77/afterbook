@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAccount, useDisconnect } from 'wagmi';
 import { WalletLookup, type LookedUp } from '../wallet/WalletLookup';
 import { parseWalletInput } from '@/lib/wallet/walletInput';
@@ -277,7 +277,9 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
     else url.searchParams.delete('wallet');
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
   };
+  const lookedUpByHand = useRef(false);
   const view = (w: LookedUp) => {
+    lookedUpByHand.current = true;
     setWalletParamError(null);
     setViewing(w);
     setWalletParam(w.name ?? w.address);
@@ -296,11 +298,12 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
     fetch(`/api/basename?name=${encodeURIComponent(parsed.name)}`)
       .then(async (r) => {
         const j = (await r.json()) as { address?: `0x${string}` | null };
+        if (lookedUpByHand.current) return; // the person already looked up another wallet
         if (!r.ok) setWalletParamError(`Couldn’t look up ${parsed.name}. Try again.`);
         else if (!j.address) setWalletParamError(`${parsed.name} doesn’t point to a wallet.`);
         else setViewing({ address: j.address, name: parsed.name });
       })
-      .catch(() => setWalletParamError(`Couldn’t look up ${parsed.name}. Try again.`));
+      .catch(() => !lookedUpByHand.current && setWalletParamError(`Couldn’t look up ${parsed.name}. Try again.`));
   }, []);
 
   // wagmi's disconnect() only clears its own connection state — for an
@@ -315,14 +318,16 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
     window.ethereum?.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] }).catch(() => {});
     disconnect();
   };
-  const [lots, setLots] = useState<MyLotsResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [basename, setBasename] = useState<string | null>(null);
+  // Each answer is kept with the address it belongs to and shown only while that address is on screen (review of
+  // #247): resetting in an effect left one painted frame of the old wallet's balances under a new name.
+  const [lots, setLots] = useState<{ for: string; data: MyLotsResponse } | null>(null);
+  const [basenameOf, setBasename] = useState<{ for: string; name: string | null } | null>(null);
+  const [errorOf, setErrorOf] = useState<{ for: string; message: string } | null>(null);
 
   useEffect(() => {
     // A new address starts empty (review of #247): the previous wallet's balances never sit under it.
     setLots(null);
-    setError(null);
+    setErrorOf(null);
     if (!address) return;
     let cancelled = false;
     fetch(`/api/lots?address=${address}`)
@@ -330,13 +335,13 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
       .then((json) => {
         if (cancelled) return;
         if (json.error) {
-          setError(json.error);
+          setErrorOf({ for: address, message: json.error });
           return;
         }
-        setLots(json);
+        setLots({ for: address, data: json });
       })
       .catch(() => {
-        if (!cancelled) setError('lots unavailable');
+        if (!cancelled) setErrorOf({ for: address, message: 'lots unavailable' });
       });
     return () => {
       cancelled = true;
@@ -351,7 +356,7 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
     fetch(`/api/basename?address=${address}`)
       .then((res) => res.json())
       .then((json) => {
-        if (!cancelled) setBasename(json.name ?? null);
+        if (!cancelled) setBasename({ for: address, name: json.name ?? null });
       })
       .catch(() => {
         if (!cancelled) setBasename(null);
@@ -360,6 +365,11 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
       cancelled = true;
     };
   }, [address]);
+
+  // Only what belongs to the address on screen.
+  const shownLots = address && lots?.for === address ? lots.data : null;
+  const basename = address && basenameOf?.for === address ? basenameOf.name : null;
+  const error = address && errorOf?.for === address ? errorOf.message : null;
 
   return (
     <section className="panel">
@@ -380,14 +390,14 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
           <MyLotsContent
             label={viewing.name ?? basename ?? `${address.slice(0, 6)}…${address.slice(-4)}`}
             isName={!!(viewing.name ?? basename)}
-            lots={lots}
+            lots={shownLots}
             error={error}
             onDisconnect={stopViewing}
             actionLabel={connectedAddress ? 'Back to my wallet' : 'Stop viewing'}
           />
         </>
       ) : (
-        <MyLotsContent label={basename ?? `${address.slice(0, 6)}…${address.slice(-4)}`} isName={!!basename} lots={lots} error={error} onDisconnect={handleDisconnect} />
+        <MyLotsContent label={basename ?? `${address.slice(0, 6)}…${address.slice(-4)}`} isName={!!basename} lots={shownLots} error={error} onDisconnect={handleDisconnect} />
       )}
       {walletParamError && !viewing && (
         <p className="geo-note" role="alert">
