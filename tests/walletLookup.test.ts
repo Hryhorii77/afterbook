@@ -4,9 +4,13 @@ import { normalizeBasename, parseWalletInput } from '../lib/wallet/walletInput';
 
 // "Look up a wallet" (2026-11-26): what can be typed, and the read-only routes behind it. Offline: chain reads are fakes.
 vi.mock('server-only', () => ({}));
-const fx = vi.hoisted(() => ({ forward: {} as Record<string, string | null>, calls: [] as string[] }));
+const fx = vi.hoisted(() => ({ forward: {} as Record<string, string | null>, calls: [] as string[], fail: false }));
 vi.mock('../lib/wallet/basename', () => ({
-  addressOfBasename: async (n: string) => (fx.calls.push(n), fx.forward[n] ?? null),
+  addressOfBasename: async (n: string) => {
+    fx.calls.push(n);
+    if (fx.fail) throw new Error('rpc down');
+    return fx.forward[n] ?? null;
+  },
   resolveBasename: async () => null,
 }));
 vi.mock('../lib/lending/loanReport', () => ({ loanHealthReport: async (w: string, t: number) => ({ wallet: w, threshold: t, loans: [] }) }));
@@ -39,6 +43,11 @@ describe('the read-only routes', () => {
     expect((await none.json()).address).toBeNull();
     const bad = await basenameGET(req('/api/basename?name=vitalik.eth'));
     expect(bad.status).toBe(400);
+    // A read failure is a 502, never "points to no wallet" (review of #247).
+    fx.fail = true;
+    const down = await basenameGET(req('/api/basename?name=jesse'));
+    expect(down.status).toBe(502);
+    fx.fail = false;
   });
   it('/api/loans reads any valid address at the default alert line, and refuses anything else', async () => {
     const ok = await loansGET(req('/api/loans?address=0x2211d1d0020daea8039e46cf1367962070d77da9'));

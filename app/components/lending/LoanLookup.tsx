@@ -4,7 +4,7 @@
 // read as the free MCP tool check_loan_health (/api/loans, lib/lending/loanReport.ts): health at the lender's price and
 // at Base's, and how far the collateral could fall. Read-only: no rescue links here (they fill the panel from the
 // connected wallet's own loan, so they only make sense for your own), and nothing can sign.
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { WalletLookup, type LookedUp } from '../wallet/WalletLookup';
 import { usd } from '@/lib/format';
 
@@ -25,17 +25,22 @@ export function LoanLookup() {
   const [loans, setLoans] = useState<ReportLoan[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Only the latest lookup may set what's shown (review of #247): a slow earlier answer landing after a newer lookup
+  // showed one wallet's loans under another's name.
+  const latest = useRef(0);
   const found = async (w: LookedUp) => {
+    const id = ++latest.current;
     setWallet(w);
     setLoans(null);
     setError(null);
     try {
       const res = await fetch(`/api/loans?address=${w.address}`);
       const json = (await res.json()) as { loans?: ReportLoan[]; error?: string };
+      if (id !== latest.current) return;
       if (!res.ok || !json.loans) setError(res.status === 429 ? 'Too many lookups. Try again in a minute.' : 'Couldn’t read Aave and Morpho just now. Try again.');
       else setLoans(json.loans);
     } catch {
-      setError('Couldn’t read Aave and Morpho just now. Try again.');
+      if (id === latest.current) setError('Couldn’t read Aave and Morpho just now. Try again.');
     }
   };
   const who = wallet ? wallet.name ?? `${wallet.address.slice(0, 6)}…${wallet.address.slice(-4)}` : '';

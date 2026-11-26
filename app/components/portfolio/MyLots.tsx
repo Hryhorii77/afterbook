@@ -269,6 +269,7 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
   // one while it is shown. Kept in the URL (?wallet=) so the view can be shared; read after mount, not during render.
   const [viewing, setViewing] = useState<LookedUp | null>(null);
   const [lookupInitial, setLookupInitial] = useState('');
+  const [walletParamError, setWalletParamError] = useState<string | null>(null);
   const address = viewing?.address ?? connectedAddress ?? null;
   const setWalletParam = (value: string | null) => {
     const url = new URL(window.location.href);
@@ -277,6 +278,7 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
     window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
   };
   const view = (w: LookedUp) => {
+    setWalletParamError(null);
     setViewing(w);
     setWalletParam(w.name ?? w.address);
   };
@@ -286,14 +288,19 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
   };
   useEffect(() => {
     const raw = new URLSearchParams(window.location.search).get('wallet');
-    const parsed = raw ? parseWalletInput(raw) : null;
-    if (!parsed) return;
+    if (!raw) return;
+    const parsed = parseWalletInput(raw);
+    if (!parsed) return void setWalletParamError('The link’s wallet isn’t a 0x address or a Basename.');
     if (parsed.kind === 'address') return void setViewing({ address: parsed.address, name: null });
     setLookupInitial(parsed.name);
     fetch(`/api/basename?name=${encodeURIComponent(parsed.name)}`)
-      .then((r) => r.json())
-      .then((j: { address?: `0x${string}` | null }) => j.address && setViewing({ address: j.address, name: parsed.name }))
-      .catch(() => {});
+      .then(async (r) => {
+        const j = (await r.json()) as { address?: `0x${string}` | null };
+        if (!r.ok) setWalletParamError(`Couldn’t look up ${parsed.name}. Try again.`);
+        else if (!j.address) setWalletParamError(`${parsed.name} doesn’t point to a wallet.`);
+        else setViewing({ address: j.address, name: parsed.name });
+      })
+      .catch(() => setWalletParamError(`Couldn’t look up ${parsed.name}. Try again.`));
   }, []);
 
   // wagmi's disconnect() only clears its own connection state — for an
@@ -313,12 +320,11 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
   const [basename, setBasename] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!address) {
-      setLots(null);
-      return;
-    }
-    let cancelled = false;
+    // A new address starts empty (review of #247): the previous wallet's balances never sit under it.
+    setLots(null);
     setError(null);
+    if (!address) return;
+    let cancelled = false;
     fetch(`/api/lots?address=${address}`)
       .then((res) => res.json())
       .then((json) => {
@@ -338,10 +344,9 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
   }, [address]);
 
   useEffect(() => {
-    if (!address) {
-      setBasename(null);
-      return;
-    }
+    // Nor the previous wallet's name.
+    setBasename(null);
+    if (!address) return;
     let cancelled = false;
     fetch(`/api/basename?address=${address}`)
       .then((res) => res.json())
@@ -383,6 +388,11 @@ export function MyLots({ title = 'My Lots' }: { title?: string } = {}) {
         </>
       ) : (
         <MyLotsContent label={basename ?? `${address.slice(0, 6)}…${address.slice(-4)}`} isName={!!basename} lots={lots} error={error} onDisconnect={handleDisconnect} />
+      )}
+      {walletParamError && !viewing && (
+        <p className="geo-note" role="alert">
+          {walletParamError}
+        </p>
       )}
       <WalletLookup key={lookupInitial} initial={lookupInitial} onFound={view} label={address ? 'Look up another wallet' : 'Or look up any wallet, no connecting'} />
     </section>

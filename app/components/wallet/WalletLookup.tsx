@@ -29,7 +29,7 @@ export function WalletLookup({ onFound, label = 'Look up a wallet', initial = ''
     try {
       const res = await fetch(`/api/basename?name=${encodeURIComponent(parsed.name)}`);
       const json = (await res.json()) as { address?: `0x${string}` | null; error?: string };
-      if (!res.ok) setError(res.status === 429 ? 'Too many lookups. Try again in a minute.' : 'That isn’t a Basename.');
+      if (!res.ok) setError(res.status === 429 ? 'Too many lookups. Try again in a minute.' : res.status === 400 ? 'That isn’t a Basename.' : 'Couldn’t look that up. Try again.');
       else if (!json.address) setError(`${parsed.name} doesn’t point to a wallet.`);
       else onFound({ address: json.address, name: parsed.name });
     } catch {

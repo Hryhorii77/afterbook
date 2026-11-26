@@ -15,7 +15,12 @@ export async function GET(request: NextRequest) {
   if (nameParam != null) {
     const name = normalizeBasename(nameParam);
     if (!name) return NextResponse.json({ error: 'valid Basename required' }, { status: 400 });
-    return NextResponse.json({ name, address: await addressOfBasename(name) });
+    try {
+      return NextResponse.json({ name, address: await addressOfBasename(name) });
+    } catch (err) {
+      console.error('[/api/basename] name', err instanceof Error ? err.message : err);
+      return NextResponse.json({ error: 'lookup unavailable' }, { status: 502 });
+    }
   }
   const address = request.nextUrl.searchParams.get('address');
   if (!address || !isAddress(address)) {

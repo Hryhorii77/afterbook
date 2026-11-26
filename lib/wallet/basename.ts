@@ -36,20 +36,17 @@ const REGISTRY_ABI = [
   },
 ] as const;
 
-/** The address a Basename points to on Base, or null (no such name, no resolver, or no address set). */
+/** The address a Basename points to on Base, or null (not a Basename, no resolver, or no address set). A failed read
+ *  throws (review of #247): an RPC outage must not read as "this name points nowhere". */
 export async function addressOfBasename(input: string): Promise<`0x${string}` | null> {
   const name = normalizeBasename(input);
   if (!name) return null;
   const node = namehash(name);
-  try {
-    const client = getClient();
-    const resolver = await client.readContract({ address: BASENAMES_REGISTRY, abi: REGISTRY_ABI, functionName: 'resolver', args: [node] });
-    if (!resolver || /^0x0{40}$/i.test(resolver)) return null;
-    const addr = await client.readContract({ address: resolver, abi: L2_RESOLVER_ABI, functionName: 'addr', args: [node] });
-    return addr && !/^0x0{40}$/i.test(addr) ? addr : null;
-  } catch {
-    return null;
-  }
+  const client = getClient();
+  const resolver = await client.readContract({ address: BASENAMES_REGISTRY, abi: REGISTRY_ABI, functionName: 'resolver', args: [node] });
+  if (!resolver || /^0x0{40}$/i.test(resolver)) return null;
+  const addr = await client.readContract({ address: resolver, abi: L2_RESOLVER_ABI, functionName: 'addr', args: [node] });
+  return addr && !/^0x0{40}$/i.test(addr) ? addr : null;
 }
 
 const BASE_CHAIN_ID = 8453;

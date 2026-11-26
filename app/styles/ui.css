@@ -333,3 +333,4 @@ a.btn:focus-visible, button.btn:focus-visible {
 .wallet-lookup .wallet-lookup-row { flex-wrap: nowrap; align-items: stretch; }
 .wallet-lookup-row input { flex: 1 1 auto; min-width: 0; font-family: var(--font-mono, ui-monospace, monospace); }
 .wallet-lookup-row .btn { flex: 0 0 auto; }
+.loan-lookup-table { min-width: 460px; }
