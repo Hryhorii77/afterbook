@@ -56,6 +56,8 @@ export function LoanLookup() {
       {error && <p className="geo-note" role="alert">{error}</p>}
       {wallet && loans && loans.length === 0 && <p className="geo-note">{who} has no Aave or Morpho stock loans on Base right now.</p>}
       {wallet && loans && loans.length > 0 && (
+        <>
+        <p className="loan-lookup-hint geo-note">Swipe for more →</p>
         <div className="traction-scroll">
           <table className="traction-table loan-lookup-table">
             <caption className="geo-note" style={{ textAlign: 'left', captionSide: 'top' }}>
@@ -84,8 +86,8 @@ export function LoanLookup() {
               ))}
             </tbody>
           </table>
-          <p className="loan-lookup-hint geo-note">Swipe for more →</p>
         </div>
+        </>
       )}
     </section>
   );

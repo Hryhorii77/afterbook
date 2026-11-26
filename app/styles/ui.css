@@ -335,6 +335,6 @@ a.btn:focus-visible, button.btn:focus-visible {
 .wallet-lookup-row .btn { flex: 0 0 auto; }
 .loan-lookup-table { min-width: 300px; }
 .traction-table.loan-lookup-table th, .traction-table.loan-lookup-table td { padding: 8px 5px; }
-.loan-lookup-hint { display: none; margin: 4px 0 0; font-size: 12px; }
-/* Under ~360px the table scrolls a little: say so. */
+.loan-lookup-hint { display: none; margin: 0 0 4px; font-size: 12px; }
+/* Under ~360px the table scrolls a little: say so, above it, where the bottom tab bar can never cover it. */
 @media (max-width: 360px) { .loan-lookup-hint { display: block; } }
