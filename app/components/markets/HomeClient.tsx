@@ -4,7 +4,7 @@
 // gap history, the tape, the trade calculator and Execute. This file owns the page state (the
 // active stock, the calculator size, the eligibility box) and the data; each section is its own
 // component in ./markets/.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { STOCKS, getStock, poolVenue } from '@/lib/stocks/tokens';
 import type { TapeResult } from '@/lib/market/tape';
 import { isLiquid, TAPE_MAIN_DEPTH_USD } from '@/lib/market/liquidity';
@@ -53,6 +53,33 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol, cor
     tape.session.state !== 'open' ? Math.max(0, ...tape.rows.map((r) => r.closeAsOfMs ?? 0)) : 0;
   const { quote, quoteError } = useLotQuote(symbol, usdcInput);
   const { history, depth, priceHistory, earningsStats, basisStats, openSnap } = useSymbolData(symbol, cashClosedAsOfMs);
+
+  // A link to #execute (a prefilled one above all: its note says where the amount came from) lands on Execute at first
+  // paint, then the live quote and its curve load above it and push it ~550px down on a phone (review of #246). Once the
+  // first quote has painted, scroll there again, unless the person has already scrolled, touched or typed: one shot.
+  const landed = useRef(false);
+  const userMoved = useRef(false);
+  useEffect(() => {
+    const moved = () => (userMoved.current = true);
+    const opts = { passive: true, once: true } as const;
+    window.addEventListener('wheel', moved, opts);
+    window.addEventListener('touchstart', moved, opts);
+    window.addEventListener('keydown', moved, opts);
+    return () => {
+      window.removeEventListener('wheel', moved);
+      window.removeEventListener('touchstart', moved);
+      window.removeEventListener('keydown', moved);
+    };
+  }, []);
+  useEffect(() => {
+    if (landed.current || !quote || window.location.hash !== '#execute') return;
+    landed.current = true;
+    // A short wait after the quote arrives, so it and the curve above it have laid out first.
+    const t = setTimeout(() => {
+      if (!userMoved.current) document.getElementById('execute')?.scrollIntoView({ block: 'start' });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [quote]);
 
   const unlocked = geo.nonUs === true && eligibleChecked;
   const activeStock = STOCKS.find((s) => s.symbol === symbol)!;
@@ -199,7 +226,8 @@ export default function HomeClient({ initialTape, initialGeo, initialSymbol, cor
         eligibleChecked={eligibleChecked}
         setEligibleChecked={setEligibleChecked}
         unlocked={unlocked}
-        linkUsdc={initialUsdc != null && symbol === initialSymbol ? initialUsdc : null}
+        // The note shows while the amount on screen is still the link's (not tied to a quote arriving).
+        linkUsdc={initialUsdc != null && symbol === initialSymbol && Number(usdcInput) === initialUsdc ? initialUsdc : null}
       />
 
       <MarketsFooter activeStock={activeStock} />

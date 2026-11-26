@@ -37,7 +37,16 @@ export default async function SymbolPage({ params, searchParams }: PageProps) {
   if (!stock) {
     // People type the plain ticker (/AAPL, /nvda): send them to the token's page (/AAPLc).
     const byTicker = findStock(symbol);
-    if (byTicker) permanentRedirect(`/${byTicker.symbol}`);
+    // Keeps a prefilled buy (`?side=buy&usdc=100`) through the redirect; the browser keeps the #execute hash itself.
+    if (byTicker) {
+      const keep = new URLSearchParams();
+      for (const k of ['side', 'usdc'] as const) {
+        const v = firstParam(sp[k]);
+        if (v != null) keep.set(k, v);
+      }
+      const q = keep.toString();
+      permanentRedirect(`/${byTicker.symbol}${q ? `?${q}` : ''}`);
+    }
     notFound();
   }
 

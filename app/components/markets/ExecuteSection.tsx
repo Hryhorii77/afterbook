@@ -61,11 +61,10 @@ export function ExecuteSection({ symbol, activeStock, activeRow, quote, depth, g
           </button>
         </div>
       )}
-      {linkUsdc != null && quote?.usdcIn === linkUsdc && (
+      {linkUsdc != null && (
         // Say where the amount came from, so a link someone else made is never mistaken for the person's own choice.
         <p className="geo-note">
-          The link you opened filled in {usd(linkUsdc, 0)}. It is priced live above, you can change it, and nothing is
-          bought until you review the buy and sign it in your own wallet.
+          This link filled in {usd(linkUsdc, 0)}, priced live above. Change it if you like; nothing is bought until you sign.
         </p>
       )}
       <label className="eligibility">
