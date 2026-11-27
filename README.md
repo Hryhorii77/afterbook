@@ -2,6 +2,8 @@
 
 **Live at [afterbook.app](https://afterbook.app).**
 
+**AI agents:** start at [afterbook.app/AGENTS.md](https://afterbook.app/AGENTS.md): what Afterbook does, the safety and routing rules, the MCP server and API with prices, and every token and pool address (built from the code). The short index is [/llms.txt](https://afterbook.app/llms.txt).
+
 Cash close vs the Aero book, in shares, for the Coinbase tokenized stocks on Base. The tape, Lot Lab and My Lots are read-only — no wallet ever signs anything there. Three places ask your wallet to sign; Afterbook holds no funds or keys in any of them (for Baskets, Glider's agent holds a permission on the account, see below): Portfolio's **Revoke** (it only ever sets a leftover router approval to zero, see Approvals), **Buy / Sell** in the Execute panel (an in-app swap from your own wallet through KyberSwap's router, see "In-app swaps" below) and **Baskets** (`/baskets`), run on [Glider](https://glider.fi), where *you* sign an enrollment (new enrollments paused since 2026-11-19) and withdrawals and send USDC from your own wallet. See "Baskets (Basis Tilt)" below.
 
 **Pages:** `/` and `/[symbol]` (the tape for a stock), `/today` ("Today's gap"), `/borrow`, `/build` (basket builder), `/baskets`, `/baskets/risks`.
