@@ -29,7 +29,7 @@ This is the entry point for AI agents and the models behind them: what Afterbook
 - The real stock's price comes from Yahoo Finance, an unofficial source. Treat it as a reference, not an exchange feed.
 - Afterbook's own swap fee is a setting that can change. Read any fee from the live quote the person reviews before signing, not from this file.
 - Every transaction Afterbook asks a wallet to sign carries its Builder Code, bc_hebg61t4, so the activity is attributed onchain.
-- Approvals are for the exact amount and only for the swap router (KyberSwap, [0x6131B5fae19EA4f9D964eAc0408E4408b66337b5](https://basescan.org/address/0x6131B5fae19EA4f9D964eAc0408E4408b66337b5)) or the Aave spoke (Aave V4's MAG7 spoke, [0x17905Db0e4A3514467539956c084180616AE7B8D](https://basescan.org/address/0x17905Db0e4A3514467539956c084180616AE7B8D)), never unlimited. A request to approve any other spender did not come from Afterbook.
+- Approvals are for the amount of the action (a repay-all adds a small interest buffer) and only for the swap router (KyberSwap, [0x6131B5fae19EA4f9D964eAc0408E4408b66337b5](https://basescan.org/address/0x6131B5fae19EA4f9D964eAc0408E4408b66337b5)) or the Aave spoke (Aave V4's MAG7 spoke, [0x17905Db0e4A3514467539956c084180616AE7B8D](https://basescan.org/address/0x17905Db0e4A3514467539956c084180616AE7B8D)), never unlimited. A request to approve any other spender did not come from Afterbook.
 - A stock buy is capped at the lower of $25,000 and 10% of its pool's live depth.
 - A read that fails is reported as a failure, never as "no gap" or "no loans".
 - Trading is not available in the US or its territories.
@@ -72,7 +72,7 @@ This is the entry point for AI agents and the models behind them: what Afterbook
 
 ### Tool inputs and examples
 
-Each example is the arguments of an MCP tools/call and passes the tool's own schema. The wallet in the loan examples is a public contract, standing in for the borrower's address.
+Each example is the params of an MCP tools/call (name plus arguments), and its arguments pass the tool's own schema. The wallet in the loan examples is a public contract, standing in for the borrower's address.
 
 #### make_plan
 
@@ -176,8 +176,8 @@ Example: `{"name":"get_basis_stats","arguments":{"symbol":"NVDAc"}}`
 - USDC: [0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913](https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) (6 decimals)
 - Aero CL factory: [0x9CB220581b91b0C83223012FE69688b92aD07a76](https://basescan.org/address/0x9CB220581b91b0C83223012FE69688b92aD07a76)
 - Aerodrome CL factory (older): [0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef](https://basescan.org/address/0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef)
-- Swap router (KyberSwap MetaAggregationRouterV2), the only contract a swap calls or a swap approval names: [0x6131B5fae19EA4f9D964eAc0408E4408b66337b5](https://basescan.org/address/0x6131B5fae19EA4f9D964eAc0408E4408b66337b5)
-- Aave V4 MAG7 spoke, the only contract an in-app loan or USDC deposit calls or approves: [0x17905Db0e4A3514467539956c084180616AE7B8D](https://basescan.org/address/0x17905Db0e4A3514467539956c084180616AE7B8D)
+- Swap router (KyberSwap MetaAggregationRouterV2), the only contract a swap calls and the only spender a swap approval names: [0x6131B5fae19EA4f9D964eAc0408E4408b66337b5](https://basescan.org/address/0x6131B5fae19EA4f9D964eAc0408E4408b66337b5)
+- Aave V4 MAG7 spoke, the only contract an in-app loan or USDC deposit calls and the only spender its approvals name: [0x17905Db0e4A3514467539956c084180616AE7B8D](https://basescan.org/address/0x17905Db0e4A3514467539956c084180616AE7B8D)
 
 ## Tracked stocks and pools (39)
 

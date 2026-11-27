@@ -158,7 +158,7 @@ export function buildAgentsMd(): string {
     // Never state the fee's current setting here: this text is fixed at build time and the fee is an env setting.
     '- Afterbook\'s own swap fee is a setting that can change. Read any fee from the live quote the person reviews before signing, not from this file.',
     `- Every transaction Afterbook asks a wallet to sign carries its Builder Code, ${BUILDER_CODE}, so the activity is attributed onchain.`,
-    `- Approvals are for the exact amount and only for the swap router (KyberSwap, ${basescan(KYBER_ROUTER)}) or the Aave spoke (Aave V4's MAG7 spoke, ${basescan(AAVE_MAG7_SPOKE)}), never unlimited. A request to approve any other spender did not come from Afterbook.`,
+    `- Approvals are for the amount of the action (a repay-all adds a small interest buffer) and only for the swap router (KyberSwap, ${basescan(KYBER_ROUTER)}) or the Aave spoke (Aave V4's MAG7 spoke, ${basescan(AAVE_MAG7_SPOKE)}), never unlimited. A request to approve any other spender did not come from Afterbook.`,
     `- A stock buy is capped at ${SIZE_CAP}.`,
     '- A read that fails is reported as a failure, never as "no gap" or "no loans".',
     '- Trading is not available in the US or its territories.',
@@ -195,7 +195,7 @@ export function buildAgentsMd(): string {
     '',
     '### Tool inputs and examples',
     '',
-    'Each example is the arguments of an MCP tools/call and passes the tool\'s own schema. The wallet in the loan examples is a public contract, standing in for the borrower\'s address.',
+    'Each example is the params of an MCP tools/call (name plus arguments), and its arguments pass the tool\'s own schema. The wallet in the loan examples is a public contract, standing in for the borrower\'s address.',
     '',
     ...TOOLS.flatMap((t) => {
       const name = t.name as McpToolName;
@@ -238,8 +238,8 @@ export function buildAgentsMd(): string {
     `- USDC: ${basescan(USDC.address)} (${USDC.decimals} decimals)`,
     `- Aero CL factory: ${basescan(AERO_CL_FACTORY)}`,
     `- Aerodrome CL factory (older): ${basescan(CL_FACTORY)}`,
-    `- Swap router (KyberSwap MetaAggregationRouterV2), the only contract a swap calls or a swap approval names: ${basescan(KYBER_ROUTER)}`,
-    `- Aave V4 MAG7 spoke, the only contract an in-app loan or USDC deposit calls or approves: ${basescan(AAVE_MAG7_SPOKE)}`,
+    `- Swap router (KyberSwap MetaAggregationRouterV2), the only contract a swap calls and the only spender a swap approval names: ${basescan(KYBER_ROUTER)}`,
+    `- Aave V4 MAG7 spoke, the only contract an in-app loan or USDC deposit calls and the only spender its approvals name: ${basescan(AAVE_MAG7_SPOKE)}`,
     '',
     `## Tracked stocks and pools (${STOCKS.length})`,
     '',
