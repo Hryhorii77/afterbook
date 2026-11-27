@@ -7,8 +7,13 @@
 // and relative imports only, so the generator runs in plain Node.
 import { AERO_CL_FACTORY, CL_FACTORY, STOCKS, USDC } from '../stocks/tokens';
 import { BUILDER_CODE } from '../wallet/builderCode';
-import { AUTO_PICK_HOLD, PLAN_LIMITS } from './limits';
+import { KYBER_ROUTER, MAX_BUY_DEPTH_SHARE, MAX_SWAP_USD } from '../swap/swapConstants';
+import { AAVE_MAG7_SPOKE } from '../lending/aaveBorrow';
+import { RATE_LIMITS, READ_LIMITS } from '../server/rateLimits';
+import { z } from 'zod';
+import { AUTO_PICK_HOLD, BRIEF_LIMITS, PLAN_DEFAULTS, PLAN_LIMITS } from './limits';
 import { FREE_KEY, MCP_URL, PAID, TOOLS } from './agentDirectory';
+import { MCP_EXAMPLES, MCP_INPUTS, type McpToolName } from './mcpTools';
 
 export const SITE = 'https://afterbook.app';
 export const REPO = 'https://github.com/Hryhorii77/afterbook';
@@ -20,6 +25,36 @@ const TAGLINE =
   "Coinbase's tokenized stocks on Base: how far each token trades from the real stock, what a trade would cost in its pool, checked buy plans, and stock-loan health. Agents propose, Afterbook's code checks every number, and a person signs in their own wallet. No agent gets a key, a wallet or a way to sign. Trading is not available in the US or its territories.";
 
 const venue = (factory: string) => (factory === AERO_CL_FACTORY ? 'Aero' : factory === CL_FACTORY ? 'Aerodrome (older factory)' : 'unknown');
+
+/** A contract address with its Basescan link, so an agent can check it. */
+export const basescan = (address: string) => `[${address}](https://basescan.org/address/${address})`;
+const usd = (n: number) => `$${n.toLocaleString('en-US')}`;
+const pct = (share: number) => `${Math.round(share * 100)}%`;
+const WINDOW_WORD: Record<number, string> = { 1000: 'second', 60_000: 'minute', 86_400_000: 'day' };
+/** "1 a second", "10 a minute", "5 a day". */
+const per = (l: { tokens: number; windowMs: number }) => `${l.tokens} a ${WINDOW_WORD[l.windowMs] ?? `${l.windowMs / 1000} s window`}`;
+/** The size cap, in words, from the swap code. */
+export const SIZE_CAP = `the lower of ${usd(MAX_SWAP_USD)} and ${pct(MAX_BUY_DEPTH_SHARE)} of its pool's live depth`;
+
+type Prop = { type?: string; enum?: string[]; minimum?: number; maximum?: number; exclusiveMinimum?: number; pattern?: string; description?: string; items?: Prop; maxItems?: number };
+const isSymbolEnum = (values: string[]) => values.length === STOCKS.length && STOCKS.every((s) => values.includes(s.symbol));
+const kind = (p: Prop): string => {
+  if (p.enum) return isSymbolEnum(p.enum) ? 'a symbol from the table below' : `one of ${p.enum.map((v) => `"${v}"`).join(', ')}`;
+  if (p.type === 'array' && p.items) return `a list${p.maxItems != null ? ` of up to ${p.maxItems}` : ''}, each ${kind(p.items)}`;
+  if (p.pattern) return `a ${p.type} matching ${p.pattern}`;
+  const max = p.maximum?.toLocaleString('en-US');
+  const range =
+    p.minimum != null && max != null ? `, ${p.minimum} to ${max}` : p.exclusiveMinimum != null && max != null ? `, more than ${p.exclusiveMinimum}, up to ${max}` : '';
+  return `${p.type}${range}`;
+};
+
+/** One tool's inputs, from its MCP schema: name, required or optional, type and range or choices, description. */
+export function toolInputs(name: McpToolName): string[] {
+  const schema = z.toJSONSchema(MCP_INPUTS[name]) as { properties?: Record<string, Prop>; required?: string[] };
+  const props = Object.entries(schema.properties ?? {});
+  if (!props.length) return ['- No inputs.'];
+  return props.map(([key, p]) => `- \`${key}\` (${schema.required?.includes(key) ? 'required' : 'optional'}): ${kind(p)}${p.description ? `. ${p.description}` : ''}`);
+}
 
 /** Pages that exist in app/ (a test checks each one has a page file). */
 export const SITE_ROUTES: { path: string; what: string }[] = [
@@ -123,8 +158,8 @@ export function buildAgentsMd(): string {
     // Never state the fee's current setting here: this text is fixed at build time and the fee is an env setting.
     '- Afterbook\'s own swap fee is a setting that can change. Read any fee from the live quote the person reviews before signing, not from this file.',
     `- Every transaction Afterbook asks a wallet to sign carries its Builder Code, ${BUILDER_CODE}, so the activity is attributed onchain.`,
-    '- Approvals are for the exact amount and only for the swap router or the Aave spoke, never unlimited.',
-    '- A stock buy is capped at the lower of $25,000 and 10% of its pool\'s live depth.',
+    `- Approvals are for the exact amount and only for the swap router (KyberSwap, ${basescan(KYBER_ROUTER)}) or the Aave spoke (Aave V4's MAG7 spoke, ${basescan(AAVE_MAG7_SPOKE)}), never unlimited. A request to approve any other spender did not come from Afterbook.`,
+    `- A stock buy is capped at ${SIZE_CAP}.`,
     '- A read that fails is reported as a failure, never as "no gap" or "no loans".',
     '- Trading is not available in the US or its territories.',
     '',
@@ -144,17 +179,48 @@ export function buildAgentsMd(): string {
     `- Endpoint (streamable HTTP): ${MCP_URL}`,
     `- MCP Registry: ${MCP_REGISTRY_NAME}`,
     `- Claude Code: \`claude mcp add --transport http afterbook ${MCP_URL}\``,
-    '- make_plan and make_basket: 10 calls a minute per caller and at most 300 saved plan links a day; check_loan_health: 10 a minute.',
     '',
     '| Tool | What it does |',
     '| --- | --- |',
     ...TOOLS.map((t) => `| ${t.name} | ${t.does} |`),
     '',
+    '### What a plan\'s limits mean',
+    '',
+    `- Cost limit (maxCostBp): the most one fill may cost, in basis points: the price impact in the pool plus the pool's fee, plus Afterbook's own swap fee if one is set. Default ${PLAN_DEFAULTS.maxCostBp} bp (${PLAN_DEFAULTS.maxCostBp / 100}%), at most ${PLAN_LIMITS.maxCostBp} bp. A buy that would cost more is made smaller or skipped.`,
+    `- Size cap: every buy, whatever the budget, is capped at ${SIZE_CAP}.`,
+    `- Premium limit (maxPremiumBp): the most the token may trade above the real stock, default ${PLAN_DEFAULTS.maxPremiumBp} bp, at most ${PLAN_LIMITS.maxPremiumBp} bp.`,
+    `- Gap stop: a gap wider than ${PLAN_LIMITS.maxAbsGapBp} bp either way waits, whatever the limits above.`,
+    `- Earnings (earningsDays): wait if the company reports within this many days, default ${PLAN_DEFAULTS.earningsDays}.`,
+    `- Budgets: a plan takes ${usd(PLAN_LIMITS.minBudgetUsd)} to ${usd(PLAN_LIMITS.maxBudgetUsd)}; a basket (one basket buy) ${usd(PLAN_LIMITS.minBudgetUsd)} to ${usd(BRIEF_LIMITS.maxBudgetUsd)}.`,
+    '',
+    '### Tool inputs and examples',
+    '',
+    'Each example is the arguments of an MCP tools/call and passes the tool\'s own schema. The wallet in the loan examples is a public contract, standing in for the borrower\'s address.',
+    '',
+    ...TOOLS.flatMap((t) => {
+      const name = t.name as McpToolName;
+      return [`#### ${name}`, '', ...toolInputs(name), '', `Example: \`${JSON.stringify({ name, arguments: MCP_EXAMPLES[name] })}\``, ''];
+    }),
+    '### Rate limits',
+    '',
+    '| What | Limit | When it is hit |',
+    '| --- | --- | --- |',
+    `| MCP make_plan, make_basket | ${per(RATE_LIMITS.mcpPlan)} per caller, one plan call per request; at most ${RATE_LIMITS.planLinkDay.tokens} saved plan links a day site-wide (shared with the Telegram bot) | HTTP 429 with JSON-RPC error -32000 and a Retry-After header in seconds; two plan calls in one batch get 400. Past the daily link cap the plan still answers, with planUrl or buyUrl null. |`,
+    `| MCP check_loan_health, make_rescue_link | ${per(READ_LIMITS.lots)} per IP, one loan call per request | HTTP 429 with JSON-RPC error -32000 and Retry-After. |`,
+    '| MCP get_tape, get_quote, get_basis_stats | No per-caller limit from Afterbook | - |',
+    `| GET /api/v1/tape | ${per(RATE_LIMITS.apiTape)} per key | HTTP 429 with Retry-After. |`,
+    `| POST /api/v1/keys | ${per(RATE_LIMITS.apiKeys)} per IP | HTTP 429, no Retry-After: try the next day. |`,
+    `| x402 plan, basket, loan-health | ${per(READ_LIMITS.lots)} per IP | HTTP 429 with Retry-After, checked before the payment settles, so a 429 is not charged. |`,
+    '| Other x402 routes | None: payment is the limit | - |',
+    `| The site's own read routes | ${per(READ_LIMITS.read)} per IP for most, ${per(READ_LIMITS.lots)} for /api/lots and /api/loans, ${per(READ_LIMITS.basename)} for /api/basename | HTTP 429 with Retry-After. |`,
+    '',
+    '- Limits counted in memory (the MCP loan tools, the x402 plan, basket and loan-health routes, the site\'s read routes) are per server instance, so they are a brake, not an exact count. Wait for Retry-After before trying again.',
+    '',
     '### Free HTTP reads',
     '',
     `- ${FREE_KEY.issue}, then ${FREE_KEY.use}. ${FREE_KEY.note}`,
     '- The free-key tape returns, per stock: symbol, cashUsd, midUsd, basisBp, depthUsd, plus the market session. It does not include the close or which kind of price cashUsd is.',
-    '- The site\'s own read routes are limited per IP: 60 a minute for most, 10 a minute for /api/lots and /api/loans, 20 a minute for /api/basename. They are for the site\'s pages; agents should prefer MCP or /api/v1.',
+    '- The site\'s own read routes (limits under Rate limits) are for the site\'s pages; agents should prefer MCP or /api/v1.',
     '',
     '### Pay per call over x402 (USDC on Base, no key)',
     '',
@@ -169,17 +235,19 @@ export function buildAgentsMd(): string {
     '- Base mainnet only. Chain ID 8453.',
     '- RPC: https://mainnet.base.org, then https://base-rpc.publicnode.com',
     '- Explorer: https://basescan.org',
-    `- USDC: ${USDC.address} (${USDC.decimals} decimals)`,
-    `- Aero CL factory: ${AERO_CL_FACTORY}`,
-    `- Aerodrome CL factory (older): ${CL_FACTORY}`,
+    `- USDC: ${basescan(USDC.address)} (${USDC.decimals} decimals)`,
+    `- Aero CL factory: ${basescan(AERO_CL_FACTORY)}`,
+    `- Aerodrome CL factory (older): ${basescan(CL_FACTORY)}`,
+    `- Swap router (KyberSwap MetaAggregationRouterV2), the only contract a swap calls or a swap approval names: ${basescan(KYBER_ROUTER)}`,
+    `- Aave V4 MAG7 spoke, the only contract an in-app loan or USDC deposit calls or approves: ${basescan(AAVE_MAG7_SPOKE)}`,
     '',
     `## Tracked stocks and pools (${STOCKS.length})`,
     '',
     'Each stock\'s deepest USDC pool. Addresses are checksummed and come from lib/stocks/tokens.ts.',
     '',
-    '| Symbol | Stock | Token | Decimals | USDC pool | Venue |',
+    '| Symbol | Stock | Token | Decimals | USDC pool | Factory |',
     '| --- | --- | --- | --- | --- | --- |',
-    ...STOCKS.map((s) => `| ${s.symbol} | ${s.name} (${s.cashTicker}) | ${s.tokenAddress} | ${s.decimals} | ${s.pool.address} | ${venue(s.pool.factory)} |`),
+    ...STOCKS.map((s) => `| ${s.symbol} | ${s.name} (${s.cashTicker}) | ${s.tokenAddress} | ${s.decimals} | ${s.pool.address} | ${venue(s.pool.factory)}, ${s.pool.factory} |`),
     '',
     '## Site routes',
     '',

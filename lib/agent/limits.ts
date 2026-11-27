@@ -17,6 +17,17 @@ export const PLAN_LIMITS = {
   maxAbsGapBp: 300,
 } as const;
 
+/** The defaults when a plan or a basket leaves a limit out (plan.ts and brief.ts, the MCP tools' descriptions, /AGENTS.md). */
+export const PLAN_DEFAULTS = {
+  maxPremiumBp: 50,
+  /** The cost limit: the most a fill may cost, price impact plus the pool's fee, in bp. */
+  maxCostBp: 30,
+  earningsDays: 2,
+} as const;
+
+/** "Describe a basket"'s own defaults. */
+export const BRIEF_DEFAULTS = { minStocks: 3, cashPct: 0 } as const;
+
 /** The earnings choices the plan and the basket forms offer. */
 export const EARNINGS_OPTIONS = [
   { days: 0, label: 'Ignore earnings' },

@@ -1,9 +1,8 @@
 import { createMcpHandler } from 'mcp-handler';
-import { BRIEF_LIMITS, PLAN_LIMITS } from '@/lib/agent/limits';
-import { z } from 'zod';
+import { MCP_INPUTS } from '@/lib/agent/mcpTools';
 import { getTape } from '@/lib/market/tape';
 import { toPublicTape } from '@/lib/market/publicTape';
-import { getStock, STOCKS } from '@/lib/stocks/tokens';
+import { getStock } from '@/lib/stocks/tokens';
 import { getBuyQuoter } from '@/lib/market/lotQuote';
 import { getClosedPeriodStats } from '@/lib/market/history';
 import { parsePlanInput } from '@/lib/agent/plan';
@@ -12,14 +11,13 @@ import { runPlan, runBrief } from '@/lib/agent/runPlan';
 import { saveStockPlan, saveBasket } from '@/lib/agent/savedPlan';
 import { hasLinkableBuy, planLinkPath } from '@/lib/agent/planLink';
 import { siteUrl } from '@/lib/share/siteUrl';
-import { SECTORS, THEMES } from '@/lib/stocks/sectors';
 import { limitRead } from '@/lib/server/readGuard';
 import { mcpPlanLimiter, planLinkDailyLimiter } from '@/lib/server/ratelimit';
 import { callerIp } from '@/lib/agent/explainGate';
 import { NextResponse } from 'next/server';
 import { getAddress } from 'viem';
 import { loanHealthReport } from '@/lib/lending/loanReport';
-import { DEFAULT_ALERT_HEALTH, MAX_ALERT_HEALTH, MIN_ALERT_HEALTH, healthAtAero } from '@/lib/lending/loanHealth';
+import { DEFAULT_ALERT_HEALTH, healthAtAero } from '@/lib/lending/loanHealth';
 import { getWalletLoans } from '@/lib/lending/loanPositions';
 import { rescueLinks, rescueScenario } from '@/lib/lending/rescueLink';
 
@@ -28,8 +26,6 @@ const HISTORY_LOOKBACK_MS = 30 * 24 * 60 * 60_000;
 export const revalidate = 0;
 export const maxDuration = 60;
 
-const SYMBOLS = STOCKS.map((s) => s.symbol) as [string, ...string[]];
-
 const handler = createMcpHandler((server) => {
   server.registerTool(
     'get_tape',
@@ -37,7 +33,7 @@ const handler = createMcpHandler((server) => {
       title: 'Get Tape',
       description:
         "Cash-market close price vs the on-chain price on Aero (formerly Aerodrome) for the Coinbase tokenized stocks Afterbook tracks on Base — basis in bp and real pool depth. Read-only; no wallet is ever involved.",
-      inputSchema: z.object({}),
+      inputSchema: MCP_INPUTS.get_tape,
     },
     async () => {
       const tape = await getTape();
@@ -51,10 +47,7 @@ const handler = createMcpHandler((server) => {
       title: 'Get Quote',
       description:
         'Estimate shares out, execution price, and price impact for sizing a USDC -> stock trade on one of the tracked pools. This is a local estimate for sizing a trade, not a firm quote — the actual fill happens on chain, through the swap on afterbook.app, signed in the trader\'s own wallet (make_plan returns a link that opens it filled in); this tool signs nothing.',
-      inputSchema: z.object({
-        symbol: z.enum(SYMBOLS),
-        usdcIn: z.number().positive().max(10_000_000),
-      }),
+      inputSchema: MCP_INPUTS.get_quote,
     },
     async ({ symbol, usdcIn }) => {
       const stock = getStock(symbol);
@@ -74,9 +67,7 @@ const handler = createMcpHandler((server) => {
       title: 'Get Basis Stats',
       description:
         'How big the basis typically gets while the cash market is NOT open, over the last 30 days — mean, mean absolute, and max absolute basis in bp, sampled every 5 minutes off real traffic. Returns null if there is not enough sampled history yet.',
-      inputSchema: z.object({
-        symbol: z.enum(SYMBOLS),
-      }),
+      inputSchema: MCP_INPUTS.get_basis_stats,
     },
     async ({ symbol }) => {
       const stats = await getClosedPeriodStats(symbol, Date.now() - HISTORY_LOOKBACK_MS);
@@ -100,13 +91,7 @@ const handler = createMcpHandler((server) => {
       title: 'Make a trade plan',
       description:
         'A checked trade plan for Coinbase tokenized stocks on Base: for each stock a buy, wait or skip verdict with reasons (gap to the real stock, stale pool, earnings, depth) and a size within your cost limit, $25k and 10% of the pool. Returns planUrl, a link where a person opens the plan on afterbook.app and signs each buy in their own wallet, after the checks run again and never for more than the plan shows. Reads only; signs nothing.',
-      inputSchema: z.object({
-        symbols: z.array(z.enum(SYMBOLS)).max(8).optional().describe('Stocks to check; none = the deepest pools.'),
-        budgetUsd: z.number().min(PLAN_LIMITS.minBudgetUsd).max(PLAN_LIMITS.maxBudgetUsd).describe(`USDC to plan, $${PLAN_LIMITS.minBudgetUsd} to $${PLAN_LIMITS.maxBudgetUsd.toLocaleString('en-US')}; each buy is still capped at $25,000 and 10% of its pool.`),
-        maxPremiumBp: z.number().min(0).max(PLAN_LIMITS.maxPremiumBp).optional().describe(`Most the token may trade above the cash price, in bp, 0 to ${PLAN_LIMITS.maxPremiumBp} (default 50).`),
-        maxCostBp: z.number().min(1).max(PLAN_LIMITS.maxCostBp).optional().describe(`Most a fill may cost, price impact plus pool fee, in bp, 1 to ${PLAN_LIMITS.maxCostBp} (default 30).`),
-        earningsDays: z.number().int().min(0).max(PLAN_LIMITS.maxEarningsDays).optional().describe(`Wait if earnings are within this many days, 0 to ${PLAN_LIMITS.maxEarningsDays} (default 2).`),
-      }),
+      inputSchema: MCP_INPUTS.make_plan,
     },
     async (args) => {
       const input = parsePlanInput({ ...args, symbols: args.symbols ?? [] }, (sym) => !!getStock(sym));
@@ -130,16 +115,7 @@ const handler = createMcpHandler((server) => {
       title: 'Make a basket',
       description:
         'A 2-4 stock basket of Coinbase tokenized stocks on Base from a theme or sectors: the code picks the deepest steady pools that pass the checks and sizes them within your budget and cost limit, with every dropped stock and why. Returns buyUrl, a link where a person opens the basket on afterbook.app and signs its buy in their own wallet, after the checks run again and never for more than the basket shows. Reads only; signs nothing.',
-      inputSchema: z.object({
-        theme: z.enum(['Any', ...THEMES]).optional().describe('One of Afterbook\'s fixed themes (default: Any).'),
-        exclude: z.array(z.enum(SECTORS)).optional().describe('GICS sectors to leave out.'),
-        minStocks: z.number().int().min(BRIEF_LIMITS.minStocks).max(BRIEF_LIMITS.maxStocks).optional().describe(`Spread over at least this many stocks, ${BRIEF_LIMITS.minStocks} to ${BRIEF_LIMITS.maxStocks} (default 3).`),
-        budgetUsd: z.number().min(PLAN_LIMITS.minBudgetUsd).max(BRIEF_LIMITS.maxBudgetUsd).describe(`USDC for the basket, $${PLAN_LIMITS.minBudgetUsd} to $${BRIEF_LIMITS.maxBudgetUsd.toLocaleString('en-US')} (one basket buy).`),
-        cashPct: z.number().min(0).max(BRIEF_LIMITS.maxCashPct).optional().describe(`Percent of the budget to keep as cash, 0 to ${BRIEF_LIMITS.maxCashPct} (default 0).`),
-        maxPremiumBp: z.number().min(0).max(PLAN_LIMITS.maxPremiumBp).optional().describe(`Most a token may trade above the cash price, in bp, 0 to ${PLAN_LIMITS.maxPremiumBp} (default 50).`),
-        maxCostBp: z.number().min(1).max(PLAN_LIMITS.maxCostBp).optional().describe(`Most a fill may cost, price impact plus pool fee, in bp, 1 to ${PLAN_LIMITS.maxCostBp} (default 30).`),
-        earningsDays: z.number().int().min(0).max(PLAN_LIMITS.maxEarningsDays).optional().describe(`Wait if earnings are within this many days, 0 to ${PLAN_LIMITS.maxEarningsDays} (default 2).`),
-      }),
+      inputSchema: MCP_INPUTS.make_basket,
     },
     async (args) => {
       const input = parseBriefInput({ ...args, exclude: args.exclude ?? [] });
@@ -163,10 +139,7 @@ const handler = createMcpHandler((server) => {
       title: 'Check loan health',
       description:
         "A wallet's Aave V4 and Morpho stock-token loans on Base: health at the lending oracle and at Aero's onchain price, which keeps trading while the cash market is shut (healthIfNextOpenAtBase: the loan's health if the next open matches Base's price, e.g. over a weekend), how far the collateral could fall before liquidation, whether it is under the threshold, and for an Aave loan links that open Afterbook's Aave panel with the repay or the added collateral worked out from the connected wallet's own loan, for the person to check and sign. Reads public positions only; signs nothing.",
-      inputSchema: z.object({
-        wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/).describe('The borrower address.'),
-        threshold: z.number().min(MIN_ALERT_HEALTH).max(MAX_ALERT_HEALTH).optional().describe(`Health to flag loans under (default ${DEFAULT_ALERT_HEALTH}).`),
-      }),
+      inputSchema: MCP_INPUTS.check_loan_health,
     },
     async ({ wallet, threshold }) => {
       try {
@@ -188,11 +161,7 @@ const handler = createMcpHandler((server) => {
       title: 'Make a loan rescue link',
       description:
         "For a wallet's Aave V4 stock loan on Base: a link that opens Afterbook's Aave panel with its rescue planner set to repay USDC or add collateral, at the price fall implied by Base's price now and a target health above your threshold. The link carries no amount and no wallet: the panel fills the Repay or Add field from the loan of the wallet the person connects, and they check it and sign. Returns null url with a reason for a wallet with no Aave loan (Morpho loans have no in-app panel). Reads public positions only; signs nothing.",
-      inputSchema: z.object({
-        wallet: z.string().regex(/^0x[0-9a-fA-F]{40}$/).describe('The borrower address.'),
-        action: z.enum(['repay', 'add']).describe('repay = pay back USDC; add = post more of a stock already in the wallet as collateral.'),
-        threshold: z.number().min(MIN_ALERT_HEALTH).max(MAX_ALERT_HEALTH).optional().describe(`The health line to get back above (default ${DEFAULT_ALERT_HEALTH}).`),
-      }),
+      inputSchema: MCP_INPUTS.make_rescue_link,
     },
     async ({ wallet, action, threshold }) => {
       try {

@@ -1,5 +1,6 @@
 import { Ratelimit, type Duration } from '@upstash/ratelimit';
 import { redis } from './redis';
+import { RATE_LIMITS, READ_LIMITS } from './rateLimits';
 
 /** What callers read from `.limit()`: the Upstash result's shape, trimmed to what they use. */
 interface LimitResult {
@@ -67,11 +68,11 @@ const MINUTE = 60 * SECOND;
 // this app, but callers here should treat a null limiter as "can't verify,
 // refuse" rather than "allow," since the whole point of a key system is the
 // check actually happening.
-export const tapeLimiter = redis ? new SafeLimiter('ratelimit:tape', 1, '1 s', SECOND) : null;
+export const tapeLimiter = redis ? new SafeLimiter('ratelimit:tape', RATE_LIMITS.apiTape.tokens, RATE_LIMITS.apiTape.window, RATE_LIMITS.apiTape.windowMs) : null;
 
 // Abuse guard on key creation itself, not a hard security boundary — this
 // is a free, frictionless self-serve flow by design.
-export const keyCreationLimiter = redis ? new SafeLimiter('ratelimit:keys', 5, '1 d', 24 * 60 * MINUTE) : null;
+export const keyCreationLimiter = redis ? new SafeLimiter('ratelimit:keys', RATE_LIMITS.apiKeys.tokens, RATE_LIMITS.apiKeys.window, RATE_LIMITS.apiKeys.windowMs) : null;
 
 // Outbound-click logging (lib/server/clicks.ts) is analytics, not a security
 // boundary, but it's still a public unauthenticated write — this just
@@ -96,9 +97,9 @@ export const swapLimiter = redis ? new SafeLimiter('ratelimit:swap', 30, '1 m', 
 // Redis: these are polled by every open tab. Generous next to what the app itself sends (My Lots reads
 // /api/lots once per wallet; the tape page polls the others once a minute and on a stock change).
 export const readLimiters = {
-  lots: new MemoryLimiter(10, MINUTE),
-  basename: new MemoryLimiter(20, MINUTE),
-  read: new MemoryLimiter(60, MINUTE),
+  lots: new MemoryLimiter(READ_LIMITS.lots.tokens, READ_LIMITS.lots.windowMs),
+  basename: new MemoryLimiter(READ_LIMITS.basename.tokens, READ_LIMITS.basename.windowMs),
+  read: new MemoryLimiter(READ_LIMITS.read.tokens, READ_LIMITS.read.windowMs),
 };
 
 // The trade plan (/api/agent/plan) calls Claude, which is billed per call: a few plans an hour per
@@ -112,5 +113,5 @@ export const agentDailyLimiter = redis ? new SafeLimiter('ratelimit:agent-day', 
 // per caller across every instance (the in-memory limitRead counts each instance on its own), and a
 // ceiling on links saved site-wide per day. Past the daily one the plan still answers, without a link.
 // Paid x402 plans aren't held to either: payment is their throttle.
-export const mcpPlanLimiter = redis ? new SafeLimiter('ratelimit:mcp-plan', 10, '1 m', MINUTE, 5) : null;
-export const planLinkDailyLimiter = redis ? new SafeLimiter('ratelimit:planlink-day', 300, '1 d', 24 * HOUR, 50) : null;
+export const mcpPlanLimiter = redis ? new SafeLimiter('ratelimit:mcp-plan', RATE_LIMITS.mcpPlan.tokens, RATE_LIMITS.mcpPlan.window, RATE_LIMITS.mcpPlan.windowMs, 5) : null;
+export const planLinkDailyLimiter = redis ? new SafeLimiter('ratelimit:planlink-day', RATE_LIMITS.planLinkDay.tokens, RATE_LIMITS.planLinkDay.window, RATE_LIMITS.planLinkDay.windowMs, 50) : null;

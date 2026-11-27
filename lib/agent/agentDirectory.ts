@@ -3,6 +3,7 @@
 // (app/api/mcp/route.ts, app/api/v1/*, lib/server/x402Prices.ts). /llms.txt and /AGENTS.md are built from it
 // (lib/agent/agentsMd.ts).
 import { X402_PRICE, X402_PRICE_PREMIUM } from '../server/x402Prices';
+import { RATE_LIMITS } from '../server/rateLimits';
 
 export const MCP_URL = 'https://afterbook.app/api/mcp';
 
@@ -32,5 +33,5 @@ export const PAID: { route: string; price: string; does: string }[] = [
 export const FREE_KEY = {
   issue: 'POST https://afterbook.app/api/v1/keys',
   use: 'GET https://afterbook.app/api/v1/tape with Authorization: Bearer <key>',
-  note: 'Free, no sign-up: the key is shown once (only its hash is stored) and lasts a year. Limits: 1 request a second per key, and 5 new keys a day per IP.',
+  note: `Free, no sign-up: the key is shown once (only its hash is stored) and lasts a year. Limits: ${RATE_LIMITS.apiTape.tokens} request a second per key, and ${RATE_LIMITS.apiKeys.tokens} new keys a day per IP.`,
 };
