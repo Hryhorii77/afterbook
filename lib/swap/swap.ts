@@ -9,10 +9,11 @@
 import { decodeFunctionData, getAddress, isAddress, parseAbi, type Hex } from 'viem';
 import { STOCKS, USDC, type CbStock } from '../stocks/tokens';
 import type { MemePool } from '../memes/memestocks';
+import { KYBER_ROUTER, MAX_BUY_DEPTH_SHARE, MAX_SWAP_USD } from './swapConstants';
 
-/** KyberSwap MetaAggregationRouterV2 on Base (verified source on Sourcify). The only contract a swap
- *  transaction may target and the only spender a swap approval may name. */
-export const KYBER_ROUTER = '0x6131B5fae19EA4f9D964eAc0408E4408b66337b5' as const;
+/** The router and the caps live in swapConstants.ts (pure, read by /AGENTS.md); re-exported for every caller. */
+export { KYBER_ROUTER, MAX_BUY_DEPTH_SHARE, MAX_SWAP_USD };
+
 /** Default slippage limit, 0.5%: the wallet's transaction reverts rather than fill below quote minus
  *  this. The trader may pick MIN_SLIPPAGE_BPS..MAX_SLIPPAGE_BPS (owner, 2026-11-03: 0.1-1%, default
  *  0.5%, the same for memes); the server builds and checks every swap with the request's value. */
@@ -27,12 +28,6 @@ export function parseSlippageBps(input: unknown): number | string {
   if (!Number.isInteger(n) || n < MIN_SLIPPAGE_BPS || n > MAX_SLIPPAGE_BPS) return `slippageBps must be a whole number from ${MIN_SLIPPAGE_BPS} to ${MAX_SLIPPAGE_BPS}`;
   return n;
 }
-/** Largest single swap the panel builds, in USD. A UX guard, not a security control. */
-export const MAX_SWAP_USD = 25_000;
-/** A stock buy is also capped at this share of the stock's live pool depth (owner, 2026-10-27): the
- *  18 stocks added that day sit in pools of about $51k, where a $25k buy would move the price a long
- *  way. Pools over $250k are unaffected (the $25k cap is lower). A UX guard like MAX_SWAP_USD. */
-export const MAX_BUY_DEPTH_SHARE = 0.1;
 /** Memes are thin and most go to zero: a much smaller cap per buy. */
 export const MAX_MEME_SWAP_USD = 1_000;
 

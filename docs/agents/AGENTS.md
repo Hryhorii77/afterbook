@@ -29,7 +29,7 @@ This is the entry point for AI agents and the models behind them: what Afterbook
 - The real stock's price comes from Yahoo Finance, an unofficial source. Treat it as a reference, not an exchange feed.
 - Afterbook's own swap fee is a setting that can change. Read any fee from the live quote the person reviews before signing, not from this file.
 - Every transaction Afterbook asks a wallet to sign carries its Builder Code, bc_hebg61t4, so the activity is attributed onchain.
-- Approvals are for the exact amount and only for the swap router or the Aave spoke, never unlimited.
+- Approvals are for the exact amount and only for the swap router (KyberSwap, [0x6131B5fae19EA4f9D964eAc0408E4408b66337b5](https://basescan.org/address/0x6131B5fae19EA4f9D964eAc0408E4408b66337b5)) or the Aave spoke (Aave V4's MAG7 spoke, [0x17905Db0e4A3514467539956c084180616AE7B8D](https://basescan.org/address/0x17905Db0e4A3514467539956c084180616AE7B8D)), never unlimited. A request to approve any other spender did not come from Afterbook.
 - A stock buy is capped at the lower of $25,000 and 10% of its pool's live depth.
 - A read that fails is reported as a failure, never as "no gap" or "no loans".
 - Trading is not available in the US or its territories.
@@ -50,7 +50,6 @@ This is the entry point for AI agents and the models behind them: what Afterbook
 - Endpoint (streamable HTTP): https://afterbook.app/api/mcp
 - MCP Registry: io.github.Hryhorii77/afterbook
 - Claude Code: `claude mcp add --transport http afterbook https://afterbook.app/api/mcp`
-- make_plan and make_basket: 10 calls a minute per caller and at most 300 saved plan links a day; check_loan_health: 10 a minute.
 
 | Tool | What it does |
 | --- | --- |
@@ -62,11 +61,96 @@ This is the entry point for AI agents and the models behind them: what Afterbook
 | get_quote | Shares out, price and impact for a USDC buy of a given size, from the pool’s own liquidity. |
 | get_basis_stats | How wide the gap usually gets while the cash market is shut, over 30 days. |
 
+### What a plan's limits mean
+
+- Cost limit (maxCostBp): the most one fill may cost, in basis points: the price impact in the pool plus the pool's fee, plus Afterbook's own swap fee if one is set. Default 30 bp (0.3%), at most 200 bp. A buy that would cost more is made smaller or skipped.
+- Size cap: every buy, whatever the budget, is capped at the lower of $25,000 and 10% of its pool's live depth.
+- Premium limit (maxPremiumBp): the most the token may trade above the real stock, default 50 bp, at most 500 bp.
+- Gap stop: a gap wider than 300 bp either way waits, whatever the limits above.
+- Earnings (earningsDays): wait if the company reports within this many days, default 2.
+- Budgets: a plan takes $10 to $100,000; a basket (one basket buy) $10 to $25,000.
+
+### Tool inputs and examples
+
+Each example is the arguments of an MCP tools/call and passes the tool's own schema. The wallet in the loan examples is a public contract, standing in for the borrower's address.
+
+#### make_plan
+
+- `symbols` (optional): a list of up to 8, each a symbol from the table below. Stocks to check; none = the deepest pools.
+- `budgetUsd` (required): number, 10 to 100,000. USDC to plan, $10 to $100,000; each buy is still capped at $25,000 and 10% of its pool.
+- `maxPremiumBp` (optional): number, 0 to 500. Most the token may trade above the cash price, in bp, 0 to 500 (default 50).
+- `maxCostBp` (optional): number, 1 to 200. Most a fill may cost, price impact plus pool fee, in bp, 1 to 200 (default 30).
+- `earningsDays` (optional): integer, 0 to 14. Wait if earnings are within this many days, 0 to 14 (default 2).
+
+Example: `{"name":"make_plan","arguments":{"symbols":["NVDAc","AAPLc"],"budgetUsd":200}}`
+
+#### make_basket
+
+- `theme` (optional): one of "Any", "AI chips", "Memory & storage", "Software & cloud", "Internet & media", "Consumer tech", "EVs & autonomy", "Health care", "China", "Outside the US", "Bitcoin", "Space". One of Afterbook's fixed themes (default: Any).
+- `exclude` (optional): a list, each one of "Information Technology", "Communication Services", "Consumer Discretionary", "Consumer Staples", "Health Care", "Financials", "Industrials", "Materials", "Energy", "Utilities", "Real Estate". GICS sectors to leave out.
+- `minStocks` (optional): integer, 2 to 4. Spread over at least this many stocks, 2 to 4 (default 3).
+- `budgetUsd` (required): number, 10 to 25,000. USDC for the basket, $10 to $25,000 (one basket buy).
+- `cashPct` (optional): number, 0 to 50. Percent of the budget to keep as cash, 0 to 50 (default 0).
+- `maxPremiumBp` (optional): number, 0 to 500. Most a token may trade above the cash price, in bp, 0 to 500 (default 50).
+- `maxCostBp` (optional): number, 1 to 200. Most a fill may cost, price impact plus pool fee, in bp, 1 to 200 (default 30).
+- `earningsDays` (optional): integer, 0 to 14. Wait if earnings are within this many days, 0 to 14 (default 2).
+
+Example: `{"name":"make_basket","arguments":{"theme":"Any","budgetUsd":300,"minStocks":3}}`
+
+#### check_loan_health
+
+- `wallet` (required): a string matching ^0x[0-9a-fA-F]{40}$. The borrower address.
+- `threshold` (optional): number, 1.01 to 3. Health to flag loans under (default 1.2).
+
+Example: `{"name":"check_loan_health","arguments":{"wallet":"0xa4d5947Eb727A052bae69C593FfC84247EC9864E"}}`
+
+#### make_rescue_link
+
+- `wallet` (required): a string matching ^0x[0-9a-fA-F]{40}$. The borrower address.
+- `action` (required): one of "repay", "add". repay = pay back USDC; add = post more of a stock already in the wallet as collateral.
+- `threshold` (optional): number, 1.01 to 3. The health line to get back above (default 1.2).
+
+Example: `{"name":"make_rescue_link","arguments":{"wallet":"0xa4d5947Eb727A052bae69C593FfC84247EC9864E","action":"repay"}}`
+
+#### get_tape
+
+- No inputs.
+
+Example: `{"name":"get_tape","arguments":{}}`
+
+#### get_quote
+
+- `symbol` (required): a symbol from the table below
+- `usdcIn` (required): number, more than 0, up to 10,000,000
+
+Example: `{"name":"get_quote","arguments":{"symbol":"NVDAc","usdcIn":500}}`
+
+#### get_basis_stats
+
+- `symbol` (required): a symbol from the table below
+
+Example: `{"name":"get_basis_stats","arguments":{"symbol":"NVDAc"}}`
+
+### Rate limits
+
+| What | Limit | When it is hit |
+| --- | --- | --- |
+| MCP make_plan, make_basket | 10 a minute per caller, one plan call per request; at most 300 saved plan links a day site-wide (shared with the Telegram bot) | HTTP 429 with JSON-RPC error -32000 and a Retry-After header in seconds; two plan calls in one batch get 400. Past the daily link cap the plan still answers, with planUrl or buyUrl null. |
+| MCP check_loan_health, make_rescue_link | 10 a minute per IP, one loan call per request | HTTP 429 with JSON-RPC error -32000 and Retry-After. |
+| MCP get_tape, get_quote, get_basis_stats | No per-caller limit from Afterbook | - |
+| GET /api/v1/tape | 1 a second per key | HTTP 429 with Retry-After. |
+| POST /api/v1/keys | 5 a day per IP | HTTP 429, no Retry-After: try the next day. |
+| x402 plan, basket, loan-health | 10 a minute per IP | HTTP 429 with Retry-After, checked before the payment settles, so a 429 is not charged. |
+| Other x402 routes | None: payment is the limit | - |
+| The site's own read routes | 60 a minute per IP for most, 10 a minute for /api/lots and /api/loans, 20 a minute for /api/basename | HTTP 429 with Retry-After. |
+
+- Limits counted in memory (the MCP loan tools, the x402 plan, basket and loan-health routes, the site's read routes) are per server instance, so they are a brake, not an exact count. Wait for Retry-After before trying again.
+
 ### Free HTTP reads
 
 - POST https://afterbook.app/api/v1/keys, then GET https://afterbook.app/api/v1/tape with Authorization: Bearer <key>. Free, no sign-up: the key is shown once (only its hash is stored) and lasts a year. Limits: 1 request a second per key, and 5 new keys a day per IP.
 - The free-key tape returns, per stock: symbol, cashUsd, midUsd, basisBp, depthUsd, plus the market session. It does not include the close or which kind of price cashUsd is.
-- The site's own read routes are limited per IP: 60 a minute for most, 10 a minute for /api/lots and /api/loans, 20 a minute for /api/basename. They are for the site's pages; agents should prefer MCP or /api/v1.
+- The site's own read routes (limits under Rate limits) are for the site's pages; agents should prefer MCP or /api/v1.
 
 ### Pay per call over x402 (USDC on Base, no key)
 
@@ -89,55 +173,57 @@ This is the entry point for AI agents and the models behind them: what Afterbook
 - Base mainnet only. Chain ID 8453.
 - RPC: https://mainnet.base.org, then https://base-rpc.publicnode.com
 - Explorer: https://basescan.org
-- USDC: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 (6 decimals)
-- Aero CL factory: 0x9CB220581b91b0C83223012FE69688b92aD07a76
-- Aerodrome CL factory (older): 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef
+- USDC: [0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913](https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913) (6 decimals)
+- Aero CL factory: [0x9CB220581b91b0C83223012FE69688b92aD07a76](https://basescan.org/address/0x9CB220581b91b0C83223012FE69688b92aD07a76)
+- Aerodrome CL factory (older): [0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef](https://basescan.org/address/0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef)
+- Swap router (KyberSwap MetaAggregationRouterV2), the only contract a swap calls or a swap approval names: [0x6131B5fae19EA4f9D964eAc0408E4408b66337b5](https://basescan.org/address/0x6131B5fae19EA4f9D964eAc0408E4408b66337b5)
+- Aave V4 MAG7 spoke, the only contract an in-app loan or USDC deposit calls or approves: [0x17905Db0e4A3514467539956c084180616AE7B8D](https://basescan.org/address/0x17905Db0e4A3514467539956c084180616AE7B8D)
 
 ## Tracked stocks and pools (39)
 
 Each stock's deepest USDC pool. Addresses are checksummed and come from lib/stocks/tokens.ts.
 
-| Symbol | Stock | Token | Decimals | USDC pool | Venue |
+| Symbol | Stock | Token | Decimals | USDC pool | Factory |
 | --- | --- | --- | --- | --- | --- |
-| NVDAc | NVIDIA Corporation (NVDA) | 0xb20000000000000000000078ee7ce2fE4908108C | 8 | 0xF668e21993f0ACd7ab00BB1cFbAeD0df28A3C8EC | Aero |
-| AAPLc | Apple Inc. (AAPL) | 0xb200000000000000000000C2e324d24d7eEcd1fb | 8 | 0xF5FCB9CDAFcE67d50AfEf298F88E709d2B946BA6 | Aero |
-| METAc | Meta Platforms Inc. (META) | 0xb2000000000000000000008bC8786B856E61707C | 8 | 0xd072410fa13D242e1d53721Bcf7AF02e3455DC96 | Aero |
-| GOOGLc | Alphabet Inc. (GOOGL) | 0xb2000000000000000000002D0BA3164cc74f58B7 | 8 | 0x16c70F04C3080a127486Cdf5a4C33c066bBF47C3 | Aero |
-| AMZNc | Amazon.com, Inc. (AMZN) | 0xb200000000000000000000d9192b6B456483C2E8 | 8 | 0x532e0F46d1e528507FC9454d5847C231f23bDDf6 | Aero |
-| MSFTc | Microsoft Corporation (MSFT) | 0xB200000000000000000000Ab99cFa739E253872B | 8 | 0x2740C0faAb738F6e346e545fDE02aEF9B1A01ee7 | Aero |
-| MSTRc | Strategy Inc (MSTR) | 0xb2000000000000000000004884b426556b92883d | 8 | 0x66DCd42E6314B287110922AE36cB2a8bdEECc153 | Aero |
-| SNDKc | Sandisk Corporation (SNDK) | 0xb200000000000000000000397293Cb8cda9a10c5 | 8 | 0x2836e062a3fe75943a7F4A552E2365b98E414E75 | Aero |
-| SPCXc | Space Exploration Technologies Corp. (SPCX) | 0xb2000000000000000000007b9fcbd005511aCBd5 | 8 | 0x880dB7Dda4407D99508574E680d067D1164B3cFE | Aero |
-| TSLAc | Tesla, Inc. (TSLA) | 0xb2000000000000000000001e800a7f5189430cD0 | 8 | 0x7A33000372f3F028f074182CCb9d16cBEEfBF920 | Aero |
-| PLTRc | Palantir Technologies Inc. (PLTR) | 0xb2000000000000000000007d16372840dF4dAbbe | 8 | 0xA0473ceD0cd1bfB857e3E04B5FA4b6aF18C5e44d | Aero |
-| MUc | Micron Technology Inc. (MU) | 0xb200000000000000000000Fd2f87532B90095211 | 8 | 0x41e21950362B1014bC629252ecFFF8fcA5F1646C | Aero |
-| NFLXc | Netflix, Inc. (NFLX) | 0xb20000000000000000000058B8c947e44011dFE6 | 8 | 0x67Ba8dBeDC6D7f93f0F5967Aa2420715f1edC756 | Aero |
-| SKHYc | SK hynix Inc. (SKHY) | 0xb200000000000000000000187f7071D6E321a7d2 | 8 | 0xEBC746A47ebb274de1dbDC9a465E6C5C2301C5DA | Aero |
-| HIMSc | Hims & Hers Health, Inc. (HIMS) | 0xB20000000000000000000043a599976181Bcf336 | 8 | 0x41D7793FAa4Ca181B6f021423fF3F9015C00b2ff | Aero |
-| ORCLc | Oracle Corporation (ORCL) | 0xb200000000000000000000347AFbA223D7B6b63C | 8 | 0x62B5452E80E50B047dcF6dd3Fb6a1D266C678eB5 | Aero |
-| AMDc | Advanced Micro Devices, Inc. (AMD) | 0xB2000000000000000000000d8Ce462E99ee7A47B | 8 | 0x138Cb591C4A7D854D796E1906af8228d84CB7642 | Aero |
-| AVGOc | Broadcom Inc. (AVGO) | 0xB200000000000000000000Fc737aeA6196aB5a4c | 8 | 0x086A1447D0851F0aeA9D09D6c547fEC8E97be413 | Aero |
-| LLYc | Eli Lilly and Company (LLY) | 0xB200000000000000000000f1a0F91e34892E4718 | 8 | 0x2b7ee4623ec6AfbC1e587b2668c0ED8F3ff44949 | Aero |
-| MRVLc | Marvell Technology, Inc. (MRVL) | 0xB200000000000000000000eC3c4c7395Cc609813 | 8 | 0x611ab290422d534D9595b01e648911fefA963137 | Aero |
-| SONYc | Sony Group Corporation (SONY) | 0xb200000000000000000000a26326a922FFA87f6C | 8 | 0x26Dd2AC81eA9a212afC84848893EdC21c5A76FDC | Aerodrome (older factory) |
-| BILIc | Bilibili Inc. (BILI) | 0xb200000000000000000000ca7C6D1438e7245eb6 | 8 | 0x32A3cE6C3a8D6c24C4A51A5cF2869410CbF4D637 | Aerodrome (older factory) |
-| SAPc | SAP SE (SAP) | 0xb200000000000000000000da6F64c306234127E0 | 8 | 0x21313A06B7f8ed38D8bC1fb8Be2fBD847634A6ec | Aerodrome (older factory) |
-| SANc | Banco Santander, S.A. (SAN) | 0xB20000000000000000000017BB66E9301E913A99 | 8 | 0xE531069DF73530bf59c954F3718945D5fAA2e7dF | Aerodrome (older factory) |
-| NOKc | Nokia Oyj (NOK) | 0xB2000000000000000000005ac674f707E357409c | 8 | 0xc541eAc49f32D46C1E2f88952f22215Ef0f2Db71 | Aerodrome (older factory) |
-| PDDc | PDD Holdings Inc. (PDD) | 0xB200000000000000000000c8A7223510467D8563 | 8 | 0x84608BE6d655ee05032303FE7f0D6F3A51c2CF51 | Aerodrome (older factory) |
-| LIc | Li Auto Inc. (LI) | 0xb200000000000000000000D61eFD9F54A23ef9eB | 8 | 0xD71b2D9cB3532477Df77AE26e780963CCe784a0c | Aerodrome (older factory) |
-| BIDUc | Baidu, Inc. (BIDU) | 0xb200000000000000000000d2b7D9aeE52F6C6BEf | 8 | 0xD47b8F13ffC3198148B138D3f07CC89C92042950 | Aerodrome (older factory) |
-| VALEc | Vale S.A. (VALE) | 0xB20000000000000000000063376b142C0764B489 | 8 | 0x0F48336b76ee52Fa6bb19edf5AF358529Df57574 | Aerodrome (older factory) |
-| BUDc | Anheuser-Busch InBev SA/NV (BUD) | 0xB200000000000000000000c36ce081Dd09e86cA2 | 8 | 0x5ee52963d3d33196a47Fad722ABB897E0FA395d9 | Aerodrome (older factory) |
-| NIOc | NIO Inc. (NIO) | 0xb2000000000000000000002D2B5dc53c61f1bA06 | 8 | 0x484cc2CA594ced3fE38362FE950C60cE66f53F6D | Aerodrome (older factory) |
-| ARMc | Arm Holdings plc (ARM) | 0xB20000000000000000000026215D755356E5043f | 8 | 0x9A0F4Fd0766Ccdb792bA58fE631aA7720097623c | Aerodrome (older factory) |
-| INFYc | Infosys Limited (INFY) | 0xb200000000000000000000F6b0417af5F52341FC | 8 | 0x356cC16Fe38A6ad0eB25e655759dD963F8D674BF | Aerodrome (older factory) |
-| ULc | Unilever PLC (UL) | 0xB200000000000000000000349ef3Aa93a0897476 | 8 | 0x013FCB940735d17c81D3B91557aCC62Da723d9D5 | Aerodrome (older factory) |
-| WRDc | WeRide Inc. (WRD) | 0xb200000000000000000000e88EFe88D8aDE3f0dA | 8 | 0xbc440AFf9A79cCed69d5B21c7B71e60BD0278EFB | Aerodrome (older factory) |
-| NVOc | Novo Nordisk A/S (NVO) | 0xb2000000000000000000008D5328e9208773dC58 | 8 | 0xc1ba39D668F14Eee2462CA5877402e4a7c4d1f34 | Aerodrome (older factory) |
-| SEc | Sea Limited (SE) | 0xB2000000000000000000003088798F6d0722AaAC | 8 | 0x0274e5078033cB3fE788cf76bb97150FD9bc4547 | Aerodrome (older factory) |
-| HSAIc | Hesai Group (HSAI) | 0xb200000000000000000000f3049F4aa834b23b64 | 8 | 0xDc8D2C31de17bf4dF00C05E4E132BCEA22F24c3b | Aerodrome (older factory) |
-| ANTc | Anthropic, PBC (ANT) | 0xb20000000000000000000016e38FD364d271Ba28 | 8 | 0x599C4225FE90214795a0be228D20d7680f8CED15 | Aero |
+| NVDAc | NVIDIA Corporation (NVDA) | 0xb20000000000000000000078ee7ce2fE4908108C | 8 | 0xF668e21993f0ACd7ab00BB1cFbAeD0df28A3C8EC | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| AAPLc | Apple Inc. (AAPL) | 0xb200000000000000000000C2e324d24d7eEcd1fb | 8 | 0xF5FCB9CDAFcE67d50AfEf298F88E709d2B946BA6 | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| METAc | Meta Platforms Inc. (META) | 0xb2000000000000000000008bC8786B856E61707C | 8 | 0xd072410fa13D242e1d53721Bcf7AF02e3455DC96 | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| GOOGLc | Alphabet Inc. (GOOGL) | 0xb2000000000000000000002D0BA3164cc74f58B7 | 8 | 0x16c70F04C3080a127486Cdf5a4C33c066bBF47C3 | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| AMZNc | Amazon.com, Inc. (AMZN) | 0xb200000000000000000000d9192b6B456483C2E8 | 8 | 0x532e0F46d1e528507FC9454d5847C231f23bDDf6 | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| MSFTc | Microsoft Corporation (MSFT) | 0xB200000000000000000000Ab99cFa739E253872B | 8 | 0x2740C0faAb738F6e346e545fDE02aEF9B1A01ee7 | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| MSTRc | Strategy Inc (MSTR) | 0xb2000000000000000000004884b426556b92883d | 8 | 0x66DCd42E6314B287110922AE36cB2a8bdEECc153 | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| SNDKc | Sandisk Corporation (SNDK) | 0xb200000000000000000000397293Cb8cda9a10c5 | 8 | 0x2836e062a3fe75943a7F4A552E2365b98E414E75 | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| SPCXc | Space Exploration Technologies Corp. (SPCX) | 0xb2000000000000000000007b9fcbd005511aCBd5 | 8 | 0x880dB7Dda4407D99508574E680d067D1164B3cFE | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| TSLAc | Tesla, Inc. (TSLA) | 0xb2000000000000000000001e800a7f5189430cD0 | 8 | 0x7A33000372f3F028f074182CCb9d16cBEEfBF920 | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| PLTRc | Palantir Technologies Inc. (PLTR) | 0xb2000000000000000000007d16372840dF4dAbbe | 8 | 0xA0473ceD0cd1bfB857e3E04B5FA4b6aF18C5e44d | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| MUc | Micron Technology Inc. (MU) | 0xb200000000000000000000Fd2f87532B90095211 | 8 | 0x41e21950362B1014bC629252ecFFF8fcA5F1646C | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| NFLXc | Netflix, Inc. (NFLX) | 0xb20000000000000000000058B8c947e44011dFE6 | 8 | 0x67Ba8dBeDC6D7f93f0F5967Aa2420715f1edC756 | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| SKHYc | SK hynix Inc. (SKHY) | 0xb200000000000000000000187f7071D6E321a7d2 | 8 | 0xEBC746A47ebb274de1dbDC9a465E6C5C2301C5DA | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| HIMSc | Hims & Hers Health, Inc. (HIMS) | 0xB20000000000000000000043a599976181Bcf336 | 8 | 0x41D7793FAa4Ca181B6f021423fF3F9015C00b2ff | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| ORCLc | Oracle Corporation (ORCL) | 0xb200000000000000000000347AFbA223D7B6b63C | 8 | 0x62B5452E80E50B047dcF6dd3Fb6a1D266C678eB5 | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| AMDc | Advanced Micro Devices, Inc. (AMD) | 0xB2000000000000000000000d8Ce462E99ee7A47B | 8 | 0x138Cb591C4A7D854D796E1906af8228d84CB7642 | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| AVGOc | Broadcom Inc. (AVGO) | 0xB200000000000000000000Fc737aeA6196aB5a4c | 8 | 0x086A1447D0851F0aeA9D09D6c547fEC8E97be413 | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| LLYc | Eli Lilly and Company (LLY) | 0xB200000000000000000000f1a0F91e34892E4718 | 8 | 0x2b7ee4623ec6AfbC1e587b2668c0ED8F3ff44949 | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| MRVLc | Marvell Technology, Inc. (MRVL) | 0xB200000000000000000000eC3c4c7395Cc609813 | 8 | 0x611ab290422d534D9595b01e648911fefA963137 | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
+| SONYc | Sony Group Corporation (SONY) | 0xb200000000000000000000a26326a922FFA87f6C | 8 | 0x26Dd2AC81eA9a212afC84848893EdC21c5A76FDC | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| BILIc | Bilibili Inc. (BILI) | 0xb200000000000000000000ca7C6D1438e7245eb6 | 8 | 0x32A3cE6C3a8D6c24C4A51A5cF2869410CbF4D637 | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| SAPc | SAP SE (SAP) | 0xb200000000000000000000da6F64c306234127E0 | 8 | 0x21313A06B7f8ed38D8bC1fb8Be2fBD847634A6ec | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| SANc | Banco Santander, S.A. (SAN) | 0xB20000000000000000000017BB66E9301E913A99 | 8 | 0xE531069DF73530bf59c954F3718945D5fAA2e7dF | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| NOKc | Nokia Oyj (NOK) | 0xB2000000000000000000005ac674f707E357409c | 8 | 0xc541eAc49f32D46C1E2f88952f22215Ef0f2Db71 | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| PDDc | PDD Holdings Inc. (PDD) | 0xB200000000000000000000c8A7223510467D8563 | 8 | 0x84608BE6d655ee05032303FE7f0D6F3A51c2CF51 | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| LIc | Li Auto Inc. (LI) | 0xb200000000000000000000D61eFD9F54A23ef9eB | 8 | 0xD71b2D9cB3532477Df77AE26e780963CCe784a0c | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| BIDUc | Baidu, Inc. (BIDU) | 0xb200000000000000000000d2b7D9aeE52F6C6BEf | 8 | 0xD47b8F13ffC3198148B138D3f07CC89C92042950 | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| VALEc | Vale S.A. (VALE) | 0xB20000000000000000000063376b142C0764B489 | 8 | 0x0F48336b76ee52Fa6bb19edf5AF358529Df57574 | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| BUDc | Anheuser-Busch InBev SA/NV (BUD) | 0xB200000000000000000000c36ce081Dd09e86cA2 | 8 | 0x5ee52963d3d33196a47Fad722ABB897E0FA395d9 | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| NIOc | NIO Inc. (NIO) | 0xb2000000000000000000002D2B5dc53c61f1bA06 | 8 | 0x484cc2CA594ced3fE38362FE950C60cE66f53F6D | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| ARMc | Arm Holdings plc (ARM) | 0xB20000000000000000000026215D755356E5043f | 8 | 0x9A0F4Fd0766Ccdb792bA58fE631aA7720097623c | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| INFYc | Infosys Limited (INFY) | 0xb200000000000000000000F6b0417af5F52341FC | 8 | 0x356cC16Fe38A6ad0eB25e655759dD963F8D674BF | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| ULc | Unilever PLC (UL) | 0xB200000000000000000000349ef3Aa93a0897476 | 8 | 0x013FCB940735d17c81D3B91557aCC62Da723d9D5 | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| WRDc | WeRide Inc. (WRD) | 0xb200000000000000000000e88EFe88D8aDE3f0dA | 8 | 0xbc440AFf9A79cCed69d5B21c7B71e60BD0278EFB | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| NVOc | Novo Nordisk A/S (NVO) | 0xb2000000000000000000008D5328e9208773dC58 | 8 | 0xc1ba39D668F14Eee2462CA5877402e4a7c4d1f34 | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| SEc | Sea Limited (SE) | 0xB2000000000000000000003088798F6d0722AaAC | 8 | 0x0274e5078033cB3fE788cf76bb97150FD9bc4547 | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| HSAIc | Hesai Group (HSAI) | 0xb200000000000000000000f3049F4aa834b23b64 | 8 | 0xDc8D2C31de17bf4dF00C05E4E132BCEA22F24c3b | Aerodrome (older factory), 0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef |
+| ANTc | Anthropic, PBC (ANT) | 0xb20000000000000000000016e38FD364d271Ba28 | 8 | 0x599C4225FE90214795a0be228D20d7680f8CED15 | Aero, 0x9CB220581b91b0C83223012FE69688b92aD07a76 |
 
 ## Site routes
 

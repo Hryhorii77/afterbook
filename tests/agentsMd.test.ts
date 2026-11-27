@@ -7,6 +7,11 @@ import { buildAgentsMd, buildLlmsTxt, SITE_ROUTES } from '@/lib/agent/agentsMd';
 import { FREE_KEY, MCP_URL, PAID, TOOLS } from '@/lib/agent/agentDirectory';
 import { AERO_CL_FACTORY, CL_FACTORY, STOCKS, USDC } from '@/lib/stocks/tokens';
 import { BUILDER_CODE } from '@/lib/wallet/builderCode';
+import { KYBER_ROUTER, MAX_BUY_DEPTH_SHARE, MAX_SWAP_USD } from '@/lib/swap/swap';
+import { AAVE_MAG7_SPOKE } from '@/lib/lending/aaveBorrow';
+import { PLAN_DEFAULTS, PLAN_LIMITS } from '@/lib/agent/limits';
+import { RATE_LIMITS, READ_LIMITS } from '@/lib/server/rateLimits';
+import { MCP_EXAMPLES, MCP_INPUTS } from '@/lib/agent/mcpTools';
 import { GET as getAgentsMd } from '@/app/AGENTS.md/route';
 import { GET as getLlmsTxt } from '@/app/llms.txt/route';
 
@@ -21,6 +26,9 @@ describe('AGENTS.md', () => {
       expect(row, s.symbol).toBeDefined();
       expect(row).toContain(s.tokenAddress);
       expect(row).toContain(s.pool.address);
+      // The factory's name and address, so an agent can tell which exchange made the pool.
+      expect(row).toContain(s.pool.factory);
+      expect(row).toMatch(s.pool.factory === AERO_CL_FACTORY ? /\| Aero, 0x/ : /\| Aerodrome \(older factory\), 0x/);
     }
     expect(md).toContain(`## Tracked stocks and pools (${STOCKS.length})`);
   });
@@ -36,6 +44,47 @@ describe('AGENTS.md', () => {
     expect(md).toContain(FREE_KEY.issue);
     expect(md).toContain(BUILDER_CODE);
     expect(BUILDER_CODE).toBe('bc_hebg61t4');
+  });
+
+  it('names the only approval spenders, with Basescan links', () => {
+    for (const a of [KYBER_ROUTER, AAVE_MAG7_SPOKE, USDC.address, AERO_CL_FACTORY, CL_FACTORY]) {
+      expect(md).toContain(`[${a}](https://basescan.org/address/${a})`);
+    }
+  });
+
+  it("defines the cost limit and the size cap with the code's numbers", () => {
+    expect(md).toContain('Cost limit (maxCostBp)');
+    expect(md).toContain(`Default ${PLAN_DEFAULTS.maxCostBp} bp`);
+    expect(md).toContain(`at most ${PLAN_LIMITS.maxCostBp} bp`);
+    const cap = `the lower of $${MAX_SWAP_USD.toLocaleString('en-US')} and ${Math.round(MAX_BUY_DEPTH_SHARE * 100)}% of its pool's live depth`;
+    expect(md).toContain(`Size cap: every buy, whatever the budget, is capped at ${cap}.`);
+    expect(md).toContain(`A stock buy is capped at ${cap}.`);
+  });
+
+  it("shows every MCP tool's inputs from its schema, with an example the schema accepts", () => {
+    expect(Object.keys(MCP_INPUTS).sort()).toEqual(TOOLS.map((t) => t.name).sort());
+    for (const t of TOOLS) {
+      const name = t.name as keyof typeof MCP_INPUTS;
+      const section = md.split(`#### ${name}\n`)[1]?.split('\n#### ')[0].split('\n### ')[0];
+      expect(section, name).toBeDefined();
+      for (const key of Object.keys(MCP_INPUTS[name].shape)) expect(section, `${name}.${key}`).toContain(`- \`${key}\` (`);
+      expect(MCP_INPUTS[name].safeParse(MCP_EXAMPLES[name]).success, `${name} example`).toBe(true);
+      expect(section).toContain(`Example: \`${JSON.stringify({ name, arguments: MCP_EXAMPLES[name] })}\``);
+    }
+  });
+
+  it('states the rate limits from the limiters and what a caller gets when one is hit', () => {
+    const table = md.split('### Rate limits\n')[1]?.split('\n## ')[0] ?? '';
+    expect(table).toContain(`| MCP make_plan, make_basket | ${RATE_LIMITS.mcpPlan.tokens} a minute per caller`);
+    expect(table).toContain(`at most ${RATE_LIMITS.planLinkDay.tokens} saved plan links a day`);
+    expect(table).toContain(`| GET /api/v1/tape | ${RATE_LIMITS.apiTape.tokens} a second per key`);
+    expect(table).toContain(`| POST /api/v1/keys | ${RATE_LIMITS.apiKeys.tokens} a day per IP`);
+    expect(table).toContain(`| MCP check_loan_health, make_rescue_link | ${READ_LIMITS.lots.tokens} a minute per IP`);
+    expect(table).toContain(`${READ_LIMITS.read.tokens} a minute per IP for most`);
+    expect(table).toContain(`${READ_LIMITS.basename.tokens} a minute for /api/basename`);
+    expect(table).toContain('HTTP 429');
+    expect(table).toContain('Retry-After');
+    expect(table).toContain('a 429 is not charged');
   });
 
   it('says the safety rules', () => {
